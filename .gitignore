@@ -1,0 +1,28 @@
+# ---- Android / Gradle ----
+*.iml
+.gradle/
+/build
+/captures
+.kotlin/
+.externalNativeBuild
+.cxx
+local.properties
+
+# ---- IDE ----
+.idea/
+.DS_Store
+
+# ---- Secrets: never commit ----
+google-services.json
+keystore.properties
+*.jks
+*.keystore
+.env
+.env.*
+
+# ---- Tooling artifacts ----
+.freebuff/
+.dsh-office-*/
+
+# ---- Logs ----
+*.log

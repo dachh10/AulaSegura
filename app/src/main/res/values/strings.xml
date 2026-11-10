@@ -1,0 +1,12 @@
+<resources>
+    <string name="app_name">AulaSegura</string>
+    <string name="titulo_mensajes">Mensajes</string>
+    <string name="btn_nuevo_mensaje">Nuevo mensaje</string>
+    <string name="placeholder_busqueda">Buscar familia o alumno</string>
+    <string name="chip_todos">Todos</string>
+    <string name="chip_3b">3° B</string>
+    <string name="chip_3a">3° A</string>
+    <string name="chip_2c">2° C</string>
+    <string name="chat_sin_leer">1</string>
+    <string name="chat_sin_leer_2">2</string>
+</resources>

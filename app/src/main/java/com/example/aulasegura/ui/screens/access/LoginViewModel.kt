@@ -33,7 +33,8 @@ class LoginViewModel(
     fun signIn(email: String, password: String) {
         if (_uiState.value.isLoading) return
 
-        if (email.isBlank() || password.isBlank()) {
+        val trimmedEmail = email.trim()
+        if (trimmedEmail.isBlank() || password.isBlank()) {
             _uiState.update { it.copy(errorMessage = "Completa correo y contraseña") }
             return
         }
@@ -41,7 +42,7 @@ class LoginViewModel(
         _uiState.update { it.copy(isLoading = true, errorMessage = null) }
 
         viewModelScope.launch {
-            when (val result = authRepository.signIn(email, password)) {
+            when (val result = authRepository.signIn(trimmedEmail, password)) {
                 is AuthResult.Success -> _uiState.update {
                     it.copy(isLoading = false, authenticatedRole = result.user.role)
                 }

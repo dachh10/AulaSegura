@@ -43,6 +43,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -64,10 +65,12 @@ import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.aulasegura.ui.components.AulaField
 import com.example.aulasegura.ui.components.PillButton
 import com.example.aulasegura.ui.components.ShieldPattern
@@ -107,9 +110,14 @@ private sealed interface ForgotState {
 fun ForgotPasswordScreen(
     onBack: () -> Unit,
     onBackToLogin: () -> Unit,
+    viewModel: ForgotPasswordViewModel = viewModel(),
 ) {
-    var state by remember { mutableStateOf<ForgotState>(ForgotState.Request) }
-    var email by remember { mutableStateOf("ana.sanchez@correo.com") }
+    val uiState by viewModel.uiState.collectAsState()
+    var email by remember { mutableStateOf("") }
+
+    val state: ForgotState = uiState.sentTo
+        ?.let { ForgotState.Sent(it) }
+        ?: ForgotState.Request
 
     Box(
         modifier = Modifier
@@ -152,7 +160,9 @@ fun ForgotPasswordScreen(
                     is ForgotState.Request -> RequestState(
                         email = email,
                         onEmailChange = { email = it },
-                        onSend = { state = ForgotState.Sent(email) },
+                        onSend = { viewModel.sendResetEmail(email) },
+                        isLoading = uiState.isLoading,
+                        errorMessage = uiState.errorMessage,
                         onBackToLogin = onBackToLogin,
                     )
                     is ForgotState.Sent -> SentState(
@@ -256,6 +266,8 @@ private fun RequestState(
     email: String,
     onEmailChange: (String) -> Unit,
     onSend: () -> Unit,
+    isLoading: Boolean = false,
+    errorMessage: String? = null,
     onBackToLogin: () -> Unit,
 ) {
     Column(
@@ -345,10 +357,22 @@ private fun RequestState(
         // Send button — coral (#FC6955)
         Reveal(delayMillis = 180) {
             PillButton(
-                text = "Enviar enlace →",
-                onClick = onSend,
+                text = if (isLoading) "Enviando…" else "Enviar enlace →",
+                onClick = { if (!isLoading) onSend() },
                 containerColor = SecondaryContainer,
                 contentColor = Color.White,
+                modifier = Modifier.fillMaxWidth(),
+            )
+        }
+
+        if (errorMessage != null) {
+            Spacer(Modifier.height(12.dp))
+            Text(
+                text = errorMessage,
+                fontFamily = DmSans,
+                fontSize = 13.sp,
+                color = Color(0xFFB3261E),
+                textAlign = TextAlign.Center,
                 modifier = Modifier.fillMaxWidth(),
             )
         }

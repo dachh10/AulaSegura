@@ -11,6 +11,9 @@ import com.google.firebase.auth.FirebaseAuthInvalidCredentialsException
 import com.google.firebase.auth.FirebaseAuthInvalidUserException
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.FirebaseFirestoreException
+import kotlinx.coroutines.channels.awaitClose
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.callbackFlow
 import kotlinx.coroutines.tasks.await
 
 /**
@@ -50,6 +53,26 @@ class AuthRepositoryImpl(
 
     override fun signOut() {
         auth.signOut()
+    }
+
+    override fun observeAccountActive(): Flow<Boolean> = callbackFlow {
+        val uid = auth.currentUser?.uid
+        if (uid == null) {
+            close()
+            return@callbackFlow
+        }
+
+        val registration = firestore.collection(USERS).document(uid)
+            .addSnapshotListener { snapshot, error ->
+                // A failed read means "unknown", not "deactivated". Staying silent
+                // is the only safe behaviour: never sign out on a network hiccup.
+                if (error != null || snapshot == null || !snapshot.exists()) {
+                    return@addSnapshotListener
+                }
+                trySend(snapshot.getBoolean(FIELD_ACTIVE) ?: true)
+            }
+
+        awaitClose { registration.remove() }
     }
 
     private suspend fun resolveProfile(): AuthResult {

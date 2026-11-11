@@ -92,6 +92,26 @@ fun AulaSeguraNavHost(
     sessionViewModel: SessionViewModel = viewModel(),
     loginViewModel: LoginViewModel = viewModel(),
 ) {
+    val sessionState by sessionViewModel.state.collectAsState()
+
+    // Single place that reacts to a lost session: logout from any role, or a
+    // deactivated account being ejected while it is already inside the app.
+    LaunchedEffect(sessionState) {
+        if (sessionState !is SessionState.SignedOut) return@LaunchedEffect
+        val route = navController.currentBackStackEntry?.destination?.route
+        val isAccessRoute = route == null ||
+            route == Routes.SPLASH ||
+            route == Routes.ONBOARDING ||
+            route == Routes.LOGIN ||
+            route == Routes.FORGOT_PASSWORD ||
+            route == Routes.CHECK_EMAIL ||
+            route == Routes.PERMISSIONS
+        if (isAccessRoute) return@LaunchedEffect
+        navController.navigate(Routes.LOGIN) {
+            popUpTo(navController.graph.id) { inclusive = true }
+        }
+    }
+
     NavHost(
         navController = navController,
         startDestination = Routes.SPLASH,
@@ -144,6 +164,7 @@ fun AulaSeguraNavHost(
 
             LaunchedEffect(uiState.authenticatedRole) {
                 val role = uiState.authenticatedRole ?: return@LaunchedEffect
+                sessionViewModel.onSignedIn(role)
                 loginViewModel.consumeNavigation()
                 navController.navigate(role.homeRoute()) {
                     popUpTo(Routes.LOGIN) { inclusive = true }
@@ -262,12 +283,7 @@ fun AulaSeguraNavHost(
         composable(Routes.PARENT_PROFILE) {
             ParentProfileScreen(
                 onSelectTab = { navController.openParentTab(it) },
-                onLogout = {
-                    sessionViewModel.signOut()
-                    navController.navigate(Routes.LOGIN) {
-                        popUpTo(Routes.PARENT_HOME) { inclusive = true }
-                    }
-                },
+                onLogout = { sessionViewModel.signOut() },
                 onOpenPermissions = { navController.navigate(Routes.PERMISSIONS) },
             )
         }
@@ -410,12 +426,7 @@ fun AulaSeguraNavHost(
         composable(Routes.TEACHER_PROFILE) {
             TeacherProfileScreen(
                 onSelectTab = { navController.openTeacherTab(it) },
-                onLogout = {
-                    sessionViewModel.signOut()
-                    navController.navigate(Routes.LOGIN) {
-                        popUpTo(Routes.TEACHER_HOME) { inclusive = true }
-                    }
-                },
+                onLogout = { sessionViewModel.signOut() },
             )
         }
 
@@ -516,12 +527,7 @@ fun AulaSeguraNavHost(
         }
         composable(Routes.ADMIN_PROFILE) {
             AdminProfileScreen(
-                onLogout = {
-                    sessionViewModel.signOut()
-                    navController.navigate(Routes.LOGIN) {
-                        popUpTo(Routes.ADMIN_DASHBOARD) { inclusive = true }
-                    }
-                },
+                onLogout = { sessionViewModel.signOut() },
                 onBack = { navController.popBackStack() },
                 onPanel = { navController.navigate(Routes.ADMIN_DASHBOARD) },
                 onUsuarios = { navController.navigate(Routes.ADMIN_USERS) },

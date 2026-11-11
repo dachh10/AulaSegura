@@ -1,6 +1,7 @@
 package com.example.aulasegura.domain.repository
 
 import com.example.aulasegura.domain.model.AppUser
+import kotlinx.coroutines.flow.Flow
 
 /**
  * Authentication contract.
@@ -18,6 +19,14 @@ interface AuthRepository {
 
     /** Resolves the persisted session, if any. Used by Splash. */
     suspend fun restoreSession(): AuthResult
+
+    /**
+     * Watches `users/{uid}.active` while a session is open.
+     *
+     * Emits only on an explicit document value; a read failure emits nothing so
+     * a flaky network never signs anybody out by mistake.
+     */
+    fun observeAccountActive(): Flow<Boolean>
 
     fun signOut()
 }

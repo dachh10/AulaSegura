@@ -196,6 +196,8 @@ Es el rol donde vive el producto y donde vive el riesgo:
 
 Sin esto no empieza ningún rol.
 
+> Checklist paso a paso, con el estado de cada ítem: **`FASE0.md`**.
+
 | # | Tarea | Entregable | Responsable |
 |---|---|---|---|
 | 0.1 | Crear proyecto Firebase (dev) y agregar `google-services.json` fuera de git | App conectada, build verde | Diego |

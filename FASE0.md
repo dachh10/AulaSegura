@@ -124,14 +124,41 @@ Tests automatizados del bloque: `.\gradlew.bat :app:testDebugUnitTest` (10 tests
 
 ## Bloque E — Room
 
-- [ ] **E1** Agregar KSP al catálogo y al módulo
-- [ ] **E2** `data/local/AulaSeguraDatabase.kt`
-- [ ] **E3** Entidades: `GroupEntity`, `StudentEntity`, `AttendanceSessionEntity`, `AttendanceRecordEntity`, `IncidentDraftEntity`, `IncidentMediaEntity`, `NoticeEntity`, `TaskEntity`, `OutboxEntity`
-- [ ] **E4** DAOs con `Flow` de lectura
-- [ ] **E5** Converters de fechas (`Long` ↔ `Timestamp`)
-- [ ] **E6** Test de instrumentación: insertar y leer una entidad
+- [x] **E1** Agregar KSP al catálogo y al módulo · KSP `2.3.13`, Room `2.8.5`, `ksp` plugin + `room.schemaLocation`
+- [x] **E2** `data/local/AulaSeguraDatabase.kt` · 9 entidades, `exportSchema = true`, sin destructive migration
+- [x] **E3** Entidades: `GroupEntity`, `StudentEntity`, `AttendanceSessionEntity`, `AttendanceRecordEntity`, `IncidentDraftEntity`, `IncidentMediaEntity`, `NoticeEntity`, `TaskEntity`, `OutboxEntity`
+- [x] **E4** DAOs con `Flow` de lectura · `GroupDao`, `StudentDao`, `AttendanceDao`, `IncidentDao`, `NoticeDao`, `TaskDao`, `OutboxDao`
+- [x] **E5** Converters de fechas (`Long` ↔ `Timestamp`) · `Converters` + `mapper/TimestampMappers.kt`
+- [x] **E6** Test de instrumentación: insertar y leer una entidad · 4 tests verdes en device `65d5dd78`
 
 **Criterio:** la app arranca sin red y lee grupos desde Room.
+
+**Cómo probarlo**
+
+```powershell
+$env:JAVA_HOME="C:\Program Files\Android\Android Studio\jbr"
+cd C:\Users\diego\AndroidStudioProjects\AulaSegura
+.\gradlew.bat :app:connectedDebugAndroidTest --console=plain
+```
+
+**Resultado real:** `AulaSeguraDatabaseTest` → 4 tests, 0 fallos (insertar/leer grupo,
+converters de `List<String>` + `SyncState`, merge por alumno, orden y reintentos de la outbox).
+`testDebugUnitTest` sigue verde con los 10 tests del bloque C.
+
+> **Decisiones que quedan anotadas:**
+> - Las entidades guardan timestamps como `Long` (epoch ms). El tipo
+>   `com.google.firebase.Timestamp` solo aparece en `mapper/TimestampMappers.kt`, así
+>   la base se puede testear sin sesión de Firebase.
+> - Los `List<String>` (`teacherIds`, `tutorIds`, `groupIds`, `audienceRoles`) se
+>   guardan con un separador `U+001F` y **no se pueden filtrar en SQL**. Todo filtro
+>   por profesor/tutor se hace en memoria después de una lectura indexada. Una tabla
+>   de unión queda fuera de la Fase 0.
+> - `attachmentsJson` guarda el array de mapas de tareas y avisos como JSON, porque
+>   SQLite no tiene listas de mapas.
+> - Room 2.8.5 con KSP `2.3.13` obliga a compilar con **Java 17**; se subió
+>   `compileOptions` de 11 a 17.
+> - No se puso `fallbackToDestructiveMigration`: borrar la outbox en silencio
+>   perdería un pase de lista hecho sin red.
 
 ---
 

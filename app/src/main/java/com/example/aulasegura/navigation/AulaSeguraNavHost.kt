@@ -14,6 +14,12 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextAlign
@@ -22,12 +28,16 @@ import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
+import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.aulasegura.ui.components.ParentTab
 import com.example.aulasegura.ui.components.TeacherTab
 import com.example.aulasegura.ui.screens.access.ForgotPasswordScreen
 import com.example.aulasegura.ui.screens.access.LoginScreen
+import com.example.aulasegura.ui.screens.access.LoginViewModel
 import com.example.aulasegura.ui.screens.access.OnboardingScreen
 import com.example.aulasegura.ui.screens.access.PermissionsScreen
+import com.example.aulasegura.ui.screens.access.SessionState
+import com.example.aulasegura.ui.screens.access.SessionViewModel
 import com.example.aulasegura.ui.screens.access.SplashScreen
 import com.example.aulasegura.ui.screens.admin.AdminDashboardScreen
 import com.example.aulasegura.ui.screens.admin.AdminCampusScreen
@@ -79,6 +89,8 @@ import com.example.aulasegura.ui.screens.teacher.TeacherTaskNewScreen
 @Composable
 fun AulaSeguraNavHost(
     navController: NavHostController = rememberNavController(),
+    sessionViewModel: SessionViewModel = viewModel(),
+    loginViewModel: LoginViewModel = viewModel(),
 ) {
     NavHost(
         navController = navController,
@@ -96,13 +108,27 @@ fun AulaSeguraNavHost(
     ) {
         // ---- Access ----
         composable(Routes.SPLASH) {
-            SplashScreen(
-                onFinished = {
-                    navController.navigate(Routes.ONBOARDING) {
-                        popUpTo(Routes.SPLASH) { inclusive = true }
-                    }
-                },
-            )
+            val sessionState by sessionViewModel.state.collectAsState()
+            var splashFinished by remember { mutableStateOf(false) }
+
+            LaunchedEffect(Unit) { sessionViewModel.resolveSession() }
+
+            // Navigate only when both conditions are met: the splash animation
+            // finished AND the persisted session was resolved. Navigating on the
+            // animation alone would send an already signed-in user to onboarding.
+            LaunchedEffect(sessionState, splashFinished) {
+                if (!splashFinished) return@LaunchedEffect
+                val target = when (val state = sessionState) {
+                    SessionState.Resolving -> return@LaunchedEffect
+                    SessionState.SignedOut -> Routes.ONBOARDING
+                    is SessionState.SignedIn -> state.role.homeRoute()
+                }
+                navController.navigate(target) {
+                    popUpTo(Routes.SPLASH) { inclusive = true }
+                }
+            }
+
+            SplashScreen(onFinished = { splashFinished = true })
         }
         composable(Routes.ONBOARDING) {
             OnboardingScreen(
@@ -114,30 +140,20 @@ fun AulaSeguraNavHost(
             )
         }
         composable(Routes.LOGIN) {
+            val uiState by loginViewModel.uiState.collectAsState()
+
+            LaunchedEffect(uiState.authenticatedRole) {
+                val role = uiState.authenticatedRole ?: return@LaunchedEffect
+                loginViewModel.consumeNavigation()
+                navController.navigate(role.homeRoute()) {
+                    popUpTo(Routes.LOGIN) { inclusive = true }
+                }
+            }
+
             LoginScreen(
-                onLogin = { email, password ->
-                    // Padre / familia
-                    if (email == "carlos.gomez@familia.mx" && password == "AulaSegura#2024") {
-                        navController.navigate(Routes.PARENT_HOME) {
-                            popUpTo(Routes.LOGIN) { inclusive = true }
-                        }
-                        true
-                    // Docente
-                    } else if (email == "docente@aulasegura.com" && password == "123456") {
-                        navController.navigate(Routes.TEACHER_HOME) {
-                            popUpTo(Routes.LOGIN) { inclusive = true }
-                        }
-                        true
-                    // Directora / administración
-                    } else if (email == "directora@escuela.mx" && password == "123456") {
-                        navController.navigate(Routes.ADMIN_DASHBOARD) {
-                            popUpTo(Routes.LOGIN) { inclusive = true }
-                        }
-                        true
-                    } else {
-                        false
-                    }
-                },
+                isLoading = uiState.isLoading,
+                errorMessage = uiState.errorMessage,
+                onLogin = loginViewModel::signIn,
                 onForgotPassword = { navController.navigate(Routes.FORGOT_PASSWORD) },
             )
         }
@@ -247,6 +263,7 @@ fun AulaSeguraNavHost(
             ParentProfileScreen(
                 onSelectTab = { navController.openParentTab(it) },
                 onLogout = {
+                    sessionViewModel.signOut()
                     navController.navigate(Routes.LOGIN) {
                         popUpTo(Routes.PARENT_HOME) { inclusive = true }
                     }
@@ -394,6 +411,7 @@ fun AulaSeguraNavHost(
             TeacherProfileScreen(
                 onSelectTab = { navController.openTeacherTab(it) },
                 onLogout = {
+                    sessionViewModel.signOut()
                     navController.navigate(Routes.LOGIN) {
                         popUpTo(Routes.TEACHER_HOME) { inclusive = true }
                     }
@@ -499,6 +517,7 @@ fun AulaSeguraNavHost(
         composable(Routes.ADMIN_PROFILE) {
             AdminProfileScreen(
                 onLogout = {
+                    sessionViewModel.signOut()
                     navController.navigate(Routes.LOGIN) {
                         popUpTo(Routes.ADMIN_DASHBOARD) { inclusive = true }
                     }

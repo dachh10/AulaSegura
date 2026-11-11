@@ -83,13 +83,14 @@ private val FieldBorder = Color(0xFFE6E1D8)
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun LoginScreen(
-    onLogin: (email: String, password: String) -> Boolean,
+    isLoading: Boolean = false,
+    errorMessage: String? = null,
+    onLogin: (email: String, password: String) -> Unit,
     onForgotPassword: () -> Unit,
 ) {
     var email by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
     var passwordVisible by remember { mutableStateOf(false) }
-    var loginFailed by remember { mutableStateOf(false) }
 
     Box(
         modifier = Modifier
@@ -198,16 +199,14 @@ fun LoginScreen(
                         }
 
                         PillButton(
-                            text = "Iniciar sesión",
-                            onClick = {
-                                loginFailed = !onLogin(email, password)
-                            },
+                            text = if (isLoading) "Ingresando…" else "Iniciar sesión",
+                            onClick = { if (!isLoading) onLogin(email, password) },
                             modifier = Modifier.padding(top = 4.dp),
                         )
 
-                        if (loginFailed) {
+                        if (errorMessage != null) {
                             Text(
-                                text = "Correo o contraseña incorrectos",
+                                text = errorMessage,
                                 color = Error,
                                 fontFamily = DmSans,
                                 fontSize = 12.sp,
@@ -248,7 +247,7 @@ fun LoginScreen(
 
                         GooglePillButton(
                             text = "Continuar con Google",
-                            onClick = { loginFailed = !onLogin(email, password) },
+                            onClick = { if (!isLoading) onLogin(email, password) },
                         )
                     }
                 }

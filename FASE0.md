@@ -85,14 +85,40 @@ Tests automatizados del bloque: `.\gradlew.bat :app:testDebugUnitTest` (10 tests
 
 ## Bloque D — Firestore: reglas e índices
 
-- [ ] **D1** `docs/firestore.rules` con el esquema de `CONTEXT.md` §6.4
-- [ ] **D2** `docs/firestore.indexes.json` con los índices de §6.3
-- [ ] **D3** `firebase.json` + `.firebaserc` para apuntar a `aulasegu`
-- [ ] **D4** Publicar reglas: `firebase deploy --only firestore:rules`
-- [ ] **D5** Publicar índices: `firebase deploy --only firestore:indexes`
-- [ ] **D6** Probar en el emulador los casos permitidos y los denegados
+- [x] **D1** `docs/firestore.rules` con el esquema de `CONTEXT.md` §6.4
+- [x] **D2** `docs/firestore.indexes.json` con los índices de §6.3
+- [x] **D3** `firebase.json` + `.firebaserc` para apuntar a `aulasegu`
+- [x] **D4** Publicar reglas: `firebase deploy --only firestore:rules`
+- [x] **D5** Publicar índices: `firebase deploy --only firestore:indexes`
+- [x] **D6** Probar casos permitidos y denegados (hecho por API con tokens reales)
 
 **Criterio:** un docente no puede leer incidentes de otro plantel; un tutor solo ve a sus hijos.
+
+**Verificado contra el servicio real** (tokens de las tres cuentas, no emulador):
+
+| Prueba | Resultado |
+|---|---|
+| Docente lee su propio perfil | ✅ permitido |
+| Docente lee perfil de otro usuario | ❌ denegado (403) |
+| Docente lee alumnos de un grupo suyo | ✅ permitido |
+| Docente lista todo el plantel de alumnos | ❌ denegado |
+| Tutor lee alumnos donde está en `tutorIds` | ✅ permitido (solo los suyos) |
+| Tutor lee alumnos por `groupId` | ❌ denegado |
+| Directivo lee perfiles y alumnos de su plantel | ✅ permitido |
+| Directivo consulta otro `schoolId` | ❌ denegado |
+| Sin sesión (`users`) | ❌ denegado |
+
+> **Regla de oro de las consultas:** Firestore **no filtra** con las reglas. Toda
+> consulta de lista tiene que llevar el mismo filtro que la regla exige
+> (`whereEqualTo("groupId", …)`, `whereEqualTo("schoolId", …)`, `whereArrayContains("tutorIds", uid)`).
+> Una consulta sin ese filtro devuelve `PERMISSION_DENIED` aunque el documento
+> exista y el usuario tenga permiso sobre él.
+
+> **Decisión de esquema que tomé (y hay que respetar):** `users/{uid}.groupIds`
+> guarda los grupos que dicta un **docente** y los grupos de sus hijos en el caso
+> de un **tutor**. Sin esa denormalización la pregunta "¿puede este tutor leer la
+> tarea de 3° B?" no se puede expresar: las reglas no pueden recorrer
+> `studentIds → groupId`. El flujo de vinculación tiene que mantenerla al día.
 
 ---
 

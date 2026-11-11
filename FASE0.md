@@ -48,22 +48,38 @@ cd C:\Users\diego\AndroidStudioProjects\AulaSegura
 
 ## Bloque C — Authentication real
 
-- [ ] **C1** Crear las 3 cuentas demo · Authentication → Users → Add user
+- [x] **C1** Crear las 3 cuentas demo · Authentication → Users → Add user
       `docente@aulasegura.com` / `123456`
       `directora@escuela.mx` / `123456`
       `carlos.gomez@familia.mx` / `AulaSegura#2024`
-- [ ] **C2** Crear el documento `users/{uid}` de cada cuenta (rol, nombre, schoolId)
-- [ ] **C3** `domain/repository/AuthRepository.kt` — interfaz: `signIn`, `signOut`, `currentUser`, `observeSession`
-- [ ] **C4** `data/repository/AuthRepositoryImpl.kt` — `FirebaseAuth` + lectura de rol desde Firestore
-- [ ] **C5** `ui/screens/access/LoginViewModel.kt` — `UiState` con loading / error / success
-- [ ] **C6** Cablear `LoginScreen` al ViewModel (quitar la comparación de strings del NavHost)
-- [ ] **C7** `SplashScreen`: sesión activa → `uid → role → grafo`; sin sesión → `LOGIN`
-- [ ] **C8** Logout desde Perfil de los tres roles
-- [ ] **C9** Recuperar contraseña con `sendPasswordResetEmail`
-- [ ] **C10** Usuario `active = false` → cierre de sesión forzado
+- [x] **C2** Crear el documento `users/{uid}` de cada cuenta (rol, nombre, schoolId)
+- [x] **C3** `domain/repository/AuthRepository.kt` — interfaz: `signIn`, `signOut`, `currentUser`, `observeSession`
+- [x] **C4** `data/repository/AuthRepositoryImpl.kt` — `FirebaseAuth` + lectura de rol desde Firestore
+- [x] **C5** `ui/screens/access/LoginViewModel.kt` — `UiState` con loading / error / success
+- [x] **C6** Cablear `LoginScreen` al ViewModel (quitar la comparación de strings del NavHost)
+- [x] **C7** `SplashScreen`: sesión activa → `uid → role → grafo`; sin sesión → `LOGIN`
+- [x] **C8** Logout desde Perfil de los tres roles
+- [x] **C9** Recuperar contraseña con `sendPasswordResetEmail`
+- [x] **C10** Usuario `active = false` → cierre de sesión forzado
 
 **Criterio:** login real con las tres cuentas, cada una aterriza en su grafo, y cerrar
 la app y reabrirla mantiene la sesión.
+
+**Cómo probarlo**
+
+| Cuenta | Contraseña | Debe aterrizar en |
+|---|---|---|
+| `docente@aulasegura.com` | `123456` | Home docente |
+| `directora@escuela.mx` | `123456` | Dashboard directivo |
+| `carlos.gomez@familia.mx` | `AulaSegura#2024` | Home tutor |
+
+1. Login con cada cuenta → cada una cae en su grafo.
+2. Cerrar la app por completo y abrirla → el splash te deja adentro, sin pedir login.
+3. Perfil → *Cerrar sesión* → vuelve al login.
+4. *¿Olvidaste tu contraseña?* con un correo real → llega el mail de Firebase.
+5. En la consola, poner `active = false` a un usuario ya logueado → la app lo expulsa al login sola.
+
+Tests automatizados del bloque: `.\gradlew.bat :app:testDebugUnitTest` (10 tests).
 
 ---
 

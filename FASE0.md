@@ -164,13 +164,47 @@ converters de `List<String>` + `SyncState`, merge por alumno, orden y reintentos
 
 ## Bloque F — WorkManager y sincronización
 
-- [ ] **F1** Dependencia `work-runtime-ktx`
-- [ ] **F2** `sync/OutboxEntity` + DAO
-- [ ] **F3** `sync/SyncWorker` con reintento exponencial
-- [ ] **F4** `sync/SyncScheduler` — encola un worker único con `NetworkType.CONNECTED`
-- [ ] **F5** Registrar fallos como non-fatal en Crashlytics
+- [x] **F1** Dependencia `work-runtime-ktx` · `2.12.0` (+ `work-testing` para los tests)
+- [x] **F2** `sync/OutboxEntity` + DAO · la entidad y el DAO viven en `data/local` desde E3; F2 agrega `OutboxRepository`, que encola sesión + registros + outbox en una sola transacción
+- [~] **F3** `sync/SyncWorker` con reintento exponencial · implementado, pendiente de verificar en device
+- [~] **F4** `sync/SyncScheduler` — encola un worker único con `NetworkType.CONNECTED` · implementado, pendiente de verificar en device
+- [~] **F5** Registrar fallos como non-fatal en Crashlytics · implementado (`CrashlyticsSyncReporter`), pendiente de verificar en device
 
 **Criterio:** con modo avión se encola; al reconectar, la outbox queda vacía sin duplicados.
+
+**Cómo probarlo**
+
+```powershell
+$env:JAVA_HOME="C:\Program Files\Android\Android Studio\jbr"
+cd C:\Users\diego\AndroidStudioProjects\AulaSegura
+.\gradlew.bat :app:connectedDebugAndroidTest --console=plain
+```
+
+Después, con el teléfono desconectado de red: cerrar un pase de lista (Fase 1) y
+verificar que la sesión queda `PENDING`; reconectar y comprobar que la outbox se vacía.
+
+> **Cómo está armado (y por qué):**
+> - `SyncRunner` tiene toda la política y no depende de WorkManager, así se testea
+>   con una base en memoria. El `SyncWorker` solo arma las dependencias y traduce
+>   el resultado a `success()` / `retry()`.
+> - `enqueueUniqueWork(KEEP)` es lo que evita duplicados: diez taps sin red dejan
+>   diez filas en la outbox, pero **un solo** worker pendiente.
+> - Un fallo transitorio corta la pasada y devuelve `retry()`, así WorkManager
+>   aplica el backoff exponencial (30 s inicial) sobre toda la cola.
+> - Un fallo permanente marca `attempts`, reporta non-fatal y **deja pasar** la
+>   siguiente fila. Después de `MAX_ATTEMPTS_BEFORE_DROP` (10) sale de la outbox:
+>   una fila envenenada no puede bloquear para siempre el pase de lista de una
+>   docente. La entidad sigue en Room marcada `FAILED`.
+> - El id del documento en Firestore es el UUID local, y se escribe con `set()`,
+>   así reintentar es idempotente: no crea un segundo documento.
+> - Sesión y registros van en un mismo `WriteBatch`, y los contadores
+>   (`counts.present/absent/…`) se recalculan desde los registros en vez de
+>   confiar en la entidad: dos equipos marcando el mismo grupo no pueden dejar
+>   contadores que contradigan la lista.
+> - Fase 0 registra **solo** el handler de asistencia. Incidentes, justificantes
+>   y subida de media quedan sin handler hasta que existan sus repositorios
+>   (Cloudinary es Bloque H): esas filas se reportan y esperan, no se finge que
+>   sincronizaron.
 
 ---
 

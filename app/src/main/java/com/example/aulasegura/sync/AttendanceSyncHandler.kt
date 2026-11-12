@@ -1,0 +1,92 @@
+package com.example.aulasegura.sync
+
+import com.example.aulasegura.data.local.dao.AttendanceDao
+import com.example.aulasegura.data.local.entity.OutboxEntity
+import com.example.aulasegura.data.local.entity.SyncState
+import com.example.aulasegura.data.mapper.AttendanceSyncMapper.toFirestoreMap
+import com.example.aulasegura.data.mapper.AttendanceSyncMapper.withCountsFrom
+import com.google.firebase.firestore.FirebaseFirestore
+import com.google.firebase.firestore.FirebaseFirestoreException
+import kotlinx.coroutines.tasks.await
+
+/**
+ * Writes one attendance session, plus its per-student records, to Firestore.
+ *
+ * The outbox row's `entityLocalId` **is** the session id, which is also the
+ * Firestore document id: replaying the same row overwrites the same document
+ * instead of creating a duplicate (`CONTEXT.md` §8.3).
+ *
+ * Session and records go in a single `WriteBatch` so a half-written session
+ * (counters without records) cannot exist after a partial failure.
+ */
+class AttendanceSyncHandler(
+    private val attendanceDao: AttendanceDao,
+    private val firestore: FirebaseFirestore,
+) : SyncOperationHandler {
+
+    override suspend fun handle(entry: OutboxEntity): SyncOutcome {
+        val session = attendanceDao.findSessionById(entry.entityLocalId)
+            ?: return SyncOutcome.Permanent("Session ${entry.entityLocalId} is no longer stored locally")
+
+        val records = attendanceDao.records(session.sessionId)
+        val withCounts = session.withCountsFrom(records)
+
+        return try {
+            val batch = firestore.batch()
+            val sessionRef = firestore
+                .collection(COLLECTION_SESSIONS)
+                .document(session.sessionId)
+
+            batch.set(sessionRef, withCounts.toFirestoreMap())
+            records.forEach { record ->
+                batch.set(
+                    sessionRef.collection(COLLECTION_RECORDS).document(record.studentId),
+                    record.toFirestoreMap(),
+                )
+            }
+            batch.commit().await()
+
+            markSession(withCounts.sessionId, SyncState.SYNCED)
+            SyncOutcome.Success
+        } catch (denied: FirebaseFirestoreException) {
+            val retryable = denied.code in RETRYABLE_CODES
+            markSession(withCounts.sessionId, SyncState.FAILED)
+            if (retryable) {
+                SyncOutcome.Retry("Firestore unavailable (${denied.code})", denied)
+            } else {
+                SyncOutcome.Permanent("Firestore rejected the session (${denied.code})", denied)
+            }
+        }
+    }
+
+    private suspend fun markSession(
+        sessionId: String,
+        state: SyncState,
+    ) {
+        // Local bookkeeping only; if this fails the next pass rewrites the
+        // session anyway, so there is nothing to recover here.
+        runCatching {
+            attendanceDao.findSessionById(sessionId)?.let {
+                attendanceDao.upsertSession(it.copy(syncState = state))
+            }
+            attendanceDao.records(sessionId).forEach { record ->
+                attendanceDao.upsertRecord(record.copy(syncState = state))
+            }
+        }
+    }
+
+    private companion object {
+        const val COLLECTION_SESSIONS = "attendanceSessions"
+        const val COLLECTION_RECORDS = "records"
+
+        val RETRYABLE_CODES = setOf(
+            FirebaseFirestoreException.Code.UNAVAILABLE,
+            FirebaseFirestoreException.Code.DEADLINE_EXCEEDED,
+            FirebaseFirestoreException.Code.ABORTED,
+            FirebaseFirestoreException.Code.RESOURCE_EXHAUSTED,
+            FirebaseFirestoreException.Code.INTERNAL,
+            FirebaseFirestoreException.Code.CANCELLED,
+            FirebaseFirestoreException.Code.UNKNOWN,
+        )
+    }
+}

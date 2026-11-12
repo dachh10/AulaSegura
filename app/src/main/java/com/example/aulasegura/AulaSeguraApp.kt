@@ -2,6 +2,7 @@ package com.example.aulasegura
 
 import android.app.Application
 import android.content.pm.ApplicationInfo
+import com.example.aulasegura.sync.SyncScheduler
 import com.google.firebase.FirebaseApp
 import com.google.firebase.appcheck.FirebaseAppCheck
 import com.google.firebase.appcheck.debug.DebugAppCheckProviderFactory
@@ -18,6 +19,9 @@ import com.google.firebase.firestore.FirebaseFirestoreSettings
  *   Play Integrity on release builds.
  * - Disable Firestore's persistent cache. Room is the single local source of
  *   truth; two caches competing for the same data is a bug factory.
+ * - Ask for one outbox drain. `enqueueUniqueWork(KEEP)` makes this idempotent:
+ *   starting the app ten times still leaves one pending worker, and WorkManager
+ *   holds it until the device is online.
  */
 class AulaSeguraApp : Application() {
 
@@ -26,6 +30,7 @@ class AulaSeguraApp : Application() {
         FirebaseApp.initializeApp(this)
         installAppCheckProvider()
         configureFirestore()
+        scheduleSync()
     }
 
     private fun installAppCheckProvider() {
@@ -42,6 +47,10 @@ class AulaSeguraApp : Application() {
             FirebaseFirestoreSettings.Builder()
                 .setPersistenceEnabled(false)
                 .build()
+    }
+
+    private fun scheduleSync() {
+        SyncScheduler(this).schedule()
     }
 
     private fun isDebuggable(): Boolean =

@@ -166,11 +166,27 @@ converters de `List<String>` + `SyncState`, merge por alumno, orden y reintentos
 
 - [x] **F1** Dependencia `work-runtime-ktx` · `2.12.0` (+ `work-testing` para los tests)
 - [x] **F2** `sync/OutboxEntity` + DAO · la entidad y el DAO viven en `data/local` desde E3; F2 agrega `OutboxRepository`, que encola sesión + registros + outbox en una sola transacción
-- [~] **F3** `sync/SyncWorker` con reintento exponencial · implementado, pendiente de verificar en device
-- [~] **F4** `sync/SyncScheduler` — encola un worker único con `NetworkType.CONNECTED` · implementado, pendiente de verificar en device
-- [~] **F5** Registrar fallos como non-fatal en Crashlytics · implementado (`CrashlyticsSyncReporter`), pendiente de verificar en device
+- [x] **F3** `sync/SyncWorker` con reintento exponencial · worker corrió en device y devolvió `SUCCESS`
+- [x] **F4** `sync/SyncScheduler` — encola un worker único con `NetworkType.CONNECTED` · job `dd7a3075…` programado con tag `aulasegura-sync`
+- [x] **F5** Registrar fallos como non-fatal en Crashlytics · `CrashlyticsSyncReporter` conectado al worker
 
 **Criterio:** con modo avión se encola; al reconectar, la outbox queda vacía sin duplicados.
+
+**Verificado en device `65d5dd78`**
+
+| Check | Resultado |
+|---|---|
+| `:app:assembleDebug` | ✅ |
+| `:app:testDebugUnitTest` | ✅ 14 tests (4 del mapper) |
+| `:app:connectedDebugAndroidTest` | ✅ 12 tests, 0 fallos |
+| Arranque real | ✅ app en foco, sin FATAL |
+| Worker | ✅ `Starting work for …SyncWorker` → `Worker result SUCCESS`, tag `aulasegura-sync` |
+| Room en runtime | ✅ `aulasegura.db` creado por el worker |
+
+Los 12 tests de instrumentación: 4 de Room, **5 del runner de sincronización** (orden,
+borrado al éxito, retry que conserva filas, excepción que se vuelve retry, operación
+desconocida que no bloquea la cola, fila envenenada que sale tras el umbral) y **2 del
+scheduler** (un solo worker vivo + requiere `CONNECTED` + `KEEP` no apila).
 
 **Cómo probarlo**
 
@@ -180,8 +196,9 @@ cd C:\Users\diego\AndroidStudioProjects\AulaSegura
 .\gradlew.bat :app:connectedDebugAndroidTest --console=plain
 ```
 
-Después, con el teléfono desconectado de red: cerrar un pase de lista (Fase 1) y
-verificar que la sesión queda `PENDING`; reconectar y comprobar que la outbox se vacía.
+El criterio completo (modo avión → encola → reconectar → outbox vacía) necesita el pase
+de lista de Fase 1: hoy la cola se puede llenar por código (`OutboxRepository`), pero
+**ninguna pantalla la usa todavía**.
 
 > **Cómo está armado (y por qué):**
 > - `SyncRunner` tiene toda la política y no depende de WorkManager, así se testea

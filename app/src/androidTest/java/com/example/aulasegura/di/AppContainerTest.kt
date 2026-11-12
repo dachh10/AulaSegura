@@ -36,6 +36,17 @@ class AppContainerTest {
         assertSame(container.authRepository, container.authRepository)
         assertSame(container.outboxRepository, container.outboxRepository)
         assertSame(container.viewModelFactory, container.viewModelFactory)
+        assertSame(container.cloudinaryConfig, container.cloudinaryConfig)
+        assertSame(container.cloudinaryUploader, container.cloudinaryUploader)
+    }
+
+    @Test
+    fun cloudinaryConfigComesFromTheBuild() {
+        val config = app.container.cloudinaryConfig
+
+        assertTrue("CLOUDINARY_CLOUD_NAME missing from local.properties", config.isConfigured)
+        assertTrue(config.imageUploadUrl.startsWith("https://api.cloudinary.com/v1_1/"))
+        assertTrue(config.imageUploadUrl.endsWith("/image/upload"))
     }
 
     @Test

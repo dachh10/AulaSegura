@@ -6,8 +6,13 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import com.example.aulasegura.AulaSeguraApp
+import com.example.aulasegura.BuildConfig
 import com.example.aulasegura.data.local.AulaSeguraDatabase
 import com.example.aulasegura.data.local.DatabaseProvider
+import com.example.aulasegura.data.remote.cloudinary.CloudinaryConfig
+import com.example.aulasegura.data.remote.cloudinary.CloudinaryUploader
+import com.example.aulasegura.data.remote.cloudinary.ImageCompressor
+import com.example.aulasegura.data.remote.cloudinary.OkHttpCloudinaryUploader
 import com.example.aulasegura.data.repository.AuthRepositoryImpl
 import com.example.aulasegura.domain.repository.AuthRepository
 import com.example.aulasegura.sync.AttendanceSyncHandler
@@ -22,6 +27,8 @@ import com.example.aulasegura.ui.screens.access.LoginViewModel
 import com.example.aulasegura.ui.screens.access.SessionViewModel
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FirebaseFirestore
+import java.util.concurrent.TimeUnit
+import okhttp3.OkHttpClient
 
 /**
  * Composition root, built by hand.
@@ -74,6 +81,35 @@ class AppContainer(context: Context) {
             ),
         )
     }
+
+    // ---- Network ------------------------------------------------------------
+    /**
+     * The one HTTP client of the app.
+     *
+     * The write timeout is generous on purpose: a photo over school Wi-Fi can
+     * take a while, and the 10 s default would kill a perfectly valid upload.
+     */
+    private val httpClient: OkHttpClient by lazy {
+        OkHttpClient.Builder()
+            .connectTimeout(15, TimeUnit.SECONDS)
+            .readTimeout(60, TimeUnit.SECONDS)
+            .writeTimeout(60, TimeUnit.SECONDS)
+            .build()
+    }
+
+    // ---- Cloudinary ---------------------------------------------------------
+    val cloudinaryConfig: CloudinaryConfig by lazy {
+        CloudinaryConfig(
+            cloudName = BuildConfig.CLOUDINARY_CLOUD_NAME,
+            uploadPreset = BuildConfig.CLOUDINARY_UPLOAD_PRESET,
+        )
+    }
+
+    val cloudinaryUploader: CloudinaryUploader by lazy {
+        OkHttpCloudinaryUploader(client = httpClient, config = cloudinaryConfig)
+    }
+
+    val imageCompressor: ImageCompressor by lazy { ImageCompressor(appContext) }
 
     // ---- ViewModels ---------------------------------------------------------
     val viewModelFactory: ViewModelProvider.Factory by lazy { AppViewModelFactory(this) }

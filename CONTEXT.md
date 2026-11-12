@@ -487,13 +487,28 @@ Regla: **el `publicId` guardado en Firestore incluye la ruta completa** sin exte
 
 ### 7.2 Presets y permisos
 
-- **Preset unsigned por carpeta** (`aulasegura_incidents`, `aulasegura_profiles`, …), cada uno con:
-  - `folder` fijada (el cliente no puede cambiarla)
-  - formatos permitidos (`jpg,png,webp` / `mp4,mov`)
-  - tamaño máximo (10 MB imagen, 100 MB video)
-  - transformación entrante para fotos de perfil (`w_512,h_512,c_fill,g_face`)
-- **Nunca** embeber el `api_secret` en el APK. **Sin Cloud Functions** (ver §9.1) no hay firma en runtime: el proyecto usa preset unsigned restringido. Si la entrega exigiera subida firmada, habría que habilitar Blaze o firmar desde un script local fuera de la app.
-- El preset unsigned es aceptable para el alcance del proyecto porque está restringido por carpeta, formato y tamaño. Debe quedar documentado como decisión.
+- **Un solo preset unsigned** (`docenteaula`) en la cuenta `dncnom7mu`, con
+  *dynamic folders* activado y `use asset folder as public id prefix` apagado.
+  Un preset es política de subida, no autorización: el nombre viaja en el APK, así
+  que tener uno por rol no agregaría seguridad. La autorización real es Firestore
+  Rules sobre el documento que referencia la imagen.
+- **La carpeta viaja en `asset_folder`**, no en el preset: el cliente manda
+  `aulasegura/<tipo>/<scope>` (ver §7.1) y `CloudinaryFolder` sanea el scope
+  (un `/` o `..` no puede escapar del prefijo).
+- **El cliente no manda `public_id`.** Cloudinary lo genera (preset con
+  `use_filename: false`, `unique_filename: false`), así que dos archivos con el
+  mismo nombre nunca colisionan y nadie enumera assets.
+- **No hay límite de tamaño por preset**: Cloudinary no lo soporta. Se valida en
+  el cliente (MIME, y compresión a ≤ 1080 px / JPEG q80 antes de subir).
+- **Recomendado en la consola:** `allowed_formats = jpg,png,webp`. Es el único
+  control que un cliente propio no puede saltear.
+- **Nunca** embeber el `api_secret` en el APK. **Sin Cloud Functions** (ver §9.1)
+  no hay firma en runtime: el proyecto usa preset unsigned restringido. Si la
+  entrega exigiera subida firmada, habría que habilitar Blaze o firmar desde un
+  script local fuera de la app.
+- El preset unsigned es aceptable para el alcance del proyecto porque está
+  restringido por formato, carpeta y tamaño en el cliente. Queda documentado como
+  decisión.
 
 **Límites del plan free de Cloudinary:** 25 créditos por mes, donde 1 crédito equivale a 1 GB almacenado, 1 GB de tráfico o 1000 transformaciones. Los videos consumen crédito mucho más rápido que las imágenes. Mitigaciones obligatorias:
 
@@ -506,7 +521,9 @@ Regla: **el `publicId` guardado en Firestore incluye la ruta completa** sin exte
 
 ### 7.3 Metadatos que se guardan en Firestore
 
-Siempre los mismos campos: `publicId`, `url` (`secure_url`), `thumbnailUrl` (transformación derivada), `type`, `format`, `bytes`, `width`, `height` y `durationSec` en video. **Nunca** se guarda el archivo ni el base64.
+Siempre los mismos campos: `publicId`, `url` (`secure_url`), `thumbnailUrl` (transformación derivada), `assetFolder`, `type`, `format`, `bytes`, `width`, `height` y `durationSec` en video. **Nunca** se guarda el archivo ni el base64.
+
+`assetFolder` se guarda aparte porque el preset no prefija la carpeta en el `public_id`: sin ese campo, una limpieza futura tendría que adivinar dónde vive el archivo. El `thumbnailUrl` se arma insertando la transformación de §7.4 después de `/upload/`; la transformación depende de la carpeta (recorte de rostro para perfiles, límite de ancho para evidencia).
 
 ### 7.4 Transformaciones
 

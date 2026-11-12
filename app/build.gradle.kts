@@ -6,15 +6,27 @@ plugins {
     alias(libs.plugins.google.services)
     alias(libs.plugins.firebase.crashlytics)
     alias(libs.plugins.ksp)
+    alias(libs.plugins.kotlin.serialization)
 }
 
-// API key de Google Maps: se toma de local.properties (MAPS_API_KEY=...) o de -PMAPS_API_KEY.
-val mapsApiKey: String = run {
-    val props = Properties()
+// local.properties es la fuente de configuración por entorno: SDK, Maps y
+// Cloudinary. Nada de esto viaja al repo (ver .gitignore).
+val localProperties: Properties = Properties().apply {
     val localFile = rootProject.file("local.properties")
-    if (localFile.exists()) localFile.inputStream().use(props::load)
-    (project.findProperty("MAPS_API_KEY") as String?) ?: props.getProperty("MAPS_API_KEY") ?: ""
+    if (localFile.exists()) localFile.inputStream().use(::load)
 }
+
+fun localProperty(name: String): String =
+    (project.findProperty(name) as String?) ?: localProperties.getProperty(name) ?: ""
+
+// API key de Google Maps: se toma de local.properties (MAPS_API_KEY=...) o de -PMAPS_API_KEY.
+val mapsApiKey: String = localProperty("MAPS_API_KEY")
+
+// Cloudinary: el nombre del cloud y el preset unsigned no son secretos (viajan
+// en el APK por diseño), pero se leen igual de local.properties para que cada
+// entorno apunte a su propia cuenta sin tocar el código.
+val cloudinaryCloudName: String = localProperty("CLOUDINARY_CLOUD_NAME")
+val cloudinaryUploadPreset: String = localProperty("CLOUDINARY_UPLOAD_PRESET")
 
 android {
     namespace = "com.example.aulasegura"
@@ -32,6 +44,8 @@ android {
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
         manifestPlaceholders["MAPS_API_KEY"] = mapsApiKey
+        buildConfigField("String", "CLOUDINARY_CLOUD_NAME", "\"$cloudinaryCloudName\"")
+        buildConfigField("String", "CLOUDINARY_UPLOAD_PRESET", "\"$cloudinaryUploadPreset\"")
     }
 
     buildTypes {
@@ -48,6 +62,7 @@ android {
     }
     buildFeatures {
         compose = true
+        buildConfig = true
     }
 }
 
@@ -87,6 +102,9 @@ dependencies {
     implementation(libs.play.services.maps)
     implementation(libs.play.services.location)
     implementation(libs.maps.compose)
+    implementation(libs.okhttp)
+    implementation(libs.kotlinx.serialization.json)
+    implementation(libs.androidx.exifinterface)
     testImplementation(libs.junit)
     testImplementation(libs.kotlinx.coroutines.test)
     androidTestImplementation(platform(libs.androidx.compose.bom))

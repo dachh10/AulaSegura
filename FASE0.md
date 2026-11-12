@@ -260,13 +260,38 @@ usa `AuthRepository.sendPasswordReset()`, así que la UI ya no conoce el SDK.
 
 ## Bloque H — Cloudinary (Evelyn)
 
-- [ ] **H1** Cuenta free + credenciales fuera del repo
-- [ ] **H2** Presets unsigned por carpeta: `profiles`, `incidents`, `justifications`, `tasks`, `notices`, `schools`
-- [ ] **H3** Klient de subida con OkHttp (`data/remote/cloudinary/`)
-- [ ] **H4** Compresión previa en el dispositivo (≤ 1080 px, calidad ~80)
-- [ ] **H5** Subida de prueba a `aulasegura/profiles/test` y metadatos en Firestore
+- [x] **H1** Cuenta free + credenciales fuera del repo · `CLOUDINARY_CLOUD_NAME` y `CLOUDINARY_UPLOAD_PRESET` en `local.properties` → `BuildConfig`; ningún `api_secret` en el APK
+- [x] **H2** Presets unsigned por carpeta · **decisión: un solo preset** (`docenteaula`); la carpeta viaja en `asset_folder` porque la cuenta usa dynamic folders. Un preset por rol no aportaba seguridad: el nombre es visible en el APK y la autorización real está en las Rules
+- [x] **H3** Cliente de subida con OkHttp (`data/remote/cloudinary/`) · `OkHttpCloudinaryUploader` con multipart de 3 partes (`file`, `upload_preset`, `asset_folder`), sin SDK de Cloudinary
+- [x] **H4** Compresión previa en el dispositivo (≤ 1080 px, calidad ~80) · `ImageCompressor` con `inSampleSize`, rotación EXIF y re-encode JPEG
+- [x] **H5** Subida de prueba a `aulasegura/profiles/test` y metadatos en Firestore · verificado en device con cuenta real
 
 **Criterio:** una imagen sube, devuelve `publicId` + `secure_url`, y Cloudinary descuenta crédito.
+
+**Verificado en device `65d5dd78`**
+
+| Check | Resultado |
+|---|---|
+| `:app:testDebugUnitTest` | ✅ 33 tests (19 nuevos) |
+| `:app:connectedDebugAndroidTest` | ✅ 25 tests, 0 fallos |
+| Subida real (test) | ✅ `aulasegura/profiles/test`, metadata escrita y releída de `users/{uid}.photo` |
+| Subida real (curl) | ✅ `public_id=vapivoxv59ktlzjufvgd`, `asset_folder` respetado |
+
+Los 19 unit tests nuevos: **9** del uploader contra un servidor HTTP real (campos del multipart,
+que no viaje `api_key`/`api_secret`, mapeo de la respuesta, 400 con mensaje, 5xx, red caída,
+build sin credenciales, archivo vacío, 200 ilegible), **8** de rutas y transformaciones
+(inserción antes del segmento de versión, no apilar transformaciones, carpeta que no escapa del
+prefijo) y **2** del mapa a Firestore. Los 7 de device son del compresor: 3000×2000 → 1080×720,
+aspecto, sin upscale, JPEG real, no recicla el bitmap del llamador, ruta `ByteArray` y bytes que
+no son imagen.
+
+**Nota de la cuenta:** con `use asset folder as public id prefix: false`, la URL devuelta **no**
+incluye la carpeta. Por eso `MediaMetadata` guarda `assetFolder` además de `publicId`: sin ese
+campo, borrar o transformar un asset obliga a adivinar la ruta. Documentado en `CONTEXT.md` §7.3.
+
+**Pendiente de la consola:** `allowed_formats = jpg,png,webp` en el preset. Es el único control
+que un cliente propio no puede saltear; la app ya valida MIME y tamaño, pero esa validación vive
+en nuestro código.
 
 ---
 

@@ -29,6 +29,7 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.example.aulasegura.di.rememberAppContainer
 import com.example.aulasegura.ui.components.ParentTab
 import com.example.aulasegura.ui.components.TeacherTab
 import com.example.aulasegura.ui.screens.access.ForgotPasswordScreen
@@ -89,8 +90,8 @@ import com.example.aulasegura.ui.screens.teacher.TeacherTaskNewScreen
 @Composable
 fun AulaSeguraNavHost(
     navController: NavHostController = rememberNavController(),
-    sessionViewModel: SessionViewModel = viewModel(),
-    loginViewModel: LoginViewModel = viewModel(),
+    sessionViewModel: SessionViewModel = viewModel(factory = rememberAppContainer().viewModelFactory),
+    loginViewModel: LoginViewModel = viewModel(factory = rememberAppContainer().viewModelFactory),
 ) {
     val sessionState by sessionViewModel.state.collectAsState()
 

@@ -3,41 +3,16 @@ package com.example.aulasegura.sync
 import android.content.Context
 import androidx.work.CoroutineWorker
 import androidx.work.WorkerParameters
-import com.example.aulasegura.data.local.DatabaseProvider
-import com.google.firebase.firestore.FirebaseFirestore
-
-/**
- * Wires the real dependencies into [SyncRunner]. Kept thin on purpose: all the
- * policy lives in the runner, which is tested without WorkManager.
- *
- * Bloque G replaces this locator with the DI container.
- */
-object SyncServiceLocator {
-
-    fun registry(context: Context): SyncHandlerRegistry {
-        val database = DatabaseProvider.get(context)
-
-        // Fase 0 registers the attendance flow only. Incident, justification and
-        // media uploads arrive with their repositories (Cloudinary is Bloque H);
-        // until then an unregistered opType stays in the outbox and is reported,
-        // instead of pretending to have synced.
-        return SyncHandlerRegistry(
-            mapOf(
-                SyncOperation.UPSERT_ATTENDANCE_SESSION to AttendanceSyncHandler(
-                    attendanceDao = database.attendanceDao(),
-                    firestore = FirebaseFirestore.getInstance(),
-                ),
-            ),
-        )
-    }
-}
+import com.example.aulasegura.AulaSeguraApp
 
 /**
  * Drains the outbox whenever WorkManager decides the device is online.
  *
- * A transient failure returns `retry()`, so WorkManager applies the exponential
- * backoff configured by [SyncScheduler]; a permanent failure is recorded as a
- * Crashlytics non-fatal (Bloque F5) and does not stall the rest of the queue.
+ * Dependencies come from the application container, which is what keeps the
+ * worker free of `DatabaseProvider` and Firebase singletons. A transient failure
+ * returns `retry()`, so WorkManager applies the exponential backoff configured by
+ * [SyncScheduler]; a permanent failure is recorded as a Crashlytics non-fatal and
+ * does not stall the rest of the queue.
  */
 class SyncWorker(
     appContext: Context,
@@ -45,11 +20,11 @@ class SyncWorker(
 ) : CoroutineWorker(appContext, params) {
 
     override suspend fun doWork(): Result {
-        val database = DatabaseProvider.get(applicationContext)
+        val container = (applicationContext as AulaSeguraApp).container
         val runner = SyncRunner(
-            outboxDao = database.outboxDao(),
-            registry = SyncServiceLocator.registry(applicationContext),
-            reporter = CrashlyticsSyncReporter,
+            outboxDao = container.database.outboxDao(),
+            registry = container.syncHandlers,
+            reporter = container.syncFailureReporter,
         )
 
         return when (runner.run()) {

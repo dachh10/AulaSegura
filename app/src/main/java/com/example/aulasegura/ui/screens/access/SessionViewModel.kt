@@ -2,7 +2,6 @@ package com.example.aulasegura.ui.screens.access
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.example.aulasegura.data.repository.AuthRepositoryImpl
 import com.example.aulasegura.domain.model.UserRole
 import com.example.aulasegura.domain.repository.AuthRepository
 import com.example.aulasegura.domain.repository.AuthResult
@@ -27,7 +26,7 @@ sealed interface SessionState {
  * instance, and so a deactivated account is ejected from any screen.
  */
 class SessionViewModel(
-    private val authRepository: AuthRepository = AuthRepositoryImpl(),
+    private val authRepository: AuthRepository,
 ) : ViewModel() {
 
     private val _state = MutableStateFlow<SessionState>(SessionState.Resolving)

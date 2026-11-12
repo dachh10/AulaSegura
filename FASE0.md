@@ -227,10 +227,34 @@ de lista de Fase 1: hoy la cola se puede llenar por código (`OutboxRepository`)
 
 ## Bloque G — Inyección de dependencias
 
-- [ ] **G1** Decidir Hilt vs `AppContainer` manual (validar KSP con Kotlin 2.4.21)
-- [ ] **G2** Módulos de Firebase, Room, repositorios
-- [ ] **G3** `AulaSeguraApp` inicializa el contenedor
-- [ ] **G4** Primer ViewModel inyectado y funcionando
+- [x] **G1** Decidir Hilt vs `AppContainer` manual (validar KSP con Kotlin 2.4.21) · **contenedor manual**, acordado con el equipo; KSP ya validado en el bloque E
+- [x] **G2** Módulos de Firebase, Room, repositorios · `di/AppContainer.kt` expone `authRepository`, `outboxRepository`, `syncScheduler`, `syncFailureReporter`, `syncHandlers` y `database`
+- [x] **G3** `AulaSeguraApp` inicializa el contenedor · `container = AppContainer(this)` en `onCreate`, antes de cualquier activity o worker
+- [x] **G4** Primer ViewModel inyectado y funcionando · `AppViewModelFactory` construye login, sesión y recuperación; `SyncWorker` toma sus dependencias del contenedor
+
+**Criterio:** el contenedor compila, arranca la app y un ViewModel se construye por el factory sin que la UI importe Firebase.
+
+**Verificado en device `65d5dd78`**
+
+| Check | Resultado |
+|---|---|
+| `:app:assembleDebug` | ✅ |
+| `:app:testDebugUnitTest` | ✅ 14 tests |
+| `:app:connectedDebugAndroidTest` | ✅ 16 tests, 0 fallos (4 nuevos del contenedor) |
+| Arranque real | ✅ `pid 26927`, `topResumedActivity=.MainActivity`, sin FATAL |
+| Worker vía contenedor | ✅ `Starting work for …SyncWorker` → `Worker result SUCCESS` |
+
+Los 4 tests nuevos de `AppContainerTest` cubren: el contenedor existe tras
+`onCreate`, cada dependencia es una sola instancia, el factory construye los tres
+ViewModels del acceso, y un ViewModel sin registrar falla ruidosamente en vez de
+devolver `null`.
+
+**Decisión:** Hilt se descartó. El grafo es chico y un archivo legible de arriba
+a abajo se depura mejor que un procesador de anotaciones más. Cuando aparezca un
+segundo módulo, `AppContainer` es el único lugar a dividir.
+
+**De paso:** `ForgotPasswordViewModel` dejó de depender de `FirebaseAuth` y ahora
+usa `AuthRepository.sendPasswordReset()`, así que la UI ya no conoce el SDK.
 
 ---
 

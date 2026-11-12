@@ -28,7 +28,27 @@ interface AuthRepository {
      */
     fun observeAccountActive(): Flow<Boolean>
 
+    /**
+     * Sends the password reset email.
+     *
+     * Firebase deliberately does not reveal whether an address is registered, so
+     * an unknown account reports [PasswordResetResult.Sent] as well: the caller
+     * must never branch on account existence.
+     */
+    suspend fun sendPasswordReset(email: String): PasswordResetResult
+
     fun signOut()
+}
+
+sealed interface PasswordResetResult {
+
+    data object Sent : PasswordResetResult
+
+    data object InvalidEmail : PasswordResetResult
+
+    data object NetworkError : PasswordResetResult
+
+    data object Unknown : PasswordResetResult
 }
 
 sealed interface AuthResult {

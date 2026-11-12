@@ -5,6 +5,7 @@ import com.example.aulasegura.domain.model.UserRole
 import com.example.aulasegura.domain.repository.AuthFailure
 import com.example.aulasegura.domain.repository.AuthRepository
 import com.example.aulasegura.domain.repository.AuthResult
+import com.example.aulasegura.domain.repository.PasswordResetResult
 import com.google.firebase.FirebaseNetworkException
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.auth.FirebaseAuthInvalidCredentialsException
@@ -54,6 +55,24 @@ class AuthRepositoryImpl(
     override fun signOut() {
         auth.signOut()
     }
+
+    override suspend fun sendPasswordReset(email: String): PasswordResetResult =
+        try {
+            auth.sendPasswordResetEmail(email.trim()).await()
+            PasswordResetResult.Sent
+        } catch (e: FirebaseAuthInvalidUserException) {
+            // Anti-enumeration: an address without an account must look exactly
+            // like a successful send, or the screen becomes an account oracle.
+            PasswordResetResult.Sent
+        } catch (e: FirebaseAuthInvalidCredentialsException) {
+            // Malformed address. The SDK reports both a bad format and a rejected
+            // credential with this type; a reset email can only hit the former.
+            PasswordResetResult.InvalidEmail
+        } catch (e: FirebaseNetworkException) {
+            PasswordResetResult.NetworkError
+        } catch (e: Exception) {
+            PasswordResetResult.Unknown
+        }
 
     override fun observeAccountActive(): Flow<Boolean> = callbackFlow {
         val uid = auth.currentUser?.uid

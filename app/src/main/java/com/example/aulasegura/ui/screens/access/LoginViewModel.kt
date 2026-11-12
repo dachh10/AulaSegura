@@ -2,7 +2,6 @@ package com.example.aulasegura.ui.screens.access
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.example.aulasegura.data.repository.AuthRepositoryImpl
 import com.example.aulasegura.domain.model.UserRole
 import com.example.aulasegura.domain.repository.AuthFailure
 import com.example.aulasegura.domain.repository.AuthRepository
@@ -24,7 +23,7 @@ data class LoginUiState(
  * and consumed by the caller, so the ViewModel never touches a NavController.
  */
 class LoginViewModel(
-    private val authRepository: AuthRepository = AuthRepositoryImpl(),
+    private val authRepository: AuthRepository,
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(LoginUiState())

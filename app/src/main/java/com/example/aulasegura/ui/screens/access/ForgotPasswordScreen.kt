@@ -71,6 +71,7 @@ import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.example.aulasegura.di.rememberAppContainer
 import com.example.aulasegura.ui.components.AulaField
 import com.example.aulasegura.ui.components.PillButton
 import com.example.aulasegura.ui.components.ShieldPattern
@@ -110,7 +111,9 @@ private sealed interface ForgotState {
 fun ForgotPasswordScreen(
     onBack: () -> Unit,
     onBackToLogin: () -> Unit,
-    viewModel: ForgotPasswordViewModel = viewModel(),
+    viewModel: ForgotPasswordViewModel = viewModel(
+        factory = rememberAppContainer().viewModelFactory,
+    ),
 ) {
     val uiState by viewModel.uiState.collectAsState()
     var email by remember { mutableStateOf("") }

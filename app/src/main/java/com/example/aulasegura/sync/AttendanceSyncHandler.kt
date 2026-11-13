@@ -5,6 +5,9 @@ import com.example.aulasegura.data.local.entity.OutboxEntity
 import com.example.aulasegura.data.local.entity.SyncState
 import com.example.aulasegura.data.mapper.AttendanceSyncMapper.toFirestoreMap
 import com.example.aulasegura.data.mapper.AttendanceSyncMapper.withCountsFrom
+import com.example.aulasegura.domain.telemetry.AnalyticsEvent
+import com.example.aulasegura.domain.telemetry.AnalyticsLogger
+import com.example.aulasegura.domain.telemetry.NoOpAnalyticsLogger
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.FirebaseFirestoreException
 import kotlinx.coroutines.tasks.await
@@ -22,6 +25,7 @@ import kotlinx.coroutines.tasks.await
 class AttendanceSyncHandler(
     private val attendanceDao: AttendanceDao,
     private val firestore: FirebaseFirestore,
+    private val analytics: AnalyticsLogger = NoOpAnalyticsLogger,
 ) : SyncOperationHandler {
 
     override suspend fun handle(entry: OutboxEntity): SyncOutcome {
@@ -47,6 +51,10 @@ class AttendanceSyncHandler(
             batch.commit().await()
 
             markSession(withCounts.sessionId, SyncState.SYNCED)
+            // Fired only after Firestore accepted the batch: this is the number
+            // that tells whether offline capture is actually reaching the cloud,
+            // so counting the local save instead would hide every outage.
+            analytics.log(AnalyticsEvent.RollCallSaved(synced = true))
             SyncOutcome.Success
         } catch (denied: FirebaseFirestoreException) {
             val retryable = denied.code in RETRYABLE_CODES

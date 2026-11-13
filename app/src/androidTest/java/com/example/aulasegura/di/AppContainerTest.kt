@@ -38,6 +38,8 @@ class AppContainerTest {
         assertSame(container.viewModelFactory, container.viewModelFactory)
         assertSame(container.cloudinaryConfig, container.cloudinaryConfig)
         assertSame(container.cloudinaryUploader, container.cloudinaryUploader)
+        assertSame(container.analyticsLogger, container.analyticsLogger)
+        assertSame(container.remoteConfigRepository, container.remoteConfigRepository)
     }
 
     @Test

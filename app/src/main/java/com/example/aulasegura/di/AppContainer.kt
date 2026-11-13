@@ -13,8 +13,12 @@ import com.example.aulasegura.data.remote.cloudinary.CloudinaryConfig
 import com.example.aulasegura.data.remote.cloudinary.CloudinaryUploader
 import com.example.aulasegura.data.remote.cloudinary.ImageCompressor
 import com.example.aulasegura.data.remote.cloudinary.OkHttpCloudinaryUploader
+import com.example.aulasegura.data.remote.remoteconfig.FirebaseRemoteConfigSource
+import com.example.aulasegura.data.remote.remoteconfig.RemoteConfigRepository
 import com.example.aulasegura.data.repository.AuthRepositoryImpl
+import com.example.aulasegura.data.telemetry.FirebaseAnalyticsLogger
 import com.example.aulasegura.domain.repository.AuthRepository
+import com.example.aulasegura.domain.telemetry.AnalyticsLogger
 import com.example.aulasegura.sync.AttendanceSyncHandler
 import com.example.aulasegura.sync.CrashlyticsSyncReporter
 import com.example.aulasegura.sync.OutboxRepository
@@ -25,6 +29,7 @@ import com.example.aulasegura.sync.SyncScheduler
 import com.example.aulasegura.ui.screens.access.ForgotPasswordViewModel
 import com.example.aulasegura.ui.screens.access.LoginViewModel
 import com.example.aulasegura.ui.screens.access.SessionViewModel
+import com.google.firebase.analytics.FirebaseAnalytics
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FirebaseFirestore
 import java.util.concurrent.TimeUnit
@@ -57,13 +62,34 @@ class AppContainer(context: Context) {
     // ---- Storage ------------------------------------------------------------
     val database: AulaSeguraDatabase by lazy { DatabaseProvider.get(appContext) }
 
+    // ---- Telemetry ----------------------------------------------------------
+    /**
+     * One logger for the whole app.
+     *
+     * Built from the application context so it survives every Activity
+     * recreation, and injected into the classes that emit business events. The
+     * sink swallows its own failures: Analytics being down must never cost a
+     * sign-in or a roll call.
+     */
+    val analyticsLogger: AnalyticsLogger by lazy {
+        FirebaseAnalyticsLogger(FirebaseAnalytics.getInstance(appContext))
+    }
+
     // ---- Repositories -------------------------------------------------------
     val authRepository: AuthRepository by lazy {
-        AuthRepositoryImpl(auth = firebaseAuth, firestore = firestore)
+        AuthRepositoryImpl(
+            auth = firebaseAuth,
+            firestore = firestore,
+            analytics = analyticsLogger,
+        )
     }
 
     val outboxRepository: OutboxRepository by lazy {
-        OutboxRepository(database = database, scheduling = syncScheduler)
+        OutboxRepository(
+            database = database,
+            scheduling = syncScheduler,
+            analytics = analyticsLogger,
+        )
     }
 
     // ---- Sync ---------------------------------------------------------------
@@ -77,6 +103,7 @@ class AppContainer(context: Context) {
                 SyncOperation.UPSERT_ATTENDANCE_SESSION to AttendanceSyncHandler(
                     attendanceDao = database.attendanceDao(),
                     firestore = firestore,
+                    analytics = analyticsLogger,
                 ),
             ),
         )
@@ -110,6 +137,18 @@ class AppContainer(context: Context) {
     }
 
     val imageCompressor: ImageCompressor by lazy { ImageCompressor(appContext) }
+
+    // ---- Remote Config ------------------------------------------------------
+    /**
+     * Behaviour the school can change without shipping a build.
+     *
+     * Exposed from the container even though Fase 0 has no consumer yet: the
+     * defaults and the validated reads are infrastructure the later phases depend
+     * on, and wiring it here is what keeps `FirebaseRemoteConfig` out of them.
+     */
+    val remoteConfigRepository: RemoteConfigRepository by lazy {
+        RemoteConfigRepository(FirebaseRemoteConfigSource())
+    }
 
     // ---- ViewModels ---------------------------------------------------------
     val viewModelFactory: ViewModelProvider.Factory by lazy { AppViewModelFactory(this) }

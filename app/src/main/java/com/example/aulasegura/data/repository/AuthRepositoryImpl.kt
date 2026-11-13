@@ -6,6 +6,9 @@ import com.example.aulasegura.domain.repository.AuthFailure
 import com.example.aulasegura.domain.repository.AuthRepository
 import com.example.aulasegura.domain.repository.AuthResult
 import com.example.aulasegura.domain.repository.PasswordResetResult
+import com.example.aulasegura.domain.telemetry.AnalyticsEvent
+import com.example.aulasegura.domain.telemetry.AnalyticsLogger
+import com.example.aulasegura.domain.telemetry.NoOpAnalyticsLogger
 import com.google.firebase.FirebaseNetworkException
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.auth.FirebaseAuthInvalidCredentialsException
@@ -27,6 +30,7 @@ import kotlinx.coroutines.tasks.await
 class AuthRepositoryImpl(
     private val auth: FirebaseAuth = FirebaseAuth.getInstance(),
     private val firestore: FirebaseFirestore = FirebaseFirestore.getInstance(),
+    private val analytics: AnalyticsLogger = NoOpAnalyticsLogger,
 ) : AuthRepository {
 
     override val currentUserId: String?
@@ -35,7 +39,13 @@ class AuthRepositoryImpl(
     override suspend fun signIn(email: String, password: String): AuthResult =
         try {
             auth.signInWithEmailAndPassword(email.trim(), password).await()
-            resolveProfile()
+            resolveProfile().also { result ->
+                // Only a real sign-in is logged; restoreSession() on startup is
+                // the same user coming back, not a login.
+                if (result is AuthResult.Success) {
+                    analytics.log(AnalyticsEvent.LoginSuccess(result.user.role))
+                }
+            }
         } catch (e: FirebaseAuthInvalidCredentialsException) {
             AuthResult.Failure(AuthFailure.INVALID_CREDENTIALS)
         } catch (e: FirebaseAuthInvalidUserException) {

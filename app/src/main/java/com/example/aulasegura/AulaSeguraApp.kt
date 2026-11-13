@@ -9,6 +9,10 @@ import com.google.firebase.appcheck.debug.DebugAppCheckProviderFactory
 import com.google.firebase.appcheck.playintegrity.PlayIntegrityAppCheckProviderFactory
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.FirebaseFirestoreSettings
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.launch
 
 /**
  * Application entry point and owner of the [AppContainer].
@@ -23,6 +27,9 @@ import com.google.firebase.firestore.FirebaseFirestoreSettings
  *   `enqueueUniqueWork(KEEP)` makes that idempotent: starting the app ten times
  *   still leaves one pending worker, and WorkManager holds it until the device
  *   is online.
+ * - Refresh Remote Config in the background. Nothing waits for it: the defaults
+ *   installed with the source are the contract for the first launch, and a slow
+ *   network must never delay the first frame.
  */
 class AulaSeguraApp : Application() {
 
@@ -35,6 +42,14 @@ class AulaSeguraApp : Application() {
     lateinit var container: AppContainer
         private set
 
+    /**
+     * Scope for work that belongs to the process, not to a screen.
+     *
+     * `SupervisorJob` so one failed refresh never cancels the rest, and `IO`
+     * because nothing here touches the main thread.
+     */
+    private val appScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+
     override fun onCreate() {
         super.onCreate()
         FirebaseApp.initializeApp(this)
@@ -43,6 +58,18 @@ class AulaSeguraApp : Application() {
 
         container = AppContainer(this)
         container.syncScheduler.schedule()
+        refreshRemoteConfig()
+    }
+
+    /**
+     * Pulls Remote Config once per app start.
+     *
+     * Without a caller the console values would never reach the device, and the
+     * keys would only exist in tests. Fire and forget on purpose: the repository
+     * falls back to the documented defaults, so a failure here costs nothing.
+     */
+    private fun refreshRemoteConfig() {
+        appScope.launch { container.remoteConfigRepository.refresh() }
     }
 
     private fun installAppCheckProvider() {

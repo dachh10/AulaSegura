@@ -297,9 +297,38 @@ en nuestro código.
 
 ## Bloque I — Observabilidad (Evelyn)
 
-- [ ] **I1** Analytics: eventos de `CONTEXT.md` §9
-- [ ] **I2** Crashlytics: crash de prueba + non-fatal de sincronización
-- [ ] **I3** Remote Config: `default_radius_meters`, `ai_assistant_enabled`, `maintenance_mode`, `min_app_version`, `incident_media_max`
+- [x] **I1** Analytics: eventos de `CONTEXT.md` §9 · `AnalyticsEvent` declara los 10 nombres y **3 emiten hoy** (`login_success`, `roll_call_saved` con `synced` 0/1, `sync_failed`). Los otros 7 no tienen emisor porque su pantalla todavía no existe: declararlos sin dispararlos sería cobertura de papel
+- [x] **I2** Crashlytics: crash de prueba + non-fatal de sincronización · el crash se dispara con un extra de Intent (`crashlytics_test_crash`) que solo se atiende con `BuildConfig.DEBUG`; el non-fatal ya venía del bloque F con `sync_operation` y `sync_entity` como custom keys
+- [x] **I3** Remote Config: 5 claves publicadas en la consola (plantilla **versión 1**) y leídas con defaults y rangos validados
+
+**Verificado en device `65d5dd78`**
+
+| Check | Resultado |
+|---|---|
+| `:app:testDebugUnitTest` | ✅ 48 tests, 0 fallos |
+| Device, bloque I | ✅ 20 tests: Analytics (7), Remote Config (2), contenedor (5), sync (6) |
+| Crash de prueba | ✅ `FATAL EXCEPTION` en `MainActivity.onCreate` + Crashlytics envió el batch a `crashlyticsreports-pa.googleapis.com` |
+| Remote Config | ✅ los 5 valores llegaron desde la consola (`isDeliveredFromConsole` = `true` en el device) |
+
+**Plantilla publicada (versión 1)**
+
+| Clave | Valor | Tipo |
+|---|---|---|
+| `default_radius_meters` | 150 | number |
+| `ai_assistant_enabled` | true | boolean |
+| `maintenance_mode` | false | boolean |
+| `min_app_version` | 1 | number |
+| `incident_media_max` | 3 | number |
+
+**Decisiones que importan**
+
+- **Los valores se validan, no solo se leen.** Remote Config lo edita una persona desde una consola, así que el fallo realista no es "falta la clave" sino "la clave está en otra unidad". Un `incident_media_max = 0` desactivaría todas las subidas sin un solo error; por eso cada lectura tiene rango y vuelve al default documentado si se sale.
+- **La app refresca al arrancar, sin bloquear.** Los defaults viajan en el APK, así que el primer frame nunca espera a la red; si el fetch falla, queda lo último activado.
+- **En debug el intervalo de fetch es 0.** Con el default de 12 h, un cambio en la consola tardaría medio día en verse y cada verificación parecería rota. Release conserva el default.
+- **Los booleanos viajan como `1L`/`0L`.** Firebase no tiene tipo boolean para parámetros y lo descarta en silencio; hay un test que fija esa conversión.
+- **`roll_call_saved` se emite dos veces con distinto `synced`:** al guardar en Room (`false`) y cuando Firestore acepta el batch (`true`). Registrar solo el éxito escondería justo las sesiones trabadas en la outbox, que es lo que el contador tiene que detectar.
+
+**Pendiente:** el non-fatal de sincronización y el crash de prueba se confirman en el panel de Crashlytics (tarda unos minutos en procesar). El código y el envío están verificados en el dispositivo.
 
 ---
 

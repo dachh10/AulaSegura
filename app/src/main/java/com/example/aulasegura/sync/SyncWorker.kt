@@ -25,6 +25,7 @@ class SyncWorker(
             outboxDao = container.database.outboxDao(),
             registry = container.syncHandlers,
             reporter = container.syncFailureReporter,
+            analytics = container.analyticsLogger,
         )
 
         return when (runner.run()) {

@@ -6,6 +6,9 @@ import com.example.aulasegura.data.local.entity.AttendanceRecordEntity
 import com.example.aulasegura.data.local.entity.AttendanceSessionEntity
 import com.example.aulasegura.data.local.entity.OutboxEntity
 import com.example.aulasegura.data.local.entity.SyncState
+import com.example.aulasegura.domain.telemetry.AnalyticsEvent
+import com.example.aulasegura.domain.telemetry.AnalyticsLogger
+import com.example.aulasegura.domain.telemetry.NoOpAnalyticsLogger
 
 /**
  * The write path the UI uses when a teacher closes a roll call.
@@ -23,6 +26,7 @@ import com.example.aulasegura.data.local.entity.SyncState
 class OutboxRepository(
     private val database: AulaSeguraDatabase,
     private val scheduling: SyncScheduling,
+    private val analytics: AnalyticsLogger = NoOpAnalyticsLogger,
 ) {
 
     suspend fun enqueueAttendanceSession(
@@ -43,6 +47,13 @@ class OutboxRepository(
                 ),
             )
         }
+
+        // Saved on the device, not yet in the cloud. Both moments fire this event
+        // with different `synced` values: logging only the sync success would make
+        // every session stuck in the outbox invisible on the dashboard, which is
+        // exactly the failure this counter exists to catch. Outside the
+        // transaction so telemetry never holds a database lock.
+        analytics.log(AnalyticsEvent.RollCallSaved(synced = false))
 
         scheduling.schedule()
     }

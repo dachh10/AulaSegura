@@ -2,6 +2,9 @@ package com.example.aulasegura.sync
 
 import com.example.aulasegura.data.local.dao.OutboxDao
 import com.example.aulasegura.data.local.entity.OutboxEntity
+import com.example.aulasegura.domain.telemetry.AnalyticsEvent
+import com.example.aulasegura.domain.telemetry.AnalyticsLogger
+import com.example.aulasegura.domain.telemetry.NoOpAnalyticsLogger
 
 /**
  * Drains the outbox once, in order, and reports whether the queue needs another
@@ -27,6 +30,7 @@ class SyncRunner(
     private val registry: SyncHandlerRegistry,
     private val reporter: SyncFailureReporter,
     private val maxEntriesPerPass: Int = DEFAULT_MAX_ENTRIES_PER_PASS,
+    private val analytics: AnalyticsLogger = NoOpAnalyticsLogger,
 ) {
 
     suspend fun run(): SyncRunResult {
@@ -44,11 +48,13 @@ class SyncRunner(
                 is SyncOutcome.Retry -> {
                     outboxDao.markAttempt(entry.id, outcome.message)
                     reporter.record(entry, outcome.message, outcome.cause)
+                    analytics.log(AnalyticsEvent.SyncFailed(entry.opType, entry.attempts + 1))
                     return SyncRunResult.RetryLater(processed, outcome.message)
                 }
 
                 is SyncOutcome.Permanent -> {
                     reporter.record(entry, outcome.message, outcome.cause)
+                    analytics.log(AnalyticsEvent.SyncFailed(entry.opType, entry.attempts + 1))
                     // A poison row is retried, but not forever: after
                     // MAX_ATTEMPTS_BEFORE_DROP passes it leaves the queue and the
                     // entity stays in Room marked FAILED by its handler. Keeping

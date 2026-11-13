@@ -6,6 +6,8 @@ import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.example.aulasegura.data.local.AulaSeguraDatabase
 import com.example.aulasegura.data.local.entity.OutboxEntity
+import com.example.aulasegura.domain.telemetry.AnalyticsEvent
+import com.example.aulasegura.domain.telemetry.AnalyticsLogger
 import kotlinx.coroutines.runBlocking
 import org.junit.After
 import org.junit.Assert.assertEquals
@@ -24,6 +26,7 @@ class SyncRunnerTest {
 
     private lateinit var database: AulaSeguraDatabase
     private lateinit var reporter: RecordingReporter
+    private lateinit var analytics: RecordingAnalytics
     private lateinit var handled: MutableList<String>
 
     @Before
@@ -33,6 +36,7 @@ class SyncRunnerTest {
             .allowMainThreadQueries()
             .build()
         reporter = RecordingReporter()
+        analytics = RecordingAnalytics()
         handled = mutableListOf()
     }
 
@@ -69,6 +73,10 @@ class SyncRunnerTest {
         assertEquals(1, first.attempts)
         assertEquals("offline", first.lastError)
         assertEquals(listOf("ses-1"), reporter.reported.map { it.entityLocalId })
+        assertEquals(
+            listOf(AnalyticsEvent.SyncFailed(SyncOperation.UPSERT_ATTENDANCE_SESSION.name, attempts = 1)),
+            analytics.events,
+        )
     }
 
     @Test
@@ -82,7 +90,7 @@ class SyncRunnerTest {
             ),
         )
 
-        val result = SyncRunner(database.outboxDao(), registry, reporter).run()
+        val result = SyncRunner(database.outboxDao(), registry, reporter, analytics = analytics).run()
 
         assertTrue(result is SyncRunResult.RetryLater)
         assertEquals(1, database.outboxDao().count())
@@ -102,6 +110,10 @@ class SyncRunnerTest {
         assertEquals(listOf("ses-1"), handled)
         assertEquals(1, database.outboxDao().count())
         assertTrue(reporter.reported.any { it.message.contains("Unknown outbox opType") })
+        assertEquals(
+            listOf(AnalyticsEvent.SyncFailed("MYSTERY_OP", attempts = 1)),
+            analytics.events,
+        )
     }
 
     @Test
@@ -147,7 +159,28 @@ class SyncRunnerTest {
                 mapOf(SyncOperation.UPSERT_ATTENDANCE_SESSION to handler),
             ),
             reporter = reporter,
+            analytics = analytics,
         )
+    }
+
+    @Test
+    fun successfulSyncEmitsNoFailureEvent() = runBlocking {
+        queue("ses-1", createdAt = 1_000L)
+
+        runner { SyncOutcome.Success }.run()
+
+        assertTrue(
+            "a clean pass must not report a failure, or the dashboard shows outages on good days",
+            analytics.events.isEmpty(),
+        )
+    }
+
+    private class RecordingAnalytics : AnalyticsLogger {
+        val events = mutableListOf<AnalyticsEvent>()
+
+        override fun log(event: AnalyticsEvent) {
+            events += event
+        }
     }
 
     private class RecordingReporter : SyncFailureReporter {

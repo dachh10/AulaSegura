@@ -432,9 +432,8 @@ para sus dos hijos, para no borrar un vínculo que agregue el flujo real más ad
 ## Orden recomendado
 
 ```
-A (hecho) → B (hecho) → C → D → E → F → G → H → I → J → K
-                                  ↑
-                    H e I puede hacerlas Evelyn en paralelo
+A (hecho) → B (hecho) → C (hecho) → D (hecho) → E (hecho) → F (hecho) → G (hecho)
+→ H (hecho) → I (hecho) → J (hecho) → K (hecho) ✅  Fase 0 cerrada
 ```
 
 **No saltear D antes de E.** Las reglas definen qué puede leer Room; si construís la

@@ -645,6 +645,16 @@ Cuotas gratuitas relevantes (verificar en la consola antes de la entrega):
 - Modelos de generación de media.
 - Grounding con Google Search o Google Maps.
 
+**Modelo elegido: `gemini-3.5-flash-lite`.** La consola ofrece exactamente dos modelos sin
+facturación: `gemini-3.8-flash` y `gemini-3.5-flash-lite`. Se eligió el *lite* porque el
+asistente responde preguntas cortas sobre asistencia —no necesita calidad de frontera— y
+porque trae cuota por minuto más alta y menor latencia.
+
+> Comprobado el 2026-11-13 con un token de App Check válido: `gemini-3.5-flash-lite`
+> respondió en 2,6 s, mientras `gemini-3.8-flash` devolvía `500 high demand` o dejaba la
+> conexión abierta sin responder. Si se cambia de modelo, repetir esa prueba antes de tocar
+> `MODEL_NAME`: un modelo saturado se ve igual que un bug del cliente.
+
 **Caso de uso — Asistente del tutor:**
 
 - Responde preguntas sobre asistencia, tareas, avisos e incidentes **de sus propios hijos**.

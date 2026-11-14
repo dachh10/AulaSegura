@@ -12,13 +12,16 @@ import com.example.aulasegura.data.local.DatabaseProvider
 import com.example.aulasegura.data.remote.cloudinary.CloudinaryConfig
 import com.example.aulasegura.data.remote.cloudinary.CloudinaryUploader
 import com.example.aulasegura.data.remote.cloudinary.ImageCompressor
+import com.example.aulasegura.data.remote.ai.AiAssistantDataSource
 import com.example.aulasegura.data.remote.cloudinary.OkHttpCloudinaryUploader
 import com.example.aulasegura.data.remote.remoteconfig.FirebaseRemoteConfigSource
 import com.example.aulasegura.data.remote.remoteconfig.RemoteConfigRepository
 import com.example.aulasegura.data.repository.AuthRepositoryImpl
 import com.example.aulasegura.data.telemetry.FirebaseAnalyticsLogger
+import com.example.aulasegura.domain.repository.AiAssistant
 import com.example.aulasegura.domain.repository.AuthRepository
 import com.example.aulasegura.domain.telemetry.AnalyticsLogger
+import com.example.aulasegura.domain.usecase.AskAssistantUseCase
 import com.example.aulasegura.sync.AttendanceSyncHandler
 import com.example.aulasegura.sync.CrashlyticsSyncReporter
 import com.example.aulasegura.sync.OutboxRepository
@@ -148,6 +151,23 @@ class AppContainer(context: Context) {
      */
     val remoteConfigRepository: RemoteConfigRepository by lazy {
         RemoteConfigRepository(FirebaseRemoteConfigSource())
+    }
+
+    // ---- AI -----------------------------------------------------------------
+    /**
+     * Firebase AI Logic behind a domain contract.
+     *
+     * Built lazily like everything else: the SDK instance is only created when
+     * the first question is asked, and the Remote Config gate is read from the
+     * same repository the rest of the app uses — one source of truth for
+     * `ai_assistant_enabled`.
+     */
+    val aiAssistant: AiAssistant by lazy {
+        AiAssistantDataSource(remoteConfig = remoteConfigRepository)
+    }
+
+    val askAssistantUseCase: AskAssistantUseCase by lazy {
+        AskAssistantUseCase(assistant = aiAssistant, analytics = analyticsLogger)
     }
 
     // ---- ViewModels ---------------------------------------------------------

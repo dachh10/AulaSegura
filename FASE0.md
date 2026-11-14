@@ -334,10 +334,26 @@ en nuestro código.
 
 ## Bloque J — AI Logic
 
-- [ ] **J1** Firebase Console → AI Logic → **Get started** → Gemini Developer API
-- [ ] **J2** Confirmar que el proyecto sigue en **Spark** (sin facturación)
-- [ ] **J3** Consulta de prueba desde el cliente con App Check
-- [ ] **J4** Manejo de `429 RESOURCE_EXHAUSTED` con mensaje al usuario
+- [x] **J1** Firebase Console → AI Logic → **Get started** → Gemini Developer API
+- [x] **J2** Confirmar que el proyecto sigue en **Spark** (sin facturación)
+- [x] **J3** Consulta de prueba desde el cliente con App Check
+- [x] **J4** Manejo de `429 RESOURCE_EXHAUSTED` con mensaje al usuario
+
+**Modelo:** `gemini-3.5-flash-lite`. La consola ofrece solo dos modelos sin facturación
+(este y `gemini-3.8-flash`); el *lite* trae cuota por minuto más alta y menor latencia, que es
+lo que necesita un asistente de preguntas cortas.
+
+| Ítem | Evidencia |
+| --- | --- |
+| J1 | Service Usage API: `generativelanguage` y `firebasevertexai` en `ENABLED` |
+| J2 | Cloud Billing API: `billingEnabled=False` para `aulasegu` |
+| J3 | Device: `session: Success(uid=3lXeJEvp…)`, `ask: starting, assistant available=true`, `ask: finished with Answer` — 3.5 s, `OK (1 test)` |
+| J4 | `AiFailureMappingTest`: 8 casos con las excepciones reales del SDK (construidas por reflexión, porque los constructores son `internal`) + un `429` real observado al insistir |
+
+> **Si el asistente "no contesta", mirá el modelo antes que el código.** El 2026-11-13
+> `gemini-3.8-flash` devolvía `500 high demand` o dejaba la conexión abierta sin responder
+> (el cliente se quedaba esperando), mientras `gemini-3.5-flash-lite` contestaba en 2,6 s.
+> Un modelo saturado se ve idéntico a un bug propio.
 
 ---
 

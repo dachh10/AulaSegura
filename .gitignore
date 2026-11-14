@@ -23,6 +23,7 @@ keystore.properties
 # ---- Tooling artifacts ----
 .freebuff/
 .dsh-office-*/
+node_modules/
 
 # ---- Logs ----
 *.log

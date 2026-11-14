@@ -359,11 +359,65 @@ lo que necesita un asistente de preguntas cortas.
 
 ## Bloque K — Seed y cierre
 
-- [ ] **K1** Service account descargada, fuera del repo
-- [ ] **K2** `tools/seed/` con Admin SDK: plantel, grupos, alumnos, docentes, tutores
-- [ ] **K3** Poblar Firestore y verificar en la consola
-- [ ] **K4** `assembleDebug` verde
-- [ ] **K5** Cierre de Fase 0 según `PLAN.md` §Fase 0
+- [x] **K1** Service account descargada, fuera del repo
+- [x] **K2** `tools/seed/` con Admin SDK: plantel, grupos, alumnos, docentes, tutores
+- [x] **K3** Poblar Firestore y verificar en la consola
+- [x] **K4** `assembleDebug` verde
+- [x] **K5** Cierre de Fase 0 según `PLAN.md` §Fase 0
+
+**Llave:** cuenta de servicio `firebase-adminsdk-fbsvc@aulasegu.iam.gserviceaccount.com`,
+key id `d1fb395a…` guardada en `%USERPROFILE%\.aulasegura\firebase-adminsdk.json` (ACL solo
+para el usuario). **Revocarla cuando la Fase 0 esté cerrada** — no hace falta después del seed.
+
+**Qué siembra `tools/seed/seed.mjs`:**
+
+| Colección | Documentos |
+| --- | --- |
+| `schools` | `sch-benito-juarez` |
+| `groups` | `grp-3b` (28), `grp-3a` (30), `grp-2c` (27), `grp-1a` (26) |
+| `students` | 111, con id `stu-<grupo>-<nn>` |
+| `users` | solo vínculos: `schoolId`; docente `subjects`/`groupIds`; tutor `groupIds`/`studentIds` |
+
+El script resuelve las tres cuentas por email (`auth.getUserByEmail`) y **nunca toca** los
+campos de identidad de `users` (`role`, `fullName`, `email`): esas cuentas ya las creó el
+flujo de auth. Los vínculos del tutor se escriben con `merge`, y `tutorIds` nace vacío salvo
+para sus dos hijos, para no borrar un vínculo que agregue el flujo real más adelante. El
+`groupIds` del tutor está denormalizado a propósito: las reglas no pueden caminar
+`studentIds → groupId`.
+
+| Ítem | Evidencia |
+| --- | --- |
+| K1 | Key creada por API (`iam.googleapis.com/.../serviceAccounts/.../keys`), archivo fuera del repo, 2.364 bytes, ACL restringida |
+| K2 | `tools/seed/{package.json,seed.mjs,README.md}`; `node_modules/` en `.gitignore` |
+| K3 | Corrida real: `schools 1`, `groups 4`, `students 111`, `users 3`; segunda corrida `0 nuevos, 111 existentes` (idempotente); read-back con `studentCount` igual al conteo real en los 4 grupos, `Mariana Gómez Ruiz` y `Diego Gómez Ruiz` con `tutorIds=OK` |
+
+> La verificación se lee a sí misma: en la primera corrida encontró que `stu-1a-07` era
+> "César Galván" en vez de Diego Gómez Ruiz, porque el id del hijo se había escrito pero
+> nunca se había puesto en el roster de 1° A. Un seed que sólo imprime "listo" no lo habría
+> visto.
+
+### Cierre de la Fase 0
+
+`PLAN.md` pide: un docente **creado por el seed** inicia sesión real, aterriza en
+`TeacherHome`, la app lee su perfil desde Firestore, App Check activo, AI Logic contesta y
+`assembleDebug` compila. Punto por punto:
+
+| Criterio | Estado | Evidencia |
+| --- | --- | --- |
+| Docente inicia sesión real | ✅ | Device: `session: Success(user=AppUser(uid=3lXeJEvp…, role=TEACHER, fullName=Ricardo Salinas Ortega, schoolId=sch-benito-juarez, active=true))` |
+| Perfil leído desde Firestore | ✅ | Mismo log: `signIn`/`restoreSession` devuelven `AppUser` armado desde `users/{uid}` |
+| Aterriza en `TeacherHome` | ✅ (código) | `SessionState.SignedIn → role.homeRoute()` y `UserRole.TEACHER → Routes.TEACHER_HOME` |
+| App Check activo | ✅ | Device: `appCheckHandsOutATokenForTheRequest` en verde |
+| AI Logic responde | ✅ | Device: `ask: finished with Answer` en 3,5 s con `gemini-3.5-flash-lite` |
+| `assembleDebug` verde | ✅ | `BUILD SUCCESSFUL in 7s`, APK de 31,47 MB |
+| Spark, sin Cloud Functions | ✅ | Cloud Billing API: `billingEnabled=False` |
+
+> **Único matiz:** el saludo del `TeacherHome` todavía dice "Hola, profe Ricardo" escrito a
+> mano. El perfil real ya se lee y se usa para elegir el grafo de navegación; reemplazar el
+> texto por `fullName` es trabajo de la Fase 1, no de la fundación técnica.
+>
+> **Antes de pasar a Fase 1:** revocar la key de la service account. Ya cumplió su función y
+> una llave de Admin SDK viva no aporta nada al repo.
 
 ---
 

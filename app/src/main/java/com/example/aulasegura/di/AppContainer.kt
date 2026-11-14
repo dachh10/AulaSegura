@@ -17,9 +17,12 @@ import com.example.aulasegura.data.remote.cloudinary.OkHttpCloudinaryUploader
 import com.example.aulasegura.data.remote.remoteconfig.FirebaseRemoteConfigSource
 import com.example.aulasegura.data.remote.remoteconfig.RemoteConfigRepository
 import com.example.aulasegura.data.repository.AuthRepositoryImpl
+import com.example.aulasegura.data.repository.FirestoreRosterRepository
 import com.example.aulasegura.data.telemetry.FirebaseAnalyticsLogger
 import com.example.aulasegura.domain.repository.AiAssistant
 import com.example.aulasegura.domain.repository.AuthRepository
+import com.example.aulasegura.domain.repository.GroupRepository
+import com.example.aulasegura.domain.repository.StudentRepository
 import com.example.aulasegura.domain.telemetry.AnalyticsLogger
 import com.example.aulasegura.domain.usecase.AskAssistantUseCase
 import com.example.aulasegura.sync.AttendanceSyncHandler
@@ -32,6 +35,7 @@ import com.example.aulasegura.sync.SyncScheduler
 import com.example.aulasegura.ui.screens.access.ForgotPasswordViewModel
 import com.example.aulasegura.ui.screens.access.LoginViewModel
 import com.example.aulasegura.ui.screens.access.SessionViewModel
+import com.example.aulasegura.ui.screens.teacher.TeacherGroupsViewModel
 import com.google.firebase.analytics.FirebaseAnalytics
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FirebaseFirestore
@@ -83,9 +87,27 @@ class AppContainer(context: Context) {
         AuthRepositoryImpl(
             auth = firebaseAuth,
             firestore = firestore,
+            profileDao = database.profileDao(),
             analytics = analyticsLogger,
         )
     }
+
+    /**
+     * The roster cache. One instance behind both contracts because the two share
+     * the same Firestore, the same Room cache and the same session; two instances
+     * would mean two copies of the query filters.
+     */
+    private val rosterRepository: FirestoreRosterRepository by lazy {
+        FirestoreRosterRepository(
+            firestore = firestore,
+            groupDao = database.groupDao(),
+            studentDao = database.studentDao(),
+            auth = authRepository,
+        )
+    }
+
+    val groupRepository: GroupRepository get() = rosterRepository
+    val studentRepository: StudentRepository get() = rosterRepository
 
     val outboxRepository: OutboxRepository by lazy {
         OutboxRepository(
@@ -195,6 +217,12 @@ class AppViewModelFactory(
 
         modelClass.isAssignableFrom(ForgotPasswordViewModel::class.java) ->
             ForgotPasswordViewModel(container.authRepository)
+
+        modelClass.isAssignableFrom(TeacherGroupsViewModel::class.java) ->
+            TeacherGroupsViewModel(
+                groups = container.groupRepository,
+                auth = container.authRepository,
+            )
 
         else -> error("No ViewModel registered for ${modelClass.name}")
     } as T

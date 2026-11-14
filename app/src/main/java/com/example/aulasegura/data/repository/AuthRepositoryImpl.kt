@@ -1,5 +1,8 @@
 package com.example.aulasegura.data.repository
 
+import com.example.aulasegura.data.local.dao.ProfileDao
+import com.example.aulasegura.data.local.mapper.toCachedEntity
+import com.example.aulasegura.data.local.mapper.toCachedUser
 import com.example.aulasegura.domain.model.AppUser
 import com.example.aulasegura.domain.model.UserRole
 import com.example.aulasegura.domain.repository.AuthFailure
@@ -30,11 +33,21 @@ import kotlinx.coroutines.tasks.await
 class AuthRepositoryImpl(
     private val auth: FirebaseAuth = FirebaseAuth.getInstance(),
     private val firestore: FirebaseFirestore = FirebaseFirestore.getInstance(),
+    private val profileDao: ProfileDao,
     private val analytics: AnalyticsLogger = NoOpAnalyticsLogger,
 ) : AuthRepository {
 
     override val currentUserId: String?
         get() = auth.currentUser?.uid
+
+    /**
+     * Cached so `schoolId`, `subjects` and `fullName` are available without a
+     * second `users/{uid}` read per screen. Written only by [resolveProfile] —
+     * from the network or, offline, from the Room copy — and cleared on sign-out.
+     */
+    @Volatile
+    override var currentUser: AppUser? = null
+        private set
 
     override suspend fun signIn(email: String, password: String): AuthResult =
         try {
@@ -63,6 +76,7 @@ class AuthRepositoryImpl(
     }
 
     override fun signOut() {
+        currentUser = null
         auth.signOut()
     }
 
@@ -111,9 +125,12 @@ class AuthRepositoryImpl(
         val snapshot = try {
             firestore.collection(USERS).document(firebaseUser.uid).get().await()
         } catch (e: FirebaseNetworkException) {
-            return AuthResult.Failure(AuthFailure.NETWORK)
+            // No network: the last profile read on this device is still the truth
+            // about who is signed in. Without this branch a teacher who opens the
+            // app inside a school with no signal lands on the login screen.
+            return cachedProfile(firebaseUser.uid)
         } catch (e: FirebaseFirestoreException) {
-            return AuthResult.Failure(AuthFailure.NETWORK)
+            return cachedProfile(firebaseUser.uid)
         }
 
         if (!snapshot.exists()) {
@@ -133,17 +150,46 @@ class AuthRepositoryImpl(
             return AuthResult.Failure(AuthFailure.ROLE_UNKNOWN)
         }
 
-        return AuthResult.Success(
-            AppUser(
-                uid = firebaseUser.uid,
-                email = snapshot.getString(FIELD_EMAIL) ?: firebaseUser.email.orEmpty(),
-                role = role,
-                fullName = snapshot.getString(FIELD_FULL_NAME).orEmpty(),
-                schoolId = snapshot.getString(FIELD_SCHOOL_ID).orEmpty(),
-                active = active,
-                photoUrl = snapshot.getString(FIELD_PHOTO_URL),
-            ),
+        val user = AppUser(
+            uid = firebaseUser.uid,
+            email = snapshot.getString(FIELD_EMAIL) ?: firebaseUser.email.orEmpty(),
+            role = role,
+            fullName = snapshot.getString(FIELD_FULL_NAME).orEmpty(),
+            schoolId = snapshot.getString(FIELD_SCHOOL_ID).orEmpty(),
+            active = active,
+            photoUrl = snapshot.getString(FIELD_PHOTO_URL),
+            subjects = (snapshot.get(FIELD_SUBJECTS) as? List<*>)?.filterIsInstance<String>()
+                ?: emptyList(),
         )
+
+        // Cached only after the profile is fully valid: a rejected account must
+        // not leave a usable user behind. The cache is replaced, never appended,
+        // so a shared device keeps exactly one profile.
+        runCatching {
+            profileDao.clear()
+            profileDao.upsert(user.toCachedEntity(System.currentTimeMillis()))
+        }
+
+        currentUser = user
+        return AuthResult.Success(user)
+    }
+
+    /**
+     * The offline path of [resolveProfile].
+     *
+     * Firestore's persistent cache is deliberately off, so the network failure
+     * has to fall back to the Room copy of the profile. A deactivated account can
+     * keep working offline until the next successful read — that is the price of
+     * a usable offline app, and the safety net is [observeAccountActive], which
+     * signs the session out as soon as a real value arrives.
+     */
+    private suspend fun cachedProfile(uid: String): AuthResult {
+        val cached = runCatching { profileDao.findById(uid) }.getOrNull()
+            ?.toCachedUser()
+            ?: return AuthResult.Failure(AuthFailure.NETWORK)
+
+        currentUser = cached
+        return AuthResult.Success(cached)
     }
 
     private companion object {
@@ -154,5 +200,6 @@ class AuthRepositoryImpl(
         const val FIELD_SCHOOL_ID = "schoolId"
         const val FIELD_ACTIVE = "active"
         const val FIELD_PHOTO_URL = "photoUrl"
+        const val FIELD_SUBJECTS = "subjects"
     }
 }

@@ -39,6 +39,8 @@ private class FakeAuthRepository(
 
     override val currentUserId: String? = null
 
+    override var currentUser: AppUser? = null
+
     override suspend fun signIn(email: String, password: String): AuthResult {
         signInCalls++
         lastEmail = email

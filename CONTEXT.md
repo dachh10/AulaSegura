@@ -510,10 +510,16 @@ Regla: **el `publicId` guardado en Firestore incluye la ruta completa** sin exte
   restringido por formato, carpeta y tamaño en el cliente. Queda documentado como
   decisión.
 
-**Límites del plan free de Cloudinary:** 25 créditos por mes, donde 1 crédito equivale a 1 GB almacenado, 1 GB de tráfico o 1000 transformaciones. Los videos consumen crédito mucho más rápido que las imágenes. Mitigaciones obligatorias:
+**Límites del plan free de Cloudinary** (verificados en la consola, agosto 2026): **25 créditos por
+mes**, sin tarjeta y sin límite de tiempo. **1 crédito = 1 GB almacenado** · **1 GB de ancho de
+banda mensual** · **500 s de procesamiento de video SD** · **250 s en HD**. Además, **cada archivo
+de video tiene un tope duro de 100 MB** en el plan free. Los videos consumen crédito mucho más
+rápido que las imágenes: 100 MB de video ya son ~0.1 crédito solo por existir, y el bandwidth de un
+aula mirándolo se come el resto. Mitigaciones obligatorias:
 
 - Comprimir la imagen en el dispositivo antes de subir (`≤ 1080 px` de lado mayor, calidad ~80).
-- Limitar el video a **15 segundos** y ≤ 20 MB antes de subir.
+- Limitar el video a **15 segundos** y ≤ 20 MB antes de subir: muy por debajo del tope de 100 MB de
+  Cloudinary, porque el tope de la plataforma no es el presupuesto del proyecto.
 - Pintar listas con la transformación de miniatura, nunca con el original.
 - Guardar `bytes` en Firestore y mostrar el consumo en el panel de administración (opcional).
 - Borrar de Cloudinary la media de incidentes rechazados o de pruebas.
@@ -552,9 +558,15 @@ Coil apunta a la URL transformada; no se descarga el original para pintar una li
 | `IncidentMediaEntity` | Archivo local y estado de subida a Cloudinary |
 | `NoticeEntity`, `TaskEntity` | Caché de lectura |
 | `OutboxEntity` | Cola de operaciones pendientes |
+| `ProfileEntity` | Último perfil válido de `users/{uid}`, para arrancar sin red (v2) |
 
 `syncState`: `PENDING` → `SYNCING` → `SYNCED` | `FAILED`.
 `uploadState` (media): `PENDING` → `UPLOADING` → `UPLOADED` | `FAILED`.
+
+**`ProfileEntity` no es un lujo.** La sesión de Firebase Auth sobrevive sin red, pero el perfil vive en
+Firestore y su caché persistente está apagada (§2, regla 2). Sin la copia local, `restoreSession()`
+falla sin conexión y la app manda al login justo en el escenario para el que existe: el aula sin señal.
+Se guarda **una sola fila**, que se reemplaza en cada resolución válida del perfil.
 
 ### 8.2 Outbox
 

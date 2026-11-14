@@ -37,6 +37,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.em
 import androidx.compose.ui.unit.sp
@@ -75,63 +76,29 @@ private val DonePillText = Color(0xFF065F46)
 private val GroupShape = RoundedCornerShape(24.dp)
 private val BadgeShape = RoundedCornerShape(16.dp)
 
-private data class TeacherGroup(
-    val id: String,
-    val grade: String,
-    val subject: String,
-    val students: Int,
-    val time: String,
-    val attendance: Int,
-    val rollCallDone: Boolean,
-    val isToday: Boolean,
-)
-
-private enum class GroupFilter(val label: String) {
-    Todos("Todos"),
-    Hoy("Hoy"),
-    Materia("Matemáticas"),
+private enum class GroupFilter {
+    Todos,
+    Hoy,
+    Materia,
 }
 
 /**
- * Snapshot data from the mockup: three groups, all of them taught today.
- * The filter chips read these fields, so they will start discriminating as soon
- * as the data varies (another subject, a group scheduled on another day).
+ * The third chip names the subject this teacher actually teaches, not a
+ * hardcoded "Matemáticas": the label and the filter it applies are the same
+ * string, so they can never disagree.
  */
-private val sampleGroups = listOf(
-    TeacherGroup(
-        id = "3B",
-        grade = "3° B",
-        subject = "Matemáticas",
-        students = 28,
-        time = "08:00 – 09:00",
-        attendance = 94,
-        rollCallDone = false,
-        isToday = true,
-    ),
-    TeacherGroup(
-        id = "3A",
-        grade = "3° A",
-        subject = "Matemáticas",
-        students = 30,
-        time = "09:30 – 10:30",
-        attendance = 91,
-        rollCallDone = true,
-        isToday = true,
-    ),
-    TeacherGroup(
-        id = "2C",
-        grade = "2° C",
-        subject = "Matemáticas",
-        students = 27,
-        time = "11:00 – 12:00",
-        attendance = 96,
-        rollCallDone = false,
-        isToday = true,
-    ),
-)
+private fun GroupFilter.labelFor(subject: String?): String = when (this) {
+    GroupFilter.Todos -> "Todos"
+    GroupFilter.Hoy -> "Hoy"
+    GroupFilter.Materia -> subject ?: "Materia"
+}
 
 @Composable
 fun TeacherGroupsScreen(
+    groups: List<TeacherGroupUi> = emptyList(),
+    refreshing: Boolean = true,
+    notice: String? = null,
+    onRetry: () -> Unit = {},
     onIrAInicio: () -> Unit = {},
     onIrAChat: () -> Unit = {},
     onIrAHistorial: () -> Unit = {},
@@ -142,11 +109,13 @@ fun TeacherGroupsScreen(
 ) {
     var filter by remember { mutableStateOf(GroupFilter.Todos) }
 
-    val groups = remember(filter) {
+    val subject = groups.firstOrNull()?.subject
+
+    val visible = remember(filter, groups, subject) {
         when (filter) {
-            GroupFilter.Todos -> sampleGroups
-            GroupFilter.Hoy -> sampleGroups.filter { it.isToday }
-            GroupFilter.Materia -> sampleGroups.filter { it.subject == "Matemáticas" }
+            GroupFilter.Todos -> groups
+            GroupFilter.Hoy -> groups.filter { it.isToday }
+            GroupFilter.Materia -> groups.filter { it.subject == subject }
         }
     }
 
@@ -174,7 +143,7 @@ fun TeacherGroupsScreen(
                 ) {
                     GroupFilter.entries.forEach { option ->
                         FilterChip(
-                            label = option.label,
+                            label = option.labelFor(subject),
                             selected = option == filter,
                             onClick = { filter = option },
                         )
@@ -189,7 +158,15 @@ fun TeacherGroupsScreen(
                         .padding(horizontal = 16.dp),
                     verticalArrangement = Arrangement.spacedBy(12.dp),
                 ) {
-                    groups.forEach { group ->
+                    if (notice != null) {
+                        GroupsNotice(message = notice, onRetry = onRetry)
+                    }
+
+                    if (visible.isEmpty()) {
+                        GroupsEmptyState(refreshing = refreshing, hasGroups = groups.isNotEmpty())
+                    }
+
+                    visible.forEach { group ->
                         TeacherGroupCard(
                             group = group,
                             onPasarLista = { onPasarLista(group.id) },
@@ -212,6 +189,76 @@ fun TeacherGroupsScreen(
                 }
             },
             modifier = Modifier.align(Alignment.BottomCenter),
+        )
+    }
+}
+
+@Composable
+private fun GroupsNotice(message: String, onRetry: () -> Unit) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(16.dp))
+            .background(PendingPillBg)
+            .padding(horizontal = 14.dp, vertical = 10.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(
+            text = message,
+            modifier = Modifier.weight(1f),
+            color = PendingPillText,
+            fontFamily = DmSans,
+            fontSize = 12.sp,
+            lineHeight = 16.sp,
+        )
+        Box(
+            modifier = Modifier
+                .clip(RoundedCornerShape(percent = 50))
+                .background(PendingPillText)
+                .clickable(onClick = onRetry)
+                .padding(horizontal = 12.dp, vertical = 6.dp),
+        ) {
+            Text(
+                text = "Reintentar",
+                color = Color.White,
+                fontFamily = DmSans,
+                fontWeight = FontWeight.SemiBold,
+                fontSize = 11.sp,
+                lineHeight = 14.sp,
+            )
+        }
+    }
+}
+
+/**
+ * Three different silences, said out loud: still loading, nothing for this
+ * filter, and no groups assigned at all. One generic "no hay datos" would make
+ * a teacher with no assignment think the app is broken.
+ */
+@Composable
+private fun GroupsEmptyState(refreshing: Boolean, hasGroups: Boolean) {
+    val message = when {
+        refreshing && !hasGroups -> "Cargando tus grupos…"
+        hasGroups -> "Ningún grupo coincide con este filtro."
+        else -> "No tienes grupos asignados. Pídele al directivo que te asigne uno."
+    }
+
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(GroupShape)
+            .background(SurfaceContainerLowest)
+            .border(1.dp, Hairline, GroupShape)
+            .padding(24.dp),
+        contentAlignment = Alignment.Center,
+    ) {
+        Text(
+            text = message,
+            color = OnboardingMuted,
+            fontFamily = DmSans,
+            fontSize = 13.sp,
+            lineHeight = 20.sp,
+            textAlign = TextAlign.Center,
         )
     }
 }
@@ -345,7 +392,7 @@ private fun FilterChip(
 // ZONE 3 — Group cards
 @Composable
 private fun TeacherGroupCard(
-    group: TeacherGroup,
+    group: TeacherGroupUi,
     onPasarLista: () -> Unit,
     onVerAlumnos: () -> Unit,
 ) {
@@ -363,22 +410,26 @@ private fun TeacherGroupCard(
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Icon(
-                    imageVector = Icons.Filled.Schedule,
-                    contentDescription = null,
-                    tint = OnboardingMuted,
-                    modifier = Modifier.size(16.dp),
-                )
-                Spacer(modifier = Modifier.width(6.dp))
-                Text(
-                    text = group.time,
-                    color = OnboardingMuted,
-                    fontFamily = JetBrainsMono,
-                    fontSize = 12.sp,
-                    lineHeight = 12.sp,
-                )
+                if (group.time != null) {
+                    Icon(
+                        imageVector = Icons.Filled.Schedule,
+                        contentDescription = null,
+                        tint = OnboardingMuted,
+                        modifier = Modifier.size(16.dp),
+                    )
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text(
+                        text = group.time,
+                        color = OnboardingMuted,
+                        fontFamily = JetBrainsMono,
+                        fontSize = 12.sp,
+                        lineHeight = 12.sp,
+                    )
+                }
             }
-            RollCallPill(done = group.rollCallDone)
+            if (group.rollCallDone != null) {
+                RollCallPill(done = group.rollCallDone)
+            }
         }
 
         Spacer(modifier = Modifier.height(10.dp))
@@ -393,7 +444,7 @@ private fun TeacherGroupCard(
                 contentAlignment = Alignment.Center,
             ) {
                 Text(
-                    text = group.grade,
+                    text = group.label,
                     color = PrimaryContainer,
                     fontFamily = BricolageGrotesque,
                     fontWeight = FontWeight.ExtraBold,
@@ -419,8 +470,10 @@ private fun TeacherGroupCard(
                     lineHeight = 20.sp,
                 )
             }
-            Spacer(modifier = Modifier.width(8.dp))
-            AttendanceGauge(percent = group.attendance)
+            if (group.attendance != null) {
+                Spacer(modifier = Modifier.width(8.dp))
+                AttendanceGauge(percent = group.attendance)
+            }
         }
 
         Spacer(modifier = Modifier.height(12.dp))

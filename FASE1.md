@@ -41,7 +41,7 @@ Lo que **falta** y es el trabajo real de esta fase:
 
 - [ ] **P0.1** Revocar la key de la service account del seed (o dejar anotado por qué sigue viva)
 - [ ] **P0.2** Confirmar en consola `allowed_formats = jpg,png,webp` del preset `docenteaula`
-- [ ] **P0.3** Rama de trabajo: `feat/docente-pase-lista` (nadie pushea a `main`, ver `CONTEXT.md` §10)
+- [x] **P0.3** Rama de trabajo: `feat/docente-pase-lista` (nadie pushea a `main`, ver `CONTEXT.md` §10)
 
 > **Regla de convivencia:** si una tarea toca el **esquema de Firestore**, se avisa antes de
 > mergear. `domain/model` y `data/` los toca una sola persona a la vez (`CONTEXT.md` §10).
@@ -50,12 +50,32 @@ Lo que **falta** y es el trabajo real de esta fase:
 
 ## Bloque 1 — Datos del docente (PLAN 1.1)
 
-- [ ] **1.1** Modelos de dominio: `Group`, `Student` (no reusar las entidades de Room en la UI)
-- [ ] **1.2** `GroupRepository` / `StudentRepository` en `domain/repository/`
-- [ ] **1.3** Implementación Firestore en `data/repository/` con las consultas que las reglas exigen
-- [ ] **1.4** Estrategia **cache-first**: leer de Room con `Flow`, refrescar de Firestore a Room en segundo plano
-- [ ] **1.5** `TeacherHomeScreen` y `TeacherGroupsScreen` cableadas a datos reales
-- [ ] **1.6** Mappers Firestore ↔ Room ↔ dominio en un solo lugar (`data/mapper/`)
+- [x] **1.1** Modelos de dominio: `Group`, `Student` (no reusar las entidades de Room en la UI)
+- [x] **1.2** `GroupRepository` / `StudentRepository` en `domain/repository/`
+- [x] **1.3** Implementación Firestore en `data/repository/` con las consultas que las reglas exigen
+- [x] **1.4** Estrategia **cache-first**: leer de Room con `Flow`, refrescar de Firestore a Room en segundo plano
+- [~] **1.5** `TeacherHomeScreen` y `TeacherGroupsScreen` cableadas a datos reales
+- [x] **1.6** Mappers Firestore ↔ Room ↔ dominio en un solo lugar (`data/mapper/`)
+
+> **Estado de 1.5:** *Mis grupos* ya lee de Room y refresca de Firestore (`TeacherGroupsViewModel`).
+> El **roster** ya existe en `StudentRepository.observeRoster()`, pero todavía no hay pantalla que lo
+> pinte: `onVerAlumnos` sigue cayendo en `PlaceholderScreen` y la lista real llega con **2.8**
+> (`RollCallScreen`). Los contadores del inicio son de asistencia y también son del bloque 2.
+> No se tildó para no declarar media entrega como entrega.
+>
+> **Hallazgo del bloque 1 (corregido acá):** con modo avión y arranque en frío la app volvía al login.
+> `restoreSession()` resolvía el perfil leyendo `users/{uid}` en Firestore, y con la caché persistente
+> de Firestore desactivada esa lectura no existe sin red. Se agregó `profile` a Room (versión 2,
+> `MIGRATION_1_2`) como caché del perfil: si Firestore no responde, se usa el último perfil válido.
+> La regla de fondo: **el arranque offline no puede depender de la red**, o el criterio de la fase
+> ("modo avión, cerrar y abrir la app") es imposible de cumplir.
+>
+> **Segundo hallazgo, más peligroso:** sin red, un `get()` de Firestore puede resolverse como
+> **snapshot vacío** en lugar de fallar. `refreshRoster` habría concluido que todos los alumnos se
+> fueron del grupo y **borrado el roster cacheado** — justo en el escenario para el que existe la caché.
+> Las dos consultas piden `Source.SERVER`: o el servidor contesta de verdad, o falla y la caché no se
+> toca. Con eso además aparece el aviso de "sin conexión" que antes nunca llegaba, porque el refresco
+> quedaba esperando sin límite (`withTimeout` de 12 s).
 
 **Criterio:** el docente abre la app y ve sus 3 grupos con los conteos reales (28 / 30 / 27); en
 modo avión, después de una carga online, sigue viendo lo mismo.
@@ -74,9 +94,21 @@ modo avión, después de una carga online, sigue viendo lo mismo.
 > **Y ojo con el `groupIds` denormalizado:** el docente tiene `groupIds = [grp-3b, grp-3a, grp-2c]`.
 > `grp-1a` existe en la semilla justamente para probar que **no** puede leerlo.
 
+**Evidencia (CPH2669, Android 14, `assembleDebug` + `testDebugUnitTest` verdes)**
+
+| Check | Resultado observado |
+|---|---|
+| *Mis grupos* online | 3° B **28** · 3° A **30** · 2° C **27**, materia "Matemáticas" leída del perfil real |
+| Orden | por grado y sección: 2° C → 3° A → 3° B |
+| Nada inventado | sin anillo de asistencia, sin píldora de "lista hecha", sin horario: esos datos no existen todavía y la tarjeta los oculta |
+| Modo avión + arranque en frío | abre en **Inicio** con el perfil cacheado (antes volvía al login) |
+| *Mis grupos* en modo avión | los mismos 3 grupos y conteos, más el aviso "Sin conexión. Estás viendo los grupos guardados." con botón **Reintentar** |
+| Roster cacheado | intacto después de refrescos sin red |
+| Tests | 78 unitarios, 0 fallos (Fase 0 cerró con 61) |
+
 ---
 
-## Bloque 2 — Pase de lista online (PLAN 1.2)
+## Bloque 2 - Pase de lista online (PLAN 1.2)
 
 - [ ] **2.1** `AttendanceRepository` + `StartRollCallUseCase` / `SaveRollCallUseCase`
 - [ ] **2.2** `sessionId` = **UUID generado en el cliente** (nunca `add()`, nunca un id del servidor)
@@ -205,11 +237,19 @@ su severidad, su nombre de alumno y su ubicación.
 **Criterio:** un incidente con foto hecho en modo avión termina en Firestore con la URL de
 Cloudinary, sin perder la foto ni duplicar el incidente.
 
-> **Decisión pendiente (confirmar antes de empezar este bloque):** `PLAN.md` dice "fotos/videos",
-> pero `ImageCompressor` solo procesa imágenes y no hay transcodificación de video en el
-> dispositivo. Opciones: (a) Fase 1 solo imágenes y el video queda para Fase 4; (b) video sin
-> re-encode y con tope de tamaño. **No se elige por código**: cambia el alcance y el costo de
-> Cloudinary. Hasta que se decida, el bloque entrega imágenes.
+> **Decisión tomada: video → Fase 4.** Fase 1 entrega **solo imágenes**. `ImageCompressor` procesa
+> imágenes y no hay transcodificación de video en el dispositivo; subir video sin re-encode obliga a
+> un tope de peso y a un costo que no corresponde pagar en esta fase.
+>
+> Límites del plan Free de Cloudinary (verificados, para cuando llegue la Fase 4):
+> - **25 créditos/mes**, sin tarjeta y sin límite de tiempo.
+> - **100 MB máximo por archivo de video.**
+> - 1 crédito = 1 GB almacenado · 1 GB de ancho de banda · 500 s de procesamiento SD · 250 s en HD.
+> - Incluye conversión automática de formato, ajuste de calidad y entrega por CDN.
+>
+> **Consecuencia práctica:** un video de 100 MB consume ~1 crédito de los 25 solo por existir, y el
+> bandwidth de un aula mirándolo se come el resto. En Fase 4 el video va con compresión previa y
+> límite de duración, no "subir lo que el teléfono grabe".
 >
 > **Orden que no se puede invertir:** subir primero y escribir después. Al revés, el incidente queda
 > en Firestore con `media` vacío y el tutor ve un incidente sin evidencia.

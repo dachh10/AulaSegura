@@ -32,6 +32,16 @@ interface StudentDao {
     @Query("DELETE FROM students WHERE groupId = :groupId")
     suspend fun deleteByGroup(groupId: String)
 
+    /**
+     * Drops students that left the group.
+     *
+     * A refresh must not leave a student who was removed from the roster sitting
+     * in the cache forever. Callers pass every id still present; an empty [keep]
+     * is handled by [deleteByGroup] because `NOT IN ()` is invalid SQL.
+     */
+    @Query("DELETE FROM students WHERE groupId = :groupId AND studentId NOT IN (:keep)")
+    suspend fun deleteMissing(groupId: String, keep: List<String>)
+
     @Query("DELETE FROM students")
     suspend fun clear()
 }

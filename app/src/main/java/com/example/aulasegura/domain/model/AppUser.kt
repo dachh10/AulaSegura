@@ -13,4 +13,6 @@ data class AppUser(
     val schoolId: String,
     val active: Boolean,
     val photoUrl: String? = null,
+    /** Subjects a teacher teaches. Empty for every other role. */
+    val subjects: List<String> = emptyList(),
 )

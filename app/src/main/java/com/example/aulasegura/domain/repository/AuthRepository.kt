@@ -14,6 +14,17 @@ interface AuthRepository {
     /** `uid` of the persisted session, or `null` when nobody is signed in. */
     val currentUserId: String?
 
+    /**
+     * Profile of the open session, as resolved by the last sign-in or restore.
+     *
+     * The rest of the app needs more than a uid — `schoolId` to build queries,
+     * `subjects` to label a group, `fullName` to greet the teacher. Re-reading
+     * `users/{uid}` in every screen would duplicate the resolution logic and add
+     * a document read per screen; this is the same profile, cached for the life
+     * of the session and cleared on sign-out.
+     */
+    val currentUser: AppUser?
+
     /** Signs in and resolves the role from `users/{uid}`. */
     suspend fun signIn(email: String, password: String): AuthResult
 

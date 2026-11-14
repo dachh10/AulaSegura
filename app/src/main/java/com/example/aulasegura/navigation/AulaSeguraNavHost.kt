@@ -69,6 +69,7 @@ import com.example.aulasegura.ui.screens.teacher.RollCallScreen
 import com.example.aulasegura.ui.screens.teacher.TeacherChatScreen
 import com.example.aulasegura.ui.screens.teacher.TeacherConversationScreen
 import com.example.aulasegura.ui.screens.teacher.TeacherGroupsScreen
+import com.example.aulasegura.ui.screens.teacher.TeacherGroupsViewModel
 import com.example.aulasegura.ui.screens.teacher.TeacherHistoryScreen
 import com.example.aulasegura.ui.screens.teacher.TeacherIncidentNewScreen
 import com.example.aulasegura.ui.screens.teacher.TeacherHomeScreen
@@ -293,7 +294,7 @@ fun AulaSeguraNavHost(
         composable(Routes.TEACHER_HOME) {
             TeacherHomeScreen(
                 onIrAGrupos = { navController.navigate(Routes.TEACHER_GROUPS) },
-                onIrAPaseLista = { navController.navigate(Routes.teacherRollCall("3B")) },
+                onIrAPaseLista = { navController.navigate(Routes.TEACHER_GROUPS) },
                 onIrARegistrarIncidente = { navController.navigate(Routes.TEACHER_INCIDENT_NEW) },
                 onIrAPublicarTarea = { navController.navigate(Routes.TEACHER_TASK_NEW) },
                 onIrAPublicarAviso = { navController.navigate(Routes.TEACHER_NOTICE_NEW) },
@@ -304,7 +305,15 @@ fun AulaSeguraNavHost(
             )
         }
         composable(Routes.TEACHER_GROUPS) {
+            val groupsViewModel: TeacherGroupsViewModel =
+                viewModel(factory = rememberAppContainer().viewModelFactory)
+            val groupsState by groupsViewModel.state.collectAsState()
+
             TeacherGroupsScreen(
+                groups = groupsState.groups,
+                refreshing = groupsState.refreshing,
+                notice = groupsState.notice,
+                onRetry = groupsViewModel::refresh,
                 onIrAInicio = { navController.popBackStack() },
                 onIrAChat = { navController.navigate(Routes.TEACHER_CHAT) },
                 onIrAHistorial = { navController.navigate(Routes.TEACHER_HISTORY) },

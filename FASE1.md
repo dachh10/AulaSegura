@@ -243,7 +243,14 @@ muestra la pantalla de "fuera de la escuela" y **no** deja cerrar una sesión ve
 | Dentro del radio | Banner "Estás dentro de la escuela · **431 m** del centro · radio **3000 m** · ±13 m"; sesión `status: closed`, `counts.present: 28`, `location { verified: true, distanceMeters: 431.16, accuracy: 13.47 }` |
 | Permiso denegado | El gate muestra "Permiso de ubicación pendiente" y el CTA **Continuar sin verificar**; la lista se abre con "Ubicación sin verificar · Sin lectura de GPS" y la sesión se guarda **sin** el campo `location` |
 | Migración Room 2 → 3 | La app arranca sobre la base existente sin crash: `schools` se crea vacía y el primer refresh la llena |
+| Sin red (modo avión) | La app avisa "Sin conexión. Estás viendo los grupos guardados." y el gate sigue evaluando la geocerca **contra la caché de Room**: muestra el centro y el radio del último valor cacheado —en esa corrida, los temporales del caso "dentro", radio 3000 m—, no "Escuela sin ubicación guardada" |
 | Tests unitarios | 111 tests, 0 fallos (+11 `GeofenceTest`, +7 `SchoolMappersTest`) |
+
+> **Offline manda la caché, y la caché manda lo último que se supo.** Con el avión activado el radio
+> y el centro son los del último refresh, no los del documento: un cambio de radio en la consola no
+> llega al dispositivo hasta que vuelve la red. Para la escuela eso es lo correcto — el aula sin
+> señal tiene que poder pasar lista — pero implica que el mensaje del banner puede ir un refresh
+> atrás respecto de la consola.
 
 > **Cómo se probó "dentro" en un teléfono real.** Este dispositivo no permite
 > `cmd location providers add-test-provider` (`SecurityException: android from uid 2000 not allowed

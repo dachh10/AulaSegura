@@ -582,6 +582,11 @@ administrativo y no tiene consumidor en la ruta del docente. Si el radio falta o
 `20..5000` metros se usa `default_radius_meters` de Remote Config: un `radiusMeters = 0` guardado en
 la consola dejaría a todo el plantel "fuera de la escuela".
 
+**Offline gana la caché.** El refresh de `schools` es best effort: si falla, Room queda como está y
+la geocerca se evalúa con el último centro y radio conocidos. Es lo que permite pasar lista en un
+aula sin señal, con el compromiso de que un cambio de radio hecho en la consola no llega al
+dispositivo hasta que vuelve la red.
+
 ### 8.2 Outbox
 
 `OutboxEntity` guarda `id`, `opType`, `entityLocalId`, `payloadJson`, `attempts`, `lastError`, `createdAt`.

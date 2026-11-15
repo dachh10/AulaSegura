@@ -16,7 +16,7 @@
 | **3** — GPS y geocerca | `verified` contra `schools.location` | ✅ **hecho** · `43fcf21` |
 | **4** — Pase de lista offline | el criterio de la fase, en modo avión | ✅ **hecho** · verificado en modo avión |
 | **5** — Historial | sesiones pasadas del docente | ✅ **hecho** · `assembleDebug` + 130 tests |
-| **6** — Incidentes | reporte con severidad | pendiente |
+| **6** — Incidentes | reporte con severidad | ✅ **hecho** · `assembleDebug` + 143 tests |
 | **7** — Media del incidente | foto comprimida a Cloudinary | pendiente |
 | **8** — Tareas y avisos | publicar con audiencia | pendiente |
 | **9** — Chat | RTDB y presencia | pendiente |
@@ -361,12 +361,53 @@ cualquiera, incluso sin red.
 
 ## Bloque 6 — Incidentes (PLAN 1.6)
 
-- [ ] **6.1** `IncidentRepository` + `CreateIncidentUseCase`
-- [ ] **6.2** Borrador en Room (`IncidentDraftEntity`) con `syncState` y `opType = UPSERT_INCIDENT`
-- [ ] **6.3** Handler `IncidentSyncHandler` y registrarlo en `syncHandlers` del contenedor
-- [ ] **6.4** Severidad (`leve` / `moderado` / `grave`) y categoría según `CONTEXT.md` §6.2
-- [ ] **6.5** Denormalizar `studentName` y `reportedByName`: el tutor lee el incidente sin poder leer el padrón
-- [ ] **6.6** `TeacherIncidentNewScreen` cableada; evento `incident_created` (`severity`, `media_count`)
+> **Estado: ✅ HECHO** — 15 nov 2026 · `assembleDebug` verde · **143 tests unitarios, 0 fallos**
+> (el bloque 5 cerró con 130; +4 del caso de uso, +4 del documento de Firestore, +5 de la UI).
+> **Pendiente la corrida en teléfono** (el device sigue desconectado): crear un incidente en modo
+> avión y comprobar en Firestore que aparece **una sola vez** con severidad, nombre y `location`.
+
+- [x] **6.1** `IncidentRepository` + `CreateIncidentUseCase`
+- [x] **6.2** Borrador en Room (`IncidentDraftEntity`) con `syncState` y `opType = UPSERT_INCIDENT`
+- [x] **6.3** Handler `IncidentSyncHandler` y registrarlo en `syncHandlers` del contenedor
+- [x] **6.4** Severidad (`leve` / `moderado` / `grave`) y categoría según `CONTEXT.md` §6.2
+- [x] **6.5** Denormalizar `studentName` y `reportedByName`: el tutor lee el incidente sin poder leer el padrón
+- [x] **6.6** `TeacherIncidentNewScreen` cableada; evento `incident_created` (`severity`, `media_count`)
+
+**Qué cambió en este bloque**
+
+| Archivo | Cambio |
+|---|---|
+| `domain/model/SyncPhase.kt` | enum genérico de fase (`PENDING`/`SYNCING`/`SYNCED`/`FAILED` + `delivered`); `RollCallSync` pasó a ser `typealias` |
+| `domain/model/Incident.kt` | `IncidentSeverity` (con `wire`), `IncidentCategory`, `IncidentLocation`, `NewIncident`, `IncidentSaveOutcome` |
+| `domain/repository/IncidentRepository.kt` | contrato de escritura: `create` + `observeSync` |
+| `domain/usecase/CreateIncidentUseCase.kt` | valida alumno y descripción, encola, y emite `incident_created` solo si quedó en la cola |
+| `data/mapper/IncidentSyncMapper.kt` | entidad → documento de `incidents/{incidentId}` con nombres denormalizados y `location` anidada |
+| `data/repository/RoomIncidentRepository.kt` | draft + fila de outbox transaccional, `schoolId` resuelto del grupo cacheado, UUID de cliente |
+| `sync/IncidentSyncHandler.kt` | `SYNCING` → `set()` idempotente por UUID → `SYNCED`/`FAILED` (fallas retryables clasificadas) |
+| `sync/OutboxRepository.kt` | `enqueueIncident`: draft `PENDING` + `UPSERT_INCIDENT` en una transacción, y `schedule()` |
+| `data/local/dao/IncidentDao.kt` | `observeDraft(incidentId)` para que la pantalla siga la fase real |
+| `ui/screens/teacher/TeacherIncidentUi.kt` | modelos de UI, `canSave` y `incidentSyncMessage()` |
+| `ui/screens/teacher/TeacherIncidentViewModel.kt` | roster real de sus grupos, severidad, descripción, guardado y seguimiento del sync |
+| `ui/screens/teacher/TeacherIncidentNewScreen.kt` | selector de alumno real, severidad del dominio, aviso de guardado y CTA con estado |
+| `di/AppContainer.kt` · `navigation/AulaSeguraNavHost.kt` | repositorio, caso de uso, handler registrado y ruta `TEACHER_INCIDENT_NEW` cableada |
+
+**Decisiones que importan**
+
+- **El id lo genera el teléfono.** Es el `entityLocalId` del outbox *y* el id del documento, así que reintentar sobrescribe el mismo incidente en vez de crear un segundo. Es el criterio del bloque, escrito una sola vez.
+- **Un `set()`, no un batch.** Un incidente es un documento; su evidencia (bloque 7) se sube antes de esta escritura, así que aquí no hay dos colecciones que puedan quedar a medias.
+- **`schoolId` no lo manda la pantalla.** Se resuelve del grupo ya cacheado, que es lo que las reglas comparan contra `mySchool()` y `myGroups()`.
+- **Nada se auto-selecciona.** Un incidente con el alumno equivocado es una llamada a la familia: el botón queda deshabilitado hasta que el docente nombra al alumno, y la descripción es obligatoria por la misma razón.
+- **La ubicación guardada es el pin, no el GPS.** El pin es donde el docente dice que pasó; `accuracy` queda `null` a propósito porque un pin no es una lectura del sensor. `verified` responde "¿el pin cae dentro del radio de la escuela?", no "¿el GPS fue confiable?".
+- **`media` no se escribe todavía.** Un array vacío diría "este incidente no tiene evidencia" justo cuando el docente sí adjuntó una foto; el array completo llega con el bloque 7, después de subir.
+- **`media_count` va en 0** por lo mismo: el evento cuenta lo que quedó en el documento, no lo que se ve en pantalla.
+
+**Pendientes conocidos de este bloque**
+
+1. **Categoría fija en `otro`.** El mockup no tiene control de categoría y no quise inventar uno; la columna existe y se escribe, pero hasta que haya diseño todas las incidencias dicen `otro`.
+2. **El título se deriva de la descripción** (primera línea, 80 caracteres): la pantalla no tiene campo de título y el documento lo necesita para la lista del admin.
+3. **La evidencia de la pantalla es solo visual.** Se pueden tomar foto y video, pero no se persisten ni se cuentan hasta el bloque 7.
+4. **Sin edición ni estado.** Un incidente creado queda en `nuevo`; cambiarlo a `revisado`/`cerrado` es del admin (reglas y bloque de admin), no de esta pantalla.
+5. **Verificación en teléfono** del criterio (modo avión → una sola aparición, con severidad, nombre y ubicación) sigue pendiente por el device desconectado.
 
 **Criterio:** un incidente creado en modo avión aparece **una vez** en Firestore al reconectar, con
 su severidad, su nombre de alumno y su ubicación.

@@ -4,6 +4,7 @@ import androidx.room.withTransaction
 import com.example.aulasegura.data.local.AulaSeguraDatabase
 import com.example.aulasegura.data.local.entity.AttendanceRecordEntity
 import com.example.aulasegura.data.local.entity.AttendanceSessionEntity
+import com.example.aulasegura.data.local.entity.IncidentDraftEntity
 import com.example.aulasegura.data.local.entity.OutboxEntity
 import com.example.aulasegura.data.local.entity.SyncState
 import com.example.aulasegura.domain.telemetry.AnalyticsEvent
@@ -54,6 +55,30 @@ class OutboxRepository(
         // exactly the failure this counter exists to catch. Outside the
         // transaction so telemetry never holds a database lock.
         analytics.log(AnalyticsEvent.RollCallSaved(synced = false))
+
+        scheduling.schedule()
+    }
+
+    /**
+     * Queues a new incident: the draft and its outbox row in one transaction.
+     *
+     * Same rule as attendance — a `PENDING` draft is always backed by a row that
+     * will be replayed, never a document that only exists on this phone. No
+     * Analytics event here: `incident_created` counts incidents the teacher
+     * created, and it is the use case that knows a creation actually happened.
+     */
+    suspend fun enqueueIncident(draft: IncidentDraftEntity) {
+        database.withTransaction {
+            database.incidentDao().upsertDraft(draft.copy(syncState = SyncState.PENDING))
+            database.outboxDao().insert(
+                OutboxEntity(
+                    opType = SyncOperation.UPSERT_INCIDENT.name,
+                    entityLocalId = draft.incidentId,
+                    payloadJson = "{}",
+                    createdAt = System.currentTimeMillis(),
+                ),
+            )
+        }
 
         scheduling.schedule()
     }

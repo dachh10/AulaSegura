@@ -30,6 +30,13 @@ interface IncidentDao {
     @Query("SELECT * FROM incident_drafts WHERE incidentId = :incidentId LIMIT 1")
     suspend fun findDraft(incidentId: String): IncidentDraftEntity?
 
+    /**
+     * The one draft the screen follows after saving, so the strip can show its
+     * real phase instead of promising a sync in the background.
+     */
+    @Query("SELECT * FROM incident_drafts WHERE incidentId = :incidentId LIMIT 1")
+    fun observeDraft(incidentId: String): Flow<IncidentDraftEntity?>
+
     @Query("SELECT * FROM incident_drafts WHERE syncState = :state")
     suspend fun draftsWithState(state: SyncState): List<IncidentDraftEntity>
 

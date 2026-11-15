@@ -79,6 +79,7 @@ import com.example.aulasegura.ui.screens.teacher.TeacherGroupsViewModel
 import com.example.aulasegura.ui.screens.teacher.TeacherHistoryScreen
 import com.example.aulasegura.ui.screens.teacher.TeacherHistoryViewModel
 import com.example.aulasegura.ui.screens.teacher.TeacherIncidentNewScreen
+import com.example.aulasegura.ui.screens.teacher.TeacherIncidentViewModel
 import com.example.aulasegura.ui.screens.teacher.TeacherHomeScreen
 import com.example.aulasegura.ui.screens.teacher.TeacherLocationVerifyingScreen
 import com.example.aulasegura.ui.screens.teacher.TeacherNoticeNewScreen
@@ -448,9 +449,19 @@ fun AulaSeguraNavHost(
             )
         }
         composable(Routes.TEACHER_INCIDENT_NEW) {
+            val container = rememberAppContainer()
+            val incidentViewModel: TeacherIncidentViewModel =
+                viewModel(factory = container.viewModelFactory)
+            val incidentUi by incidentViewModel.state.collectAsState()
+            val school = rememberSchoolSite()
             TeacherIncidentNewScreen(
+                ui = incidentUi,
+                school = school.site,
                 onBack = { navController.popBackStack() },
-                onSave = { navController.popBackStack() },
+                onSave = incidentViewModel::save,
+                onSelectStudent = incidentViewModel::selectStudent,
+                onSeverityChange = incidentViewModel::setSeverity,
+                onDescriptionChange = incidentViewModel::setDescription,
             )
         }
         composable(Routes.TEACHER_TASK_NEW) {

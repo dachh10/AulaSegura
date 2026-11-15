@@ -21,19 +21,23 @@ import com.example.aulasegura.data.repository.FirestoreAttendanceHistoryReposito
 import com.example.aulasegura.data.repository.FirestoreRosterRepository
 import com.example.aulasegura.data.repository.FirestoreSchoolRepository
 import com.example.aulasegura.data.repository.RoomAttendanceRepository
+import com.example.aulasegura.data.repository.RoomIncidentRepository
 import com.example.aulasegura.data.telemetry.FirebaseAnalyticsLogger
 import com.example.aulasegura.domain.repository.AiAssistant
 import com.example.aulasegura.domain.repository.AttendanceHistoryRepository
 import com.example.aulasegura.domain.repository.AttendanceRepository
 import com.example.aulasegura.domain.repository.AuthRepository
 import com.example.aulasegura.domain.repository.GroupRepository
+import com.example.aulasegura.domain.repository.IncidentRepository
 import com.example.aulasegura.domain.repository.SchoolRepository
 import com.example.aulasegura.domain.repository.StudentRepository
 import com.example.aulasegura.domain.telemetry.AnalyticsLogger
 import com.example.aulasegura.domain.usecase.AskAssistantUseCase
+import com.example.aulasegura.domain.usecase.CreateIncidentUseCase
 import com.example.aulasegura.domain.usecase.SaveRollCallUseCase
 import com.example.aulasegura.domain.usecase.StartRollCallUseCase
 import com.example.aulasegura.sync.AttendanceSyncHandler
+import com.example.aulasegura.sync.IncidentSyncHandler
 import com.example.aulasegura.sync.CrashlyticsSyncReporter
 import com.example.aulasegura.sync.OutboxRepository
 import com.example.aulasegura.sync.SyncFailureReporter
@@ -45,6 +49,7 @@ import com.example.aulasegura.ui.screens.access.LoginViewModel
 import com.example.aulasegura.ui.screens.access.SessionViewModel
 import com.example.aulasegura.ui.screens.teacher.TeacherGroupsViewModel
 import com.example.aulasegura.ui.screens.teacher.TeacherHistoryViewModel
+import com.example.aulasegura.ui.screens.teacher.TeacherIncidentViewModel
 import com.google.firebase.analytics.FirebaseAnalytics
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FirebaseFirestore
@@ -171,6 +176,23 @@ class AppContainer(context: Context) {
         )
     }
 
+    /**
+     * The incident write path, offline-first like the roll call: Room draft plus
+     * outbox row, and `IncidentSyncHandler` is what reaches Firestore.
+     */
+    val incidentRepository: IncidentRepository by lazy {
+        RoomIncidentRepository(
+            incidentDao = database.incidentDao(),
+            outbox = outboxRepository,
+            groups = groupRepository,
+            auth = authRepository,
+        )
+    }
+
+    val createIncidentUseCase: CreateIncidentUseCase by lazy {
+        CreateIncidentUseCase(incidents = incidentRepository, analytics = analyticsLogger)
+    }
+
     val startRollCallUseCase: StartRollCallUseCase by lazy {
         StartRollCallUseCase(attendance = attendanceRepository, analytics = analyticsLogger)
     }
@@ -191,6 +213,10 @@ class AppContainer(context: Context) {
                     attendanceDao = database.attendanceDao(),
                     firestore = firestore,
                     analytics = analyticsLogger,
+                ),
+                SyncOperation.UPSERT_INCIDENT to IncidentSyncHandler(
+                    incidentDao = database.incidentDao(),
+                    firestore = firestore,
                 ),
             ),
         )
@@ -288,6 +314,14 @@ class AppViewModelFactory(
 
         modelClass.isAssignableFrom(TeacherHistoryViewModel::class.java) ->
             TeacherHistoryViewModel(history = container.attendanceHistoryRepository)
+
+        modelClass.isAssignableFrom(TeacherIncidentViewModel::class.java) ->
+            TeacherIncidentViewModel(
+                groups = container.groupRepository,
+                students = container.studentRepository,
+                createIncident = container.createIncidentUseCase,
+                incidents = container.incidentRepository,
+            )
 
         else -> error("No ViewModel registered for ${modelClass.name}")
     } as T

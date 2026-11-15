@@ -100,6 +100,11 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.em
 import androidx.compose.ui.unit.sp
 import androidx.core.content.FileProvider
+import com.example.aulasegura.domain.model.IncidentLocation
+import com.example.aulasegura.domain.model.IncidentSeverity
+import com.example.aulasegura.domain.model.SchoolSite
+import com.example.aulasegura.domain.model.SyncPhase
+import com.example.aulasegura.location.haversineMeters
 import com.example.aulasegura.ui.components.rememberPressScale
 import com.example.aulasegura.ui.screens.access.revealOnEnter
 import com.example.aulasegura.ui.theme.BrandCream
@@ -152,12 +157,6 @@ private const val MARKER_Y = 0.4556f
 private const val BASE_LAT = 19.292600
 private const val BASE_LON = -99.655700
 
-private enum class Severity(val label: String) {
-    Leve("Leve"),
-    Moderado("Moderado"),
-    Grave("Grave"),
-}
-
 private sealed interface Evidence {
     val label: String
 
@@ -167,14 +166,18 @@ private sealed interface Evidence {
 
 @Composable
 fun TeacherIncidentNewScreen(
+    ui: TeacherIncidentUi,
+    school: SchoolSite? = null,
     onBack: () -> Unit = {},
-    onSave: () -> Unit = {},
+    onSave: (IncidentLocation?) -> Unit = {},
+    onSelectStudent: (String) -> Unit = {},
+    onSeverityChange: (IncidentSeverity) -> Unit = {},
+    onDescriptionChange: (String) -> Unit = {},
 ) {
     val context = LocalContext.current
 
-    var severity by remember { mutableStateOf(Severity.Moderado) }
     var marker by remember { mutableStateOf(Offset(MARKER_X, MARKER_Y)) }
-    var description by remember { mutableStateOf("") }
+    var pickerOpen by remember { mutableStateOf(false) }
     var evidence by remember {
         mutableStateOf(listOf<Evidence>(Evidence.Photo(bitmap = null, label = "IMG_01")))
     }
@@ -234,7 +237,23 @@ fun TeacherIncidentNewScreen(
                 .padding(bottom = 24.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
-            StudentSelectorCard()
+            ui.message?.let { message ->
+                IncidentMessageStrip(
+                    message = message,
+                    saved = ui.saved && ui.sync != SyncPhase.FAILED,
+                )
+            }
+
+            StudentSelectorCard(
+                selected = ui.selected,
+                students = ui.students,
+                expanded = pickerOpen,
+                onToggle = { pickerOpen = !pickerOpen },
+                onSelect = { student ->
+                    pickerOpen = false
+                    onSelectStudent(student.id)
+                },
+            )
 
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 SectionHeader(title = "Gravedad", trailing = "Requerido")
@@ -242,11 +261,11 @@ fun TeacherIncidentNewScreen(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
                 ) {
-                    Severity.entries.forEach { level ->
+                    IncidentSeverity.entries.forEach { level ->
                         SeverityPill(
                             level = level,
-                            selected = level == severity,
-                            onClick = { severity = level },
+                            selected = level == ui.severity,
+                            onClick = { onSeverityChange(level) },
                             modifier = Modifier.weight(1f),
                         )
                     }
@@ -287,15 +306,43 @@ fun TeacherIncidentNewScreen(
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 SectionLabel(text = "Descripción")
                 DescriptionField(
-                    value = description,
-                    onValueChange = { description = it },
+                    value = ui.description,
+                    onValueChange = onDescriptionChange,
                 )
             }
 
             DateTimeCard()
         }
 
-        IncidentFooter(onSave = onSave)
+        val latitudeValue = BASE_LAT + (MARKER_Y - marker.y) * 0.002f
+        val longitudeValue = BASE_LON + (marker.x - MARKER_X) * 0.002f
+        val distance = school?.let {
+            haversineMeters(latitudeValue, longitudeValue, it.latitude, it.longitude)
+        }
+
+        IncidentFooter(
+            enabled = ui.canSave,
+            saving = ui.saving,
+            saved = ui.saved,
+            onSave = {
+                onSave(
+                    // The pin is where the teacher says it happened, so that is
+                    // what gets stored. `accuracy` stays null on purpose: a pin
+                    // is not a GPS reading and must not pretend to be one.
+                    IncidentLocation(
+                        latitude = latitudeValue,
+                        longitude = longitudeValue,
+                        accuracyMeters = null,
+                        distanceMeters = distance,
+                        verified = if (school == null || distance == null) {
+                            false
+                        } else {
+                            distance <= school.radiusMeters
+                        },
+                    ),
+                )
+            },
+        )
     }
 }
 
@@ -373,14 +420,25 @@ private fun IncidentTopBar(onBack: () -> Unit) {
 
 // ZONE 2 — Student selector
 @Composable
-private fun StudentSelectorCard() {
-    Row(
+private fun StudentSelectorCard(
+    selected: IncidentStudentUi?,
+    students: List<IncidentStudentUi>,
+    expanded: Boolean,
+    onToggle: () -> Unit,
+    onSelect: (IncidentStudentUi) -> Unit,
+) {
+    Column(
         modifier = Modifier
             .fillMaxWidth()
             .shadow(elevation = 2.dp, shape = StudentShape)
             .clip(StudentShape)
             .background(SurfaceContainerLowest)
-            .border(1.dp, OutlineVariant.copy(alpha = 0.40f), StudentShape)
+            .border(1.dp, OutlineVariant.copy(alpha = 0.40f), StudentShape),
+    ) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onToggle)
             .padding(14.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
@@ -400,7 +458,7 @@ private fun StudentSelectorCard() {
                     contentAlignment = Alignment.Center,
                 ) {
                     Text(
-                        text = "MG",
+                        text = selected?.initials ?: "?",
                         color = Color(0xFF0F766E),
                         fontFamily = BricolageGrotesque,
                         fontWeight = FontWeight.Bold,
@@ -433,7 +491,7 @@ private fun StudentSelectorCard() {
                     )
                     Spacer(modifier = Modifier.width(6.dp))
                     Text(
-                        text = "3° B",
+                        text = selected?.groupLabel ?: "—",
                         color = Primary,
                         fontFamily = JetBrainsMono,
                         fontWeight = FontWeight.SemiBold,
@@ -446,7 +504,7 @@ private fun StudentSelectorCard() {
                     )
                 }
                 Text(
-                    text = "Mariana Gómez Ruiz",
+                    text = selected?.fullName ?: "Elegir alumno",
                     color = Primary,
                     fontFamily = DmSans,
                     fontWeight = FontWeight.Bold,
@@ -464,7 +522,7 @@ private fun StudentSelectorCard() {
                 .size(32.dp)
                 .then(pressModifier)
                 .clip(CircleShape)
-                .clickable(interactionSource = interaction, indication = null, onClick = {}),
+                .clickable(interactionSource = interaction, indication = null, onClick = onToggle),
             contentAlignment = Alignment.Center,
         ) {
             Icon(
@@ -474,6 +532,99 @@ private fun StudentSelectorCard() {
                 modifier = Modifier.size(20.dp),
             )
         }
+    }
+
+        if (expanded) {
+            HorizontalDivider(
+                thickness = 1.dp,
+                color = OutlineVariant.copy(alpha = 0.30f),
+            )
+
+            if (students.isEmpty()) {
+                Text(
+                    text = "Todavía no hay alumnos en tus grupos.",
+                    color = Outline,
+                    fontFamily = DmSans,
+                    fontSize = 12.5.sp,
+                    lineHeight = 17.sp,
+                    modifier = Modifier.padding(14.dp),
+                )
+            } else {
+                students.forEach { student ->
+                    StudentOptionRow(
+                        student = student,
+                        selected = student.id == selected?.id,
+                        onClick = { onSelect(student) },
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun StudentOptionRow(
+    student: IncidentStudentUi,
+    selected: Boolean,
+    onClick: () -> Unit,
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick)
+            .background(if (selected) SurfaceContainerHigh else Color.Transparent)
+            .padding(horizontal = 14.dp, vertical = 10.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(
+            text = student.fullName,
+            color = Primary,
+            fontFamily = DmSans,
+            fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium,
+            fontSize = 14.sp,
+            lineHeight = 19.sp,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.weight(1f),
+        )
+        Text(
+            text = student.groupLabel,
+            color = Outline,
+            fontFamily = JetBrainsMono,
+            fontSize = 11.sp,
+            lineHeight = 14.sp,
+        )
+    }
+}
+
+// Aviso del guardado: qué contestó el dispositivo y en qué fase va el envío.
+@Composable
+private fun IncidentMessageStrip(message: String, saved: Boolean) {
+    val accent = if (saved) Color(0xFF0F766E) else Color(0xFF9E640B)
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(16.dp))
+            .background(accent.copy(alpha = 0.10f))
+            .border(1.dp, accent.copy(alpha = 0.35f), RoundedCornerShape(16.dp))
+            .padding(horizontal = 12.dp, vertical = 10.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Icon(
+            imageVector = if (saved) Icons.Filled.CheckCircle else Icons.Outlined.CloudOff,
+            contentDescription = null,
+            tint = accent,
+            modifier = Modifier.size(16.dp),
+        )
+        Spacer(modifier = Modifier.width(8.dp))
+        Text(
+            text = message,
+            color = accent,
+            fontFamily = DmSans,
+            fontSize = 12.5.sp,
+            lineHeight = 17.sp,
+            modifier = Modifier.weight(1f),
+        )
     }
 }
 
@@ -520,7 +671,7 @@ private fun SectionLabel(text: String) {
 
 @Composable
 private fun SeverityPill(
-    level: Severity,
+    level: IncidentSeverity,
     selected: Boolean,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
@@ -528,24 +679,24 @@ private fun SeverityPill(
     val (interaction, press) = rememberPressScale(0.95f)
 
     val accent = when (level) {
-        Severity.Leve -> Color(0xFF9E640B)
-        Severity.Moderado -> CoralDeep
-        Severity.Grave -> Color(0xFFB9252B)
+        IncidentSeverity.LEVE -> Color(0xFF9E640B)
+        IncidentSeverity.MODERADO -> CoralDeep
+        IncidentSeverity.GRAVE -> Color(0xFFB9252B)
     }
     val border = when (level) {
-        Severity.Leve -> Color(0xFFF2A93B)
-        Severity.Moderado -> Coral
-        Severity.Grave -> Color(0xFFE5484D)
+        IncidentSeverity.LEVE -> Color(0xFFF2A93B)
+        IncidentSeverity.MODERADO -> Coral
+        IncidentSeverity.GRAVE -> Color(0xFFE5484D)
     }
     val iconColor = when (level) {
-        Severity.Leve -> Color(0xFFD88A1A)
-        Severity.Moderado -> Coral
-        Severity.Grave -> Color(0xFFE5484D)
+        IncidentSeverity.LEVE -> Color(0xFFD88A1A)
+        IncidentSeverity.MODERADO -> Coral
+        IncidentSeverity.GRAVE -> Color(0xFFE5484D)
     }
     val icon: ImageVector = when (level) {
-        Severity.Leve -> Icons.Outlined.Flag
-        Severity.Moderado -> Icons.Outlined.CheckCircle
-        Severity.Grave -> Icons.Outlined.Warning
+        IncidentSeverity.LEVE -> Icons.Outlined.Flag
+        IncidentSeverity.MODERADO -> Icons.Outlined.CheckCircle
+        IncidentSeverity.GRAVE -> Icons.Outlined.Warning
     }
 
     val shape = RoundedCornerShape(percent = 50)
@@ -1300,7 +1451,12 @@ private fun DateTimeCard() {
 
 // ZONE 8 — Sticky footer
 @Composable
-private fun IncidentFooter(onSave: () -> Unit) {
+private fun IncidentFooter(
+    enabled: Boolean,
+    saving: Boolean,
+    saved: Boolean,
+    onSave: () -> Unit,
+) {
     Column(
         modifier = Modifier
             .fillMaxWidth()
@@ -1349,10 +1505,11 @@ private fun IncidentFooter(onSave: () -> Unit) {
                         spotColor = Coral.copy(alpha = 0.32f),
                     )
                     .clip(RoundedCornerShape(percent = 50))
-                    .background(Coral)
+                    .background(if (enabled) Coral else Coral.copy(alpha = 0.40f))
                     .clickable(
                         interactionSource = interaction,
                         indication = null,
+                        enabled = enabled,
                         onClick = onSave,
                     ),
                 verticalAlignment = Alignment.CenterVertically,
@@ -1366,7 +1523,11 @@ private fun IncidentFooter(onSave: () -> Unit) {
                 )
                 Spacer(modifier = Modifier.width(8.dp))
                 Text(
-                    text = "Guardar incidente",
+                    text = when {
+                        saved -> "Incidente guardado"
+                        saving -> "Guardando…"
+                        else -> "Guardar incidente"
+                    },
                     color = Color.White,
                     fontFamily = DmSans,
                     fontWeight = FontWeight.Bold,

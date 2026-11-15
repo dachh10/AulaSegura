@@ -7,6 +7,7 @@ import com.example.aulasegura.domain.model.AttendanceCounts
 import com.example.aulasegura.domain.model.AttendanceMark
 import com.example.aulasegura.domain.model.RollCallDraft
 import com.example.aulasegura.domain.model.RollCallStudent
+import com.example.aulasegura.domain.model.SessionLocation
 import com.example.aulasegura.domain.model.Student
 import com.example.aulasegura.domain.repository.AttendanceStart
 import com.example.aulasegura.domain.repository.SaveRollCallOutcome
@@ -44,6 +45,17 @@ class RollCallViewModel(
     private var draft: RollCallDraft? = null
     private var roster: List<RollCallStudent> = emptyList()
 
+    /**
+     * The fix and verdict the gate produced, if any.
+     *
+     * Kept here instead of inside [draft] because the gate and the list are
+     * different screens: the location arrives after the draft is open, and a
+     * late arrival must still reach the save. A `null` value is a real answer —
+     * the session is saved unverified, which is exactly what happens when the
+     * teacher denied the permission.
+     */
+    private var sessionLocation: SessionLocation? = null
+
     private var groupLabel: String = ""
     private var subject: String = ""
     private var dateLabel: String = ""
@@ -63,6 +75,17 @@ class RollCallViewModel(
 
     fun mark(studentId: String, mark: AttendanceMark) = updateMarks { current ->
         current.map { if (it.id == studentId) it.copy(mark = mark) else it }
+    }
+
+    /**
+     * Hands the gate's result to the session being taken.
+     *
+     * Called from the screen that owns the GPS read; the ViewModel deliberately
+     * does not read location itself, so a ViewModel test never needs Play
+     * Services or a permission prompt.
+     */
+    fun setLocation(location: SessionLocation?) {
+        sessionLocation = location
     }
 
     fun markAllPresent() = updateMarks { current ->
@@ -89,7 +112,7 @@ class RollCallViewModel(
 
         viewModelScope.launch {
             val outcome = try {
-                saveRollCall(session, roster)
+                saveRollCall(session.copy(location = sessionLocation), roster)
             } catch (failed: Exception) {
                 // Room is the source of truth; a thrown write means nothing was
                 // queued, so the honest result is the same as a reported failure.

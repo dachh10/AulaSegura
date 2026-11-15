@@ -97,12 +97,31 @@ data class AttendanceCounts(
 }
 
 /**
+ * Where the teacher was when the session was closed, as one value.
+ *
+ * [verified] is computed by `evaluateGeofence` and stored as-is: recomputing it
+ * later against a radius that may have changed would rewrite history. The
+ * distance is kept next to the coordinates so a reader does not have to trust a
+ * boolean it cannot check.
+ */
+data class SessionLocation(
+    val latitude: Double,
+    val longitude: Double,
+    val accuracyMeters: Double? = null,
+    val distanceMeters: Double? = null,
+    val verified: Boolean = false,
+)
+
+/**
  * Header of the session being taken, resolved before anything is written.
  *
  * [sessionId] is a client-generated UUID and becomes the Firestore document id,
  * which is what makes a retry overwrite the same session instead of duplicating
  * it (`CONTEXT.md` §8.3). [groupLabel] is display data for the screen; the
  * session itself only stores [groupId].
+ *
+ * [location] stays `null` when the device had no fix or no permission. That is a
+ * valid session — unverified, not a failed one.
  */
 data class RollCallDraft(
     val sessionId: String,
@@ -114,4 +133,5 @@ data class RollCallDraft(
     /** ISO date, `"2026-11-03"`. */
     val date: String,
     val startedAt: Long,
+    val location: SessionLocation? = null,
 )

@@ -30,6 +30,10 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.aulasegura.di.rememberAppContainer
+import com.example.aulasegura.location.evaluateGeofence
+import com.example.aulasegura.location.rememberCurrentLocation
+import com.example.aulasegura.location.rememberSchoolSite
+import com.example.aulasegura.location.toSessionLocation
 import com.example.aulasegura.ui.components.ParentTab
 import com.example.aulasegura.ui.components.TeacherTab
 import com.example.aulasegura.ui.screens.access.ForgotPasswordScreen
@@ -321,7 +325,7 @@ fun AulaSeguraNavHost(
                 onIrAHistorial = { navController.navigate(Routes.TEACHER_HISTORY) },
                 onIrAPerfil = { navController.navigate(Routes.TEACHER_PROFILE) },
                 onIrANotificaciones = { navController.navigate(Routes.TEACHER_NOTIFICATIONS) },
-                onPasarLista = { groupId -> navController.navigate(Routes.teacherRollCallInside(groupId)) },
+                onPasarLista = { groupId -> navController.navigate(Routes.teacherRollCall(groupId)) },
                 onVerAlumnos = { groupId -> navController.navigate(Routes.teacherGroupDetail(groupId)) },
             )
         }
@@ -337,8 +341,11 @@ fun AulaSeguraNavHost(
         // ubicación. La lista de alumnos sólo se alcanza dentro del radio.
         composable(Routes.TEACHER_ROLL_CALL) { entry ->
             val groupId = entry.arguments?.getString("groupId") ?: "3B"
+            val school = rememberSchoolSite()
             TeacherLocationVerifyingScreen(
                 groupId = groupId,
+                school = school.site,
+                schoolLoaded = school.loaded,
                 onBack = { navController.popBackStack() },
                 onInsideRadius = {
                     navController.navigate(Routes.teacherRollCallInside(groupId)) {
@@ -347,6 +354,11 @@ fun AulaSeguraNavHost(
                 },
                 onOutsideRadius = {
                     navController.navigate(Routes.teacherRollCallOutside(groupId)) {
+                        popUpTo(Routes.TEACHER_ROLL_CALL) { inclusive = true }
+                    }
+                },
+                onContinueUnverified = {
+                    navController.navigate(Routes.teacherRollCallInside(groupId)) {
                         popUpTo(Routes.TEACHER_ROLL_CALL) { inclusive = true }
                     }
                 },
@@ -365,9 +377,22 @@ fun AulaSeguraNavHost(
                 ),
             )
             val rollCall by rollCallViewModel.state.collectAsState()
+            val school = rememberSchoolSite()
+            val location = rememberCurrentLocation()
+            val geofence = remember(location.fix, school.site) {
+                evaluateGeofence(location.fix, school.site)
+            }
+            // The verdict is frozen here, from the reading of this moment. The
+            // session stores that value and never recomputes it on read: a later
+            // radius change must not rewrite whether this class was verified.
+            LaunchedEffect(location.fix, school.site) {
+                val fix = location.fix ?: return@LaunchedEffect
+                rollCallViewModel.setLocation(fix.toSessionLocation(geofence))
+            }
 
             RollCallScreen(
                 ui = rollCall,
+                geofence = geofence,
                 onBack = { navController.popBackStack() },
                 onMark = rollCallViewModel::mark,
                 onMarkAllPresent = rollCallViewModel::markAllPresent,
@@ -377,8 +402,10 @@ fun AulaSeguraNavHost(
         }
         composable(Routes.TEACHER_ROLL_CALL_MAP) { entry ->
             val groupId = entry.arguments?.getString("groupId") ?: "3B"
+            val school = rememberSchoolSite()
             TeacherRollCallMapScreen(
                 groupId = groupId,
+                school = school.site,
                 onBack = { navController.popBackStack() },
                 onSave = { navController.popBackStack() },
                 onOpenOfflineMode = {
@@ -388,8 +415,10 @@ fun AulaSeguraNavHost(
         }
         composable(Routes.TEACHER_ROLL_CALL_OUTSIDE) { entry ->
             val groupId = entry.arguments?.getString("groupId") ?: "3B"
+            val school = rememberSchoolSite()
             TeacherOutsideRadiusScreen(
                 groupId = groupId,
+                school = school.site,
                 onBack = { navController.popBackStack() },
                 onRetry = {
                     navController.navigate(Routes.teacherRollCall(groupId)) {

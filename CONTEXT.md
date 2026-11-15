@@ -565,6 +565,7 @@ Coil apunta a la URL transformada; no se descarga el original para pintar una li
 | `NoticeEntity`, `TaskEntity` | Caché de lectura |
 | `OutboxEntity` | Cola de operaciones pendientes |
 | `ProfileEntity` | Último perfil válido de `users/{uid}`, para arrancar sin red (v2) |
+| `SchoolEntity` | Plantel con su geocerca, para evaluar el radio sin red (v3) |
 
 `syncState`: `PENDING` → `SYNCING` → `SYNCED` | `FAILED`.
 `uploadState` (media): `PENDING` → `UPLOADING` → `UPLOADED` | `FAILED`.
@@ -573,6 +574,13 @@ Coil apunta a la URL transformada; no se descarga el original para pintar una li
 Firestore y su caché persistente está apagada (§2, regla 2). Sin la copia local, `restoreSession()`
 falla sin conexión y la app manda al login justo en el escenario para el que existe: el aula sin señal.
 Se guarda **una sola fila**, que se reemplaza en cada resolución válida del perfil.
+
+**`SchoolEntity` existe por el mismo motivo, un paso más adelante.** La geocerca se evalúa al abrir
+el pase de lista, o sea en el peor momento para depender de la red. Se cachean solo los campos que
+la regla necesita (`name`, `latitude`, `longitude`, `radiusMeters`); el resto del documento es
+administrativo y no tiene consumidor en la ruta del docente. Si el radio falta o está fuera de
+`20..5000` metros se usa `default_radius_meters` de Remote Config: un `radiusMeters = 0` guardado en
+la consola dejaría a todo el plantel "fuera de la escuela".
 
 ### 8.2 Outbox
 
@@ -593,6 +601,11 @@ En el pase de lista la sesión y sus 28 registros salen en **un solo `WriteBatch
 sueltas: o queda la sesión completa con sus registros, o no queda nada. El `sessionId` se genera en
 el cliente antes de la primera escritura, así que reintentar sobrescribe el mismo documento en vez de
 duplicarlo.
+
+El campo `location` de la sesión se calcula **antes** de escribir y se guarda tal cual
+(`Geofence.kt`, `LocationFix.toSessionLocation`). No se recalcula al leer: si mañana cambia el radio
+del plantel, la sesión de hoy tiene que seguir diciendo si se verificó o no con la regla que estaba
+vigente.
 
 ### 8.4 Conflictos
 

@@ -13,8 +13,8 @@
 |---|---|---|
 | **1** — Datos del docente | grupos y roster reales, cache-first | ✅ **hecho** · `f9fe627` |
 | **2** — Pase de lista online | sesión + 28 registros en un solo batch | ✅ **hecho** · `49b2d76` |
-| **3** — GPS y geocerca | `verified` contra `schools.location` | ⏳ siguiente |
-| **4** — Pase de lista offline | el criterio de la fase, en modo avión | pendiente |
+| **3** — GPS y geocerca | `verified` contra `schools.location` | ✅ **hecho** · ver evidencia |
+| **4** — Pase de lista offline | el criterio de la fase, en modo avión | ⏳ siguiente |
 | **5** — Historial | sesiones pasadas del docente | pendiente |
 | **6** — Incidentes | reporte con severidad | pendiente |
 | **7** — Media del incidente | foto comprimida a Cloudinary | pendiente |
@@ -192,19 +192,32 @@ cuyos contadores coinciden con lo marcado.
 > justificado sumaba 27 en pantalla. Los chips ahora son Pres. / Falt. / Ret. / Just. / Sin m.
 >
 > **Bypass temporal del GPS:** *Pasar lista* va directo a la pantalla de lista, sin pasar por
-> `TeacherLocationVerifyingScreen`. El Bloque 3 es quien la vuelve a insertar con la geocerca real.
+> `TeacherLocationVerifyingScreen`. El Bloque 3 es quien la vuelve a insertar con la geocerca real
+> (resuelto: hoy la ruta pasa por el gate).
 
 ---
 
 ## Bloque 3 — GPS y geocerca (PLAN 1.5)
 
-- [ ] **3.1** Agregar `play-services-location` al módulo (ya está en `libs.versions.toml`)
-- [ ] **3.2** Permiso `ACCESS_FINE_LOCATION` con racional y caso "permiso denegado" (no bloquea el pase de lista, lo deja **no verificado**)
-- [ ] **3.3** `LocationProvider` con `FusedLocationProviderClient`: última ubicación conocida y después fix nuevo con timeout
-- [ ] **3.4** Distancia con **haversine** contra `schools.location`, radio desde `schools.radiusMeters` (fallback validado: `default_radius_meters`)
-- [ ] **3.5** Umbral de precisión: un fix con `accuracy` mayor que el radio **no** puede declarar `verified = true`
-- [ ] **3.6** `TeacherLocationVerifyingScreen`, `TeacherOutsideRadiusScreen` y `TeacherRollCallMapScreen` con coordenadas reales
-- [ ] **3.7** Persistir `location { lat, lng, accuracy, distanceMeters, verified }` en la sesión
+**Estado:** ✅ **HECHO** — verificado en dispositivo (CPH2669, Android 14).
+
+- [x] **3.1** Agregar `play-services-location` al módulo (ya está en `libs.versions.toml`)
+- [x] **3.2** Permiso `ACCESS_FINE_LOCATION` con racional y caso "permiso denegado" (no bloquea el pase de lista, lo deja **no verificado**)
+- [x] **3.3** `LocationProvider` con `FusedLocationProviderClient`: última ubicación conocida y después fix nuevo con timeout
+- [x] **3.4** Distancia con **haversine** contra `schools.location`, radio desde `schools.radiusMeters` (fallback validado: `default_radius_meters`)
+- [x] **3.5** Umbral de precisión: un fix con `accuracy` mayor que el radio **no** puede declarar `verified = true`
+- [x] **3.6** `TeacherLocationVerifyingScreen`, `TeacherOutsideRadiusScreen` y `TeacherRollCallMapScreen` con coordenadas reales
+- [x] **3.7** Persistir `location { lat, lng, accuracy, distanceMeters, verified }` en la sesión
+
+**Dónde quedó cada cosa**
+
+| Pieza | Archivo |
+|---|---|
+| Regla pura (`verified`, `withinRadius`, haversine) | `location/Geofence.kt` |
+| Lectura de GPS (fix nuevo 8 s → última conocida GPS → red) | `location/LocationProvider.kt` |
+| Plantel cacheado, con tope de espera para no bloquear sin red | `location/SchoolSiteState.kt` |
+| Caché de `schools` (Room v3) y su refresh | `data/local/entity/SchoolEntity.kt`, `data/repository/FirestoreSchoolRepository.kt` |
+| Congelado del veredicto en la sesión | `LocationFix.toSessionLocation`, `RollCallViewModel.setLocation` |
 
 **Criterio:** dentro del radio la sesión se guarda con `verified = true`; fuera del radio la app
 muestra la pantalla de "fuera de la escuela" y **no** deja cerrar una sesión verificada.
@@ -221,6 +234,23 @@ muestra la pantalla de "fuera de la escuela" y **no** deja cerrar una sesión ve
 >
 > **El GPS funciona sin datos.** No lo metas en la outbox: la ubicación se toma al abrir la
 > sesión, no cuando hay red.
+
+### Evidencia observada (Bloque 3)
+
+| Caso | Resultado en el dispositivo |
+|---|---|
+| Fuera del radio (posición real, ~6.3 km del plantel) | Pantalla "Fuera del radio permitido · Estás a **6311 m** de la escuela … dentro de **150 m**", sin CTA de guardar |
+| Dentro del radio | Banner "Estás dentro de la escuela · **431 m** del centro · radio **3000 m** · ±13 m"; sesión `status: closed`, `counts.present: 28`, `location { verified: true, distanceMeters: 431.16, accuracy: 13.47 }` |
+| Permiso denegado | El gate muestra "Permiso de ubicación pendiente" y el CTA **Continuar sin verificar**; la lista se abre con "Ubicación sin verificar · Sin lectura de GPS" y la sesión se guarda **sin** el campo `location` |
+| Migración Room 2 → 3 | La app arranca sobre la base existente sin crash: `schools` se crea vacía y el primer refresh la llena |
+| Tests unitarios | 111 tests, 0 fallos (+11 `GeofenceTest`, +7 `SchoolMappersTest`) |
+
+> **Cómo se probó "dentro" en un teléfono real.** Este dispositivo no permite
+> `cmd location providers add-test-provider` (`SecurityException: android from uid 2000 not allowed
+> to perform MOCK_LOCATION`) y `pm grant` / `pm revoke` también están bloqueados por el OEM. El caso
+> "dentro" se ejerció moviendo **temporalmente** el documento del plantel a 431 m del teléfono con
+> radio 3000 m, y después se restauró a `19.2926, -99.6557 / 150 m`. El caso "permiso denegado" se
+> revocó y se restauró desde Ajustes → Permisos de la app, no por `adb`.
 
 ---
 

@@ -37,30 +37,38 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.example.aulasegura.location.distanceMeters
+import com.example.aulasegura.domain.model.SchoolSite
+import com.example.aulasegura.location.evaluateGeofence
 import com.example.aulasegura.location.rememberCurrentLocation
 import com.example.aulasegura.ui.components.CampusGeo
 import com.example.aulasegura.ui.components.CampusMap
 import com.example.aulasegura.ui.screens.access.revealOnEnter
 import com.example.aulasegura.ui.theme.BricolageGrotesque
 import com.example.aulasegura.ui.theme.DmSans
+import com.google.android.gms.maps.model.LatLng
 
 /**
  * Estado fuera del radio permitido: el docente no puede pasar lista hasta
- * acercarse al plantel (150 m).
+ * acercarse al plantel.
+ *
+ * La distancia y el radio salen de `schools.location` y `schools.radiusMeters`
+ * (vía [school]), no de un punto de demostración: el texto tiene que coincidir
+ * con el mapa que el docente está mirando.
  */
 @Composable
 fun TeacherOutsideRadiusScreen(
     groupId: String = "3B",
+    school: SchoolSite? = null,
     onBack: () -> Unit = {},
     onRetry: () -> Unit = {},
     onBackToGroups: () -> Unit = {},
 ) {
     val location = rememberCurrentLocation()
     val fix = location.fix
-    val distance = fix?.let {
-        distanceMeters(it.latitude, it.longitude, CampusGeo.SanAgustin.latitude, CampusGeo.SanAgustin.longitude)
-    }
+    val geofence = evaluateGeofence(fix, school)
+    val distance = geofence.distanceMeters
+    val radiusLabel = geofence.radiusMeters?.toInt()?.toString() ?: "—"
+    val campus = school?.let { LatLng(it.latitude, it.longitude) }
 
     Column(
         modifier = Modifier
@@ -78,6 +86,9 @@ fun TeacherOutsideRadiusScreen(
                 teacherFix = fix,
                 modifier = Modifier.fillMaxSize(),
                 outsideRadius = true,
+                campus = campus,
+                radiusMeters = geofence.radiusMeters?.toFloat() ?: CampusGeo.RadiusMeters,
+                schoolName = school?.name,
             )
 
             Row(
@@ -166,7 +177,7 @@ fun TeacherOutsideRadiusScreen(
                             }
                             append(" de la escuela. La asistencia solo se puede registrar dentro de ")
                             withStyle(SpanStyle(color = GpsIndigo, fontWeight = FontWeight.Bold)) {
-                                append("150 m")
+                                append("$radiusLabel m")
                             }
                             append(".")
                         },

@@ -43,7 +43,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.example.aulasegura.location.distanceMeters
+import com.example.aulasegura.domain.model.SchoolSite
+import com.example.aulasegura.location.evaluateGeofence
 import com.example.aulasegura.location.rememberCurrentLocation
 import com.example.aulasegura.ui.components.CampusGeo
 import com.example.aulasegura.ui.components.CampusMap
@@ -53,14 +54,20 @@ import com.example.aulasegura.ui.theme.BricolageGrotesque
 import com.example.aulasegura.ui.theme.DmSans
 import com.example.aulasegura.ui.theme.JetBrainsMono
 import com.example.aulasegura.ui.theme.SurfaceContainerLowest
+import com.google.android.gms.maps.model.LatLng
 
 /**
  * Pase de lista con mapa: el docente está dentro del radio del plantel.
  * Mitad superior mapa de Google con geocerca + hoja inferior con la lista.
+ *
+ * El centro y el radio salen de [school], es decir de `schools.location` y
+ * `schools.radiusMeters`. La lista de alumnos todavía es de demostración: el
+ * roster real llega con el Bloque 4.
  */
 @Composable
 fun TeacherRollCallMapScreen(
     groupId: String = "3B",
+    school: SchoolSite? = null,
     onBack: () -> Unit = {},
     onSave: () -> Unit = {},
     onOpenOfflineMode: () -> Unit = {},
@@ -68,9 +75,9 @@ fun TeacherRollCallMapScreen(
     var entries by remember { mutableStateOf(demoRoster()) }
     val location = rememberCurrentLocation()
     val fix = location.fix
-    val distance = fix?.let {
-        distanceMeters(it.latitude, it.longitude, CampusGeo.SanAgustin.latitude, CampusGeo.SanAgustin.longitude)
-    }
+    val geofence = evaluateGeofence(fix, school)
+    val distance = geofence.distanceMeters
+    val campus = school?.let { LatLng(it.latitude, it.longitude) }
 
     Column(
         modifier = Modifier
@@ -87,6 +94,9 @@ fun TeacherRollCallMapScreen(
             CampusMap(
                 teacherFix = fix,
                 modifier = Modifier.fillMaxSize(),
+                campus = campus,
+                radiusMeters = geofence.radiusMeters?.toFloat() ?: CampusGeo.RadiusMeters,
+                schoolName = school?.name,
             )
 
             Column(modifier = Modifier.fillMaxSize()) {
@@ -268,7 +278,7 @@ fun TeacherRollCallMapScreen(
 }
 
 @Composable
-private fun InsideBanner(distanceMeters: Float?, modifier: Modifier = Modifier) {
+private fun InsideBanner(distanceMeters: Double?, modifier: Modifier = Modifier) {
     Row(
         modifier = modifier
             .fillMaxWidth()

@@ -102,6 +102,11 @@ class RoomAttendanceRepository(
             startedAt = draft.startedAt,
             closedAt = now,
             status = STATUS_CLOSED,
+            locationLat = draft.location?.latitude,
+            locationLng = draft.location?.longitude,
+            locationAccuracy = draft.location?.accuracyMeters,
+            locationDistanceMeters = draft.location?.distanceMeters,
+            locationVerified = draft.location?.verified,
             createdAt = now,
             updatedAt = now,
         )

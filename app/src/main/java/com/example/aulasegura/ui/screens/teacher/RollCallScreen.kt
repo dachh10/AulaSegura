@@ -46,9 +46,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.aulasegura.domain.model.AttendanceCounts
 import com.example.aulasegura.domain.model.AttendanceMark
-import com.example.aulasegura.location.distanceMeters
-import com.example.aulasegura.location.rememberCurrentLocation
-import com.example.aulasegura.ui.components.CampusGeo
+import com.example.aulasegura.location.GeofenceReason
+import com.example.aulasegura.location.GeofenceResult
 import com.example.aulasegura.ui.components.rememberPressScale
 import com.example.aulasegura.ui.screens.access.Reveal
 import com.example.aulasegura.ui.theme.BrandCream
@@ -70,30 +69,21 @@ import com.example.aulasegura.ui.theme.SurfaceContainerLowest
  * roster real, los conteos y el guardado viven en `RollCallViewModel`; aquí no
  * queda ningún alumno de ejemplo.
  *
- * El banner lee la lectura real del GPS. Mientras el Bloque 3 no conecte la
- * geocerca contra `schools.location`, la distancia se calcula contra el centro
- * del plantel de demostración y el texto dice "fuera" cuando corresponde: un
- * "estás dentro" fijo sería exactamente el tipo de dato que nadie debe creer.
+ * El banner pinta la geocerca **real**: la evaluación contra `schools.location`
+ * llega ya resuelta en [geofence], calculada con haversine y con el radio del
+ * plantel. La pantalla no lee GPS ni conoce el centro del plantel, así que no
+ * puede inventar un "estás dentro".
  */
 @Composable
 fun RollCallScreen(
     ui: RollCallUi,
+    geofence: GeofenceResult = GeofenceResult(GeofenceReason.NO_FIX),
     onBack: () -> Unit = {},
     onMark: (studentId: String, mark: AttendanceMark) -> Unit = { _, _ -> },
     onMarkAllPresent: () -> Unit = {},
     onSave: () -> Unit = {},
     onOpenMap: () -> Unit = {},
 ) {
-    val location = rememberCurrentLocation()
-    val distance = location.fix?.let {
-        distanceMeters(
-            it.latitude,
-            it.longitude,
-            CampusGeo.SanAgustin.latitude,
-            CampusGeo.SanAgustin.longitude,
-        )
-    }
-
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -113,11 +103,7 @@ fun RollCallScreen(
                 TopBar(subtitle = ui.subtitle, onBack = onBack)
             }
             Reveal(60) {
-                GpsBanner(
-                    distanceMeters = distance,
-                    accuracyMeters = location.fix?.accuracyMeters,
-                    onOpenMap = onOpenMap,
-                )
+                GpsBanner(geofence = geofence, onOpenMap = onOpenMap)
             }
             Reveal(120) { CountersRow(counts = ui.counts, unmarked = ui.unmarked) }
             Reveal(180) {
@@ -194,35 +180,35 @@ private fun TopBar(subtitle: String, onBack: () -> Unit) {
     }
 }
 
-// ZONE 2 — GPS status banner (fed by the real location fix)
+// ZONE 2 — GPS status banner (fed by the real geofence evaluation)
 @Composable
 private fun GpsBanner(
-    distanceMeters: Float?,
-    accuracyMeters: Float?,
+    geofence: GeofenceResult,
     onOpenMap: () -> Unit,
 ) {
-    val inside = distanceMeters != null && distanceMeters <= CampusGeo.RadiusMeters
-    val title = when {
-        distanceMeters == null -> "Ubicación sin verificar"
-        inside -> "Estás dentro de la escuela"
-        else -> "Estás fuera de la escuela"
+    val title = when (geofence.reason) {
+        GeofenceReason.INSIDE -> "Estás dentro de la escuela"
+        GeofenceReason.ACCURACY_TOO_LOW -> "Dentro, pero sin verificar"
+        GeofenceReason.OUTSIDE -> "Estás fuera de la escuela"
+        GeofenceReason.NO_FIX -> "Ubicación sin verificar"
+        GeofenceReason.NO_SCHOOL -> "Escuela sin ubicación guardada"
     }
     val detail = buildString {
         append(
-            if (distanceMeters != null) {
-                "${distanceMeters.toInt()} m del centro"
-            } else {
-                "Sin lectura de GPS"
-            },
+            geofence.distanceMeters?.let { "${it.toInt()} m del centro" }
+                ?: "Sin lectura de GPS",
         )
-        append(" · radio ${CampusGeo.RadiusMeters.toInt()} m")
-        if (accuracyMeters != null) append(" · ±${accuracyMeters.toInt()} m")
+        geofence.radiusMeters?.let { append(" · radio ${it.toInt()} m") }
+        geofence.accuracyMeters?.let { append(" · ±${it.toInt()} m") }
     }
 
-    val container = if (inside) Color(0xFFE3F7F1) else Color(0xFFFEF6E9)
-    val border = if (inside) Color(0xFFB4E8DA) else Color(0xFFF2D8A8)
-    val accent = if (inside) Color(0xFF0E6245) else Color(0xFF8A5A12)
-    val accentSoft = if (inside) Color(0xFF1E8262) else Color(0xFFA9741F)
+    // Green only when the session would actually be saved as verified: a fix
+    // inside the radius with a worse accuracy is amber, not green.
+    val verified = geofence.verified
+    val container = if (verified) Color(0xFFE3F7F1) else Color(0xFFFEF6E9)
+    val border = if (verified) Color(0xFFB4E8DA) else Color(0xFFF2D8A8)
+    val accent = if (verified) Color(0xFF0E6245) else Color(0xFF8A5A12)
+    val accentSoft = if (verified) Color(0xFF1E8262) else Color(0xFFA9741F)
 
     Row(
         modifier = Modifier
@@ -244,7 +230,7 @@ private fun GpsBanner(
             contentAlignment = Alignment.Center,
         ) {
             Icon(
-                imageVector = if (inside) Icons.Filled.Check else Icons.Filled.Info,
+                imageVector = if (verified) Icons.Filled.Check else Icons.Filled.Info,
                 contentDescription = null,
                 tint = Color.White,
                 modifier = Modifier.size(17.dp),

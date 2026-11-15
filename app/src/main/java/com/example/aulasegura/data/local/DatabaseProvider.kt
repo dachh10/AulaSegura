@@ -27,6 +27,6 @@ object DatabaseProvider {
             AulaSeguraDatabase::class.java,
             AulaSeguraDatabase.DATABASE_NAME,
         )
-            .addMigrations(AulaSeguraDatabase.MIGRATION_1_2)
+            .addMigrations(AulaSeguraDatabase.MIGRATION_1_2, AulaSeguraDatabase.MIGRATION_2_3)
             .build()
 }

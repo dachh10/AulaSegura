@@ -32,20 +32,33 @@ object CampusGeo {
 /**
  * Mapa de Google con la geocerca del plantel y el punto del docente.
  *
+ * @param campus centro real del plantel leído de `schools.location`. `null`
+ *   significa que no hay plantel cacheado: se dibuja solo el punto del docente
+ *   en vez de inventar un centro.
  * @param outsideRadius pinta la geocerca en rojo cuando el docente está fuera.
+ * @param schoolName nombre del plantel para el marcador; `null` deja un rótulo
+ *   neutro en lugar de "Colegio San Agustín", que no es esta escuela.
  */
 @Composable
 fun CampusMap(
     teacherFix: LocationFix?,
     modifier: Modifier = Modifier,
     outsideRadius: Boolean = false,
-    campus: LatLng = CampusGeo.SanAgustin,
+    campus: LatLng? = CampusGeo.SanAgustin,
     radiusMeters: Float = CampusGeo.RadiusMeters,
+    schoolName: String? = null,
 ) {
     val geofenceColor = if (outsideRadius) Color(0xFFE5484D) else Color(0xFF5ED3B0)
 
     val cameraPositionState = rememberCameraPositionState {
-        position = CameraPosition.fromLatLngZoom(campus, 16.2f)
+        position = CameraPosition.fromLatLngZoom(campus ?: CampusGeo.SanAgustin, 16.2f)
+    }
+
+    // The school arrives from the cache a few milliseconds after the screen is
+    // composed. Without this, the camera would stay on the fallback point while
+    // the geofence circle sits somewhere off screen.
+    LaunchedEffect(campus) {
+        campus?.let { cameraPositionState.position = CameraPosition.fromLatLngZoom(it, 16.2f) }
     }
 
     val context = LocalContext.current
@@ -75,20 +88,22 @@ fun CampusMap(
             compassEnabled = false,
         ),
     ) {
-        Circle(
-            center = campus,
-            radius = radiusMeters.toDouble(),
-            fillColor = geofenceColor.copy(alpha = 0.14f),
-            strokeColor = geofenceColor,
-            strokeWidth = 4f,
-        )
+        campus?.let { site ->
+            Circle(
+                center = site,
+                radius = radiusMeters.toDouble(),
+                fillColor = geofenceColor.copy(alpha = 0.14f),
+                strokeColor = geofenceColor,
+                strokeWidth = 4f,
+            )
 
-        Marker(
-            state = rememberMarkerState(position = campus),
-            title = "Colegio San Agustín",
-            snippet = "Radio permitido · ${radiusMeters.toInt()} m",
-            icon = markerIcons?.school,
-        )
+            Marker(
+                state = rememberMarkerState(position = site),
+                title = schoolName ?: "Plantel",
+                snippet = "Radio permitido · ${radiusMeters.toInt()} m",
+                icon = markerIcons?.school,
+            )
+        }
 
         teacherFix?.let { fix ->
             Circle(

@@ -50,25 +50,46 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.example.aulasegura.location.distanceMeters
+import com.example.aulasegura.domain.model.SchoolSite
+import com.example.aulasegura.location.GeofenceReason
+import com.example.aulasegura.location.evaluateGeofence
 import com.example.aulasegura.location.rememberCurrentLocation
 import com.example.aulasegura.ui.components.CampusGeo
 import com.example.aulasegura.ui.components.CampusMap
 import com.example.aulasegura.ui.theme.BricolageGrotesque
 import com.example.aulasegura.ui.theme.DmSans
 import com.example.aulasegura.ui.theme.JetBrainsMono
+import com.google.android.gms.maps.model.LatLng
 import kotlinx.coroutines.delay
 
 /**
  * Verificando ubicación: pide el permiso de ubicación, obtiene una lectura GPS
- * y navega al estado que corresponda (dentro o fuera del radio de 150 m).
+ * y navega al estado que corresponda.
+ *
+ * La decisión la toma `evaluateGeofence` contra el plantel real ([school]), no
+ * contra un punto de demostración. Solo [GeofenceReason.OUTSIDE] manda a la
+ * pantalla roja: perder el permiso, no tener GPS o no tener el plantel cacheado
+ * dejan el pase de lista **sin verificar**, que es honesto y no encierra al
+ * docente en el pasillo.
+ *
+ * [schoolLoaded] distingue "todavía leyendo Room" de "no hay plantel guardado":
+ * navegar en el primer frame mandaría al camino sin verificar a quien tiene el
+ * plantel perfectamente cacheado.
+ *
+ * Sin permiso o sin GPS el pase de lista **no se bloquea**: aparece
+ * [onContinueUnverified] para pasar lista igual, y la sesión se guarda sin
+ * `location`. Bloquear la clase por un permiso sería peor que una sesión sin
+ * verificar.
  */
 @Composable
 fun TeacherLocationVerifyingScreen(
     groupId: String = "3B",
+    school: SchoolSite? = null,
+    schoolLoaded: Boolean = true,
     onBack: () -> Unit = {},
     onInsideRadius: () -> Unit = {},
     onOutsideRadius: () -> Unit = {},
+    onContinueUnverified: () -> Unit = {},
 ) {
     val location = rememberCurrentLocation()
     var permissionAsked by remember { mutableStateOf(false) }
@@ -96,20 +117,20 @@ fun TeacherLocationVerifyingScreen(
         tries += 1
     }
 
-    LaunchedEffect(location.fix) {
+    LaunchedEffect(location.fix, school, schoolLoaded) {
         val fix = location.fix ?: return@LaunchedEffect
+        // Without the cache read there is nothing to compare against yet; the
+        // first Room emission arrives in milliseconds, so this is not a wait.
+        if (!schoolLoaded) return@LaunchedEffect
         if (timedOut) timedOut = false
         delay(1400)
-        val distance = distanceMeters(
-            fix.latitude,
-            fix.longitude,
-            CampusGeo.SanAgustin.latitude,
-            CampusGeo.SanAgustin.longitude,
-        )
-        if (distance <= CampusGeo.RadiusMeters) onInsideRadius() else onOutsideRadius()
+        val result = evaluateGeofence(fix, school)
+        if (result.reason == GeofenceReason.OUTSIDE) onOutsideRadius() else onInsideRadius()
     }
 
     val accuracy = location.fix?.accuracyMeters
+    val campus = school?.let { LatLng(it.latitude, it.longitude) }
+    val radiusMeters = school?.radiusMeters?.toFloat() ?: CampusGeo.RadiusMeters
 
     Column(
         modifier = Modifier
@@ -126,6 +147,9 @@ fun TeacherLocationVerifyingScreen(
             CampusMap(
                 teacherFix = location.fix,
                 modifier = Modifier.fillMaxSize(),
+                campus = campus,
+                radiusMeters = radiusMeters,
+                schoolName = school?.name,
             )
 
             RadarScan(
@@ -251,9 +275,13 @@ fun TeacherLocationVerifyingScreen(
                 Spacer(modifier = Modifier.height(8.dp))
             }
 
-            if (timedOut) {
+            if (timedOut || location.deniedPermanently) {
                 Text(
-                    text = "No pudimos obtener tu ubicación. Verifica que el GPS esté activo y vuelve a intentarlo.",
+                    text = if (location.deniedPermanently) {
+                        "Sin permiso de ubicación no podemos verificar que estés en la escuela. Puedes pasar lista igual: la sesión quedará sin verificar."
+                    } else {
+                        "No pudimos obtener tu ubicación. Verifica que el GPS esté activo y vuelve a intentarlo."
+                    },
                     color = GpsDanger,
                     fontFamily = DmSans,
                     fontSize = 12.sp,
@@ -271,6 +299,23 @@ fun TeacherLocationVerifyingScreen(
                         location.retry()
                     },
                 )
+                Spacer(modifier = Modifier.height(4.dp))
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(44.dp)
+                        .clip(RoundedCornerShape(percent = 50))
+                        .clickable(onClick = onContinueUnverified),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Text(
+                        text = "Continuar sin verificar",
+                        color = GpsIndigo,
+                        fontFamily = DmSans,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 14.sp,
+                    )
+                }
             } else {
                 LockedCta()
             }

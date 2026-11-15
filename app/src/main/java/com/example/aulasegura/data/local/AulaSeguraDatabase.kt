@@ -11,6 +11,7 @@ import com.example.aulasegura.data.local.dao.IncidentDao
 import com.example.aulasegura.data.local.dao.NoticeDao
 import com.example.aulasegura.data.local.dao.OutboxDao
 import com.example.aulasegura.data.local.dao.ProfileDao
+import com.example.aulasegura.data.local.dao.SchoolDao
 import com.example.aulasegura.data.local.dao.StudentDao
 import com.example.aulasegura.data.local.dao.TaskDao
 import com.example.aulasegura.data.local.entity.AttendanceRecordEntity
@@ -21,6 +22,7 @@ import com.example.aulasegura.data.local.entity.IncidentMediaEntity
 import com.example.aulasegura.data.local.entity.NoticeEntity
 import com.example.aulasegura.data.local.entity.OutboxEntity
 import com.example.aulasegura.data.local.entity.ProfileEntity
+import com.example.aulasegura.data.local.entity.SchoolEntity
 import com.example.aulasegura.data.local.entity.StudentEntity
 import com.example.aulasegura.data.local.entity.TaskEntity
 
@@ -44,8 +46,9 @@ import com.example.aulasegura.data.local.entity.TaskEntity
         TaskEntity::class,
         OutboxEntity::class,
         ProfileEntity::class,
+        SchoolEntity::class,
     ],
-    version = 2,
+    version = 3,
     exportSchema = true,
 )
 @TypeConverters(Converters::class)
@@ -66,6 +69,8 @@ abstract class AulaSeguraDatabase : RoomDatabase() {
     abstract fun outboxDao(): OutboxDao
 
     abstract fun profileDao(): ProfileDao
+
+    abstract fun schoolDao(): SchoolDao
 
     companion object {
         const val DATABASE_NAME = "aulasegura.db"
@@ -89,6 +94,28 @@ abstract class AulaSeguraDatabase : RoomDatabase() {
                         "`subjects` TEXT NOT NULL, " +
                         "`updatedAt` INTEGER NOT NULL, " +
                         "PRIMARY KEY(`uid`))",
+                )
+            }
+        }
+
+        /**
+         * Adds the school cache, which is what makes the geofence work offline.
+         *
+         * No data is migrated and nothing is dropped: the table starts empty and
+         * the next refresh fills it. Until then the gate evaluates `NO_SCHOOL`,
+         * which leaves the roll call unverified instead of blocking it.
+         */
+        val MIGRATION_2_3: Migration = object : Migration(2, 3) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    "CREATE TABLE IF NOT EXISTS `schools` (" +
+                        "`schoolId` TEXT NOT NULL, " +
+                        "`name` TEXT NOT NULL, " +
+                        "`latitude` REAL, " +
+                        "`longitude` REAL, " +
+                        "`radiusMeters` REAL, " +
+                        "`updatedAt` INTEGER NOT NULL, " +
+                        "PRIMARY KEY(`schoolId`))",
                 )
             }
         }

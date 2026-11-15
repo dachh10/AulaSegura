@@ -18,12 +18,14 @@ import com.example.aulasegura.data.remote.remoteconfig.FirebaseRemoteConfigSourc
 import com.example.aulasegura.data.remote.remoteconfig.RemoteConfigRepository
 import com.example.aulasegura.data.repository.AuthRepositoryImpl
 import com.example.aulasegura.data.repository.FirestoreRosterRepository
+import com.example.aulasegura.data.repository.FirestoreSchoolRepository
 import com.example.aulasegura.data.repository.RoomAttendanceRepository
 import com.example.aulasegura.data.telemetry.FirebaseAnalyticsLogger
 import com.example.aulasegura.domain.repository.AiAssistant
 import com.example.aulasegura.domain.repository.AttendanceRepository
 import com.example.aulasegura.domain.repository.AuthRepository
 import com.example.aulasegura.domain.repository.GroupRepository
+import com.example.aulasegura.domain.repository.SchoolRepository
 import com.example.aulasegura.domain.repository.StudentRepository
 import com.example.aulasegura.domain.telemetry.AnalyticsLogger
 import com.example.aulasegura.domain.usecase.AskAssistantUseCase
@@ -112,6 +114,22 @@ class AppContainer(context: Context) {
 
     val groupRepository: GroupRepository get() = rosterRepository
     val studentRepository: StudentRepository get() = rosterRepository
+
+    /**
+     * The school site, cached so the geofence works without a network.
+     *
+     * The fallback radius comes from Remote Config, read at mapping time and not
+     * cached here: the console value can be refreshed while the app is running,
+     * and a stale radius is still a valid radius only until the next evaluation.
+     */
+    val schoolRepository: SchoolRepository by lazy {
+        FirestoreSchoolRepository(
+            firestore = firestore,
+            schoolDao = database.schoolDao(),
+            auth = authRepository,
+            defaultRadiusMeters = { remoteConfigRepository.defaultRadiusMeters().toDouble() },
+        )
+    }
 
     val outboxRepository: OutboxRepository by lazy {
         OutboxRepository(

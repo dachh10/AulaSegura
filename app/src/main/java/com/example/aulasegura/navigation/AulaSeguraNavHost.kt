@@ -374,6 +374,7 @@ fun AulaSeguraNavHost(
                     startRollCall = container.startRollCallUseCase,
                     saveRollCall = container.saveRollCallUseCase,
                     students = container.studentRepository,
+                    attendance = container.attendanceRepository,
                 ),
             )
             val rollCall by rollCallViewModel.state.collectAsState()

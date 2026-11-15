@@ -29,6 +29,16 @@ interface AttendanceDao {
     @Query("SELECT * FROM attendance_sessions WHERE sessionId = :sessionId LIMIT 1")
     suspend fun findSessionById(sessionId: String): AttendanceSessionEntity?
 
+    /**
+     * The one session the screen is watching, so it can paint its real
+     * `syncState` instead of a fixed "se sincroniza en segundo plano".
+     *
+     * With no row it simply emits nothing; that only happens in the window before
+     * the local save commits, and the screen already shows its saving state there.
+     */
+    @Query("SELECT * FROM attendance_sessions WHERE sessionId = :sessionId LIMIT 1")
+    fun observeSession(sessionId: String): Flow<AttendanceSessionEntity?>
+
     @Query("SELECT * FROM attendance_sessions WHERE syncState = :state")
     suspend fun sessionsWithState(state: SyncState): List<AttendanceSessionEntity>
 

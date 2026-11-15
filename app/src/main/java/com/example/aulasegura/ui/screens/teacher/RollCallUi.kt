@@ -3,6 +3,7 @@ package com.example.aulasegura.ui.screens.teacher
 import com.example.aulasegura.domain.model.AttendanceCounts
 import com.example.aulasegura.domain.model.AttendanceMark
 import com.example.aulasegura.domain.model.RollCallStudent
+import com.example.aulasegura.domain.model.RollCallSync
 
 /**
  * What the roll call screen renders, already resolved.
@@ -23,6 +24,12 @@ data class RollCallUi(
     val loading: Boolean = true,
     val saving: Boolean = false,
     val saved: Boolean = false,
+    /**
+     * Phase of the saved session in the outbox, or `null` before anything was
+     * saved. The screen paints this instead of promising "se sincroniza en
+     * segundo plano": pending and rejected have to look different.
+     */
+    val sync: RollCallSync? = null,
     val message: String? = null,
 )
 
@@ -78,3 +85,25 @@ private fun detailOf(number: String, mark: AttendanceMark?): String = when (mark
 }
 
 private const val NO_SUBJECT = "Sin materia asignada"
+
+/**
+ * What the strip under the counters says for each sync phase.
+ *
+ * `null` means "nothing saved yet", which is what keeps this from overwriting the
+ * validation messages (missing marks, local write failure) that happen before a
+ * session exists.
+ */
+fun rollCallSyncMessage(sync: RollCallSync?): String? = when (sync) {
+    RollCallSync.PENDING ->
+        "Asistencia guardada en el dispositivo. Pendiente de sincronizar."
+
+    RollCallSync.SYNCING -> "Sincronizando la asistencia…"
+
+    RollCallSync.SYNCED -> "Asistencia guardada y sincronizada."
+
+    RollCallSync.FAILED ->
+        "Asistencia guardada en el dispositivo. No se pudo sincronizar: se reintenta " +
+            "automáticamente."
+
+    null -> null
+}

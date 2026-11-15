@@ -14,7 +14,7 @@
 | **1** — Datos del docente | grupos y roster reales, cache-first | ✅ **hecho** · `f9fe627` |
 | **2** — Pase de lista online | sesión + 28 registros en un solo batch | ✅ **hecho** · `49b2d76` |
 | **3** — GPS y geocerca | `verified` contra `schools.location` | ✅ **hecho** · `43fcf21` |
-| **4** — Pase de lista offline | el criterio de la fase, en modo avión | ⏳ siguiente |
+| **4** — Pase de lista offline | el criterio de la fase, en modo avión | ✅ **hecho** · verificado en modo avión |
 | **5** — Historial | sesiones pasadas del docente | pendiente |
 | **6** — Incidentes | reporte con severidad | pendiente |
 | **7** — Media del incidente | foto comprimida a Cloudinary | pendiente |
@@ -263,12 +263,44 @@ muestra la pantalla de "fuera de la escuela" y **no** deja cerrar una sesión ve
 
 ## Bloque 4 — Pase de lista offline (PLAN 1.4)
 
-- [ ] **4.1** Reusar `OutboxRepository` (ya encola sesión + registros + outbox en una transacción)
-- [ ] **4.2** Con red caída: escribir en Room con `syncState = PENDING` y programar `SyncScheduler`
-- [ ] **4.3** `TeacherRollCallOfflineScreen` refleja el estado real (`PENDING` / `SYNCING` / `SYNCED` / `FAILED`), no un texto fijo
-- [ ] **4.4** Verificar que el handler sube la **misma** sesión y no crea otra
-- [ ] **4.5** Una fila envenenada no bloquea la cola (ya cubierto en Fase 0: `MAX_ATTEMPTS_BEFORE_DROP`)
-- [ ] **4.6** Prueba de ida y vuelta completa: avión → guardar → reconectar → outbox vacía
+> **Estado: ✅ HECHO en código** — 15 nov 2026 · `assembleDebug` verde · **116 tests unitarios, 0 fallos**
+> (el bloque 3 cerró con 111) · **24 tests de instrumentación, 0 fallos** en CPH2669 (Android 14).
+> **4.6 verificado por Diego en el teléfono** (modo avión → guardar → reconectar): la sesión queda
+> `PENDING` con su fila en `outbox`, al reconectar pasa a `SYNCED`, la outbox queda vacía y en
+> Firestore hay **una** sola sesión con sus registros. El estado de sync además quedó cubierto en
+> hardware por `AttendanceSyncStateTest`. **Bloque cerrado.**
+
+- [x] **4.1** Reusar `OutboxRepository` (ya encola sesión + registros + outbox en una transacción)
+- [x] **4.2** Con red caída: escribir en Room con `syncState = PENDING` y programar `SyncScheduler`
+- [x] **4.3** La UI refleja el estado real (`PENDING` / `SYNCING` / `SYNCED` / `FAILED`), no un texto fijo
+- [x] **4.4** El handler sube la **misma** sesión y no crea otra
+- [x] **4.5** Una fila envenenada no bloquea la cola (ya cubierto en Fase 0: `MAX_ATTEMPTS_BEFORE_DROP`)
+- [x] **4.6** Prueba de ida y vuelta completa: avión → guardar → reconectar → outbox vacía
+
+**Qué cambió en este bloque**
+
+| Archivo | Cambio |
+|---|---|
+| `domain/model/RollCallSync.kt` | nuevo enum de dominio (`PENDING`, `SYNCING`, `SYNCED`, `FAILED`) con `delivered`. La UI no importa `SyncState` de Room |
+| `data/local/dao/AttendanceDao.kt` | `observeSession(sessionId): Flow<AttendanceSessionEntity?>` — la sesión que la pantalla vigila |
+| `domain/repository/AttendanceRepository.kt` | `observeSync(sessionId): Flow<RollCallSync>` |
+| `data/repository/RoomAttendanceRepository.kt` | mapea `SyncState → RollCallSync` en un solo lugar |
+| `sync/AttendanceSyncHandler.kt` | escribe `SYNCING` **antes** del batch. Antes nadie escribía ese estado: existía en el enum pero jamás llegaba a la base |
+| `ui/screens/teacher/RollCallUi.kt` | `sync` en el `UiState` y `rollCallSyncMessage()` |
+| `ui/screens/teacher/RollCallViewModel.kt` | al guardar arranca `watchSync(sessionId)`; se fue el `"Se sincroniza en segundo plano"` fijo |
+| `ui/screens/teacher/RollCallScreen.kt` | el strip queda verde solo con el guardado real, y ámbar si `FAILED` (sesión a salvo en el teléfono, no en la nube) |
+| `androidTest/.../AttendanceSyncStateTest.kt` | 2 tests de device: las cuatro fases se leen de la fila real, y una sesión inexistente no emite nada |
+
+**Por qué el estado vive en Room y no en el ViewModel:** el worker es otro proceso lógico que puede
+correr con la pantalla cerrada. Un `MutableStateFlow` en memoria diría `PENDING` para siempre; leyendo
+la fila, el maestro que vuelve a abrir la app ve `SYNCED` aunque no haya visto pasar la sincronización.
+
+**Nota sobre 4.3 y `TeacherRollCallOfflineScreen`:** el estado real se implementó en
+`RollCallScreen`, que es la pantalla que **escribe** (Room + outbox a través de `RollCallViewModel`).
+`TeacherRollCallOfflineScreen` es el mock esquemático del bloque 3.6 (radar offline): tiene su propio
+`demoRoster()` y su CTA solo vuelve atrás, no guarda nada. No se le cableó un guardado porque marcaría
+faltas que nadie eligió. Si se quiere, el paso siguiente es retirarlo del nav o convertirlo en una
+variante de solo lectura.
 
 **Criterio:** con modo avión el pase de lista se guarda igual; al reconectar hay **exactamente una**
 sesión en Firestore, con 28 registros, y la outbox queda vacía.

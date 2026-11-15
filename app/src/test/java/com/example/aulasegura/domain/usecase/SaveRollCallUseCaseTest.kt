@@ -4,9 +4,12 @@ import com.example.aulasegura.domain.model.AttendanceMark
 import com.example.aulasegura.domain.model.RollCallDraft
 import com.example.aulasegura.domain.model.RollCallEntry
 import com.example.aulasegura.domain.model.RollCallStudent
+import com.example.aulasegura.domain.model.RollCallSync
 import com.example.aulasegura.domain.repository.AttendanceRepository
 import com.example.aulasegura.domain.repository.AttendanceStart
 import com.example.aulasegura.domain.repository.SaveRollCallOutcome
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.emptyFlow
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
@@ -35,6 +38,8 @@ class SaveRollCallUseCaseTest {
             savedEntries = entries
             return outcome
         }
+
+        override fun observeSync(sessionId: String): Flow<RollCallSync> = emptyFlow()
     }
 
     private val draft = RollCallDraft(

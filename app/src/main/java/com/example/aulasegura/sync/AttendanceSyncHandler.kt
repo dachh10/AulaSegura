@@ -35,6 +35,11 @@ class AttendanceSyncHandler(
         val records = attendanceDao.records(session.sessionId)
         val withCounts = session.withCountsFrom(records)
 
+        // Painted while the batch is in flight, and written before the network
+        // call on purpose: if the process dies mid-commit the row stays SYNCING
+        // until the next pass rewrites it, which is exactly the truth.
+        markSession(withCounts.sessionId, SyncState.SYNCING)
+
         return try {
             val batch = firestore.batch()
             val sessionRef = firestore

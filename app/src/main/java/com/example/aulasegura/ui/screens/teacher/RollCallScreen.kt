@@ -46,6 +46,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.aulasegura.domain.model.AttendanceCounts
 import com.example.aulasegura.domain.model.AttendanceMark
+import com.example.aulasegura.domain.model.RollCallSync
 import com.example.aulasegura.location.GeofenceReason
 import com.example.aulasegura.location.GeofenceResult
 import com.example.aulasegura.ui.components.rememberPressScale
@@ -110,7 +111,15 @@ fun RollCallScreen(
                 QuickActionRow(onMarkAllPresent = onMarkAllPresent)
             }
             ui.message?.let { message ->
-                Reveal(200) { MessageStrip(message = message, saved = ui.saved) }
+                // Green means "saved"; a failed sync is a saved session that has
+                // not reached the cloud, so it keeps the amber tone and the info
+                // icon rather than wearing the success check.
+                Reveal(200) {
+                    MessageStrip(
+                        message = message,
+                        saved = ui.saved && ui.sync != RollCallSync.FAILED,
+                    )
+                }
             }
             Reveal(240) {
                 when {

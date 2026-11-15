@@ -3,10 +3,12 @@ package com.example.aulasegura.data.repository
 import com.example.aulasegura.data.local.dao.AttendanceDao
 import com.example.aulasegura.data.local.entity.AttendanceRecordEntity
 import com.example.aulasegura.data.local.entity.AttendanceSessionEntity
+import com.example.aulasegura.data.local.entity.SyncState
 import com.example.aulasegura.data.mapper.AttendanceSyncMapper.withCountsFrom
 import com.example.aulasegura.domain.model.AttendanceMark
 import com.example.aulasegura.domain.model.RollCallDraft
 import com.example.aulasegura.domain.model.RollCallEntry
+import com.example.aulasegura.domain.model.RollCallSync
 import com.example.aulasegura.domain.repository.AttendanceRepository
 import com.example.aulasegura.domain.repository.AttendanceStart
 import com.example.aulasegura.domain.repository.AuthRepository
@@ -15,7 +17,10 @@ import com.example.aulasegura.domain.repository.SaveRollCallOutcome
 import com.example.aulasegura.sync.OutboxRepository
 import com.example.aulasegura.util.AttendanceTimes
 import java.util.UUID
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.map
 
 /**
  * The roll call write path: Room first, Firestore later.
@@ -122,6 +127,22 @@ class RoomAttendanceRepository(
             // commit, nothing changed and the teacher can retry the same screen.
             SaveRollCallOutcome.Failed(draft.groupId)
         }
+    }
+
+    override fun observeSync(sessionId: String): Flow<RollCallSync> =
+        attendanceDao.observeSession(sessionId)
+            .filterNotNull()
+            .map { it.syncState.toRollCallSync() }
+
+    /**
+     * Room's enum and the domain enum are mapped here and nowhere else, so the
+     * screen can follow the phases without ever seeing `SyncState`.
+     */
+    private fun SyncState.toRollCallSync(): RollCallSync = when (this) {
+        SyncState.PENDING -> RollCallSync.PENDING
+        SyncState.SYNCING -> RollCallSync.SYNCING
+        SyncState.SYNCED -> RollCallSync.SYNCED
+        SyncState.FAILED -> RollCallSync.FAILED
     }
 
     private fun AttendanceMark.arrivalTimeOrNull(clockTime: String): String? = when (this) {

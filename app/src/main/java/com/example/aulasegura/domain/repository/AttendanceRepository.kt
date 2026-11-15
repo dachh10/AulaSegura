@@ -2,6 +2,8 @@ package com.example.aulasegura.domain.repository
 
 import com.example.aulasegura.domain.model.RollCallDraft
 import com.example.aulasegura.domain.model.RollCallEntry
+import com.example.aulasegura.domain.model.RollCallSync
+import kotlinx.coroutines.flow.Flow
 
 /**
  * Write side of the roll call.
@@ -33,6 +35,17 @@ interface AttendanceRepository {
      * so a `PENDING` session is always backed by a queued row.
      */
     suspend fun save(draft: RollCallDraft, entries: List<RollCallEntry>): SaveRollCallOutcome
+
+    /**
+     * Follows one saved session while it waits for the cloud.
+     *
+     * The screen needs the real phase, not a promise in a string: an offline save
+     * that stays `PENDING` for hours and one that Firestore rejected look identical
+     * from the teacher's chair unless the UI says which one happened.
+     *
+     * The flow is backed by the local cache, so it keeps emitting with no network.
+     */
+    fun observeSync(sessionId: String): Flow<RollCallSync>
 }
 
 /** Outcome of resolving a new session. */

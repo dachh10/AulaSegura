@@ -38,6 +38,11 @@ class StartRollCallUseCaseTest {
             draft: RollCallDraft,
             entries: List<com.example.aulasegura.domain.model.RollCallEntry>,
         ): SaveRollCallOutcome = SaveRollCallOutcome.Queued
+
+        override fun observeSync(
+            sessionId: String,
+        ): kotlinx.coroutines.flow.Flow<com.example.aulasegura.domain.model.RollCallSync> =
+            kotlinx.coroutines.flow.emptyFlow()
     }
 
     @Test

@@ -7,8 +7,10 @@ import com.example.aulasegura.domain.model.AttendanceCounts
 import com.example.aulasegura.domain.model.AttendanceMark
 import com.example.aulasegura.domain.model.RollCallDraft
 import com.example.aulasegura.domain.model.RollCallStudent
+import com.example.aulasegura.domain.model.RollCallSync
 import com.example.aulasegura.domain.model.SessionLocation
 import com.example.aulasegura.domain.model.Student
+import com.example.aulasegura.domain.repository.AttendanceRepository
 import com.example.aulasegura.domain.repository.AttendanceStart
 import com.example.aulasegura.domain.repository.SaveRollCallOutcome
 import com.example.aulasegura.domain.repository.StudentRepository
@@ -37,6 +39,7 @@ class RollCallViewModel(
     private val startRollCall: StartRollCallUseCase,
     private val saveRollCall: SaveRollCallUseCase,
     students: StudentRepository,
+    private val attendance: AttendanceRepository,
 ) : ViewModel() {
 
     private val _state = MutableStateFlow(RollCallUi())
@@ -62,6 +65,7 @@ class RollCallViewModel(
     private var message: String? = null
     private var saving: Boolean = false
     private var saved: Boolean = false
+    private var sync: RollCallSync? = null
     private var rosterLoaded: Boolean = false
 
     init {
@@ -123,7 +127,10 @@ class RollCallViewModel(
             when (outcome) {
                 SaveRollCallOutcome.Queued -> {
                     saved = true
-                    message = SAVED_MESSAGE
+                    // The local write is done; from here the honest answer is the
+                    // one Room holds, so the strip follows the outbox instead of
+                    // repeating a promise.
+                    watchSync(session.sessionId)
                 }
 
                 is SaveRollCallOutcome.Incomplete ->
@@ -135,6 +142,24 @@ class RollCallViewModel(
                     message = "No se pudo guardar el pase de lista del grupo ${outcome.groupId}."
             }
             render()
+        }
+    }
+
+    /**
+     * Follows the saved session while it waits for Firestore.
+     *
+     * `PENDING` is set before collecting so the strip switches immediately instead
+     * of showing the previous message until the first database emission arrives.
+     * The flow outlives the network: it reads the cache, so it keeps reporting
+     * after the teacher leaves the classroom.
+     */
+    private fun watchSync(sessionId: String) {
+        sync = RollCallSync.PENDING
+        viewModelScope.launch {
+            attendance.observeSync(sessionId).collect { phase ->
+                sync = phase
+                render()
+            }
         }
     }
 
@@ -188,12 +213,12 @@ class RollCallViewModel(
             loading = !rosterLoaded,
             saving = saving,
             saved = saved,
-            message = message,
+            sync = sync,
+            message = rollCallSyncMessage(sync) ?: message,
         )
     }
 
     private companion object {
-        const val SAVED_MESSAGE = "Asistencia guardada. Se sincroniza en segundo plano."
         const val EMPTY_ROSTER_MESSAGE = "No hay alumnos en este grupo."
         const val SIGNED_OUT_MESSAGE = "Tu sesión expiró. Vuelve a iniciar sesión."
         const val NO_SESSION_MESSAGE = "No se pudo abrir el pase de lista. Vuelve a intentarlo."
@@ -206,9 +231,10 @@ class RollCallViewModelFactory(
     private val startRollCall: StartRollCallUseCase,
     private val saveRollCall: SaveRollCallUseCase,
     private val students: StudentRepository,
+    private val attendance: AttendanceRepository,
 ) : ViewModelProvider.Factory {
 
     @Suppress("UNCHECKED_CAST")
     override fun <T : ViewModel> create(modelClass: Class<T>): T =
-        RollCallViewModel(groupId, startRollCall, saveRollCall, students) as T
+        RollCallViewModel(groupId, startRollCall, saveRollCall, students, attendance) as T
 }

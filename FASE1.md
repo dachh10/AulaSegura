@@ -13,7 +13,7 @@
 |---|---|---|
 | **1** — Datos del docente | grupos y roster reales, cache-first | ✅ **hecho** · `f9fe627` |
 | **2** — Pase de lista online | sesión + 28 registros en un solo batch | ✅ **hecho** · `49b2d76` |
-| **3** — GPS y geocerca | `verified` contra `schools.location` | ✅ **hecho** · ver evidencia |
+| **3** — GPS y geocerca | `verified` contra `schools.location` | ✅ **hecho** · `43fcf21` |
 | **4** — Pase de lista offline | el criterio de la fase, en modo avión | ⏳ siguiente |
 | **5** — Historial | sesiones pasadas del docente | pendiente |
 | **6** — Incidentes | reporte con severidad | pendiente |
@@ -199,7 +199,7 @@ cuyos contadores coinciden con lo marcado.
 
 ## Bloque 3 — GPS y geocerca (PLAN 1.5)
 
-**Estado:** ✅ **HECHO** — verificado en dispositivo (CPH2669, Android 14).
+**Estado:** ✅ **HECHO** — 14 nov 2026 · commit `43fcf21` · 111 tests unitarios · verificado en dispositivo (CPH2669, Android 14).
 
 - [x] **3.1** Agregar `play-services-location` al módulo (ya está en `libs.versions.toml`)
 - [x] **3.2** Permiso `ACCESS_FINE_LOCATION` con racional y caso "permiso denegado" (no bloquea el pase de lista, lo deja **no verificado**)

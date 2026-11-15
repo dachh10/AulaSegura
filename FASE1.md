@@ -7,6 +7,22 @@
 
 **Leyenda:** `[x]` hecho · `[ ]` pendiente · `[~]` en curso · `[!]` bloqueado
 
+**Tablero de bloques** — se actualiza **en el mismo commit** que entrega el bloque, no después:
+
+| Bloque | Qué entrega | Estado |
+|---|---|---|
+| **1** — Datos del docente | grupos y roster reales, cache-first | ✅ **hecho** · `f9fe627` |
+| **2** — Pase de lista online | sesión + 28 registros en un solo batch | ✅ **hecho** · `49b2d76` |
+| **3** — GPS y geocerca | `verified` contra `schools.location` | ⏳ siguiente |
+| **4** — Pase de lista offline | el criterio de la fase, en modo avión | pendiente |
+| **5** — Historial | sesiones pasadas del docente | pendiente |
+| **6** — Incidentes | reporte con severidad | pendiente |
+| **7** — Media del incidente | foto comprimida a Cloudinary | pendiente |
+| **8** — Tareas y avisos | publicar con audiencia | pendiente |
+| **9** — Chat | RTDB y presencia | pendiente |
+| **10** — Notificaciones y FCM | push enviado desde la consola | pendiente |
+| **11** — Perfil | datos reales del docente | pendiente |
+
 **Criterio de cierre de la fase** (`PLAN.md`): con **modo avión** activo, el docente pasa lista y
 registra un incidente con foto; al reconectar, ambos aparecen en Firestore **sin duplicados** y
 con la media subida.
@@ -49,6 +65,10 @@ Lo que **falta** y es el trabajo real de esta fase:
 ---
 
 ## Bloque 1 — Datos del docente (PLAN 1.1)
+
+> **Estado: ✅ HECHO** — 13 nov 2026 · commit `f9fe627` · 78 tests unitarios.
+> Salvedad honesta: **1.5** sigue `[~]` porque `TeacherHomeScreen` todavía muestra datos mock;
+> cablearlo es **11.2**. *Mis grupos* y el roster sí leen de Firestore y de la caché.
 
 - [x] **1.1** Modelos de dominio: `Group`, `Student` (no reusar las entidades de Room en la UI)
 - [x] **1.2** `GroupRepository` / `StudentRepository` en `domain/repository/`
@@ -110,6 +130,9 @@ modo avión, después de una carga online, sigue viendo lo mismo.
 
 ## Bloque 2 - Pase de lista online (PLAN 1.2)
 
+> **Estado: ✅ HECHO** — 14 nov 2026 · commit `49b2d76` · 93 tests unitarios · reglas desplegadas
+> en `aulasegu` (`firebase deploy --only firestore:rules`).
+
 - [x] **2.1** `AttendanceRepository` + `StartRollCallUseCase` / `SaveRollCallUseCase`
 - [x] **2.2** `sessionId` = **UUID generado en el cliente** (nunca `add()`, nunca un id del servidor)
 - [x] **2.3** Escritura de la sesión: `groupId`, `schoolId`, `teacherId`, `subject`, `date`, `status`, `counts`, `location`
@@ -123,14 +146,19 @@ modo avión, después de una carga online, sigue viendo lo mismo.
 **Criterio:** el docente marca los 28, cierra, y en la consola hay **una** sesión con 28 registros
 cuyos contadores coinciden con lo marcado.
 
-> **Evidencia (dispositivo 65d5dd78, 14 nov 2026, proyecto `aulasegu`):** sesión
-> `5e09a542-13f1-45ef-b324-08c51e55062a`, `date 2026-11-14`, `status closed`, `subject "Matemáticas"`,
-> `counts {present:24, absent:1, late:2, justified:1}`, **28 registros** con el mismo desglose,
-> `location null` (Bloque 3). Marcado: todos presentes y después 1 justificado, 2 retardos, 1 falta.
-> `time` solo aparece en retardo/presente (`"19:27"`), `null` en falta/justificado. Doble tap en
-> *Guardar* produjo **una** sola sesión; `SyncWorker` terminó `SUCCESS` sin `PERMISSION_DENIED`.
-> Salir de la pantalla sin guardar dejó la colección con la misma sesión: no hay sesiones fantasma.
-> Tests: **93 unitarios, 0 fallos**.
+**Evidencia (CPH2669 `65d5dd78`, Android 14, proyecto `aulasegu`)**
+
+| Check | Resultado observado |
+|---|---|
+| Sesión creada | `5e09a542-13f1-45ef-b324-08c51e55062a` · `date 2026-11-14` · `status closed` · `subject "Matemáticas"` · `location null` (Bloque 3) |
+| Registros | **28**, uno por alumno, con `studentId` como id del documento |
+| `counts` vs registros | `{present:24, absent:1, late:2, justified:1}` — idéntico al desglose real de los 28 registros |
+| `time` | `"19:27"` solo en presente/retardo; `null` en falta y justificado |
+| Doble tap en *Guardar* | **una** sola sesión, no dos |
+| Sync | `SyncWorker` → `Worker result SUCCESS`, sin `PERMISSION_DENIED` (29 escrituras en un batch con 28 `getAfter`) |
+| Sesión fantasma | salir de la pantalla sin guardar deja la colección igual: **no** se crea nada |
+| Contadores en pantalla | 5 chips (Pres./Falt./Ret./Just./Sin m.) que suman 28; antes sumaban 27 con un justificado |
+| Tests | **93 unitarios, 0 fallos** (Bloque 1 cerró con 78) |
 
 **Cómo probarlo**
 

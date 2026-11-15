@@ -3,8 +3,8 @@ package com.example.aulasegura.data.repository
 import com.example.aulasegura.data.local.dao.AttendanceDao
 import com.example.aulasegura.data.local.entity.AttendanceRecordEntity
 import com.example.aulasegura.data.local.entity.AttendanceSessionEntity
-import com.example.aulasegura.data.local.entity.SyncState
 import com.example.aulasegura.data.mapper.AttendanceSyncMapper.withCountsFrom
+import com.example.aulasegura.data.mapper.toRollCallSync
 import com.example.aulasegura.domain.model.AttendanceMark
 import com.example.aulasegura.domain.model.RollCallDraft
 import com.example.aulasegura.domain.model.RollCallEntry
@@ -133,17 +133,6 @@ class RoomAttendanceRepository(
         attendanceDao.observeSession(sessionId)
             .filterNotNull()
             .map { it.syncState.toRollCallSync() }
-
-    /**
-     * Room's enum and the domain enum are mapped here and nowhere else, so the
-     * screen can follow the phases without ever seeing `SyncState`.
-     */
-    private fun SyncState.toRollCallSync(): RollCallSync = when (this) {
-        SyncState.PENDING -> RollCallSync.PENDING
-        SyncState.SYNCING -> RollCallSync.SYNCING
-        SyncState.SYNCED -> RollCallSync.SYNCED
-        SyncState.FAILED -> RollCallSync.FAILED
-    }
 
     private fun AttendanceMark.arrivalTimeOrNull(clockTime: String): String? = when (this) {
         AttendanceMark.PRESENT, AttendanceMark.LATE -> clockTime

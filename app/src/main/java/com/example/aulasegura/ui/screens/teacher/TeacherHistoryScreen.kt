@@ -24,8 +24,10 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowLeft
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.CloudDone
+import androidx.compose.material.icons.filled.CloudOff
 import androidx.compose.material.icons.filled.CloudUpload
 import androidx.compose.material.icons.filled.Tune
+import androidx.compose.material.icons.filled.Verified
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -36,11 +38,14 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.aulasegura.domain.model.AttendanceMark
+import com.example.aulasegura.domain.model.RollCallSync
 import com.example.aulasegura.ui.components.TeacherBottomBar
 import com.example.aulasegura.ui.components.TeacherTab
 import com.example.aulasegura.ui.components.rememberPressScale
@@ -61,8 +66,10 @@ import com.example.aulasegura.ui.theme.SurfaceContainerLowest
  * Teacher — Historial. Ported from Stitch screen `cbe12103d8494161b9e19735c062de66`
  * ("Historial - AulaSegura", project 7677408035297541086).
  *
- * Visual shell only: the segmented control keeps its selected state, the month
- * arrows are decorative and the list is sample data.
+ * The shell is the mockup's; the sessions are real (`TeacherHistoryViewModel`).
+ * Tapping a row expands it in place instead of opening a new screen: the teacher
+ * is looking for one day's roster, and a push/pop would lose the scroll position
+ * of the list they were reading.
  */
 
 private val HistoryCardShape = RoundedCornerShape(24.dp)
@@ -75,33 +82,20 @@ private val AbsentBg = Color(0xFFFFEBE8)
 private val AbsentText = Color(0xFFDE350B)
 private val LateBg = Color(0xFFFFF8E6)
 private val LateText = Color(0xFFB78103)
+private val JustifiedBg = Color(0xFFEEF2FF)
+private val JustifiedText = Color(0xFF2E5AAC)
 private val PendingText = Color(0xFFD97706)
-
-private data class AttendanceRecord(
-    val day: String,
-    val weekday: String,
-    val group: String,
-    val present: Int,
-    val absent: Int,
-    val late: Int,
-    val synced: Boolean,
-)
-
-private val thisWeekRecords = listOf(
-    AttendanceRecord("03", "LUN", "3° A · Matemáticas", 28, 1, 1, true),
-    AttendanceRecord("03", "LUN", "2° C · Matemáticas", 26, 1, 0, false),
-)
-
-private val lastWeekRecords = listOf(
-    AttendanceRecord("31", "VIE", "3° B · Matemáticas", 27, 0, 1, true),
-    AttendanceRecord("30", "JUE", "3° A · Matemáticas", 29, 1, 0, true),
-)
+private val MutedChipBg = Color(0xFFF1EFEA)
+private val MutedChipText = Color(0xFF6B6E8F)
 
 private val historySegments = listOf("Listas", "Incidentes", "Publicaciones")
 
 @Composable
 fun TeacherHistoryScreen(
+    ui: TeacherHistoryUi,
     onSelectTab: (TeacherTab) -> Unit,
+    onRetry: () -> Unit = {},
+    onToggleSession: (String) -> Unit = {},
 ) {
     var segment by remember { mutableStateOf(0) }
 
@@ -125,18 +119,33 @@ fun TeacherHistoryScreen(
                 )
             }
             Reveal(120) { MonthSelector() }
-            Reveal(180) {
-                HistorySection(
-                    label = "ESTA SEMANA",
-                    records = thisWeekRecords,
-                )
+
+            ui.notice?.let { message ->
+                Reveal(160) {
+                    HistoryNotice(
+                        message = message,
+                        onRetry = onRetry,
+                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
+                    )
+                }
             }
-            Spacer(Modifier.height(16.dp))
-            Reveal(240) {
-                HistorySection(
-                    label = "SEMANA ANTERIOR",
-                    records = lastWeekRecords,
-                )
+
+            Reveal(200) {
+                if (segment == 0) {
+                    when {
+                        ui.sections.isEmpty() -> HistoryEmptyState(refreshing = ui.refreshing)
+                        else -> Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                            ui.sections.forEach { section ->
+                                HistorySection(
+                                    section = section,
+                                    onToggleSession = onToggleSession,
+                                )
+                            }
+                        }
+                    }
+                } else {
+                    HistoryPendingTab(label = historySegments[segment])
+                }
             }
         }
 
@@ -298,9 +307,113 @@ private fun MonthArrow(icon: androidx.compose.ui.graphics.vector.ImageVector) {
 }
 
 @Composable
+private fun HistoryNotice(
+    message: String,
+    onRetry: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Row(
+        modifier = modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(16.dp))
+            .background(LateBg)
+            .padding(horizontal = 14.dp, vertical = 10.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Icon(
+            imageVector = Icons.Filled.CloudOff,
+            contentDescription = null,
+            tint = PendingText,
+            modifier = Modifier.size(17.dp),
+        )
+        Spacer(Modifier.width(8.dp))
+        Text(
+            text = message,
+            modifier = Modifier.weight(1f),
+            color = PendingText,
+            fontFamily = DmSans,
+            fontSize = 12.sp,
+            lineHeight = 16.sp,
+        )
+        Spacer(Modifier.width(8.dp))
+        Box(
+            modifier = Modifier
+                .clip(HistoryPillShape)
+                .background(PendingText)
+                .clickable(onClick = onRetry)
+                .padding(horizontal = 12.dp, vertical = 6.dp),
+        ) {
+            Text(
+                text = "Reintentar",
+                color = Color.White,
+                fontFamily = DmSans,
+                fontWeight = FontWeight.SemiBold,
+                fontSize = 11.sp,
+                lineHeight = 14.sp,
+            )
+        }
+    }
+}
+
+@Composable
+private fun HistoryEmptyState(refreshing: Boolean) {
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp)
+            .height(120.dp)
+            .clip(HistoryCardShape)
+            .background(SurfaceContainerLowest)
+            .border(1.dp, HistoryHairline, HistoryCardShape),
+        contentAlignment = Alignment.Center,
+    ) {
+        Text(
+            text = if (refreshing) {
+                "Cargando tu historial…"
+            } else {
+                "Todavía no hay pases de lista guardados."
+            },
+            color = OnSurfaceVariant,
+            fontFamily = DmSans,
+            fontSize = 13.sp,
+            textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+            modifier = Modifier.padding(horizontal = 24.dp),
+        )
+    }
+}
+
+/**
+ * Incidentes and Publicaciones still have no data: their blocks are 6, 8 and 9.
+ * Saying so is better than an empty list that looks like a bug.
+ */
+@Composable
+private fun HistoryPendingTab(label: String) {
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp)
+            .height(120.dp)
+            .clip(HistoryCardShape)
+            .background(SurfaceContainerLowest)
+            .border(1.dp, HistoryHairline, HistoryCardShape),
+        contentAlignment = Alignment.Center,
+    ) {
+        Text(
+            text = "El historial de $label llega con su bloque de la fase. " +
+                "Por ahora solo las listas tienen datos reales.",
+            color = OnSurfaceVariant,
+            fontFamily = DmSans,
+            fontSize = 13.sp,
+            textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+            modifier = Modifier.padding(horizontal = 24.dp),
+        )
+    }
+}
+
+@Composable
 private fun HistorySection(
-    label: String,
-    records: List<AttendanceRecord>,
+    section: HistorySectionUi,
+    onToggleSession: (String) -> Unit,
 ) {
     Column(
         modifier = Modifier
@@ -313,7 +426,7 @@ private fun HistorySection(
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Text(
-                text = label,
+                text = section.label,
                 color = Outline,
                 fontFamily = JetBrainsMono,
                 fontWeight = FontWeight.Medium,
@@ -330,55 +443,186 @@ private fun HistorySection(
             )
         }
 
-        records.forEach { record ->
-            AttendanceCard(record = record)
+        section.sessions.forEach { session ->
+            SessionCard(
+                session = session,
+                onToggle = { onToggleSession(session.id) },
+            )
         }
     }
 }
 
 @Composable
-private fun AttendanceCard(record: AttendanceRecord) {
+private fun SessionCard(
+    session: HistorySessionUi,
+    onToggle: () -> Unit,
+) {
     val (interaction, pressModifier) = rememberPressScale(0.99f)
-    Row(
-        modifier = pressModifier
+
+    Column(
+        modifier = Modifier
             .fillMaxWidth()
             .clip(HistoryCardShape)
             .background(SurfaceContainerLowest)
-            .border(1.dp, HistoryHairline, HistoryCardShape)
-            .clickable(interactionSource = interaction, indication = null, onClick = {})
-            .padding(14.dp),
-        verticalAlignment = Alignment.CenterVertically,
+            .border(1.dp, HistoryHairline, HistoryCardShape),
     ) {
-        DateBlock(day = record.day, weekday = record.weekday)
-        Spacer(Modifier.width(12.dp))
-        Column(modifier = Modifier.weight(1f)) {
-            Text(
-                text = record.group,
-                color = PrimaryContainer,
-                fontFamily = DmSans,
-                fontWeight = FontWeight.Bold,
-                fontSize = 15.sp,
-                lineHeight = 20.sp,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
+        Row(
+            modifier = pressModifier
+                .fillMaxWidth()
+                .clickable(interactionSource = interaction, indication = null, onClick = onToggle)
+                .padding(14.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            DateBlock(day = session.day, weekday = session.weekday)
+            Spacer(Modifier.width(12.dp))
+            Column(modifier = Modifier.weight(1f)) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        text = session.title,
+                        color = PrimaryContainer,
+                        fontFamily = DmSans,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 15.sp,
+                        lineHeight = 20.sp,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.weight(1f, fill = false),
+                    )
+                    if (session.verified == true) {
+                        Spacer(Modifier.width(4.dp))
+                        Icon(
+                            imageVector = Icons.Filled.Verified,
+                            contentDescription = "Verificado con GPS",
+                            tint = PresentText.copy(alpha = 0.75f),
+                            modifier = Modifier.size(13.dp),
+                        )
+                    }
+                }
+                Spacer(Modifier.height(6.dp))
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    StatChip("${session.present} P", PresentBg, PresentText)
+                    StatChip("${session.absent} F", AbsentBg, AbsentText)
+                    if (session.late > 0) {
+                        StatChip("${session.late} R", LateBg, LateText)
+                    } else {
+                        StatChip("${session.late} R", MutedChipBg, MutedChipText)
+                    }
+                    if (session.justified > 0) {
+                        StatChip("${session.justified} J", JustifiedBg, JustifiedText)
+                    }
+                }
+            }
+            Spacer(Modifier.width(8.dp))
+            SyncPill(sync = session.sync)
+            Icon(
+                imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
+                contentDescription = if (session.expanded) "Cerrar detalle" else "Ver alumnos",
+                tint = Outline,
+                modifier = Modifier
+                    .size(18.dp)
+                    .rotate(if (session.expanded) 90f else 0f),
             )
-            Spacer(Modifier.height(6.dp))
-            Row(
-                horizontalArrangement = Arrangement.spacedBy(6.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                StatChip("${record.present} P", PresentBg, PresentText)
-                StatChip("${record.absent} F", AbsentBg, AbsentText)
-                if (record.late > 0) {
-                    StatChip("${record.late} R", LateBg, LateText)
-                } else {
-                    StatChip("${record.late} R", SurfaceContainer, OnSurfaceVariant)
+        }
+
+        if (session.expanded) {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(1.dp)
+                    .background(OutlineVariant.copy(alpha = 0.35f)),
+            )
+            SessionRecords(session = session)
+        }
+    }
+}
+
+@Composable
+private fun SessionRecords(session: HistorySessionUi) {
+    when {
+        session.records.isNotEmpty() -> {
+            Column(modifier = Modifier.padding(horizontal = 14.dp, vertical = 6.dp)) {
+                session.records.forEachIndexed { index, record ->
+                    if (index > 0) {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(1.dp)
+                                .background(OutlineVariant.copy(alpha = 0.25f)),
+                        )
+                    }
+                    RecordRow(record = record)
                 }
             }
         }
-        Spacer(Modifier.width(8.dp))
-        SyncPill(synced = record.synced)
+
+        session.recordsLoading -> RecordsHint("Cargando los alumnos de esta lista…")
+        else -> RecordsHint("No hay alumnos guardados de esta lista en el dispositivo.")
     }
+}
+
+@Composable
+private fun RecordRow(record: HistoryRecordUi) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(40.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(
+            text = record.number,
+            color = Outline,
+            fontFamily = JetBrainsMono,
+            fontWeight = FontWeight.Medium,
+            fontSize = 11.sp,
+            modifier = Modifier.width(26.dp),
+        )
+        Text(
+            text = record.name,
+            color = PrimaryContainer,
+            fontFamily = DmSans,
+            fontWeight = FontWeight.Medium,
+            fontSize = 13.sp,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.weight(1f),
+        )
+        record.time?.let { time ->
+            Text(
+                text = time,
+                color = Outline,
+                fontFamily = JetBrainsMono,
+                fontSize = 10.5.sp,
+                modifier = Modifier.padding(end = 8.dp),
+            )
+        }
+        val (background, contentColor) = when (record.mark) {
+            AttendanceMark.PRESENT -> PresentBg to PresentText
+            AttendanceMark.ABSENT -> AbsentBg to AbsentText
+            AttendanceMark.LATE -> LateBg to LateText
+            AttendanceMark.JUSTIFIED -> JustifiedBg to JustifiedText
+            null -> MutedChipBg to MutedChipText
+        }
+        StatChip(
+            label = record.mark.label,
+            background = background,
+            contentColor = contentColor,
+        )
+    }
+}
+
+@Composable
+private fun RecordsHint(message: String) {
+    Text(
+        text = message,
+        color = OnSurfaceVariant,
+        fontFamily = DmSans,
+        fontSize = 12.sp,
+        lineHeight = 16.sp,
+        modifier = Modifier.padding(horizontal = 14.dp, vertical = 14.dp),
+    )
 }
 
 @Composable
@@ -441,7 +685,8 @@ private fun StatChip(
 }
 
 @Composable
-private fun SyncPill(synced: Boolean) {
+private fun SyncPill(sync: RollCallSync) {
+    val synced = sync == RollCallSync.SYNCED
     val background = if (synced) PresentBg.copy(alpha = 0.6f) else LateBg
     val borderColor = if (synced) PresentText.copy(alpha = 0.2f) else PendingText.copy(alpha = 0.3f)
     val contentColor = if (synced) PresentText else PendingText
@@ -462,7 +707,7 @@ private fun SyncPill(synced: Boolean) {
         )
         Spacer(Modifier.width(4.dp))
         Text(
-            text = if (synced) "Sincronizado" else "Pendiente",
+            text = if (synced) "Sincronizado" else sync.shortLabel,
             color = contentColor,
             fontFamily = DmSans,
             fontWeight = FontWeight.SemiBold,
@@ -472,3 +717,26 @@ private fun SyncPill(synced: Boolean) {
         )
     }
 }
+
+/**
+ * The pill is small, so it says exactly where the session is: "Pendiente" for a
+ * row still in the outbox, "Enviando" while the worker commits it and "Sin
+ * sincronizar" when the last attempt failed. Collapsing those three into one word
+ * would hide the difference between "waiting" and "stuck".
+ */
+private val RollCallSync.shortLabel: String
+    get() = when (this) {
+        RollCallSync.PENDING -> "Pendiente"
+        RollCallSync.SYNCING -> "Enviando"
+        RollCallSync.SYNCED -> "Sincronizado"
+        RollCallSync.FAILED -> "Sin sincronizar"
+    }
+
+private val AttendanceMark?.label: String
+    get() = when (this) {
+        AttendanceMark.PRESENT -> "Presente"
+        AttendanceMark.ABSENT -> "Falta"
+        AttendanceMark.LATE -> "Retardo"
+        AttendanceMark.JUSTIFIED -> "Justificado"
+        null -> "Sin registrar"
+    }

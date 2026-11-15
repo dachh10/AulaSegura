@@ -23,6 +23,7 @@ object AttendanceTimes {
     private const val ISO_DATE = "yyyy-MM-dd"
     private const val CLOCK_TIME = "HH:mm"
     private const val DAY_LABEL = "EEE d MMM"
+    private const val WEEKDAY = "EEE"
 
     /** `"2026-11-14"` — the value stored in `attendance_sessions.date`. */
     fun isoDate(epochMillis: Long, zone: TimeZone = TimeZone.getDefault()): String =
@@ -37,6 +38,30 @@ object AttendanceTimes {
         val label = format(epochMillis, DAY_LABEL, Locale("es", "MX"), zone)
         return label.replaceFirstChar { it.uppercase(Locale.getDefault()) }
     }
+
+    /** `"SÁB"` — the weekday printed in the history date block. */
+    fun weekdayLabel(iso: String, zone: TimeZone = TimeZone.getDefault()): String =
+        format(isoDateToMillis(iso, zone) ?: 0L, WEEKDAY, Locale("es", "MX"), zone)
+            .replace(".", "")
+            .uppercase(Locale("es", "MX"))
+
+    /**
+     * Parses an ISO date back to millis at local midnight, or `null` if it is not
+     * a date.
+     *
+     * Same fixed pattern and locale as [isoDate], so the round trip is stable and
+     * a day difference is exactly `86_400_000` ms.
+     */
+    fun isoDateToMillis(iso: String, zone: TimeZone = TimeZone.getDefault()): Long? =
+        runCatching {
+            SimpleDateFormat(ISO_DATE, Locale.US)
+                .apply {
+                    timeZone = zone
+                    isLenient = false
+                }
+                .parse(iso)
+                ?.time
+        }.getOrNull()
 
     private fun format(
         epochMillis: Long,

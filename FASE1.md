@@ -15,7 +15,7 @@
 | **2** — Pase de lista online | sesión + 28 registros en un solo batch | ✅ **hecho** · `49b2d76` |
 | **3** — GPS y geocerca | `verified` contra `schools.location` | ✅ **hecho** · `43fcf21` |
 | **4** — Pase de lista offline | el criterio de la fase, en modo avión | ✅ **hecho** · verificado en modo avión |
-| **5** — Historial | sesiones pasadas del docente | pendiente |
+| **5** — Historial | sesiones pasadas del docente | ✅ **hecho** · `assembleDebug` + 130 tests |
 | **6** — Incidentes | reporte con severidad | pendiente |
 | **7** — Media del incidente | foto comprimida a Cloudinary | pendiente |
 | **8** — Tareas y avisos | publicar con audiencia | pendiente |
@@ -321,10 +321,38 @@ sesión en Firestore, con 28 registros, y la outbox queda vacía.
 
 ## Bloque 5 — Historial (PLAN 1.9)
 
-- [ ] **5.1** Consulta `attendanceSessions` con `teacherId == uid` + `date` desc (índice ya publicado)
-- [ ] **5.2** Lectura offline desde Room (las sesiones guardadas se leen sin red)
-- [ ] **5.3** `TeacherHistoryScreen` con sesiones reales agrupadas por fecha
-- [ ] **5.4** Detalle: abrir una sesión y ver sus registros por alumno
+> **Estado: ✅ HECHO** — 15 nov 2026 · `assembleDebug` verde · **130 tests unitarios, 0 fallos**
+> (el bloque 4 cerró con 116; +7 de agrupación y mapeo, +7 del documento de Firestore).
+> Quedan dos cosas para la corrida en teléfono, que no se pudieron ejecutar porque el device se
+> desconectó a mitad de la sesión: (a) abrir el historial con datos reales, (b) el
+> `AttendanceHistoryDaoTest` nuevo. El SQL sí está validado por KSP al compilar.
+
+- [x] **5.1** Consulta `attendanceSessions` con `teacherId == uid` + `date` desc (índice ya publicado)
+- [x] **5.2** Lectura offline desde Room (las sesiones guardadas se leen sin red)
+- [x] **5.3** `TeacherHistoryScreen` con sesiones reales agrupadas por fecha
+- [x] **5.4** Detalle: abrir una sesión y ver sus registros por alumno
+
+**Qué cambió en este bloque**
+
+| Archivo | Cambio |
+|---|---|
+| `domain/model/AttendanceHistory.kt` | `AttendanceSessionSummary`, `AttendanceSessionRecord`, `AttendanceSessionDetail` |
+| `domain/repository/AttendanceHistoryRepository.kt` | contrato de solo lectura: historial cache-first + detalle + refresco de registros |
+| `data/local/dao/AttendanceDao.kt` | `observeSessionsByTeacher` (date desc, startedAt como desempate) y `upsertSessions` |
+| `data/mapper/AttendanceDocumentMapper.kt` | documento Firestore → entidad de Room, y `SyncState → RollCallSync` compartido con el bloque 4 |
+| `data/repository/FirestoreAttendanceHistoryRepository.kt` | refresh con `Source.SERVER` (12 s) + detalle combinando sesión, registros, grupos y alumnos de la caché |
+| `ui/screens/teacher/TeacherHistoryUi.kt` | modelos de UI + `historySections()` puro (HOY / ESTA SEMANA / SEMANA ANTERIOR / ANTERIORES) |
+| `ui/screens/teacher/TeacherHistoryViewModel.kt` | lista cache-first, refresco, y expansión de una fila a la vez |
+| `ui/screens/teacher/TeacherHistoryScreen.kt` | filas reales: fecha, conteos, píldora de sync, verificado GPS y registros al expandir |
+
+**Decisiones que importan**
+
+- **El detalle se expande en la misma pantalla.** No hay mockup de "detalle de sesión" y abrir otra pantalla habría inventado un diseño; además el maestro está leyendo una lista y un push/pop le perdería el scroll.
+- **Los registros se piden solo al expandir.** Traer 28 registros por cada fila del historial convertiría abrir la pantalla en cientos de lecturas. Si la sesión se tomó en este teléfono, la caché ya los tiene y aparecen al instante; el refresh va detrás y no bloquea.
+- **`Source.SERVER` otra vez.** Un `get()` sin red puede volver como snapshot vacío; un historial que se resuelve a "no hay sesiones" haría creer al maestro que perdió la asistencia. Si falla, la caché queda intacta y la pantalla avisa con **Reintentar**.
+- **Solo la fila abierta recibe los registros.** Lo detectó el primer test que escribí: `historySections` se los pasaba a todas y cada tarjeta pintaba el mismo roster.
+- **Nada se inventa.** Una fecha ilegible cae en `ANTERIORES` (mejor un bucket equivocado que una asistencia escondida) y un `status` ilegible queda vacío, que la UI muestra como "Sin registrar" en vez de suponer que el alumno vino.
+- **Incidentes y Publicaciones** de la barra segmentada dicen que su historial llega con su bloque; no muestran una lista vacía que parezca un bug.
 
 **Criterio:** después de N pases de lista, el historial los lista en orden y abre el detalle de
 cualquiera, incluso sin red.

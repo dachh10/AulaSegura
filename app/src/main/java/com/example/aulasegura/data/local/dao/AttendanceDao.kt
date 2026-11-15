@@ -20,6 +20,19 @@ interface AttendanceDao {
     @Query("SELECT * FROM attendance_sessions WHERE groupId = :groupId ORDER BY startedAt DESC")
     fun observeSessionsByGroup(groupId: String): Flow<List<AttendanceSessionEntity>>
 
+    /**
+     * The teacher's history, newest first.
+     *
+     * Ordered by `date` and not by `startedAt`: the screen groups by day, and the
+     * ISO string sorts lexicographically because it is fixed to `Locale.US`
+     * (`AttendanceTimes`). `startedAt` breaks ties inside a day.
+     */
+    @Query(
+        "SELECT * FROM attendance_sessions WHERE teacherId = :teacherId " +
+            "ORDER BY date DESC, startedAt DESC",
+    )
+    fun observeSessionsByTeacher(teacherId: String): Flow<List<AttendanceSessionEntity>>
+
     @Query(
         "SELECT * FROM attendance_sessions " +
             "WHERE groupId = :groupId AND date = :date ORDER BY startedAt DESC LIMIT 1",
@@ -53,6 +66,9 @@ interface AttendanceDao {
 
     @Upsert
     suspend fun upsertSession(session: AttendanceSessionEntity)
+
+    @Upsert
+    suspend fun upsertSessions(sessions: List<AttendanceSessionEntity>)
 
     @Upsert
     suspend fun upsertRecords(records: List<AttendanceRecordEntity>)

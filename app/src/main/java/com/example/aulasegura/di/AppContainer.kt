@@ -17,11 +17,13 @@ import com.example.aulasegura.data.remote.cloudinary.OkHttpCloudinaryUploader
 import com.example.aulasegura.data.remote.remoteconfig.FirebaseRemoteConfigSource
 import com.example.aulasegura.data.remote.remoteconfig.RemoteConfigRepository
 import com.example.aulasegura.data.repository.AuthRepositoryImpl
+import com.example.aulasegura.data.repository.FirestoreAttendanceHistoryRepository
 import com.example.aulasegura.data.repository.FirestoreRosterRepository
 import com.example.aulasegura.data.repository.FirestoreSchoolRepository
 import com.example.aulasegura.data.repository.RoomAttendanceRepository
 import com.example.aulasegura.data.telemetry.FirebaseAnalyticsLogger
 import com.example.aulasegura.domain.repository.AiAssistant
+import com.example.aulasegura.domain.repository.AttendanceHistoryRepository
 import com.example.aulasegura.domain.repository.AttendanceRepository
 import com.example.aulasegura.domain.repository.AuthRepository
 import com.example.aulasegura.domain.repository.GroupRepository
@@ -42,6 +44,7 @@ import com.example.aulasegura.ui.screens.access.ForgotPasswordViewModel
 import com.example.aulasegura.ui.screens.access.LoginViewModel
 import com.example.aulasegura.ui.screens.access.SessionViewModel
 import com.example.aulasegura.ui.screens.teacher.TeacherGroupsViewModel
+import com.example.aulasegura.ui.screens.teacher.TeacherHistoryViewModel
 import com.google.firebase.analytics.FirebaseAnalytics
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FirebaseFirestore
@@ -149,6 +152,21 @@ class AppContainer(context: Context) {
             attendanceDao = database.attendanceDao(),
             outbox = outboxRepository,
             groups = groupRepository,
+            auth = authRepository,
+        )
+    }
+
+    /**
+     * The read side of attendance. Separate instance from [attendanceRepository]
+     * because the two answer different questions: one writes the session the
+     * teacher is taking, this one reads the sessions already closed.
+     */
+    val attendanceHistoryRepository: AttendanceHistoryRepository by lazy {
+        FirestoreAttendanceHistoryRepository(
+            firestore = firestore,
+            attendanceDao = database.attendanceDao(),
+            groupDao = database.groupDao(),
+            studentDao = database.studentDao(),
             auth = authRepository,
         )
     }
@@ -267,6 +285,9 @@ class AppViewModelFactory(
                 groups = container.groupRepository,
                 auth = container.authRepository,
             )
+
+        modelClass.isAssignableFrom(TeacherHistoryViewModel::class.java) ->
+            TeacherHistoryViewModel(history = container.attendanceHistoryRepository)
 
         else -> error("No ViewModel registered for ${modelClass.name}")
     } as T

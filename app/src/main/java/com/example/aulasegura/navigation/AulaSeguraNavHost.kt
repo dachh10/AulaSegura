@@ -77,6 +77,7 @@ import com.example.aulasegura.ui.screens.teacher.TeacherConversationScreen
 import com.example.aulasegura.ui.screens.teacher.TeacherGroupsScreen
 import com.example.aulasegura.ui.screens.teacher.TeacherGroupsViewModel
 import com.example.aulasegura.ui.screens.teacher.TeacherHistoryScreen
+import com.example.aulasegura.ui.screens.teacher.TeacherHistoryViewModel
 import com.example.aulasegura.ui.screens.teacher.TeacherIncidentNewScreen
 import com.example.aulasegura.ui.screens.teacher.TeacherHomeScreen
 import com.example.aulasegura.ui.screens.teacher.TeacherLocationVerifyingScreen
@@ -470,8 +471,16 @@ fun AulaSeguraNavHost(
             TeacherConversationScreen(onBack = { navController.popBackStack() })
         }
         composable(Routes.TEACHER_HISTORY) {
+            val container = rememberAppContainer()
+            val historyViewModel: TeacherHistoryViewModel = viewModel(
+                factory = container.viewModelFactory,
+            )
+            val history by historyViewModel.state.collectAsState()
             TeacherHistoryScreen(
+                ui = history,
                 onSelectTab = { navController.openTeacherTab(it) },
+                onRetry = historyViewModel::refresh,
+                onToggleSession = historyViewModel::toggleSession,
             )
         }
         composable(Routes.TEACHER_NOTIFICATIONS) {

@@ -364,8 +364,11 @@ cualquiera, incluso sin red.
 > **Estado: ✅ HECHO** — 15 nov 2026 · `assembleDebug` verde · **144 tests unitarios, 0 fallos**
 > (el bloque 5 cerró con 130; +14 de este bloque: caso de uso, documento de Firestore, UI y
 > el selector de categoría).
-> **Pendiente la corrida en teléfono** (el device sigue desconectado): crear un incidente en modo
-> avión y comprobar en Firestore que aparece **una sola vez** con severidad, nombre y `location`.
+> **Verificado en teléfono** (CPH2669): `IncidentOfflineSyncTest` crea el incidente con el modo avión
+> activo, lo apaga, deja que el runner vacíe el outbox y lee el documento con `Source.SERVER`: existe
+> **una sola vez** con severidad, categoría, nombre de alumno y `location`, y un segundo replay no lo
+> duplica. Ojo: ese incidente de prueba queda en Firestore, porque las reglas no permiten borrar
+> incidentes desde el cliente (`allow delete: if false`).
 
 - [x] **6.1** `IncidentRepository` + `CreateIncidentUseCase`
 - [x] **6.2** Borrador en Room (`IncidentDraftEntity`) con `syncState` y `opType = UPSERT_INCIDENT`
@@ -392,6 +395,7 @@ cualquiera, incluso sin red.
 | `ui/screens/teacher/TeacherIncidentViewModel.kt` | roster real de sus grupos, severidad, descripción, guardado y seguimiento del sync |
 | `ui/screens/teacher/TeacherIncidentNewScreen.kt` | selector de alumno real, severidad y categoría del dominio, aviso de guardado y CTA con estado |
 | `di/AppContainer.kt` · `navigation/AulaSeguraNavHost.kt` | repositorio, caso de uso, handler registrado y ruta `TEACHER_INCIDENT_NEW` cableada |
+| `androidTest/.../sync/IncidentOfflineSyncTest.kt` | prueba de device del criterio: modo avión real, outbox, documento leído con `Source.SERVER` y replay idempotente |
 
 **Decisiones que importan**
 
@@ -409,7 +413,6 @@ cualquiera, incluso sin red.
 1. **El título se deriva de la descripción** (primera línea, 80 caracteres): la pantalla no tiene campo de título y el documento lo necesita para la lista del admin.
 2. **La evidencia de la pantalla es solo visual.** Se pueden tomar foto y video, pero no se persisten ni se cuentan hasta el bloque 7.
 3. **Sin edición ni estado.** Un incidente creado queda en `nuevo`; cambiarlo a `revisado`/`cerrado` es del admin (reglas y bloque de admin), no de esta pantalla.
-4. **Verificación en teléfono** del criterio (modo avión → una sola aparición, con severidad, nombre y ubicación) sigue pendiente por el device desconectado.
 
 **Criterio:** un incidente creado en modo avión aparece **una vez** en Firestore al reconectar, con
 su severidad, su nombre de alumno y su ubicación.

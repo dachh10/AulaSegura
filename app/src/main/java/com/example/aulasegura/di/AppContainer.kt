@@ -18,13 +18,17 @@ import com.example.aulasegura.data.remote.remoteconfig.FirebaseRemoteConfigSourc
 import com.example.aulasegura.data.remote.remoteconfig.RemoteConfigRepository
 import com.example.aulasegura.data.repository.AuthRepositoryImpl
 import com.example.aulasegura.data.repository.FirestoreRosterRepository
+import com.example.aulasegura.data.repository.RoomAttendanceRepository
 import com.example.aulasegura.data.telemetry.FirebaseAnalyticsLogger
 import com.example.aulasegura.domain.repository.AiAssistant
+import com.example.aulasegura.domain.repository.AttendanceRepository
 import com.example.aulasegura.domain.repository.AuthRepository
 import com.example.aulasegura.domain.repository.GroupRepository
 import com.example.aulasegura.domain.repository.StudentRepository
 import com.example.aulasegura.domain.telemetry.AnalyticsLogger
 import com.example.aulasegura.domain.usecase.AskAssistantUseCase
+import com.example.aulasegura.domain.usecase.SaveRollCallUseCase
+import com.example.aulasegura.domain.usecase.StartRollCallUseCase
 import com.example.aulasegura.sync.AttendanceSyncHandler
 import com.example.aulasegura.sync.CrashlyticsSyncReporter
 import com.example.aulasegura.sync.OutboxRepository
@@ -115,6 +119,28 @@ class AppContainer(context: Context) {
             scheduling = syncScheduler,
             analytics = analyticsLogger,
         )
+    }
+
+    /**
+     * The roll call write path. One instance: it owns nothing mutable, but the
+     * outbox and the database it writes through must be the same ones the sync
+     * worker reads.
+     */
+    val attendanceRepository: AttendanceRepository by lazy {
+        RoomAttendanceRepository(
+            attendanceDao = database.attendanceDao(),
+            outbox = outboxRepository,
+            groups = groupRepository,
+            auth = authRepository,
+        )
+    }
+
+    val startRollCallUseCase: StartRollCallUseCase by lazy {
+        StartRollCallUseCase(attendance = attendanceRepository, analytics = analyticsLogger)
+    }
+
+    val saveRollCallUseCase: SaveRollCallUseCase by lazy {
+        SaveRollCallUseCase(attendance = attendanceRepository)
     }
 
     // ---- Sync ---------------------------------------------------------------

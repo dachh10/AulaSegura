@@ -66,6 +66,8 @@ import com.example.aulasegura.ui.screens.parent.ParentProfileScreen
 import com.example.aulasegura.ui.screens.parent.ParentTaskDetailScreen
 import com.example.aulasegura.ui.screens.parent.ParentTasksScreen
 import com.example.aulasegura.ui.screens.teacher.RollCallScreen
+import com.example.aulasegura.ui.screens.teacher.RollCallViewModel
+import com.example.aulasegura.ui.screens.teacher.RollCallViewModelFactory
 import com.example.aulasegura.ui.screens.teacher.TeacherChatScreen
 import com.example.aulasegura.ui.screens.teacher.TeacherConversationScreen
 import com.example.aulasegura.ui.screens.teacher.TeacherGroupsScreen
@@ -319,7 +321,7 @@ fun AulaSeguraNavHost(
                 onIrAHistorial = { navController.navigate(Routes.TEACHER_HISTORY) },
                 onIrAPerfil = { navController.navigate(Routes.TEACHER_PROFILE) },
                 onIrANotificaciones = { navController.navigate(Routes.TEACHER_NOTIFICATIONS) },
-                onPasarLista = { groupId -> navController.navigate(Routes.teacherRollCall(groupId)) },
+                onPasarLista = { groupId -> navController.navigate(Routes.teacherRollCallInside(groupId)) },
                 onVerAlumnos = { groupId -> navController.navigate(Routes.teacherGroupDetail(groupId)) },
             )
         }
@@ -352,10 +354,24 @@ fun AulaSeguraNavHost(
         }
         composable(Routes.TEACHER_ROLL_CALL_INSIDE) { entry ->
             val groupId = entry.arguments?.getString("groupId") ?: "3B"
+            val container = rememberAppContainer()
+            val rollCallViewModel: RollCallViewModel = viewModel(
+                key = "roll-call-$groupId",
+                factory = RollCallViewModelFactory(
+                    groupId = groupId,
+                    startRollCall = container.startRollCallUseCase,
+                    saveRollCall = container.saveRollCallUseCase,
+                    students = container.studentRepository,
+                ),
+            )
+            val rollCall by rollCallViewModel.state.collectAsState()
+
             RollCallScreen(
-                groupId = groupId,
+                ui = rollCall,
                 onBack = { navController.popBackStack() },
-                onSave = { navController.popBackStack() },
+                onMark = rollCallViewModel::mark,
+                onMarkAllPresent = rollCallViewModel::markAllPresent,
+                onSave = rollCallViewModel::save,
                 onOpenMap = { navController.navigate(Routes.teacherRollCallMap(groupId)) },
             )
         }

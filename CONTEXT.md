@@ -278,6 +278,9 @@ counts           map { present, absent, late, justified: int }
 location         map { lat, lng, accuracy, distanceMeters, verified: bool }
 createdAt, updatedAt timestamp
 ```
+La sesión **nace cerrada**: el docente la cierra en el teléfono y se escribe una sola vez con
+`set()` sobre el UUID del cliente, con `status = "closed"` y `closedAt`. `open` existe en el
+esquema para un flujo futuro de sesión en vivo, no para el de hoy.
 Subcolección `records/{studentId}` (el id del documento es el del alumno):
 ```
 studentId    string
@@ -449,8 +452,9 @@ groups/{id}            read: todo el schoolId
 schools/{id}           read: todo el schoolId
                        write: solo directivo (o el script de administración)
 attendanceSessions     read: directivo | docente dueño | tutor de un alumno del grupo
+                       create: docente dueño, dentro de su groupIds, status open|closed
                        write: docente dueño y dentro de su groupIds
-records/{studentId}    write: docente dueño de la sesión
+records/{studentId}    write: docente dueño de la sesión (getAfter del padre: se crea en el mismo batch)
 incidents              create: docente del grupo
                        read: directivo | docente que lo creó | tutor del alumno
                        update: directivo (estado) | tutor (solo seenByTutorIds)
@@ -465,6 +469,8 @@ linkingCodes           create: directivo ; read: nadie por listado, solo get exa
 ```
 
 Toda regla que dependa del rol hace `get(/databases/$(database)/documents/users/$(request.auth.uid))`. Es una lectura extra por operación; se acepta por claridad y se optimiza con `custom claims` solo si aparece un problema de coste.
+
+**En un batch se usa `getAfter()`, no `get()`, para leer el documento padre que el mismo batch está creando.** `get()` devuelve `null` en ese caso y la escritura se rechaza. El límite de 20 lecturas por batch se respeta porque Firestore cachea las lecturas al mismo documento dentro de un request: 28 registros que validan la misma sesión cuentan como una lectura.
 
 ---
 
@@ -583,9 +589,15 @@ Se guarda **una sola fila**, que se reemplaza en cada resolución válida del pe
    3. Marca `SYNCED` y elimina la entrada de la outbox.
 4. Si falla, incrementa `attempts`, guarda `lastError`, registra non-fatal en Crashlytics y reintenta con backoff.
 
+En el pase de lista la sesión y sus 28 registros salen en **un solo `WriteBatch`**, no en escrituras
+sueltas: o queda la sesión completa con sus registros, o no queda nada. El `sessionId` se genera en
+el cliente antes de la primera escritura, así que reintentar sobrescribe el mismo documento en vez de
+duplicarlo.
+
 ### 8.4 Conflictos
 
 - **Pase de lista:** gana la última escritura por `updatedAt`, pero los registros se mergean por alumno (nunca se pisa el grupo completo). Una sesión `closed` solo la puede reabrir el directivo.
+- **Pase de lista — completitud:** los cuatro estados son `present | absent | late | justified`; no existe "sin marcar". Con alumnos sin marcar no se guarda: `SaveRollCallUseCase` devuelve `Incomplete(n)` y la pantalla avisa. Escribir `absent` por alguien que el docente no tocó sería mentirle al tutor.
 - **Incidentes:** el docente es el único que edita el suyo mientras esté en `nuevo`; después, solo el directivo cambia estado.
 - **Justificantes:** el tutor solo crea; el directivo solo cambia estado y nota de revisión.
 - Nunca se borra un documento de forma destructiva: `active = false` para usuarios y alumnos.

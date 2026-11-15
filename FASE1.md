@@ -110,18 +110,27 @@ modo avión, después de una carga online, sigue viendo lo mismo.
 
 ## Bloque 2 - Pase de lista online (PLAN 1.2)
 
-- [ ] **2.1** `AttendanceRepository` + `StartRollCallUseCase` / `SaveRollCallUseCase`
-- [ ] **2.2** `sessionId` = **UUID generado en el cliente** (nunca `add()`, nunca un id del servidor)
-- [ ] **2.3** Escritura de la sesión: `groupId`, `schoolId`, `teacherId`, `subject`, `date`, `status`, `counts`, `location`
-- [ ] **2.4** Registros en `attendanceSessions/{id}/records/{studentId}` — **el id del documento es el del alumno**
-- [ ] **2.5** Un solo `WriteBatch` para sesión + registros
-- [ ] **2.6** `counts` se **recalcula desde los registros**, nunca desde los contadores de la UI
-- [ ] **2.7** Cerrar sesión: `closedAt` + `status = "closed"`
-- [ ] **2.8** `RollCallScreen`: borrar `sampleStudents()`, cablear al ViewModel
-- [ ] **2.9** Eventos `roll_call_started` y `roll_call_saved` (`synced = 1`)
+- [x] **2.1** `AttendanceRepository` + `StartRollCallUseCase` / `SaveRollCallUseCase`
+- [x] **2.2** `sessionId` = **UUID generado en el cliente** (nunca `add()`, nunca un id del servidor)
+- [x] **2.3** Escritura de la sesión: `groupId`, `schoolId`, `teacherId`, `subject`, `date`, `status`, `counts`, `location`
+- [x] **2.4** Registros en `attendanceSessions/{id}/records/{studentId}` — **el id del documento es el del alumno**
+- [x] **2.5** Un solo `WriteBatch` para sesión + registros
+- [x] **2.6** `counts` se **recalcula desde los registros**, nunca desde los contadores de la UI
+- [x] **2.7** Cerrar sesión: `closedAt` + `status = "closed"`
+- [x] **2.8** `RollCallScreen`: borrar `sampleStudents()`, cablear al ViewModel
+- [x] **2.9** Eventos `roll_call_started` y `roll_call_saved` (`synced = 1`)
 
 **Criterio:** el docente marca los 28, cierra, y en la consola hay **una** sesión con 28 registros
 cuyos contadores coinciden con lo marcado.
+
+> **Evidencia (dispositivo 65d5dd78, 14 nov 2026, proyecto `aulasegu`):** sesión
+> `5e09a542-13f1-45ef-b324-08c51e55062a`, `date 2026-11-14`, `status closed`, `subject "Matemáticas"`,
+> `counts {present:24, absent:1, late:2, justified:1}`, **28 registros** con el mismo desglose,
+> `location null` (Bloque 3). Marcado: todos presentes y después 1 justificado, 2 retardos, 1 falta.
+> `time` solo aparece en retardo/presente (`"19:27"`), `null` en falta/justificado. Doble tap en
+> *Guardar* produjo **una** sola sesión; `SyncWorker` terminó `SUCCESS` sin `PERMISSION_DENIED`.
+> Salir de la pantalla sin guardar dejó la colección con la misma sesión: no hay sesiones fantasma.
+> Tests: **93 unitarios, 0 fallos**.
 
 **Cómo probarlo**
 
@@ -138,6 +147,24 @@ cuyos contadores coinciden con lo marcado.
 > **Las reglas exigen `teacherId == uid` y que el grupo esté en su `groupIds`.** Si la escritura
 > falla, el error tiene que llegar a la UI con el `groupId` en el mensaje; tragárselo convierte un
 > bug de permisos en "no guardó, no sé por qué".
+>
+> **Las reglas cambiaron y esto es parte del bloque.** La regla `create` exigía `status == 'open'`,
+> pero la sesión se crea ya cerrada (un solo `set` idempotente): **toda** escritura real habría sido
+> rechazada. Ahora acepta `status in ['open', 'closed']`. Además la regla de `records` usaba
+> `get(parent)`, que devuelve `null` cuando el padre se crea en el **mismo** batch; se cambió a
+> `getAfter(parent)`. El límite de 20 lecturas por batch se sostiene porque Firestore cachea las
+> lecturas al mismo documento: los 28 `getAfter` a la misma sesión cuentan una vez.
+>
+> **La completitud es un bloqueo de guardado, no una marca inventada.** El esquema solo admite
+> `present | absent | late | justified`; no hay "sin marcar". `SaveRollCallUseCase` devuelve
+> `Incomplete(n)` y la pantalla dice "Faltan N alumnos por marcar." en vez de escribir faltas que
+> nadie eligió.
+>
+> **La fila de contadores tiene cinco chips, no cuatro.** Con cuatro, un grupo de 28 con un
+> justificado sumaba 27 en pantalla. Los chips ahora son Pres. / Falt. / Ret. / Just. / Sin m.
+>
+> **Bypass temporal del GPS:** *Pasar lista* va directo a la pantalla de lista, sin pasar por
+> `TeacherLocationVerifyingScreen`. El Bloque 3 es quien la vuelve a insertar con la geocerca real.
 
 ---
 

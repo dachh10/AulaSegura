@@ -166,11 +166,16 @@ service cloud.firestore {
         (isTutor() && resource.data.groupId in myGroups())
       );
 
+      // A session is created *closed* when the teacher saved it: the id is the
+      // client UUID, and the whole point of the offline-first write path is that
+      // one idempotent `set` carries the final state (`CONTEXT.md` §8.3). The
+      // old `status == 'open'` guard protected nothing — `update` already allows
+      // closing the session one write later — and it made every save fail.
       allow create: if isDocente()
         && request.resource.data.teacherId == request.auth.uid
         && request.resource.data.schoolId == mySchool()
         && request.resource.data.groupId in myGroups()
-        && request.resource.data.status == 'open';
+        && request.resource.data.status in ['open', 'closed'];
 
       allow update: if isActive() && (
         (isDirectivo() && resource.data.schoolId == mySchool()) ||
@@ -190,11 +195,15 @@ service cloud.firestore {
           (isTutor() && studentId in myStudents())
         );
 
+        // getAfter(), not get(): the session and its records are written in ONE
+        // WriteBatch, so at evaluation time the parent does not exist yet and
+        // get() returns null — which denied every save. getAfter() reads the
+        // projected state of the batch, which is exactly the check we want.
         allow write: if isActive() && (
-          (isDirectivo() && get(
+          (isDirectivo() && getAfter(
             /databases/$(database)/documents/attendanceSessions/$(sessionId)
           ).data.schoolId == mySchool()) ||
-          (isDocente() && get(
+          (isDocente() && getAfter(
             /databases/$(database)/documents/attendanceSessions/$(sessionId)
           ).data.teacherId == request.auth.uid)
         );

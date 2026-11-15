@@ -59,10 +59,18 @@ class AttendanceSyncHandler(
         } catch (denied: FirebaseFirestoreException) {
             val retryable = denied.code in RETRYABLE_CODES
             markSession(withCounts.sessionId, SyncState.FAILED)
+            // The group travels in the message on purpose: "no guardó" without
+            // the group turns a permissions bug into an unsolvable support ticket.
             if (retryable) {
-                SyncOutcome.Retry("Firestore unavailable (${denied.code})", denied)
+                SyncOutcome.Retry(
+                    "Firestore unavailable for group ${session.groupId} (${denied.code})",
+                    denied,
+                )
             } else {
-                SyncOutcome.Permanent("Firestore rejected the session (${denied.code})", denied)
+                SyncOutcome.Permanent(
+                    "Firestore rejected the session of group ${session.groupId} (${denied.code})",
+                    denied,
+                )
             }
         }
     }

@@ -2,10 +2,13 @@ package com.example.aulasegura.ui.screens.teacher
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.example.aulasegura.domain.model.Group
+import com.example.aulasegura.domain.model.IncidentCategory
 import com.example.aulasegura.domain.model.IncidentLocation
 import com.example.aulasegura.domain.model.IncidentSaveOutcome
 import com.example.aulasegura.domain.model.IncidentSeverity
 import com.example.aulasegura.domain.model.NewIncident
+import com.example.aulasegura.domain.model.Student
 import com.example.aulasegura.domain.model.SyncPhase
 import com.example.aulasegura.domain.repository.GroupRepository
 import com.example.aulasegura.domain.repository.IncidentRepository
@@ -43,6 +46,7 @@ class TeacherIncidentViewModel(
 
     private val selectedId = MutableStateFlow<String?>(null)
     private val severity = MutableStateFlow(IncidentSeverity.MODERADO)
+    private val category = MutableStateFlow(IncidentCategory.OTRO)
     private val description = MutableStateFlow("")
     private val saving = MutableStateFlow(false)
     private val saved = MutableStateFlow(false)
@@ -55,7 +59,7 @@ class TeacherIncidentViewModel(
             if (myGroups.isEmpty()) {
                 flowOf(emptyList())
             } else {
-                val perGroup: List<Flow<Pair<com.example.aulasegura.domain.model.Group, List<com.example.aulasegura.domain.model.Student>>>> =
+                val perGroup: List<Flow<Pair<Group, List<Student>>>> =
                     myGroups.map { group ->
                         students.observeRoster(group.id).map { roster -> group to roster }
                     }
@@ -76,6 +80,17 @@ class TeacherIncidentViewModel(
         }
         .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
 
+    /** What the form holds while the teacher fills it. */
+    private data class Form(
+        val severity: IncidentSeverity,
+        val category: IncidentCategory,
+        val description: String,
+    )
+
+    private val form = combine(severity, category, description) { level, kind, text ->
+        Form(level, kind, text)
+    }
+
     private data class Transient(
         val saving: Boolean,
         val saved: Boolean,
@@ -90,16 +105,15 @@ class TeacherIncidentViewModel(
     val state: StateFlow<TeacherIncidentUi> = combine(
         roster,
         selectedId,
-        severity,
-        description,
+        form,
         transient,
-    ) { students, selected, level, text, flags ->
+    ) { students, selected, fields, flags ->
         TeacherIncidentUi(
             students = students,
             selectedId = selected,
-            severity = level,
-            description = text,
-            loading = students.isEmpty(),
+            severity = fields.severity,
+            category = fields.category,
+            description = fields.description,
             saving = flags.saving,
             saved = flags.saved,
             sync = flags.sync,
@@ -120,6 +134,11 @@ class TeacherIncidentViewModel(
     fun setSeverity(level: IncidentSeverity) {
         if (saved.value) return
         severity.value = level
+    }
+
+    fun setCategory(kind: IncidentCategory) {
+        if (saved.value) return
+        category.value = kind
     }
 
     fun setDescription(text: String) {
@@ -154,6 +173,7 @@ class TeacherIncidentViewModel(
                 title = titleOf(description.value),
                 description = description.value.trim(),
                 severity = severity.value,
+                category = category.value,
                 occurredAt = now(),
                 location = location,
             )

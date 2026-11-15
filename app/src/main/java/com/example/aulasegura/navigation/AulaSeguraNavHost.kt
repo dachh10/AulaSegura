@@ -461,6 +461,7 @@ fun AulaSeguraNavHost(
                 onSave = incidentViewModel::save,
                 onSelectStudent = incidentViewModel::selectStudent,
                 onSeverityChange = incidentViewModel::setSeverity,
+                onCategoryChange = incidentViewModel::setCategory,
                 onDescriptionChange = incidentViewModel::setDescription,
             )
         }

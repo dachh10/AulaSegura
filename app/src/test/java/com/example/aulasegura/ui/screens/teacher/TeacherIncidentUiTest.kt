@@ -1,5 +1,6 @@
 package com.example.aulasegura.ui.screens.teacher
 
+import com.example.aulasegura.domain.model.IncidentCategory
 import com.example.aulasegura.domain.model.IncidentSeverity
 import com.example.aulasegura.domain.model.SyncPhase
 import org.junit.Assert.assertEquals
@@ -69,6 +70,17 @@ class TeacherIncidentUiTest {
         assertEquals("leve", IncidentSeverity.LEVE.wire)
         assertEquals("moderado", IncidentSeverity.MODERADO.wire)
         assertEquals("grave", IncidentSeverity.GRAVE.wire)
-        assertNull(IncidentSeverity.fromWire("critico"))
+    }
+
+    @Test
+    fun `every category has a label and the default is otro`() {
+        assertEquals("Otro", TeacherIncidentUi().category.label)
+        IncidentCategory.entries.forEach { kind ->
+            assertTrue("missing label for $kind", kind.label.isNotBlank())
+        }
+        assertEquals(
+            listOf("discusion", "caida", "danio", "desacato", "otro"),
+            IncidentCategory.entries.map { it.wire },
+        )
     }
 }

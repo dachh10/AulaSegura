@@ -62,7 +62,7 @@ class AttendanceSyncHandler(
             analytics.log(AnalyticsEvent.RollCallSaved(synced = true))
             SyncOutcome.Success
         } catch (denied: FirebaseFirestoreException) {
-            val retryable = denied.code in RETRYABLE_CODES
+            val retryable = denied.isRetryable
             markSession(withCounts.sessionId, SyncState.FAILED)
             // The group travels in the message on purpose: "no guardó" without
             // the group turns a permissions bug into an unsolvable support ticket.
@@ -99,15 +99,5 @@ class AttendanceSyncHandler(
     private companion object {
         const val COLLECTION_SESSIONS = "attendanceSessions"
         const val COLLECTION_RECORDS = "records"
-
-        val RETRYABLE_CODES = setOf(
-            FirebaseFirestoreException.Code.UNAVAILABLE,
-            FirebaseFirestoreException.Code.DEADLINE_EXCEEDED,
-            FirebaseFirestoreException.Code.ABORTED,
-            FirebaseFirestoreException.Code.RESOURCE_EXHAUSTED,
-            FirebaseFirestoreException.Code.INTERNAL,
-            FirebaseFirestoreException.Code.CANCELLED,
-            FirebaseFirestoreException.Code.UNKNOWN,
-        )
     }
 }

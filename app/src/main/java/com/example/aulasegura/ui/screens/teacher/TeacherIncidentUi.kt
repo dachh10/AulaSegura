@@ -1,5 +1,6 @@
 package com.example.aulasegura.ui.screens.teacher
 
+import com.example.aulasegura.domain.model.IncidentCategory
 import com.example.aulasegura.domain.model.IncidentSeverity
 import com.example.aulasegura.domain.model.SyncPhase
 
@@ -29,8 +30,8 @@ data class TeacherIncidentUi(
     val students: List<IncidentStudentUi> = emptyList(),
     val selectedId: String? = null,
     val severity: IncidentSeverity = IncidentSeverity.MODERADO,
+    val category: IncidentCategory = IncidentCategory.OTRO,
     val description: String = "",
-    val loading: Boolean = true,
     val saving: Boolean = false,
     val saved: Boolean = false,
     val sync: SyncPhase? = null,

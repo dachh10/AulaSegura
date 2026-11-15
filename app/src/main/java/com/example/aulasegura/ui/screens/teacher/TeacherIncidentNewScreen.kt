@@ -25,6 +25,8 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -100,6 +102,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.em
 import androidx.compose.ui.unit.sp
 import androidx.core.content.FileProvider
+import com.example.aulasegura.domain.model.IncidentCategory
 import com.example.aulasegura.domain.model.IncidentLocation
 import com.example.aulasegura.domain.model.IncidentSeverity
 import com.example.aulasegura.domain.model.SchoolSite
@@ -164,6 +167,7 @@ private sealed interface Evidence {
     data class Video(override val label: String) : Evidence
 }
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun TeacherIncidentNewScreen(
     ui: TeacherIncidentUi,
@@ -172,6 +176,7 @@ fun TeacherIncidentNewScreen(
     onSave: (IncidentLocation?) -> Unit = {},
     onSelectStudent: (String) -> Unit = {},
     onSeverityChange: (IncidentSeverity) -> Unit = {},
+    onCategoryChange: (IncidentCategory) -> Unit = {},
     onDescriptionChange: (String) -> Unit = {},
 ) {
     val context = LocalContext.current
@@ -216,8 +221,11 @@ fun TeacherIncidentNewScreen(
         runCatching { videoLauncher.launch(intent) }
     }
 
-    val latitude = String.format(Locale.US, "%.6f", BASE_LAT + (MARKER_Y - marker.y) * 0.002f)
-    val longitude = String.format(Locale.US, "%.6f", BASE_LON + (marker.x - MARKER_X) * 0.002f)
+    // The pin is what gets stored; the strings are only what the card prints.
+    val latitudeValue = BASE_LAT + (MARKER_Y - marker.y) * 0.002f
+    val longitudeValue = BASE_LON + (marker.x - MARKER_X) * 0.002f
+    val latitude = String.format(Locale.US, "%.6f", latitudeValue)
+    val longitude = String.format(Locale.US, "%.6f", longitudeValue)
 
     Column(
         modifier = Modifier
@@ -273,6 +281,23 @@ fun TeacherIncidentNewScreen(
             }
 
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                SectionLabel(text = "Categoría")
+                FlowRow(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    IncidentCategory.entries.forEach { option ->
+                        CategoryChip(
+                            label = option.label,
+                            selected = option == ui.category,
+                            onClick = { onCategoryChange(option) },
+                        )
+                    }
+                }
+            }
+
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 SectionLabel(text = "Ubicación del incidente")
                 IncidentLocationCard(
                     marker = marker,
@@ -314,8 +339,6 @@ fun TeacherIncidentNewScreen(
             DateTimeCard()
         }
 
-        val latitudeValue = BASE_LAT + (MARKER_Y - marker.y) * 0.002f
-        val longitudeValue = BASE_LON + (marker.x - MARKER_X) * 0.002f
         val distance = school?.let {
             haversineMeters(latitudeValue, longitudeValue, it.latitude, it.longitude)
         }
@@ -739,6 +762,55 @@ private fun SeverityPill(
             color = if (selected) Color.White else accent,
             fontFamily = DmSans,
             fontWeight = if (selected) FontWeight.Bold else FontWeight.SemiBold,
+            fontSize = 12.5.sp,
+            lineHeight = 17.sp,
+            maxLines = 1,
+        )
+    }
+}
+
+@Composable
+private fun CategoryChip(
+    label: String,
+    selected: Boolean,
+    onClick: () -> Unit,
+) {
+    val (interaction, press) = rememberPressScale(0.95f)
+    val shape = RoundedCornerShape(percent = 50)
+
+    Row(
+        modifier = Modifier
+            .height(36.dp)
+            .then(press)
+            .clip(shape)
+            .background(if (selected) Primary else SurfaceContainerLowest)
+            .border(
+                width = 1.dp,
+                color = if (selected) Primary else OutlineVariant.copy(alpha = 0.50f),
+                shape = shape,
+            )
+            .clickable(
+                interactionSource = interaction,
+                indication = null,
+                onClick = onClick,
+            )
+            .padding(horizontal = 14.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        if (selected) {
+            Icon(
+                imageVector = Icons.Filled.Check,
+                contentDescription = null,
+                tint = Color.White,
+                modifier = Modifier.size(14.dp),
+            )
+            Spacer(modifier = Modifier.width(5.dp))
+        }
+        Text(
+            text = label,
+            color = if (selected) Color.White else Primary,
+            fontFamily = DmSans,
+            fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium,
             fontSize = 12.5.sp,
             lineHeight = 17.sp,
             maxLines = 1,

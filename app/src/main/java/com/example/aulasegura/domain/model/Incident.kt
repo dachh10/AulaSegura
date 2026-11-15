@@ -12,27 +12,20 @@ enum class IncidentSeverity(val wire: String, val label: String) {
     LEVE("leve", "Leve"),
     MODERADO("moderado", "Moderado"),
     GRAVE("grave", "Grave"),
-    ;
-
-    companion object {
-        fun fromWire(value: String): IncidentSeverity? =
-            entries.firstOrNull { it.wire == value }
-    }
 }
 
 /**
- * Incident category.
+ * Incident category, picked by the teacher.
  *
- * The Stitch mockup has no category control, so the screen writes [OTRO] until a
- * design for it exists. The field is in the schema and the admin list filters by
- * it, so leaving it out would break those queries later.
+ * [OTRO] is the default because "no sé en qué cajón entra" is a real answer and
+ * the tutor still needs the incident; the other four match the admin filters.
  */
-enum class IncidentCategory(val wire: String) {
-    DISCUSION("discusion"),
-    CAIDA("caida"),
-    DANIO("danio"),
-    DESACATO("desacato"),
-    OTRO("otro"),
+enum class IncidentCategory(val wire: String, val label: String) {
+    DISCUSION("discusion", "Discusión"),
+    CAIDA("caida", "Caída"),
+    DANIO("danio", "Daño"),
+    DESACATO("desacato", "Desacato"),
+    OTRO("otro", "Otro"),
 }
 
 /** Where the incident happened, as the teacher placed the pin. */

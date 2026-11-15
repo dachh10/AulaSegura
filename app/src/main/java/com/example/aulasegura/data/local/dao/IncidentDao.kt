@@ -43,6 +43,10 @@ interface IncidentDao {
     @Upsert
     suspend fun upsertDraft(draft: IncidentDraftEntity)
 
+    /** The handler's one-column bookkeeping; no need to rewrite the whole draft. */
+    @Query("UPDATE incident_drafts SET syncState = :state WHERE incidentId = :incidentId")
+    suspend fun updateSyncState(incidentId: String, state: SyncState)
+
     @Query("SELECT * FROM incident_media WHERE incidentId = :incidentId")
     fun observeMedia(incidentId: String): Flow<List<IncidentMediaEntity>>
 

@@ -48,7 +48,7 @@ class IncidentSyncHandler(
         } catch (denied: FirebaseFirestoreException) {
             mark(draft.incidentId, SyncState.FAILED)
             val group = "grupo ${draft.groupId}"
-            if (denied.code in RETRYABLE_CODES) {
+            if (denied.isRetryable) {
                 SyncOutcome.Retry(
                     "Firestore unavailable for the incident of $group (${denied.code})",
                     denied,
@@ -65,24 +65,10 @@ class IncidentSyncHandler(
     private suspend fun mark(incidentId: String, state: SyncState) {
         // Local bookkeeping only: the next pass rewrites the document anyway, so
         // a failure here has nothing to recover.
-        runCatching {
-            incidentDao.findDraft(incidentId)?.let {
-                incidentDao.upsertDraft(it.copy(syncState = state))
-            }
-        }
+        runCatching { incidentDao.updateSyncState(incidentId, state) }
     }
 
     private companion object {
         const val COLLECTION = "incidents"
-
-        val RETRYABLE_CODES = setOf(
-            FirebaseFirestoreException.Code.UNAVAILABLE,
-            FirebaseFirestoreException.Code.DEADLINE_EXCEEDED,
-            FirebaseFirestoreException.Code.ABORTED,
-            FirebaseFirestoreException.Code.RESOURCE_EXHAUSTED,
-            FirebaseFirestoreException.Code.INTERNAL,
-            FirebaseFirestoreException.Code.CANCELLED,
-            FirebaseFirestoreException.Code.UNKNOWN,
-        )
     }
 }

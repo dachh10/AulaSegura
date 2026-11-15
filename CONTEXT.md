@@ -739,9 +739,18 @@ ui/screens/parent/ParentAIScreen.kt       → estado de UI (idle, loading, respu
 
 Reglas de convivencia:
 
-- `main` siempre compila. Nadie hace push directo a `main`.
+- `main` siempre compila. Es la rama publicada: la página del repo muestra el estado real del
+  proyecto y el checklist de la fase vigente con lo que ya está entregado.
+- **El trabajo se hace en una rama y llega a `main` por merge.** En la Fase 1 eso fue un
+  *fast-forward* de `feat/docente-pase-lista` al cerrar cada bloque, con `assembleDebug` y
+  `testDebugUnitTest` en verde **antes** de cada merge. Nadie pushea commits sueltos a `main`.
+- Por qué la regla importa: `main` es lo único que se ve sin abrir una rama. Si el checklist vive
+  solo en la rama, el repo aparenta estar dos fases atrás.
+- **Historial:** la Fase 0 se hizo lineal sobre `main`, sin ramas ni pull requests (el repo nunca
+  tuvo un PR). A partir de la Fase 1 el trabajo vive en una rama y llega por merge.
 - Ramas: `feat/docente-pase-lista`, `feat/admin-usuarios`, `fix/sync-reintento`.
-- PRs pequeños (una pantalla o un repositorio), con captura o GIF del flujo.
+- PRs pequeños (una pantalla o un repositorio), con captura o GIF del flujo, cuando hay dos ramas
+  en vuelo al mismo tiempo.
 - Conventional Commits: `feat(teacher): …`, `fix(sync): …`, `docs(context): …`.
 - **Si una tarea toca el esquema de Firestore, se avisa antes de mergear**: el esquema es contrato compartido.
 - Los archivos de `domain/model` y `data/` los toca una sola persona a la vez para evitar conflictos.

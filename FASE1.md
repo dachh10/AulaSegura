@@ -199,7 +199,7 @@ cuyos contadores coinciden con lo marcado.
 
 ## Bloque 3 — GPS y geocerca (PLAN 1.5)
 
-**Estado:** ✅ **HECHO** — 14 nov 2026 · commit `43fcf21` · 111 tests unitarios · verificado en dispositivo (CPH2669, Android 14).
+> **Estado: ✅ HECHO** — 14 nov 2026 · commit `43fcf21` · 111 tests unitarios · verificado en dispositivo (CPH2669, Android 14).
 
 - [x] **3.1** Agregar `play-services-location` al módulo (ya está en `libs.versions.toml`)
 - [x] **3.2** Permiso `ACCESS_FINE_LOCATION` con racional y caso "permiso denegado" (no bloquea el pase de lista, lo deja **no verificado**)

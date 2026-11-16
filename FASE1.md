@@ -427,9 +427,12 @@ cualquiera, incluso sin red.
 1. **El título se deriva de la descripción** (primera línea, 80 caracteres): la pantalla no tiene campo de título y el documento lo necesita para la lista del admin.
 2. **La evidencia de la pantalla es solo visual.** Se pueden tomar foto y video, pero no se persisten ni se cuentan hasta el bloque 7.
 3. **Sin edición ni estado.** Un incidente creado queda en `nuevo`; cambiarlo a `revisado`/`cerrado` es del admin (reglas y bloque de admin), no de esta pantalla.
-4. **"Requerido" es una etiqueta fija.** `SectionHeader(trailing = "Requerido")` no se apaga cuando el docente ya eligió gravedad: sigue diciendo que falta algo que ya está.
-5. **La tarjeta de fecha y hora está hardcodeada** (`"Mar 3 nov 2026 · 10:42"`). El documento guarda `occurredAt = now()`, así que la pantalla muestra una hora que no es la del incidente.
-6. **`IncidentOfflineSyncTest` deja una fila en el outbox.** El `@After` borra el borrador pero no la fila de replay; esa fila reintenta con el error "is no longer stored locally" hasta `MAX_ATTEMPTS_BEFORE_DROP` (10). No bloquea la cola —probado—, pero ensucia el aparato.
+
+**Corregidos tras la verificación en el teléfono**
+
+1. **`Requerido` ya no miente y la gravedad es obligatoria.** `TeacherIncidentUi.severity` arranca en `null`: la etiqueta `Requerido` se pinta solo mientras siga así, `canSave` exige severidad y `save()` corta sin ella con "Elige la gravedad del incidente.". Antes el default era `MODERADO`, es decir que el silencio del docente se guardaba como una decisión de triage que nadie tomó. Verificado en el teléfono: al abrir, `Requerido` visible y CTA deshabilitado; al tocar Grave la etiqueta desaparece y el CTA se habilita con alumno y descripción.
+2. **La tarjeta de fecha y hora muestra la hora real.** `TeacherIncidentUi.occurredAt` se captura una sola vez al abrir el formulario y es el mismo valor que viaja en `NewIncident.occurredAt`, así que la tarjeta no puede mostrar algo distinto de lo que se guarda. `incidentTimestampLabel()` lo formatea con `SimpleDateFormat` y `es-MX` (nada de `java.time`: `minSdk` 24 sin desugaring). En el teléfono se leyó `Dom 15 nov 2026 · 19:08`.
+3. **`IncidentOfflineSyncTest` ya no deja basura en el outbox.** El `@After` borra la fila por `entityLocalId` además del borrador. La fila testigo del defecto quedó en el aparato con 9 intentos y el error `is no longer stored locally`; se descarta sola en el intento 10 y nunca bloqueó la cola. Un run en verde no ejercita ese camino —la cola se drena—, así que la evidencia del arreglo es el código y el síntoma medido, no una corrida del test.
 
 **Criterio:** un incidente creado en modo avión aparece **una vez** en Firestore al reconectar, con
 su severidad, su nombre de alumno y su ubicación.

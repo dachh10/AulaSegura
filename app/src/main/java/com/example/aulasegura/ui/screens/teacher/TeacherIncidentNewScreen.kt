@@ -264,7 +264,10 @@ fun TeacherIncidentNewScreen(
             )
 
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                SectionHeader(title = "Gravedad", trailing = "Requerido")
+                SectionHeader(
+                    title = "Gravedad",
+                    trailing = if (ui.severity == null) "Requerido" else null,
+                )
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -336,7 +339,7 @@ fun TeacherIncidentNewScreen(
                 )
             }
 
-            DateTimeCard()
+            DateTimeCard(timestamp = incidentTimestampLabel(ui.occurredAt))
         }
 
         val distance = school?.let {
@@ -653,7 +656,7 @@ private fun IncidentMessageStrip(message: String, saved: Boolean) {
 
 // ZONE 3 — Severity
 @Composable
-private fun SectionHeader(title: String, trailing: String) {
+private fun SectionHeader(title: String, trailing: String?) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -669,13 +672,15 @@ private fun SectionHeader(title: String, trailing: String) {
             fontSize = 14.sp,
             lineHeight = 18.sp,
         )
-        Text(
-            text = trailing,
-            color = Outline,
-            fontFamily = JetBrainsMono,
-            fontSize = 11.sp,
-            lineHeight = 15.sp,
-        )
+        if (trailing != null) {
+            Text(
+                text = trailing,
+                color = Outline,
+                fontFamily = JetBrainsMono,
+                fontSize = 11.sp,
+                lineHeight = 15.sp,
+            )
+        }
     }
 }
 
@@ -1479,7 +1484,7 @@ private fun DescriptionField(
 
 // ZONE 7 — Date & time
 @Composable
-private fun DateTimeCard() {
+private fun DateTimeCard(timestamp: String) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -1509,7 +1514,7 @@ private fun DateTimeCard() {
         }
         Spacer(modifier = Modifier.width(8.dp))
         Text(
-            text = "Mar 3 nov 2026 · 10:42",
+            text = timestamp,
             color = Primary,
             fontFamily = JetBrainsMono,
             fontWeight = FontWeight.Bold,

@@ -8,6 +8,9 @@ import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import java.util.Calendar
+import java.util.Locale
+import java.util.TimeZone
 
 /**
  * The footer's enabled state is the screen's copy of the domain rules, so it is
@@ -35,10 +38,29 @@ class TeacherIncidentUiTest {
     @Test
     fun `saving needs a student and a description`() {
         val base = TeacherIncidentUi(students = listOf(student), description = "Se cayó")
+        val withSeverity = IncidentSeverity.MODERADO
 
-        assertFalse("no student chosen", base.canSave)
-        assertTrue(base.copy(selectedId = "stu-1").canSave)
-        assertFalse("empty description", base.copy(selectedId = "stu-1", description = " ").canSave)
+        assertFalse("no student chosen", base.copy(severity = withSeverity).canSave)
+        assertTrue(
+            "a complete form saves",
+            base.copy(selectedId = "stu-1", severity = withSeverity).canSave,
+        )
+        assertFalse(
+            "empty description",
+            base.copy(selectedId = "stu-1", severity = withSeverity, description = " ").canSave,
+        )
+    }
+
+    @Test
+    fun `saving needs a severity, since the tutor triages by it`() {
+        val complete = TeacherIncidentUi(
+            students = listOf(student),
+            selectedId = "stu-1",
+            description = "Se cayó",
+        )
+
+        assertFalse("no severity chosen", complete.canSave)
+        assertTrue(complete.copy(severity = IncidentSeverity.GRAVE).canSave)
     }
 
     @Test
@@ -81,6 +103,22 @@ class TeacherIncidentUiTest {
         assertEquals(
             listOf("discusion", "caida", "danio", "desacato", "otro"),
             IncidentCategory.entries.map { it.wire },
+        )
+    }
+
+    @Test
+    fun `the date card prints the stored instant in the mockup's shape`() {
+        val zone = TimeZone.getTimeZone("America/Mexico_City")
+        val instant = Calendar.getInstance(zone, Locale.US)
+            .apply {
+                clear()
+                set(2026, Calendar.NOVEMBER, 3, 10, 42, 0)
+            }
+            .timeInMillis
+
+        assertEquals(
+            "Mar 3 nov 2026 · 10:42",
+            incidentTimestampLabel(instant, zone),
         )
     }
 }

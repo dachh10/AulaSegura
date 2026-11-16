@@ -81,9 +81,14 @@ class IncidentOfflineSyncTest {
     @After
     fun cleanUp() = runBlocking {
         setAirplaneMode(enabled = false)
-        // The draft is local bookkeeping; the document already lives in Firestore
-        // by the time this runs.
-        createdIncidentId?.let { app.container.database.incidentDao().deleteDraft(it) }
+        // Both halves of the local bookkeeping go, not just the draft: a run that
+        // fails before the drain leaves an outbox row the worker keeps retrying
+        // long after the test is gone. `deleteByEntity` matches the entity id the
+        // row carries.
+        createdIncidentId?.let { id ->
+            app.container.database.outboxDao().deleteByEntity(id)
+            app.container.database.incidentDao().deleteDraft(id)
+        }
         app.container.authRepository.signOut()
     }
 

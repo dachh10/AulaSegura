@@ -45,13 +45,21 @@ class TeacherIncidentViewModel(
 ) : ViewModel() {
 
     private val selectedId = MutableStateFlow<String?>(null)
-    private val severity = MutableStateFlow(IncidentSeverity.MODERADO)
+
+    /**
+     * No default: the teacher answers the severity question, and the footer stays
+     * locked until they do, because that field is what the tutor triages by.
+     */
+    private val severity = MutableStateFlow<IncidentSeverity?>(null)
     private val category = MutableStateFlow(IncidentCategory.OTRO)
     private val description = MutableStateFlow("")
     private val saving = MutableStateFlow(false)
     private val saved = MutableStateFlow(false)
     private val sync = MutableStateFlow<SyncPhase?>(null)
     private val message = MutableStateFlow<String?>(null)
+
+    /** Captured once, when the form opens: the card and the document share it. */
+    private val occurredAt = now()
 
     @OptIn(ExperimentalCoroutinesApi::class)
     private val roster: StateFlow<List<IncidentStudentUi>> = groups.observeMyGroups()
@@ -82,7 +90,7 @@ class TeacherIncidentViewModel(
 
     /** What the form holds while the teacher fills it. */
     private data class Form(
-        val severity: IncidentSeverity,
+        val severity: IncidentSeverity?,
         val category: IncidentCategory,
         val description: String,
     )
@@ -114,6 +122,7 @@ class TeacherIncidentViewModel(
             severity = fields.severity,
             category = fields.category,
             description = fields.description,
+            occurredAt = occurredAt,
             saving = flags.saving,
             saved = flags.saved,
             sync = flags.sync,
@@ -122,7 +131,7 @@ class TeacherIncidentViewModel(
     }.stateIn(
         scope = viewModelScope,
         started = SharingStarted.WhileSubscribed(STOP_TIMEOUT_MILLIS),
-        initialValue = TeacherIncidentUi(),
+        initialValue = TeacherIncidentUi(occurredAt = occurredAt),
     )
 
     fun selectStudent(studentId: String) {
@@ -162,6 +171,12 @@ class TeacherIncidentViewModel(
             return
         }
 
+        val level = severity.value
+        if (level == null) {
+            message.value = "Elige la gravedad del incidente."
+            return
+        }
+
         saving.value = true
         message.value = null
 
@@ -172,9 +187,9 @@ class TeacherIncidentViewModel(
                 studentName = student.fullName,
                 title = titleOf(description.value),
                 description = description.value.trim(),
-                severity = severity.value,
+                severity = level,
                 category = category.value,
-                occurredAt = now(),
+                occurredAt = occurredAt,
                 location = location,
             )
 

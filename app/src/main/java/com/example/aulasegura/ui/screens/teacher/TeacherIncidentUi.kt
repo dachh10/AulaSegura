@@ -3,6 +3,10 @@ package com.example.aulasegura.ui.screens.teacher
 import com.example.aulasegura.domain.model.IncidentCategory
 import com.example.aulasegura.domain.model.IncidentSeverity
 import com.example.aulasegura.domain.model.SyncPhase
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
+import java.util.TimeZone
 
 /**
  * One student the teacher can file an incident for, with the group badge the
@@ -22,16 +26,24 @@ data class IncidentStudentUi(
 /**
  * What "Registrar incidente" renders, already resolved.
  *
- * [canSave] mirrors the two rules the domain enforces (`NoStudent`,
- * `EmptyDescription`), so the footer is disabled for the same reasons the use
- * case would reject — the screen does not get to have its own opinion.
+ * [canSave] mirrors the three rules the domain enforces (`NoStudent`,
+ * `EmptyDescription`, and a severity the tutor can triage by), so the footer is
+ * disabled for the same reasons the use case would reject — the screen does not
+ * get to have its own opinion.
+ *
+ * [severity] starts `null` on purpose: "Moderado" as a silent default turned an
+ * unanswered question into a triage decision nobody made.
+ *
+ * [occurredAt] is the instant captured when the form was opened. The card prints
+ * it and the queued incident stores it, so the two cannot drift apart.
  */
 data class TeacherIncidentUi(
     val students: List<IncidentStudentUi> = emptyList(),
     val selectedId: String? = null,
-    val severity: IncidentSeverity = IncidentSeverity.MODERADO,
+    val severity: IncidentSeverity? = null,
     val category: IncidentCategory = IncidentCategory.OTRO,
     val description: String = "",
+    val occurredAt: Long = 0L,
     val saving: Boolean = false,
     val saved: Boolean = false,
     val sync: SyncPhase? = null,
@@ -42,8 +54,30 @@ data class TeacherIncidentUi(
         get() = students.firstOrNull { it.id == selectedId }
 
     val canSave: Boolean
-        get() = selected != null && description.isNotBlank() && !saving && !saved
+        get() = selected != null &&
+            severity != null &&
+            description.isNotBlank() &&
+            !saving &&
+            !saved
 }
+
+/**
+ * `"Mar 3 nov 2026 · 10:42"` — the date block of the form, in the mockup's shape.
+ *
+ * `java.time` is not used on purpose, same as [com.example.aulasegura.util.AttendanceTimes]:
+ * `minSdk` is 24 and there is no core library desugaring.
+ */
+fun incidentTimestampLabel(epochMillis: Long, zone: TimeZone = TimeZone.getDefault()): String =
+    SimpleDateFormat(INCIDENT_TIMESTAMP, SPANISH_MX)
+        .apply { timeZone = zone }
+        .format(Date(epochMillis))
+        .replace(".", "")
+        .replaceFirstChar { it.uppercase(SPANISH_MX) }
+
+private const val INCIDENT_TIMESTAMP = "EEE d MMM yyyy · HH:mm"
+
+/** Fixed to Spanish because the whole UI is, whatever the device language is. */
+private val SPANISH_MX: Locale = Locale.forLanguageTag("es-MX")
 
 /**
  * The strip under the header: first what the local save answered, then the real

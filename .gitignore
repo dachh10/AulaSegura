@@ -24,6 +24,7 @@ keystore.properties
 .freebuff/
 .dsh-office-*/
 node_modules/
+.engram/
 
 # ---- Logs ----
 *.log

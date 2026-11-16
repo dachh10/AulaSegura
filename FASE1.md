@@ -14,9 +14,9 @@
 | **1** — Datos del docente | grupos y roster reales, cache-first | ✅ **hecho** · `f9fe627` |
 | **2** — Pase de lista online | sesión + 28 registros en un solo batch | ✅ **hecho** · `49b2d76` |
 | **3** — GPS y geocerca | `verified` contra `schools.location` | ✅ **hecho** · `43fcf21` |
-| **4** — Pase de lista offline | el criterio de la fase, en modo avión | ✅ **hecho** · verificado en modo avión |
-| **5** — Historial | sesiones pasadas del docente | ✅ **hecho** · `assembleDebug` + 130 tests |
-| **6** — Incidentes | reporte con severidad | ✅ **hecho** · `assembleDebug` + 144 tests |
+| **4** — Pase de lista offline | el criterio de la fase, en modo avión | ✅ **hecho** · `118238b` |
+| **5** — Historial | sesiones pasadas del docente | ✅ **hecho** · `cb69681` |
+| **6** — Incidentes | reporte con severidad | ✅ **hecho** · `d08f75f` |
 | **7** — Media del incidente | foto comprimida a Cloudinary | pendiente |
 | **8** — Tareas y avisos | publicar con audiencia | pendiente |
 | **9** — Chat | RTDB y presencia | pendiente |
@@ -265,7 +265,7 @@ muestra la pantalla de "fuera de la escuela" y **no** deja cerrar una sesión ve
 
 > **Estado: ✅ HECHO en código** — 15 nov 2026 · `assembleDebug` verde · **116 tests unitarios, 0 fallos**
 > (el bloque 3 cerró con 111) · **24 tests de instrumentación, 0 fallos** en CPH2669 (Android 14).
-> **4.6 verificado por Diego en el teléfono** (modo avión → guardar → reconectar): la sesión queda
+> **4.6 verificado en el teléfono** (modo avión → guardar → reconectar): la sesión queda
 > `PENDING` con su fila en `outbox`, al reconectar pasa a `SYNCED`, la outbox queda vacía y en
 > Firestore hay **una** sola sesión con sus registros. El estado de sync además quedó cubierto en
 > hardware por `AttendanceSyncStateTest`. **Bloque cerrado.**
@@ -313,6 +313,13 @@ sesión en Firestore, con 28 registros, y la outbox queda vacía.
 4. En la consola: contar sesiones de ese día → **una**.
 5. Repetir el paso 3 dos veces (forzar el worker de nuevo) → sigue habiendo una.
 
+> **Evidencia de la corrida del 16 nov** (CPH2669, Android 14): sesión `885916bf-…` guardada con el
+> modo avión activo — `syncState = PENDING`, 28 registros y una fila `UPSERT_ATTENDANCE_SESSION` en
+> `outbox`; al reconectar quedó `SYNCED`, la outbox se drenó y Firestore tiene **una** sesión con
+> `counts.present = 28` y sus 28 registros. En la misma corrida, una fila `UPSERT_INCIDENT`
+> envenenada delante en la cola **no** bloqueó la asistencia: 4.5 quedó probado en el aparato, no
+> solo en los tests.
+
 > **La unidad de idempotencia es el UUID.** Si alguna vez aparece un `add()` en el camino de
 > asistencia, el modo avión empieza a duplicar sesiones y el tutor va a ver dos asistencias del
 > mismo día.
@@ -323,9 +330,11 @@ sesión en Firestore, con 28 registros, y la outbox queda vacía.
 
 > **Estado: ✅ HECHO** — 15 nov 2026 · `assembleDebug` verde · **130 tests unitarios, 0 fallos**
 > (el bloque 4 cerró con 116; +7 de agrupación y mapeo, +7 del documento de Firestore).
-> Quedan dos cosas para la corrida en teléfono, que no se pudieron ejecutar porque el device se
-> desconectó a mitad de la sesión: (a) abrir el historial con datos reales, (b) el
-> `AttendanceHistoryDaoTest` nuevo. El SQL sí está validado por KSP al compilar.
+> Las dos cosas que faltaban para la corrida en teléfono **se ejecutaron el 16 nov** en el CPH2669:
+> el historial abrió con datos reales (HOY / ESTA SEMANA y el detalle por alumno al expandir una
+> fila) y `AttendanceHistoryDaoTest` pasó (`OK (4 tests)`, en la misma corrida que
+> `AttendanceSyncStateTest`). Con el modo avión activo la lista sobrevive desde Room y la pantalla
+> avisa "Sin conexión. Estás viendo el historial guardado".
 
 - [x] **5.1** Consulta `attendanceSessions` con `teacherId == uid` + `date` desc (índice ya publicado)
 - [x] **5.2** Lectura offline desde Room (las sesiones guardadas se leen sin red)
@@ -369,6 +378,11 @@ cualquiera, incluso sin red.
 > **una sola vez** con severidad, categoría, nombre de alumno y `location`, y un segundo replay no lo
 > duplica. Ojo: ese incidente de prueba queda en Firestore, porque las reglas no permiten borrar
 > incidentes desde el cliente (`allow delete: if false`).
+> **Verificado además desde la pantalla** (16 nov): el reporte se llenó a mano con el modo avión
+> activo — el borrador quedó `PENDING` en Room con su fila `UPSERT_INCIDENT`; al reconectar pasó a
+> `SYNCED`, la outbox se drenó y en Firestore quedó un documento con `studentName`, `severity`,
+> `category` y `location`. Los chips se probaron tocándolos: un segundo incidente llegó con
+> `severity = grave` y `category = caida`, no con los valores por defecto.
 
 - [x] **6.1** `IncidentRepository` + `CreateIncidentUseCase`
 - [x] **6.2** Borrador en Room (`IncidentDraftEntity`) con `syncState` y `opType = UPSERT_INCIDENT`
@@ -413,6 +427,9 @@ cualquiera, incluso sin red.
 1. **El título se deriva de la descripción** (primera línea, 80 caracteres): la pantalla no tiene campo de título y el documento lo necesita para la lista del admin.
 2. **La evidencia de la pantalla es solo visual.** Se pueden tomar foto y video, pero no se persisten ni se cuentan hasta el bloque 7.
 3. **Sin edición ni estado.** Un incidente creado queda en `nuevo`; cambiarlo a `revisado`/`cerrado` es del admin (reglas y bloque de admin), no de esta pantalla.
+4. **"Requerido" es una etiqueta fija.** `SectionHeader(trailing = "Requerido")` no se apaga cuando el docente ya eligió gravedad: sigue diciendo que falta algo que ya está.
+5. **La tarjeta de fecha y hora está hardcodeada** (`"Mar 3 nov 2026 · 10:42"`). El documento guarda `occurredAt = now()`, así que la pantalla muestra una hora que no es la del incidente.
+6. **`IncidentOfflineSyncTest` deja una fila en el outbox.** El `@After` borra el borrador pero no la fila de replay; esa fila reintenta con el error "is no longer stored locally" hasta `MAX_ATTEMPTS_BEFORE_DROP` (10). No bloquea la cola —probado—, pero ensucia el aparato.
 
 **Criterio:** un incidente creado en modo avión aparece **una vez** en Firestore al reconectar, con
 su severidad, su nombre de alumno y su ubicación.

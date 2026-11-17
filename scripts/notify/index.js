@@ -104,6 +104,33 @@ async function main() {
   const deepLink = typeof args['deep-link'] === 'string' ? args['deep-link'].trim() : null;
   const dryRun = Boolean(args['dry-run']);
   const sendPush = !args['no-push'];
+
+  // Antes de pedir credenciales: un ensayo no debe exigir la cuenta de servicio.
+  if (dryRun) {
+    console.log('dry-run: documento que se escribiría en notifications:');
+    console.log(
+      JSON.stringify(
+        {
+          userId: uid,
+          title,
+          body,
+          type,
+          read: false,
+          createdAt: '<serverTimestamp>',
+          ...(deepLink ? { deepLink } : {}),
+        },
+        null,
+        2,
+      ),
+    );
+    console.log(
+      sendPush
+        ? `dry-run: se enviaría push a los tokens de users/${uid}/fcmTokens.`
+        : 'dry-run: sin push (--no-push).',
+    );
+    return;
+  }
+
   const credentialsPath = resolveCredentials(args);
 
   const admin = require('firebase-admin');
@@ -123,13 +150,6 @@ async function main() {
     createdAt: admin.firestore.FieldValue.serverTimestamp(),
   };
   if (deepLink) document.deepLink = deepLink;
-
-  if (dryRun) {
-    console.log('dry-run: documento que se escribiría en notifications:');
-    console.log(JSON.stringify({ ...document, deepLink: deepLink || undefined }, null, 2));
-    console.log(`dry-run: se enviaría push a los tokens de users/${uid}/fcmTokens`);
-    return;
-  }
 
   // 1. La bandeja. El id sale de Firestore y viaja en el push, para que el tap
   //    pueda marcar leído el documento exacto.

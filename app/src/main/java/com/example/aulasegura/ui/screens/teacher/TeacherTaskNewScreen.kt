@@ -770,7 +770,7 @@ private fun UploadDropZone(enabled: Boolean = false) {
 
         if (!enabled) {
             Text(
-                text = "Disponible en una próxima versión",
+                text = "Los adjuntos llegan en una fase posterior.",
                 color = Outline,
                 fontFamily = DmSans,
                 fontSize = 11.sp,
@@ -839,7 +839,7 @@ private fun NotificationCard(
                 text = if (enabled) {
                     "Se enviará una notificación al publicar"
                 } else {
-                    "Disponible en una próxima versión"
+                    "Todavía no se envían notificaciones push."
                 },
                 color = Outline,
                 fontFamily = DmSans,

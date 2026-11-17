@@ -729,15 +729,23 @@ private fun PreviewCard(
 }
 
 // ZONE 6 — Notification toggle
+/**
+ * El interruptor de push se muestra deshabilitado a propósito: el envío real
+ * llega con el bloque 10 (FCM), y en Spark el push se manda desde la consola.
+ * Un interruptor que se puede tocar y no manda nada es peor que uno apagado que
+ * dice por qué.
+ */
 @Composable
 private fun NotifyToggleCard(
     checked: Boolean,
     onToggle: () -> Unit,
     modifier: Modifier = Modifier,
+    enabled: Boolean = false,
 ) {
     Row(
         modifier = modifier
             .fillMaxWidth()
+            .alpha(if (enabled) 1f else 0.60f)
             .clip(NoticeCardShape)
             .background(SurfaceContainerLowest)
             .border(1.dp, FieldBorder, NoticeCardShape)
@@ -776,7 +784,11 @@ private fun NotifyToggleCard(
             )
             Spacer(modifier = Modifier.height(2.dp))
             Text(
-                text = "Avisar inmediatamente en sus teléfonos",
+                text = if (enabled) {
+                    "Avisar inmediatamente en sus teléfonos"
+                } else {
+                    "Todavía no se envían notificaciones push."
+                },
                 color = OnSurfaceVariant,
                 fontFamily = DmSans,
                 fontSize = 12.sp,
@@ -794,6 +806,7 @@ private fun NotifyToggleCard(
                 .clickable(
                     interactionSource = interaction,
                     indication = null,
+                    enabled = enabled,
                     onClick = onToggle,
                 )
                 .padding(2.dp),

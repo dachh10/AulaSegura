@@ -478,10 +478,10 @@ private fun PublicationCard(publication: HistoryPublicationUi) {
             )
         }
 
-        // The attached PDF: what happened to it, and a way back into the file.
-        // `attachmentUrl` is set only once Cloudinary has it, so the row is
-        // tappable exactly when there is something to open.
-        publication.attachmentLabel?.let { label ->
+        // The attached PDF: a `PDF` chip instead of its file name, then either
+        // the state or the way in. `attachmentUrl` is set only once Cloudinary has
+        // the file, so the row is tappable exactly when there is something to open.
+        publication.attachmentName?.let { fileName ->
             val tint = when (publication.attachmentState) {
                 AttachmentSyncState.UPLOADED -> PresentText
                 AttachmentSyncState.FAILED -> AbsentText
@@ -489,6 +489,7 @@ private fun PublicationCard(publication: HistoryPublicationUi) {
             }
             val url = publication.attachmentUrl
             val canOpen = url != null && publication.attachmentState == AttachmentSyncState.UPLOADED
+            val stateLabel = attachmentStateLabel(publication.attachmentState)
 
             Row(
                 modifier = Modifier
@@ -509,23 +510,23 @@ private fun PublicationCard(publication: HistoryPublicationUi) {
                         .background(SurfaceContainer)
                         .padding(horizontal = 8.dp, vertical = 4.dp),
                     verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    horizontalArrangement = Arrangement.spacedBy(5.dp),
                 ) {
                     Icon(
                         imageVector = Icons.Filled.AttachFile,
-                        contentDescription = null,
+                        contentDescription = "PDF adjunto: $fileName",
                         tint = tint,
                         modifier = Modifier.size(13.dp),
                     )
                     Text(
-                        text = label,
+                        text = "PDF",
                         color = tint,
                         fontFamily = JetBrainsMono,
                         fontWeight = FontWeight.SemiBold,
                         fontSize = 10.5.sp,
                         lineHeight = 14.sp,
                         maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
+                        softWrap = false,
                     )
                 }
                 if (canOpen) {
@@ -537,6 +538,18 @@ private fun PublicationCard(publication: HistoryPublicationUi) {
                         fontSize = 11.sp,
                         lineHeight = 15.sp,
                     )
+                } else {
+                    stateLabel?.let { label ->
+                        Text(
+                            text = label,
+                            color = tint,
+                            fontFamily = DmSans,
+                            fontWeight = FontWeight.Medium,
+                            fontSize = 11.sp,
+                            lineHeight = 15.sp,
+                            maxLines = 1,
+                        )
+                    }
                 }
             }
         }

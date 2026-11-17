@@ -125,8 +125,12 @@ data class HistoryPublicationUi(
     /** Still in the outbox: Firestore does not have it yet. */
     val pending: Boolean,
     val urgent: Boolean,
-    /** `"hoja.pdf · Subido"`, when the task carries a PDF. */
-    val attachmentLabel: String? = null,
+    /**
+     * File name of the task's PDF, when it has one. The row prints a `PDF` chip
+     * instead of the name — a 40-character file name would eat the card — so this
+     * is only here for the icon's accessibility label.
+     */
+    val attachmentName: String? = null,
     val attachmentState: AttachmentSyncState? = null,
     /** Set only when the PDF reached Cloudinary: then the row can open it. */
     val attachmentUrl: String? = null,
@@ -249,9 +253,7 @@ fun publicationRows(
             postedLabel = publicationTimestampLabel(task.createdAt, zone),
             pending = task.pending,
             urgent = false,
-            attachmentLabel = task.attachmentName?.let { name ->
-                publicationAttachmentLabel(name, task.attachmentState)
-            },
+            attachmentName = task.attachmentName,
             attachmentState = task.attachmentState,
             attachmentUrl = task.attachmentUrl,
             createdAt = task.createdAt,
@@ -274,18 +276,18 @@ fun publicationRows(
 }
 
 /**
- * The attachment line of a publication, with the truth about the file.
+ * The short state printed next to the `PDF` chip.
  *
- * It is evidence, not decoration: `Subido` means Cloudinary answered and the URL
- * is in the document, `Pendiente` means the file is still on this phone, and
- * `No se subió` means the task went out without it.
+ * It is evidence, not decoration: `Pendiente` means the file is still on this
+ * phone and `No se subió` means the task went out without it. An uploaded file
+ * needs no word: the row already says `Abrir`, which is only there when the URL
+ * exists, so a successful upload is the one case that prints nothing extra.
  */
-fun publicationAttachmentLabel(name: String, state: AttachmentSyncState?): String =
-    when (state) {
-        AttachmentSyncState.UPLOADED -> "$name · Subido"
-        AttachmentSyncState.FAILED -> "$name · No se subió"
-        AttachmentSyncState.PENDING, null -> "$name · Pendiente"
-    }
+fun attachmentStateLabel(state: AttachmentSyncState?): String? = when (state) {
+    AttachmentSyncState.UPLOADED -> null
+    AttachmentSyncState.FAILED -> "No se subió"
+    AttachmentSyncState.PENDING, null -> "Pendiente"
+}
 
 /** `"12 nov · 08:00"` — when the teacher published it, in local time. */
 fun publicationTimestampLabel(

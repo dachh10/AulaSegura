@@ -10,6 +10,8 @@ import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -631,6 +633,7 @@ private fun IncidentSection(
  * and a teacher should not have to learn a second card to read what they
  * reported.
  */
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun IncidentCard(
     incident: HistoryIncidentUi,
@@ -676,18 +679,14 @@ private fun IncidentCard(
                     overflow = TextOverflow.Ellipsis,
                 )
                 Spacer(Modifier.height(6.dp))
-                Row(
-                    horizontalArrangement = Arrangement.spacedBy(6.dp),
-                    verticalAlignment = Alignment.CenterVertically,
+                FlowRow(
+                    horizontalArrangement = Arrangement.spacedBy(5.dp),
+                    verticalArrangement = Arrangement.spacedBy(4.dp),
                 ) {
                     incident.severity?.let { SeverityChip(label = it) }
                     StatChip(label = incident.status, background = MutedChipBg, contentColor = MutedChipText)
                     if (incident.mediaCount > 0) {
-                        StatChip(
-                            label = if (incident.mediaCount == 1) "1 foto" else "${incident.mediaCount} fotos",
-                            background = MutedChipBg,
-                            contentColor = MutedChipText,
-                        )
+                        MediaChip(count = incident.mediaCount)
                     }
                 }
             }
@@ -883,6 +882,7 @@ private fun HistorySection(
     }
 }
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun SessionCard(
     session: HistorySessionUi,
@@ -930,9 +930,11 @@ private fun SessionCard(
                     }
                 }
                 Spacer(Modifier.height(6.dp))
-                Row(
-                    horizontalArrangement = Arrangement.spacedBy(6.dp),
-                    verticalAlignment = Alignment.CenterVertically,
+                // Chips flow to a second line as units when the row runs out of
+                // width; they never break inside a pill.
+                FlowRow(
+                    horizontalArrangement = Arrangement.spacedBy(5.dp),
+                    verticalArrangement = Arrangement.spacedBy(4.dp),
                 ) {
                     StatChip("${session.present} P", PresentBg, PresentText)
                     StatChip("${session.absent} F", AbsentBg, AbsentText)
@@ -1090,6 +1092,14 @@ private fun DateBlock(
     }
 }
 
+/**
+ * A small counter pill (`28 P`, `Leve`, `Presente`).
+ *
+ * `softWrap = false` is the whole point: the row shares its width with the date,
+ * the sync pill and the chevron, and a chip that wraps prints one character per
+ * line ("1 foto" used to fall six lines tall). A chip that cannot fit is a
+ * layout bug to fix here, not something to squeeze letter by letter.
+ */
 @Composable
 private fun StatChip(
     label: String,
@@ -1100,7 +1110,7 @@ private fun StatChip(
         modifier = Modifier
             .clip(HistoryPillShape)
             .background(background)
-            .padding(horizontal = 8.dp, vertical = 2.dp),
+            .padding(horizontal = 7.dp, vertical = 3.dp),
         contentAlignment = Alignment.Center,
     ) {
         Text(
@@ -1108,9 +1118,45 @@ private fun StatChip(
             color = contentColor,
             fontFamily = JetBrainsMono,
             fontWeight = FontWeight.SemiBold,
-            fontSize = 11.sp,
-            lineHeight = 14.sp,
-            letterSpacing = (-0.22).sp,
+            fontSize = 10.5.sp,
+            lineHeight = 13.sp,
+            maxLines = 1,
+            softWrap = false,
+        )
+    }
+}
+
+/**
+ * Evidence counter: a camera and the number, never the word "foto".
+ *
+ * The word made the pill as wide as the severity and the status together, right
+ * where the row has the least room. The icon says what the number counts.
+ */
+@Composable
+private fun MediaChip(count: Int) {
+    Row(
+        modifier = Modifier
+            .clip(HistoryPillShape)
+            .background(MutedChipBg)
+            .padding(horizontal = 7.dp, vertical = 3.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Icon(
+            imageVector = Icons.Outlined.PhotoCamera,
+            contentDescription = if (count == 1) "1 archivo adjunto" else "$count archivos adjuntos",
+            tint = MutedChipText,
+            modifier = Modifier.size(12.dp),
+        )
+        Spacer(Modifier.width(3.dp))
+        Text(
+            text = count.toString(),
+            color = MutedChipText,
+            fontFamily = JetBrainsMono,
+            fontWeight = FontWeight.SemiBold,
+            fontSize = 10.5.sp,
+            lineHeight = 13.sp,
+            maxLines = 1,
+            softWrap = false,
         )
     }
 }

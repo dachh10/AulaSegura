@@ -19,7 +19,7 @@
 | **6** — Incidentes | reporte con severidad | ✅ **hecho** · `d08f75f` |
 | **7** — Media del incidente | foto comprimida a Cloudinary | ✅ **hecho** · `assembleDebug` + 154 tests |
 | **7B** — Mis incidentes | historial propio cache-first | ✅ **hecho** · `assembleDebug` + 167 tests |
-| **8** — Tareas y avisos | publicar con audiencia | pendiente |
+| **8** — Tareas y avisos | publicar con audiencia | ✅ **hecho** · `assembleDebug` + 179 tests |
 | **9** — Chat | RTDB y presencia | pendiente |
 | **10** — Notificaciones y FCM | push enviado desde la consola | pendiente |
 | **11** — Perfil | datos reales del docente | pendiente |
@@ -592,11 +592,71 @@ sus fotos, con o sin conexión.
 
 ## Bloque 8 — Tareas y avisos (PLAN 1.8)
 
-- [ ] **8.1** `TaskRepository.publish`: `groupIds` (array), `dueDate`, `createdBy`, `active`
-- [ ] **8.2** `NoticeRepository.publish`: `audience.roles`, `audience.groupIds`, `urgent`
-- [ ] **8.3** Caché de lectura en Room (`TaskEntity`, `NoticeEntity`) desde el primer momento
-- [ ] **8.4** `TeacherTaskNewScreen` y `TeacherNoticeNewScreen` cableadas a grupos reales
-- [ ] **8.5** Eventos `task_published` y `notice_published`
+> **Estado: ✅ HECHO** — 15 nov 2026 · `assembleDebug` verde · **179 tests unitarios, 0 fallos**
+> (+12 de este bloque: 5 del documento de Firestore y 7 de la línea de tiempo de Publicaciones).
+> **La verificación en el teléfono la corre el dueño del proyecto**; los pasos van en el reporte del
+> bloque.
+
+- [x] **8.1** `TaskRepository.publish`: `groupIds` (array), `dueDate`, `createdBy`, `active`
+- [x] **8.2** `NoticeRepository.publish`: `audience.roles`, `audience.groupIds`, `urgent`
+- [x] **8.3** Caché de lectura en Room (`TaskEntity`, `NoticeEntity`) desde el primer momento
+- [x] **8.4** `TeacherTaskNewScreen` y `TeacherNoticeNewScreen` cableadas a grupos reales
+- [x] **8.5** Eventos `task_published` y `notice_published`
+
+**Qué cambió en este bloque**
+
+| Archivo | Cambio |
+|---|---|
+| `domain/model/Publication.kt` | **nuevo** `NewTask`, `NewNotice`, `PublishOutcome`, `PublishedTask`, `PublishedNotice` |
+| `domain/repository/TaskRepository.kt` · `NoticeRepository.kt` | **nuevos** contratos: `publish` offline-first + lectura cache-first |
+| `data/mapper/PublicationMapper.kt` | **nuevo** documento `tasks/{taskId}` y `notices/{noticeId}` (audiencia anidada), y fila cacheada → fila de historial |
+| `data/repository/RoomTaskRepository.kt` · `RoomNoticeRepository.kt` | **nuevos**: resuelven el grupo del roster cacheado, escriben caché + outbox y emiten el evento |
+| `data/local/dao/TaskDao.kt` · `NoticeDao.kt` | `observeByCreator(uid)` para la lectura del docente |
+| `sync/TaskSyncHandler.kt` · `NoticeSyncHandler.kt` | **nuevos**: `set()` idempotente por UUID sobre el documento del cliente |
+| `sync/OutboxRepository.kt` · `sync/SyncOperation.kt` | `enqueueTask`/`enqueueNotice` transaccionales y `UPSERT_TASK`/`UPSERT_NOTICE` |
+| `ui/screens/teacher/TeacherTaskNewUi.kt` · `TeacherTaskNewViewModel.kt` | **nuevos**: grupos reales, materia del perfil, fecha/hora de entrega, `canPublishTask` y etiquetas |
+| `ui/screens/teacher/TeacherNoticeNewUi.kt` · `TeacherNoticeNewViewModel.kt` | **nuevos**: chips multigrupo, "todos mis grupos", urgencia y `canPublishNotice` |
+| `ui/screens/teacher/TeacherTaskNewScreen.kt` · `TeacherNoticeNewScreen.kt` | cableadas a su ViewModel; footer con mensaje, estado de envío y confirmación |
+| `ui/screens/teacher/TeacherHistoryUi.kt` · `TeacherHistoryViewModel.kt` · `TeacherHistoryScreen.kt` | segmento **Publicaciones** real: una sola línea de tiempo de tareas y avisos con su píldora de sync |
+| `di/AppContainer.kt` · `navigation/AulaSeguraNavHost.kt` | repos, handlers registrados, ViewModels y las dos rutas cableadas |
+| `test/.../PublicationMapperTest.kt` · `TeacherPublicationUiTest.kt` | **nuevos**: forma de los documentos, orden de la línea de tiempo, etiquetas y `canPublish` |
+
+**Decisiones que importan**
+
+- **"Publicado" en esta pantalla significa encolado.** Igual que en incidentes: Room + outbox en una
+  transacción, y el worker es lo único que habla con Firestore. El docente ve "guardada" porque eso
+  es lo que es verdad en ese momento, no porque el documento ya esté en la nube.
+- **La píldora de sync es por fila, no por lista.** La fuente es el outbox: una tarea escrita sin red
+  queda "Pendiente de enviar" aunque el aviso que se publicó después ya haya llegado.
+- **El grupo se resuelve del roster cacheado, nunca del formulario.** Las reglas exigen
+  `groupIds.hasOnly(myGroups())`; mandar un id que el docente ya no imparte se rechaza en la nube
+  cuando el formulario ya está cerrado.
+- **`category` del aviso se deriva de `urgent`.** Una sola perilla: el chip que elige el docente y el
+  valor por el que filtra el tutor no pueden contradecirse.
+- **Un aviso multigrupo es un documento, no varios.** La audiencia es un array, así que marcar 3° B y
+  4° A es el mismo aviso para las dos familias; duplicarlo habría dado dos veces el mismo timbre.
+- **Nada de audiencia preseleccionada.** Ni grupo en la tarea ni "todos mis grupos" en el aviso: los
+  dos formularios empiezan vacíos y el botón está deshabilitado hasta que el docente elige.
+- **`attachments` y `expiresAt` se escriben explícitos** (lista vacía y `null`). Adjuntos llega con la
+  Fase 4 y la caducidad no la decide Fase 1, pero el documento tiene la forma completa desde hoy.
+- **"Publicaciones" lee solo Room.** Un docente no puede listar `tasks` ni `notices` con las reglas
+  actuales (ver pendientes), así que el segmento es lo que este dispositivo publicó —que es
+  exactamente lo que la caché ya tiene— y por eso funciona sin red.
+
+**Pendientes conocidos de este bloque**
+
+1. **La lista del docente es local.** `notices` deja leer al docente solo si `audience.roles` incluye
+   `'docente'` (los avisos van a tutores), y `tasks` exige `groupIds.hasAny(myGroups())` sin filtro por
+   autor: ninguna de las dos se puede probar como consulta. Ver lo publicado desde otro teléfono pide
+   ampliar reglas —decisión de Fase 2, con la bandeja del tutor—, no un parche aquí.
+2. **Sin editar ni borrar publicaciones.** Las reglas sí permiten `update`/`delete` al autor; la
+   pantalla de gestión no está en FASE 1.
+3. **La fecha de entrega no se valida contra el presente**: el selector arranca en una semana y deja
+   elegir una fecha pasada, que se publica igual.
+4. **Adjuntos y "notificar a las familias" quedan deshabilitados a propósito**: Fase 4 (Cloudinary) y
+   bloque 10 (FCM). Dejarlos activos sería prometer un envío que no ocurre.
+5. **Verificación en el teléfono** a cargo del dueño del proyecto (modo avión → publicar tarea y aviso
+   → reconectar → revisar Firestore y el segmento Publicaciones).
 
 **Criterio:** una tarea publicada para 3° B y un aviso urgente para los tutores de 3° B aparecen en
 Firestore con la audiencia correcta y se leen sin red después de la primera carga.

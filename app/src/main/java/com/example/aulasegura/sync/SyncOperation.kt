@@ -12,6 +12,8 @@ enum class SyncOperation {
     UPSERT_INCIDENT,
     UPLOAD_INCIDENT_MEDIA,
     UPSERT_JUSTIFICATION,
+    UPSERT_TASK,
+    UPSERT_NOTICE,
     ;
 
     companion object {

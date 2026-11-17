@@ -83,12 +83,14 @@ import com.example.aulasegura.ui.screens.teacher.TeacherIncidentViewModel
 import com.example.aulasegura.ui.screens.teacher.TeacherHomeScreen
 import com.example.aulasegura.ui.screens.teacher.TeacherLocationVerifyingScreen
 import com.example.aulasegura.ui.screens.teacher.TeacherNoticeNewScreen
+import com.example.aulasegura.ui.screens.teacher.TeacherNoticeNewViewModel
 import com.example.aulasegura.ui.screens.teacher.TeacherNotificationsScreen
 import com.example.aulasegura.ui.screens.teacher.TeacherOutsideRadiusScreen
 import com.example.aulasegura.ui.screens.teacher.TeacherProfileScreen
 import com.example.aulasegura.ui.screens.teacher.TeacherRollCallMapScreen
 import com.example.aulasegura.ui.screens.teacher.TeacherRollCallOfflineScreen
 import com.example.aulasegura.ui.screens.teacher.TeacherTaskNewScreen
+import com.example.aulasegura.ui.screens.teacher.TeacherTaskNewViewModel
 
 /**
  * Navigation graph for the whole app.
@@ -468,10 +470,37 @@ fun AulaSeguraNavHost(
             )
         }
         composable(Routes.TEACHER_TASK_NEW) {
-            TeacherTaskNewScreen(onBack = { navController.popBackStack() })
+            val container = rememberAppContainer()
+            val taskViewModel: TeacherTaskNewViewModel =
+                viewModel(factory = container.viewModelFactory)
+            val taskUi by taskViewModel.state.collectAsState()
+            TeacherTaskNewScreen(
+                ui = taskUi,
+                onBack = { navController.popBackStack() },
+                onSelectGroup = taskViewModel::selectGroup,
+                onSelectSubject = taskViewModel::selectSubject,
+                onTitleChange = taskViewModel::setTitle,
+                onDescriptionChange = taskViewModel::setDescription,
+                onDueDateChange = taskViewModel::setDueDate,
+                onDueTimeChange = taskViewModel::setDueTime,
+                onPublish = taskViewModel::publish,
+            )
         }
         composable(Routes.TEACHER_NOTICE_NEW) {
-            TeacherNoticeNewScreen(onBack = { navController.popBackStack() })
+            val container = rememberAppContainer()
+            val noticeViewModel: TeacherNoticeNewViewModel =
+                viewModel(factory = container.viewModelFactory)
+            val noticeUi by noticeViewModel.state.collectAsState()
+            TeacherNoticeNewScreen(
+                ui = noticeUi,
+                onBack = { navController.popBackStack() },
+                onToggleGroup = noticeViewModel::toggleGroup,
+                onToggleAllGroups = noticeViewModel::toggleAllGroups,
+                onTitleChange = noticeViewModel::setTitle,
+                onBodyChange = noticeViewModel::setBody,
+                onUrgentChange = noticeViewModel::setUrgent,
+                onPublish = noticeViewModel::publish,
+            )
         }
         composable(Routes.TEACHER_CHAT) {
             TeacherChatScreen(

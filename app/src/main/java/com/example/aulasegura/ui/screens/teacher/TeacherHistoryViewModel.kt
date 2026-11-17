@@ -6,10 +6,14 @@ import com.example.aulasegura.domain.model.AttendanceSessionDetail
 import com.example.aulasegura.domain.model.AttendanceSessionSummary
 import com.example.aulasegura.domain.model.IncidentEvidence
 import com.example.aulasegura.domain.model.IncidentSummary
+import com.example.aulasegura.domain.model.PublishedNotice
+import com.example.aulasegura.domain.model.PublishedTask
 import com.example.aulasegura.domain.repository.AttendanceHistoryRepository
 import com.example.aulasegura.domain.repository.HistoryRefreshResult
 import com.example.aulasegura.domain.repository.IncidentHistoryRepository
+import com.example.aulasegura.domain.repository.NoticeRepository
 import com.example.aulasegura.domain.repository.RosterFailure
+import com.example.aulasegura.domain.repository.TaskRepository
 import com.example.aulasegura.util.AttendanceTimes
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -38,6 +42,8 @@ import kotlinx.coroutines.launch
 class TeacherHistoryViewModel(
     private val history: AttendanceHistoryRepository,
     private val incidents: IncidentHistoryRepository,
+    private val tasks: TaskRepository,
+    private val notices: NoticeRepository,
     private val today: () -> String = { AttendanceTimes.isoDate(System.currentTimeMillis()) },
 ) : ViewModel() {
 
@@ -67,6 +73,23 @@ class TeacherHistoryViewModel(
         val detailLoading: Boolean,
         val incidentId: String?,
         val evidence: List<IncidentEvidence>,
+    )
+
+    /**
+     * Tasks and notices of this device, merged later into one timeline.
+     *
+     * No refresh behind this one: both lists are Room-only by design (a docente
+     * cannot prove the array filters the read rules require), so there is nothing
+     * to pull from the server here.
+     */
+    private val publications = combine(
+        tasks.observeMyTasks(),
+        notices.observeMyNotices(),
+    ) { taskList, noticeList -> Publications(tasks = taskList, notices = noticeList) }
+
+    private data class Publications(
+        val tasks: List<PublishedTask>,
+        val notices: List<PublishedNotice>,
     )
 
     private val lists = combine(
@@ -99,7 +122,7 @@ class TeacherHistoryViewModel(
         )
     }
 
-    val state: StateFlow<TeacherHistoryUi> = combine(lists, open) { cached, shown ->
+    val state: StateFlow<TeacherHistoryUi> = combine(lists, publications, open) { cached, posts, shown ->
         TeacherHistoryUi(
             sections = historySections(
                 sessions = cached.sessions,
@@ -114,6 +137,7 @@ class TeacherHistoryViewModel(
                 expandedId = shown.incidentId,
                 evidence = shown.evidence,
             ),
+            publications = publicationRows(tasks = posts.tasks, notices = posts.notices),
             refreshing = cached.refreshing,
             notice = cached.notice,
             expandedId = shown.sessionId,

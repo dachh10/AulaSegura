@@ -6,8 +6,10 @@ import com.example.aulasegura.data.local.entity.AttendanceRecordEntity
 import com.example.aulasegura.data.local.entity.AttendanceSessionEntity
 import com.example.aulasegura.data.local.entity.IncidentDraftEntity
 import com.example.aulasegura.data.local.entity.IncidentMediaEntity
+import com.example.aulasegura.data.local.entity.NoticeEntity
 import com.example.aulasegura.data.local.entity.OutboxEntity
 import com.example.aulasegura.data.local.entity.SyncState
+import com.example.aulasegura.data.local.entity.TaskEntity
 import com.example.aulasegura.data.local.entity.UploadState
 import com.example.aulasegura.domain.telemetry.AnalyticsEvent
 import com.example.aulasegura.domain.telemetry.AnalyticsLogger
@@ -103,6 +105,47 @@ class OutboxRepository(
                     entityLocalId = draft.incidentId,
                     payloadJson = "{}",
                     createdAt = now,
+                ),
+            )
+        }
+
+        scheduling.schedule()
+    }
+
+    /**
+     * Queues a task: the cache row and the outbox row in one transaction.
+     *
+     * The cache row is written here, not by the screen, because it is also the
+     * row "Publicaciones" reads. A task the teacher sees as published and a task
+     * the history cannot find would be the same lie as a `PENDING` session with
+     * no outbox row.
+     */
+    suspend fun enqueueTask(task: TaskEntity) {
+        database.withTransaction {
+            database.taskDao().upsert(task)
+            database.outboxDao().insert(
+                OutboxEntity(
+                    opType = SyncOperation.UPSERT_TASK.name,
+                    entityLocalId = task.taskId,
+                    payloadJson = "{}",
+                    createdAt = System.currentTimeMillis(),
+                ),
+            )
+        }
+
+        scheduling.schedule()
+    }
+
+    /** Queues a notice, with the same transaction rule as [enqueueTask]. */
+    suspend fun enqueueNotice(notice: NoticeEntity) {
+        database.withTransaction {
+            database.noticeDao().upsert(notice)
+            database.outboxDao().insert(
+                OutboxEntity(
+                    opType = SyncOperation.UPSERT_NOTICE.name,
+                    entityLocalId = notice.noticeId,
+                    payloadJson = "{}",
+                    createdAt = System.currentTimeMillis(),
                 ),
             )
         }

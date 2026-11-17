@@ -102,6 +102,11 @@ data class PublishedTask(
     val attachmentName: String? = null,
     /** Whether that PDF made it to Cloudinary, failed, or is still queued. */
     val attachmentState: AttachmentSyncState? = null,
+    /**
+     * Cloudinary URL of that PDF once `UPLOADED`; `null` while it is still on the
+     * phone or when the upload failed. It is what the history needs to open it.
+     */
+    val attachmentUrl: String? = null,
 )
 
 /**

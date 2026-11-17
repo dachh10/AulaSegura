@@ -128,6 +128,8 @@ data class HistoryPublicationUi(
     /** `"hoja.pdf · Subido"`, when the task carries a PDF. */
     val attachmentLabel: String? = null,
     val attachmentState: AttachmentSyncState? = null,
+    /** Set only when the PDF reached Cloudinary: then the row can open it. */
+    val attachmentUrl: String? = null,
     /** Only for ordering; the row prints [postedLabel]. */
     val createdAt: Long,
 )
@@ -251,6 +253,7 @@ fun publicationRows(
                 publicationAttachmentLabel(name, task.attachmentState)
             },
             attachmentState = task.attachmentState,
+            attachmentUrl = task.attachmentUrl,
             createdAt = task.createdAt,
         )
     } + notices.map { notice ->

@@ -27,4 +27,6 @@ Registro oficial: pendiente de mover a `FASE1.md` cuando se cierren los B12–B1
 
 **L3** — Decisión: el "0 R" se conserva en gris. Quitarlo haría que el número de chips cambiara entre sesiones y costaría comparar dos listas de un vistazo.
 
+**L5** — 18 nov 2026, extensión pedida por el dueño: igual que la evidencia de un incidente se abre tocándola, el PDF de una tarea publicada debe abrirse desde el historial. `PublishedTask.attachmentUrl` y `HistoryPublicationUi.attachmentUrl` se llenan solo cuando el PDF ya está en Cloudinary (`isUploaded`), porque mientras está en la cola la copia vive en el teléfono y tras un fallo no queda nada que abrir. La fila es tocable exactamente en ese caso y muestra "Abrir" con `ACTION_VIEW` sobre la URL, el mismo patrón que usa `EvidenceRow`. Dos tests nuevos: el mapper expone la URL solo si subió, y `publicationRows` la propaga a la fila.
+
 **L4** — Verificación: `assembleDebug` verde y `testDebugUnitTest` con 234 tests / 0 fallos / 0 errores (sin cambios respecto del bloque 11: este bloque es de layout y no agrega lógica testeable). No se probó en dispositivo; la comprobación visual queda para el dueño.

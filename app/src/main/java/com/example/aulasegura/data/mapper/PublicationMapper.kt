@@ -33,6 +33,9 @@ internal fun TaskEntity.toPublishedTask(
         pending = pending,
         attachmentName = attachment?.fileName,
         attachmentState = attachment?.toSyncState(),
+        // Only an uploaded file has a URL: while it is queued the copy lives on
+        // this phone, and after a failure there is nothing left to open.
+        attachmentUrl = attachment?.takeIf { it.isUploaded }?.url,
     )
 }
 

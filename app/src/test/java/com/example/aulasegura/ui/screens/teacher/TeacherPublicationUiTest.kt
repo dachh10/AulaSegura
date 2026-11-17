@@ -141,12 +141,36 @@ class TeacherPublicationUiTest {
         set(2026, Calendar.NOVEMBER, day, hour, 0, 0)
     }.timeInMillis
 
+    @Test
+    fun `the attachment URL reaches the row that prints it`() {
+        val rows = publicationRows(
+            tasks = listOf(
+                task(
+                    "t-1",
+                    at(10, 8),
+                    attachmentName = "hoja.pdf",
+                    attachmentState = AttachmentSyncState.UPLOADED,
+                    attachmentUrl = "https://res.cloudinary.com/demo/raw/upload/v1/hoja.pdf",
+                ),
+            ),
+            notices = listOf(notice("n-1", at(10, 8))),
+            zone = utc,
+        ).associateBy { it.id }
+
+        assertEquals(
+            "https://res.cloudinary.com/demo/raw/upload/v1/hoja.pdf",
+            rows.getValue("t-1").attachmentUrl,
+        )
+        assertNull("a notice carries no file", rows.getValue("n-1").attachmentUrl)
+    }
+
     private fun task(
         id: String,
         createdAt: Long,
         pending: Boolean = false,
         attachmentName: String? = null,
         attachmentState: AttachmentSyncState? = null,
+        attachmentUrl: String? = null,
     ) = PublishedTask(
         taskId = id,
         title = "Ecuaciones",
@@ -158,6 +182,7 @@ class TeacherPublicationUiTest {
         pending = pending,
         attachmentName = attachmentName,
         attachmentState = attachmentState,
+        attachmentUrl = attachmentUrl,
     )
 
     private fun notice(

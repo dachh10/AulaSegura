@@ -423,6 +423,8 @@ private fun HistoryEmptyState(refreshing: Boolean) {
  */
 @Composable
 private fun PublicationCard(publication: HistoryPublicationUi) {
+    val context = LocalContext.current
+
     Column(
         modifier = Modifier
             .fillMaxWidth()
@@ -476,39 +478,66 @@ private fun PublicationCard(publication: HistoryPublicationUi) {
             )
         }
 
-        // The attached PDF and what happened to it. The teacher asked for this
-        // row to be able to confirm, days later, that the file really went up.
+        // The attached PDF: what happened to it, and a way back into the file.
+        // `attachmentUrl` is set only once Cloudinary has it, so the row is
+        // tappable exactly when there is something to open.
         publication.attachmentLabel?.let { label ->
             val tint = when (publication.attachmentState) {
                 AttachmentSyncState.UPLOADED -> PresentText
                 AttachmentSyncState.FAILED -> AbsentText
                 else -> PendingText
             }
+            val url = publication.attachmentUrl
+            val canOpen = url != null && publication.attachmentState == AttachmentSyncState.UPLOADED
 
             Row(
                 modifier = Modifier
+                    .fillMaxWidth()
                     .clip(HistoryPillShape)
-                    .background(SurfaceContainer)
-                    .padding(horizontal = 8.dp, vertical = 4.dp),
+                    .clickable(enabled = canOpen) {
+                        runCatching {
+                            context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)))
+                        }
+                    }
+                    .padding(vertical = 2.dp),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(6.dp),
             ) {
-                Icon(
-                    imageVector = Icons.Filled.AttachFile,
-                    contentDescription = null,
-                    tint = tint,
-                    modifier = Modifier.size(13.dp),
-                )
-                Text(
-                    text = label,
-                    color = tint,
-                    fontFamily = JetBrainsMono,
-                    fontWeight = FontWeight.SemiBold,
-                    fontSize = 10.5.sp,
-                    lineHeight = 14.sp,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
+                Row(
+                    modifier = Modifier
+                        .clip(HistoryPillShape)
+                        .background(SurfaceContainer)
+                        .padding(horizontal = 8.dp, vertical = 4.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                ) {
+                    Icon(
+                        imageVector = Icons.Filled.AttachFile,
+                        contentDescription = null,
+                        tint = tint,
+                        modifier = Modifier.size(13.dp),
+                    )
+                    Text(
+                        text = label,
+                        color = tint,
+                        fontFamily = JetBrainsMono,
+                        fontWeight = FontWeight.SemiBold,
+                        fontSize = 10.5.sp,
+                        lineHeight = 14.sp,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
+                if (canOpen) {
+                    Text(
+                        text = "Abrir",
+                        color = PrimaryContainer,
+                        fontFamily = DmSans,
+                        fontWeight = FontWeight.SemiBold,
+                        fontSize = 11.sp,
+                        lineHeight = 15.sp,
+                    )
+                }
             }
         }
 

@@ -31,6 +31,21 @@ con la media subida.
 
 ---
 
+## Puesta en marcha en otra máquina
+
+Para que el repo compile apenas se clona (por ejemplo, al arrancar la Fase 2):
+
+1. Clonar `main` y abrirlo en Android Studio. `local.properties` se genera solo con `sdk.dir`.
+2. **`app/google-services.json` sí está versionado.** Es la configuración pública del proyecto de
+   Firebase y sin ella el build falla por el plugin `com.google.gms.google-services`.
+3. **Las claves de Cloudinary no están en el repo.** Agregar a `local.properties`
+   `CLOUDINARY_CLOUD_NAME` y `CLOUDINARY_UPLOAD_PRESET`; sin ellas la app compila igual y solo la
+   subida de archivos queda como "no configurada".
+4. Antes de mergear: `./gradlew :app:assembleDebug :app:testDebugUnitTest` en verde. `main` siempre
+   compila.
+
+---
+
 ## Punto de partida
 
 La Fase 0 dejó la fundación. Esto ya existe y **no se vuelve a construir**:

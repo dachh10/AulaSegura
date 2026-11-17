@@ -1,0 +1,39 @@
+{
+  "project_info": {
+    "project_number": "63329976744",
+    "project_id": "aulasegu",
+    "storage_bucket": "aulasegu.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:63329976744:android:da967fd2d6922621625d9d",
+        "android_client_info": {
+          "package_name": "com.example.aulasegura"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "63329976744-esjq1aimgc4ibfsv1p7s9bgbrtn21ked.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCaakHN_Pv_fCtpiMYyB2p5zqjENOHJ7x0"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "63329976744-esjq1aimgc4ibfsv1p7s9bgbrtn21ked.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

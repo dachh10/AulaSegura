@@ -1,5 +1,7 @@
 package com.example.aulasegura.data.repository
 
+import android.util.Log
+import com.example.aulasegura.BuildConfig
 import com.example.aulasegura.domain.repository.AuthRepository
 import com.example.aulasegura.domain.repository.PushTokenRepository
 import com.google.firebase.firestore.FieldValue
@@ -47,6 +49,9 @@ class FirestorePushTokenRepository(
     }
 
     private suspend fun store(uid: String, token: String) {
+        // Printed on every registration, not only on rotation: the token is pasted
+        // by hand into the console's test message, so it has to be findable.
+        if (BuildConfig.DEBUG) Log.d(TAG, "FCM token: $token")
         runCatching {
             firestore.collection(USERS).document(uid)
                 .collection(TOKENS).document(token)
@@ -62,6 +67,7 @@ class FirestorePushTokenRepository(
     }
 
     private companion object {
+        const val TAG = "FCM"
         const val USERS = "users"
         const val TOKENS = "fcmTokens"
         const val FIELD_TOKEN = "token"

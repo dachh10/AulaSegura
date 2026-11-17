@@ -73,6 +73,8 @@ import com.example.aulasegura.ui.screens.teacher.RollCallScreen
 import com.example.aulasegura.ui.screens.teacher.RollCallViewModel
 import com.example.aulasegura.ui.screens.teacher.RollCallViewModelFactory
 import com.example.aulasegura.ui.screens.teacher.TeacherChatScreen
+import com.example.aulasegura.ui.screens.teacher.TeacherChatViewModel
+import com.example.aulasegura.ui.screens.teacher.TeacherConversationViewModel
 import com.example.aulasegura.ui.screens.teacher.TeacherConversationScreen
 import com.example.aulasegura.ui.screens.teacher.TeacherGroupsScreen
 import com.example.aulasegura.ui.screens.teacher.TeacherGroupsViewModel
@@ -505,15 +507,53 @@ fun AulaSeguraNavHost(
             )
         }
         composable(Routes.TEACHER_CHAT) {
+            val container = rememberAppContainer()
+            val chatViewModel: TeacherChatViewModel =
+                viewModel(factory = container.viewModelFactory)
+            val chatUi by chatViewModel.state.collectAsState()
+            val openedConversation by chatViewModel.openedConversation.collectAsState()
+
+            // A new chat is created in the ViewModel; navigating is the screen's
+            // job, so the id is consumed here and cleared right after.
+            LaunchedEffect(openedConversation) {
+                openedConversation?.let { conversationId ->
+                    navController.navigate(Routes.teacherConversation(conversationId))
+                    chatViewModel.openedHandled()
+                }
+            }
+
             TeacherChatScreen(
+                ui = chatUi,
                 onOpenConversation = { conversationId ->
                     navController.navigate(Routes.teacherConversation(conversationId))
                 },
                 onSelectTab = { navController.openTeacherTab(it) },
+                onNuevoMensaje = chatViewModel::openContacts,
+                onQueryChange = chatViewModel::setQuery,
+                onFilterChange = chatViewModel::setFilter,
+                onContactsDismiss = chatViewModel::dismissContacts,
+                onStartConversation = chatViewModel::startConversation,
             )
         }
-        composable(Routes.TEACHER_CONVERSATION) {
-            TeacherConversationScreen(onBack = { navController.popBackStack() })
+        composable(Routes.TEACHER_CONVERSATION) { entry ->
+            val conversationId = entry.arguments?.getString("conversationId").orEmpty()
+            val container = rememberAppContainer()
+            val conversationViewModel: TeacherConversationViewModel =
+                viewModel(factory = container.viewModelFactory)
+            val conversationUi by conversationViewModel.state.collectAsState()
+
+            LaunchedEffect(conversationId) {
+                if (conversationId.isNotBlank()) {
+                    conversationViewModel.open(conversationId)
+                }
+            }
+
+            TeacherConversationScreen(
+                ui = conversationUi,
+                onBack = { navController.popBackStack() },
+                onDraftChange = conversationViewModel::setDraft,
+                onSend = conversationViewModel::send,
+            )
         }
         composable(Routes.TEACHER_HISTORY) {
             val container = rememberAppContainer()

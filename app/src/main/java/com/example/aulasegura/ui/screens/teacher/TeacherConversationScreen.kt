@@ -80,7 +80,9 @@ import java.util.Locale
  * teacher's own messages sit on the right. Bubbles, colors, spacing, day chip,
  * pending-sync bubble and composer are the mockup's.
  *
- * Visual shell only: sending appends a local bubble, no backend.
+ * The messages come from RTDB through `TeacherConversationViewModel`: the bubble
+ * appears as soon as the local write is queued, so it works in airplane mode.
+ * The header is the Firestore summary plus the presence flag.
  */
 
 private data class TeacherChatMessage(
@@ -91,48 +93,19 @@ private data class TeacherChatMessage(
     val pending: Boolean = false,
 )
 
-private fun sampleTeacherMessages(): List<TeacherChatMessage> = listOf(
-    TeacherChatMessage(
-        id = 1,
-        text = "Buenos días, Carlos. Mariana tendrá examen de Matemáticas el jueves.",
-        sent = true,
-        time = "10:40",
-    ),
-    TeacherChatMessage(
-        id = 2,
-        text = "Gracias, profesor. ¿Qué temas incluye?",
-        sent = false,
-        time = "10:41",
-    ),
-    TeacherChatMessage(
-        id = 3,
-        text = "Fracciones y números decimales. Le comparto la guía en la sección de tareas.",
-        sent = true,
-        time = "10:42",
-    ),
-    TeacherChatMessage(
-        id = 4,
-        text = "Perfecto, lo repasamos hoy.",
-        sent = false,
-        time = "10:42",
-    ),
-    TeacherChatMessage(
-        id = 5,
-        text = "Perfecto, mañana le comparto la guía impresa.",
-        sent = true,
-        time = "10:43",
-        pending = true,
-    ),
-)
-
 @Composable
-fun TeacherConversationScreen(onBack: () -> Unit) {
-    var draft by remember { mutableStateOf("") }
-    var messages by remember { mutableStateOf(sampleTeacherMessages()) }
+fun TeacherConversationScreen(
+    onBack: () -> Unit,
+    ui: TeacherConversationUi = TeacherConversationUi(),
+    onDraftChange: (String) -> Unit = {},
+    onSend: () -> Unit = {},
+) {
     val scrollState = rememberScrollState()
 
-    LaunchedEffect(messages.size) {
-        scrollState.animateScrollTo(scrollState.maxValue)
+    LaunchedEffect(ui.messages.size) {
+        if (ui.messages.isNotEmpty()) {
+            scrollState.animateScrollTo(scrollState.maxValue)
+        }
     }
 
     Column(
@@ -142,7 +115,12 @@ fun TeacherConversationScreen(onBack: () -> Unit) {
             .statusBarsPadding()
             .imePadding(),
     ) {
-        ConversationTopBar(onBack = onBack)
+        ConversationTopBar(
+            title = ui.title.ifBlank { "Conversación" },
+            subtitle = ui.subtitle,
+            online = ui.online,
+            onBack = onBack,
+        )
 
         Box(
             modifier = Modifier
@@ -164,34 +142,62 @@ fun TeacherConversationScreen(onBack: () -> Unit) {
                 verticalArrangement = Arrangement.spacedBy(16.dp),
             ) {
                 DayChip()
-                messages.forEach { message ->
-                    MessageBubble(message = message)
+
+                if (ui.messages.isEmpty()) {
+                    Text(
+                        text = "Todavía no hay mensajes. Escribe el primero.",
+                        color = OnSurfaceVariant,
+                        fontFamily = DmSans,
+                        fontSize = 13.sp,
+                        lineHeight = 18.sp,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 24.dp),
+                        textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                    )
+                }
+
+                ui.messages.forEach { message ->
+                    MessageBubble(
+                        message = TeacherChatMessage(
+                            id = message.id.hashCode(),
+                            text = message.text,
+                            sent = message.mine,
+                            time = message.time,
+                        ),
+                    )
                 }
             }
         }
 
+        ui.notice?.let { message ->
+            Text(
+                text = message,
+                color = Outline,
+                fontFamily = DmSans,
+                fontSize = 11.sp,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 4.dp),
+                textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+            )
+        }
+
         MessageComposer(
-            draft = draft,
-            onDraftChange = { draft = it },
-            onSend = {
-                val text = draft.trim()
-                if (text.isNotEmpty()) {
-                    val time = SimpleDateFormat("HH:mm", Locale.getDefault()).format(Date())
-                    messages = messages + TeacherChatMessage(
-                        id = (messages.maxOfOrNull { it.id } ?: 0) + 1,
-                        text = text,
-                        sent = true,
-                        time = time,
-                    )
-                    draft = ""
-                }
-            },
+            draft = ui.draft,
+            onDraftChange = onDraftChange,
+            onSend = onSend,
         )
     }
 }
 
 @Composable
-private fun ConversationTopBar(onBack: () -> Unit) {
+private fun ConversationTopBar(
+    title: String,
+    subtitle: String,
+    online: Boolean,
+    onBack: () -> Unit,
+) {
     Column(
         modifier = Modifier
             .fillMaxWidth()
@@ -235,7 +241,7 @@ private fun ConversationTopBar(onBack: () -> Unit) {
                     contentAlignment = Alignment.Center,
                 ) {
                     Text(
-                        text = "CG",
+                        text = chatInitials(title),
                         color = SurfaceContainerLowest,
                         fontFamily = BricolageGrotesque,
                         fontWeight = FontWeight.SemiBold,
@@ -248,7 +254,7 @@ private fun ConversationTopBar(onBack: () -> Unit) {
                         .align(Alignment.BottomEnd)
                         .size(12.dp)
                         .clip(CircleShape)
-                        .background(TertiaryFixedDim)
+                        .background(if (online) TertiaryFixedDim else SurfaceVariant)
                         .border(2.dp, Surface, CircleShape),
                 )
             }
@@ -257,7 +263,7 @@ private fun ConversationTopBar(onBack: () -> Unit) {
 
             Column(modifier = Modifier.weight(1f)) {
                 Text(
-                    text = "Carlos Gómez Pérez",
+                    text = title,
                     color = PrimaryContainer,
                     fontFamily = BricolageGrotesque,
                     fontWeight = FontWeight.SemiBold,
@@ -270,11 +276,14 @@ private fun ConversationTopBar(onBack: () -> Unit) {
                         modifier = Modifier
                             .size(8.dp)
                             .clip(CircleShape)
-                            .background(TertiaryFixedDim),
+                            .background(if (online) TertiaryFixedDim else SurfaceVariant),
                     )
                     Spacer(Modifier.width(6.dp))
                     Text(
-                        text = "Padre de familia · 3° B · En línea",
+                        text = listOfNotNull(
+                            subtitle.takeIf { it.isNotBlank() },
+                            "En línea".takeIf { online },
+                        ).joinToString(" · "),
                         color = OnSurfaceVariant,
                         fontFamily = DmSans,
                         fontWeight = FontWeight.Medium,

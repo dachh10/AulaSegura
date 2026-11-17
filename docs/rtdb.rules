@@ -1,0 +1,29 @@
+{
+  "rules": {
+    "conversations": {
+      "$conversationId": {
+        ".read": "auth != null && ($conversationId.beginsWith(auth.uid + '__') || $conversationId.endsWith('__' + auth.uid))",
+
+        "messages": {
+          ".indexOn": ["sentAt"],
+
+          "$messageId": {
+            ".validate": "newData.hasChildren(['senderId', 'text', 'sentAt']) && newData.child('senderId').isString() && newData.child('text').isString() && newData.child('text').val().length > 0 && newData.child('text').val().length <= 2000 && newData.child('sentAt').isNumber()",
+
+            ".write": "auth != null && ($conversationId.beginsWith(auth.uid + '__') || $conversationId.endsWith('__' + auth.uid)) && !data.exists() && newData.child('senderId').val() === auth.uid"
+          }
+        },
+
+        "presence": {
+          "$uid": {
+            ".read": "auth != null && ($conversationId.beginsWith(auth.uid + '__') || $conversationId.endsWith('__' + auth.uid))",
+
+            ".validate": "newData.hasChildren(['online']) && newData.child('online').isBoolean()",
+
+            ".write": "auth != null && auth.uid === $uid && ($conversationId.beginsWith(auth.uid + '__') || $conversationId.endsWith('__' + auth.uid))"
+          }
+        }
+      }
+    }
+  }
+}

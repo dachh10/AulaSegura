@@ -21,7 +21,7 @@
 | **7B** — Mis incidentes | historial propio cache-first | ✅ **hecho** · `assembleDebug` + 167 tests |
 | **8** — Tareas y avisos | publicar con audiencia | ✅ **hecho** · `c87e1eb` · `assembleDebug` + 179 tests |
 | **8B** — PDF en tareas | un solo PDF (10 MB) subido antes de publicar | ✅ **hecho** · `4ddc7b7` + `e837e16` · `assembleDebug` + 189 tests |
-| **9** — Chat | RTDB y presencia | pendiente |
+| **9** — Chat | conversaciones y mensajes en RTDB | ✅ **hecho** · `assembleDebug` + 205 tests |
 | **10** — Notificaciones y FCM | push enviado desde la consola | pendiente |
 | **11** — Perfil | datos reales del docente | pendiente |
 
@@ -791,23 +791,96 @@ Cloudinary, el historial pasa a "hoja.pdf · Subido" y hay un solo documento.
 
 ## Bloque 9 — Chat (PLAN 1.10)
 
-- [ ] **9.1** Agregar `firebase-database` al módulo (ya está en el catálogo)
-- [ ] **9.2** `docs/rtdb.rules` con el contrato de conversaciones + `database` en `firebase.json` + deploy
-- [ ] **9.3** Esquema RTDB: `messages/{conversationId}/{messageId}` (`senderId`, `text`, `sentAt`) y presencia
-- [ ] **9.4** `conversations/{id}` en Firestore como **metadatos**: `participants`, `lastMessage`, `lastMessageAt`, `unread`
-- [ ] **9.5** `ChatRepository` con `Flow` de mensajes + envío optimista
-- [ ] **9.6** `TeacherChatScreen` y `TeacherConversationScreen` reales; evento `chat_message_sent`
+> **Estado: ✅ HECHO en código** — 17 nov 2026 · `assembleDebug` verde · **205 tests unitarios, 0 fallos**
+> (+16: 5 del id de conversación y 11 de etiquetas, filtros y contactos).
+> **Falta publicar las reglas de RTDB desde la consola** (ver abajo): sin eso este bloque **no** está
+> cerrado, porque hoy la base está en el modo por defecto del proyecto.
+
+- [x] **9.1** `firebase-database` en el módulo (ya estaba desde la Fase 0)
+- [x] **9.2** `docs/rtdb.rules` + `database` en `firebase.json` — **escrito, pendiente de deploy**
+- [x] **9.3** Esquema RTDB: `conversations/{cid}/messages/{id}` (`senderId`, `text`, `sentAt`) y `presence/{cid}/{uid}`
+- [x] **9.4** `conversations/{id}` en Firestore: `participants`, `participantNames`, `lastMessage`, `lastMessageAt`, `unread`
+- [x] **9.5** `ChatRepository` con `Flow` de conversaciones y mensajes + envío que aparece al instante
+- [x] **9.6** `TeacherChatScreen` y `TeacherConversationScreen` reales; evento `chat_message_sent`
+
+**Qué cambió en este bloque**
+
+| Archivo | Cambio |
+|---|---|
+| `docs/rtdb.rules` | **nuevo**: membresía derivada del id, mensajes inmutables de 1..2000 caracteres, presencia por uid |
+| `firebase.json` | sección `database` apuntando a `docs/rtdb.rules` |
+| `domain/model/Chat.kt` | **nuevo**: `ChatConversation`, `ChatContact`, `ChatMessage`, `chatConversationId`, `otherParticipant` y los dos resultados tipados |
+| `domain/repository/ChatRepository.kt` | **nuevo** contrato: conversaciones, mensajes, presencia, contactos, abrir, enviar, marcar leído |
+| `data/repository/FirestoreChatRepository.kt` | **nuevo**: Firestore para resúmenes y contactos, RTDB para mensajes y presencia |
+| `ui/screens/teacher/TeacherChatUi.kt` | **nuevo**: fila con hora relativa, iniciales, filtros y búsqueda puros y testeables |
+| `ui/screens/teacher/TeacherChatViewModel.kt` | **nuevo**: lista real, búsqueda, chip de grupo, hoja de tutores y apertura de chat |
+| `ui/screens/teacher/TeacherConversationUi.kt` (en `TeacherChatUi.kt`) · `TeacherConversationViewModel.kt` | **nuevos**: mensajes de RTDB, presencia, borrador, envío y recibo de lectura |
+| `ui/screens/teacher/TeacherChatScreen.kt` · `TeacherConversationScreen.kt` | cableadas: filas reales, hoja "Nuevo mensaje", cabecera con nombre y presencia, burbujas reales |
+| `di/AppContainer.kt` · `navigation/AulaSeguraNavHost.kt` | `chatRepository`, `FirebaseDatabase`, los dos ViewModels y las rutas de chat cableadas |
+| `test/.../ChatTest.kt` · `TeacherChatUiTest.kt` | **nuevos**: id determinista, membresía, "Hoy/Ayer/Lun", iniciales, filtros y contactos |
+
+**Configuración que tienes que hacer en Firebase (esto sí es de la consola)**
+
+1. **Crear la Realtime Database**: *Build → Realtime Database → Create Database*, región `us-central1`,
+   empezar en **modo bloqueado**. Sin instancia, los mensajes no salen del teléfono.
+2. **Publicar las reglas de RTDB**: pegar `docs/rtdb.rules` en la pestaña **Rules** de la base, o
+   `firebase deploy --only database`. Hasta que se publiquen, la base sigue abierta/cerrada por defecto.
+3. **Confirmar el índice de Firestore** `conversations: participants + lastMessageAt desc` (ya está en
+   `docs/firestore.indexes.json`): `firebase deploy --only firestore:indexes` si aún no se desplegó.
+4. **App Check**: si lo fuerzas para RTDB, el build de debug necesita su token de debug; si no, déjalo sin
+   forzar por ahora.
+
+**Decisiones que importan**
+
+- **Un chat, un id determinista.** `conversations/{uidMenor__uidMayor}`: los dos lados calculan el mismo
+  documento sin consultar, y abrir el mismo chat dos veces no lo duplica.
+- **La membresía de RTDB se deduce del id.** Las reglas de RTDB **no pueden leer Firestore**, así que el
+  id lleva los dos uids y las reglas comprueban `beginsWith`/`endsWith`. Sin eso, o se abre la base a
+  todos o no hay forma de autorizar.
+- **El docente no lee perfiles de tutores.** Las reglas de `users` solo dejan leer el propio perfil o al
+  directivo; por eso los contactos salen del roster (`students.tutorIds`) y se llaman "Tutor de
+  Mariana Gómez". Inventar un nombre sería mentir en la lista.
+- **RTDB primero, Firestore después.** El mensaje es la verdad; el resumen es para pintar la lista. En
+  ese orden, un resumen nunca describe un mensaje que no existe.
+- **Sin Room para el chat.** RTDB ya trae su propia caché en disco; una segunda copia sería una segunda
+  verdad. La lista de conversaciones sí necesita red la primera vez.
+- **`sentAt` del cliente, no `ServerValue.TIMESTAMP`.** El marcador de servidor viaja como un mapa y la
+  burbuja optimista mostraría la hora vacía hasta que respondiera el servidor. El desfase entre dos
+  teléfonos es aceptable en un chat escolar.
+- **Ventana de 200 mensajes.** Paginar hacia atrás es una decisión de producto, no algo que se resuelva
+  con un `limitToLast` más grande.
+
+**Pendientes conocidos**
+
+1. **El chat del tutor sigue siendo visual** (mock): es de su fase. La otra cuenta se puede simular
+escribiendo en RTDB desde la consola, que es como se prueba el tiempo real hoy.
+2. **Sin adjuntos en el chat.** Fotos en la conversación no están en FASE 1.
+3. **Sin editar ni borrar mensajes**: la regla exige `!data.exists()`; un mensaje enviado es definitivo.
+4. **El resumen puede quedar atrás sin red.** RTDB encola el mensaje y lo entrega al reconectar, pero el
+   resumen de Firestore se intenta una sola vez: el mensaje llega y la lista puede mostrar el anterior
+   hasta el siguiente envío.
+5. **Sin paginación** más allá de los últimos 200 mensajes.
+
+**Cómo probarlo en el teléfono** (lo corre el dueño del proyecto)
+
+1. Con la RTDB creada y las reglas publicadas: **Mensajes → botón de editar** → aparece la lista de
+   tutores de tus grupos ("Tutor de … · 3° B").
+2. Elige uno → se abre la conversación vacía y se crea
+   `conversations/{uidDocente__uidTutor}` en Firestore con `participants`, `lastMessage`, `lastMessageAt`
+   y `unread`.
+3. Escribe "Hola" → la burbuja aparece de inmediato y en RTDB queda
+   `conversations/{cid}/messages/{id}` con `senderId`, `text` y `sentAt`.
+4. Vuelve a **Mensajes**: la fila muestra "Hola" y la hora. Entra otra vez: el contador de no leídos
+   queda en 0.
+5. **Tiempo real**: escribe un mensaje en RTDB desde la consola (`senderId` = uid del tutor, `text`,
+   `sentAt` numérico) con la conversación abierta → aparece sin recargar, y la cabecera muestra
+   "En línea" mientras el otro esté conectado.
+6. **Modo avión**: escribe y envía → la burbuja aparece y el aviso dice "se enviará al reconectar"; al
+   volver la red, el mensaje está en RTDB.
 
 **Criterio:** dos cuentas intercambian mensajes en tiempo real y la lista de chats muestra el último
-mensaje y la hora, sin recargar la pantalla.
-
-> **Hoy no hay reglas de RTDB.** Sin `rtdb.rules`, la base está en el modo por defecto del proyecto y
-> cualquiera con la config puede leer todo. Este bloque no está terminado hasta que las reglas estén
-> publicadas, no solo escritas en `docs/`.
->
-> **Dos almacenes, un solo mensaje:** el mensaje vive en RTDB; Firestore solo guarda el resumen para
-> pintar la lista. Si se escriben los dos y uno falla, la lista miente. El resumen se actualiza
-> **después** de que RTDB acepta el mensaje.
+mensaje y la hora, sin recargar la pantalla. **Hoy se cumple con la segunda cuenta simulada desde la
+consola**; el intercambio real entre dos teléfonos llega con el chat del tutor (Fase 2).
 
 ---
 

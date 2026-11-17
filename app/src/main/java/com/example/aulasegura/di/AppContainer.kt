@@ -28,6 +28,7 @@ import com.example.aulasegura.data.repository.FirestoreRosterRepository
 import com.example.aulasegura.data.repository.FirestoreSchoolRepository
 import com.example.aulasegura.data.repository.RoomAttendanceRepository
 import com.example.aulasegura.data.repository.RoomIncidentRepository
+import com.example.aulasegura.data.repository.FirestoreChatRepository
 import com.example.aulasegura.data.repository.RoomNoticeRepository
 import com.example.aulasegura.data.repository.RoomTaskRepository
 import com.example.aulasegura.data.telemetry.FirebaseAnalyticsLogger
@@ -35,6 +36,7 @@ import com.example.aulasegura.domain.repository.AiAssistant
 import com.example.aulasegura.domain.repository.AttendanceHistoryRepository
 import com.example.aulasegura.domain.repository.AttendanceRepository
 import com.example.aulasegura.domain.repository.AuthRepository
+import com.example.aulasegura.domain.repository.ChatRepository
 import com.example.aulasegura.domain.repository.GroupRepository
 import com.example.aulasegura.domain.repository.IncidentRepository
 import com.example.aulasegura.domain.repository.NoticeRepository
@@ -64,10 +66,13 @@ import com.example.aulasegura.ui.screens.access.SessionViewModel
 import com.example.aulasegura.ui.screens.teacher.TeacherGroupsViewModel
 import com.example.aulasegura.ui.screens.teacher.TeacherHistoryViewModel
 import com.example.aulasegura.ui.screens.teacher.TeacherIncidentViewModel
+import com.example.aulasegura.ui.screens.teacher.TeacherChatViewModel
+import com.example.aulasegura.ui.screens.teacher.TeacherConversationViewModel
 import com.example.aulasegura.ui.screens.teacher.TeacherNoticeNewViewModel
 import com.example.aulasegura.ui.screens.teacher.TeacherTaskNewViewModel
 import com.google.firebase.analytics.FirebaseAnalytics
 import com.google.firebase.auth.FirebaseAuth
+import com.google.firebase.database.FirebaseDatabase
 import com.google.firebase.firestore.FirebaseFirestore
 import java.util.concurrent.TimeUnit
 import okhttp3.OkHttpClient
@@ -95,6 +100,9 @@ class AppContainer(context: Context) {
     // ---- Firebase -----------------------------------------------------------
     private val firebaseAuth: FirebaseAuth by lazy { FirebaseAuth.getInstance() }
     private val firestore: FirebaseFirestore by lazy { FirebaseFirestore.getInstance() }
+
+    /** Realtime Database: chat messages and presence. Firestore only keeps summaries. */
+    private val firebaseDatabase: FirebaseDatabase by lazy { FirebaseDatabase.getInstance() }
 
     // ---- Storage ------------------------------------------------------------
     val database: AulaSeguraDatabase by lazy { DatabaseProvider.get(appContext) }
@@ -231,6 +239,20 @@ class AppContainer(context: Context) {
             taskDao = database.taskDao(),
             outboxDao = database.outboxDao(),
             outbox = outboxRepository,
+            groups = groupRepository,
+            auth = authRepository,
+            analytics = analyticsLogger,
+        )
+    }
+
+    /**
+     * Chat, online-only on purpose: RTDB already caches its own messages, and a
+     * Room copy would be a second truth for the same bubble.
+     */
+    val chatRepository: ChatRepository by lazy {
+        FirestoreChatRepository(
+            firestore = firestore,
+            database = firebaseDatabase,
             groups = groupRepository,
             auth = authRepository,
             analytics = analyticsLogger,
@@ -428,6 +450,17 @@ class AppViewModelFactory(
                 auth = container.authRepository,
                 tasks = container.taskRepository,
                 attachmentStore = container.taskAttachmentStore,
+            )
+
+        modelClass.isAssignableFrom(TeacherChatViewModel::class.java) ->
+            TeacherChatViewModel(
+                chat = container.chatRepository,
+            )
+
+        modelClass.isAssignableFrom(TeacherConversationViewModel::class.java) ->
+            TeacherConversationViewModel(
+                chat = container.chatRepository,
+                auth = container.authRepository,
             )
 
         modelClass.isAssignableFrom(TeacherNoticeNewViewModel::class.java) ->

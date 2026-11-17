@@ -14,6 +14,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
@@ -74,7 +75,9 @@ import com.example.aulasegura.ui.theme.TertiaryFixed
  * Teacher — Mensajes. Ported from Stitch screen `1d7ea3e523ae4f6aa558cfdcbef64653`
  * ("Mensajes", project 7677408035297541086).
  *
- * Visual shell only: search, group filters and navigation are UI state.
+ * The rows are real conversations (Firestore summaries, messages in RTDB); search
+ * and the group chip are filtered in `TeacherChatViewModel`, and the "new
+ * message" button opens the tutors of the teacher's own students.
  */
 
 private val ChatHairline = OutlineVariant.copy(alpha = 0.6f)
@@ -94,87 +97,19 @@ private data class TeacherConversation(
     val group: String? = null,
 )
 
-private fun sampleTeacherConversations(): List<TeacherConversation> = listOf(
-    TeacherConversation(
-        id = "1",
-        name = "Carlos Gómez Pérez",
-        subtitle = "Padre de Mariana · 3° B",
-        preview = "Gracias, profesor. ¿Qué temas incluye?",
-        time = "10:41",
-        unread = 1,
-        initials = "CG",
-        avatarColor = PrimaryFixed,
-        initialsColor = PrimaryContainer,
-        group = "3° B",
-    ),
-    TeacherConversation(
-        id = "2",
-        name = "Laura Ríos Mena",
-        subtitle = "Madre de Bruno · 3° B",
-        preview = "Buenos días, ¿puedo justificar la falta de ayer?",
-        time = "09:20",
-        unread = 2,
-        initials = "LR",
-        avatarColor = SecondaryFixed,
-        initialsColor = Secondary,
-        group = "3° B",
-    ),
-    TeacherConversation(
-        id = "3",
-        name = "Jorge Domínguez",
-        subtitle = "Padre de Camila · 3° B",
-        preview = "Entendido, muchas gracias.",
-        time = "Ayer",
-        initials = "JD",
-        avatarColor = TertiaryFixed,
-        initialsColor = Tertiary,
-        group = "3° B",
-    ),
-    TeacherConversation(
-        id = "4",
-        name = "Dirección escolar",
-        subtitle = "Administración",
-        preview = "Recuerden entregar las listas antes de las 10:00.",
-        time = "Lun",
-        icon = Icons.Outlined.AccountBalance,
-        avatarColor = SurfaceContainerHigh,
-        initialsColor = PrimaryContainer,
-    ),
-    TeacherConversation(
-        id = "5",
-        name = "Marta Escobar",
-        subtitle = "Madre de Diego · 3° B",
-        preview = "Perfecto, lo revisamos en casa.",
-        time = "Vie",
-        initials = "ME",
-        avatarColor = PrimaryFixedDim.copy(alpha = 0.6f),
-        initialsColor = PrimaryContainer,
-        group = "3° B",
-    ),
-)
-
-private val teacherGroupFilters = listOf("Todos", "3° B", "3° A", "2° C")
 
 @Composable
 fun TeacherChatScreen(
     onOpenConversation: (String) -> Unit,
     onSelectTab: (TeacherTab) -> Unit,
+    ui: TeacherChatUi = TeacherChatUi(),
     onNuevoMensaje: () -> Unit = {},
+    onQueryChange: (String) -> Unit = {},
+    onFilterChange: (String) -> Unit = {},
+    onContactsDismiss: () -> Unit = {},
+    onStartConversation: (String) -> Unit = {},
 ) {
-    var query by remember { mutableStateOf("") }
-    var activeFilter by remember { mutableStateOf("Todos") }
-    val conversations = remember { sampleTeacherConversations() }
-
-    val visible = conversations.filter { conversation ->
-        val matchesGroup =
-            activeFilter == "Todos" || conversation.group == activeFilter
-        val matchesQuery =
-            query.isBlank() ||
-                conversation.name.contains(query, ignoreCase = true) ||
-                conversation.subtitle.contains(query, ignoreCase = true) ||
-                conversation.preview.contains(query, ignoreCase = true)
-        matchesGroup && matchesQuery
-    }
+    val conversations = ui.rows.mapIndexed { index, row -> row.toRender(index) }
 
     Box(
         modifier = Modifier
@@ -189,19 +124,22 @@ fun TeacherChatScreen(
                 .padding(bottom = 112.dp),
         ) {
             Reveal(0) { ChatHeader(onNuevoMensaje = onNuevoMensaje) }
-            Reveal(60) { ChatSearchField(query = query, onQueryChange = { query = it }) }
+            Reveal(60) { ChatSearchField(query = ui.query, onQueryChange = onQueryChange) }
             Reveal(120) {
                 GroupFilterRow(
-                    activeFilter = activeFilter,
-                    onFilterChange = { activeFilter = it },
+                    filters = ui.filters,
+                    activeFilter = ui.activeFilter,
+                    onFilterChange = onFilterChange,
                 )
             }
             Reveal(180) {
-                if (visible.isEmpty()) {
-                    EmptyConversations()
-                } else {
-                    ConversationList(
-                        conversations = visible,
+                when {
+                    ui.loading -> EmptyConversations(message = "Cargando conversaciones…")
+                    ui.notice != null && conversations.isEmpty() ->
+                        EmptyConversations(message = ui.notice)
+                    conversations.isEmpty() -> EmptyConversations()
+                    else -> ConversationList(
+                        conversations = conversations,
                         onOpen = onOpenConversation,
                     )
                 }
@@ -213,6 +151,149 @@ fun TeacherChatScreen(
             onSelect = onSelectTab,
             modifier = Modifier.align(Alignment.BottomCenter),
         )
+
+        if (ui.contactsOpen) {
+            ContactsSheet(
+                ui = ui,
+                onDismiss = onContactsDismiss,
+                onStartConversation = onStartConversation,
+            )
+        }
+    }
+}
+
+/**
+ * The real rows, dressed with the colors the mockup gave each sample contact.
+ *
+ * Avatar colors are rotated by position instead of stored: a conversation has no
+ * color in the schema, and inventing one per document would be a field nobody
+ * reads.
+ */
+private fun TeacherChatRowUi.toRender(index: Int): TeacherConversation = TeacherConversation(
+    id = id,
+    name = name,
+    subtitle = subtitle,
+    preview = preview,
+    time = time,
+    unread = unread.takeIf { it > 0 },
+    initials = initials,
+    avatarColor = AVATAR_COLORS[index % AVATAR_COLORS.size],
+    initialsColor = PrimaryContainer,
+    group = group,
+)
+
+private val AVATAR_COLORS: List<Color> = listOf(
+    PrimaryFixed,
+    SecondaryFixed,
+    TertiaryFixed,
+    PrimaryFixedDim.copy(alpha = 0.6f),
+)
+
+/**
+ * Tutor picker. A scrim plus a card instead of a Material sheet: the screen is a
+ * plain `Box`, and the mockup has no sheet to port.
+ */
+@Composable
+private fun ContactsSheet(
+    ui: TeacherChatUi,
+    onDismiss: () -> Unit,
+    onStartConversation: (String) -> Unit,
+) {
+    Box(modifier = Modifier.fillMaxSize()) {
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(Color.Black.copy(alpha = 0.32f))
+            .clickable(onClick = onDismiss),
+    )
+
+    Column(
+        modifier = Modifier
+            .align(Alignment.BottomCenter)
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp))
+            .background(SurfaceContainerLowest)
+            .navigationBarsPadding()
+            .padding(horizontal = 16.dp, vertical = 16.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        Text(
+            text = "Nuevo mensaje",
+            color = PrimaryContainer,
+            fontFamily = BricolageGrotesque,
+            fontWeight = FontWeight.Bold,
+            fontSize = 18.sp,
+            lineHeight = 24.sp,
+        )
+        Text(
+            text = "Tutores de los alumnos en tus grupos",
+            color = OnSurfaceVariant,
+            fontFamily = DmSans,
+            fontSize = 12.sp,
+            lineHeight = 16.sp,
+        )
+
+        when {
+            ui.contactsLoading -> Text(
+                text = "Buscando tutores…",
+                color = Outline,
+                fontFamily = DmSans,
+                fontSize = 13.sp,
+                modifier = Modifier.padding(vertical = 12.dp),
+            )
+            ui.contacts.isEmpty() -> Text(
+                text = ui.notice ?: "No hay tutores vinculados en tus grupos.",
+                color = Outline,
+                fontFamily = DmSans,
+                fontSize = 13.sp,
+                modifier = Modifier.padding(vertical = 12.dp),
+            )
+            else -> ui.contacts.forEach { contact ->
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(12.dp))
+                        .clickable { onStartConversation(contact.tutorUid) }
+                        .padding(vertical = 10.dp, horizontal = 4.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(36.dp)
+                            .clip(CircleShape)
+                            .background(PrimaryFixed),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Text(
+                            text = chatInitials(contact.label),
+                            color = PrimaryContainer,
+                            fontFamily = BricolageGrotesque,
+                            fontWeight = FontWeight.SemiBold,
+                            fontSize = 13.sp,
+                        )
+                    }
+                    Spacer(Modifier.width(10.dp))
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = contact.label,
+                            color = PrimaryContainer,
+                            fontFamily = DmSans,
+                            fontWeight = FontWeight.Medium,
+                            fontSize = 14.sp,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                        Text(
+                            text = contact.groupLabel.ifBlank { "Sin grupo" },
+                            color = Outline,
+                            fontFamily = JetBrainsMono,
+                            fontSize = 11.sp,
+                        )
+                    }
+                }
+            }
+        }
+    }
     }
 }
 
@@ -318,6 +399,7 @@ private fun ChatSearchField(
 
 @Composable
 private fun GroupFilterRow(
+    filters: List<String>,
     activeFilter: String,
     onFilterChange: (String) -> Unit,
 ) {
@@ -330,7 +412,7 @@ private fun GroupFilterRow(
         horizontalArrangement = Arrangement.spacedBy(8.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        teacherGroupFilters.forEach { filter ->
+        filters.forEach { filter ->
             GroupFilterChip(
                 label = filter,
                 selected = filter == activeFilter,
@@ -513,7 +595,7 @@ private fun ConversationRow(
 }
 
 @Composable
-private fun EmptyConversations() {
+private fun EmptyConversations(message: String = "Sin conversaciones") {
     Column(
         modifier = Modifier
             .fillMaxWidth()
@@ -522,7 +604,7 @@ private fun EmptyConversations() {
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
         Text(
-            text = "Sin conversaciones",
+            text = message,
             color = Outline,
             fontFamily = DmSans,
             fontWeight = FontWeight.Medium,

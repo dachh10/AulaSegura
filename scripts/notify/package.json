@@ -1,0 +1,14 @@
+{
+  "name": "aulasegura-notify",
+  "private": true,
+  "version": "1.0.0",
+  "description": "Crea el documento de la bandeja y envía el push en una sola corrida.",
+  "type": "commonjs",
+  "bin": { "aulasegura-notify": "index.js" },
+  "scripts": {
+    "notify": "node index.js"
+  },
+  "dependencies": {
+    "firebase-admin": "^13.0.0"
+  }
+}

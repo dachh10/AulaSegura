@@ -20,6 +20,9 @@ keystore.properties
 .env
 .env.*
 
+# Cuenta de servicio del script de avisos (Admin SDK): nunca al repo
+scripts/notify/service-account*.json
+
 # ---- Tooling artifacts ----
 .freebuff/
 .dsh-office-*/

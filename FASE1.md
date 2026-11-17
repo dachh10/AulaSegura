@@ -22,7 +22,7 @@
 | **8** — Tareas y avisos | publicar con audiencia | ✅ **hecho** · `c87e1eb` · `assembleDebug` + 179 tests |
 | **8B** — PDF en tareas | un solo PDF (10 MB) subido antes de publicar | ✅ **hecho** · `4ddc7b7` + `e837e16` · `assembleDebug` + 189 tests |
 | **9** — Chat | conversaciones y mensajes en RTDB | ✅ **hecho** · `396830d` · `assembleDebug` + 205 tests |
-| **10** — Notificaciones y FCM | push desde la consola + bandeja real | 🟡 **código listo** · `assembleDebug` + 219 tests · falta probar en el teléfono |
+| **10** — Notificaciones y FCM | push desde la consola + bandeja real + script de avisos | ✅ **cerrado 17 nov 2026** · probado en teléfono · 219 tests |
 | **11** — Perfil | datos reales del docente | pendiente |
 
 **Criterio de cierre de la fase** (`PLAN.md`): con **modo avión** activo, el docente pasa lista y
@@ -889,9 +889,13 @@ consola**; el intercambio real entre dos teléfonos llega con el chat del tutor 
 
 ## Bloque 10 — Notificaciones y FCM (PLAN 1.11)
 
-> **Estado: 🟡 CÓDIGO LISTO, VERIFICACIÓN EN TELÉFONO PENDIENTE** — 17 nov 2026 · `assembleDebug`
-> verde · **219 tests unitarios, 0 fallos** (+14: 5 de deep links, 7 de la bandeja y 2 del token al
-> cerrar sesión). Lo que falta es la prueba real: token → consola → notificación → tap.
+> **Estado: ✅ HECHO Y PROBADO EN TELÉFONO** — 17 nov 2026 · `assembleDebug` verde · **219 tests
+> unitarios, 0 fallos** (+14: 5 de deep links, 7 de la bandeja y 2 del token al cerrar sesión).
+>
+> Probado en un dispositivo real: el token aparece en `users/{uid}/fcmTokens/{token}` al iniciar
+> sesión (y se borra al cerrarla), el *Send test message* de la consola llega con la app abierta y
+> cerrada, y un documento creado a mano en `notifications` aparece en la bandeja con su hora, su
+> grupo y el badge de no leídos, se marca leído al tocarlo y navega al `deepLink`.
 
 - [x] **10.1** `FirebaseMessagingService`: token en `users/{uid}/fcmTokens/{token}` (`token`, `platform`, `updatedAt`)
 - [x] **10.2** Rotación de token (`onNewToken`) y borrado del token al cerrar sesión
@@ -918,6 +922,7 @@ consola**; el intercambio real entre dos teléfonos llega con el chat del tutor 
 | `ui/screens/teacher/TeacherNotificationsUi.kt` · `TeacherNotificationsViewModel.kt` | **nuevos**: agrupación HOY/ANTERIORES, chips por tipo, no leídos y tap que marca leído y sigue el `deepLink` |
 | `ui/screens/teacher/TeacherNotificationsScreen.kt` | cableada a la colección real; iconos y tintes por `type` |
 | `test/.../DeepLinkTest.kt` · `TeacherNotificationsUiTest.kt` · `AuthViewModelsTest.kt` | **nuevos/ampliados**: whitelist, agrupación, filtros, badge y borrado del token al salir |
+| `scripts/notify/index.js` · `package.json` | **nuevos**: una corrida escribe el documento de la bandeja y manda el push al usuario |
 
 **Decisiones que importan**
 
@@ -957,10 +962,38 @@ consola**; el intercambio real entre dos teléfonos llega con el chat del tutor 
    marca leído; "marcar todo leído" baja el contador a cero.
 7. Cerrar sesión → el documento del token desaparece de `users/{uid}/fcmTokens`.
 
+**Enviar un aviso completo (documento + push) en una corrida**
+
+En Spark `notifications` y FCM no se hablan: la consola manda el push pero no escribe el documento, y
+un documento por su cuenta no hace sonar nada. El script hace las dos cosas, en ese orden, y borra los
+tokens muertos que encuentre.
+
+```bash
+# Una sola vez: dependencias del script
+cd scripts/notify && npm install && cd ../..
+
+# La cuenta de servicio NO va al repo (scripts/notify/service-account*.json está ignorado):
+# Firebase Console → Project settings → Service accounts → Generate new private key
+
+node scripts/notify/index.js \
+  --uid=<uidDelDocente> \
+  --title="Junta de padres de familia" \
+  --body="Viernes 20 de noviembre, 8:00, patio central" \
+  --type=aviso \
+  --deep-link=teacher/history
+```
+
+- `--no-push` escribe solo la bandeja; `--dry-run` imprime lo que haría sin tocar nada.
+- El push sale solo con `data` (título, cuerpo, `notificationId`, `deepLink`): si llevara payload
+  `notification`, el sistema mostraría la suya y el tap perdería el `deepLink`.
+- Si `users/{uid}/fcmTokens` está vacío, el documento queda en la bandeja y el script avisa: ese usuario
+  nunca abrió la app en su teléfono (o cerró sesión, que es cuando se borra el token).
+
 **Pendientes conocidos**
 
-1. **Sin envío automático.** En Spark no hay Cloud Functions: el push lo dispara una persona desde la
-   consola. Un push "cuando pasa X" no existe todavía y no se debe diseñar como si existiera.
+1. **Sin envío automático.** En Spark no hay Cloud Functions: el push lo dispara una persona con
+   `scripts/notify` o desde la consola. Un push "cuando pasa X" no existe todavía y no se debe diseñar
+   como si existiera.
 2. **Los `deepLink` solo cubren rutas del docente.** Cuando existan las pantallas del tutor y del
    directivo se agregan a la lista blanca.
 3. **Sin contador de no leídos en la campana** de la barra inferior: el número vive en la pantalla.

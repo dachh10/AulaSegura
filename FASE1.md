@@ -19,7 +19,8 @@
 | **6** — Incidentes | reporte con severidad | ✅ **hecho** · `d08f75f` |
 | **7** — Media del incidente | foto comprimida a Cloudinary | ✅ **hecho** · `assembleDebug` + 154 tests |
 | **7B** — Mis incidentes | historial propio cache-first | ✅ **hecho** · `assembleDebug` + 167 tests |
-| **8** — Tareas y avisos | publicar con audiencia | pendiente |
+| **8** — Tareas y avisos | publicar con audiencia | ✅ **hecho** · `c87e1eb` · `assembleDebug` + 179 tests |
+| **8B** — PDF en tareas | un solo PDF (10 MB) subido antes de publicar | ✅ **hecho** · `4ddc7b7` + `e837e16` · `assembleDebug` + 189 tests |
 | **9** — Chat | RTDB y presencia | pendiente |
 | **10** — Notificaciones y FCM | push enviado desde la consola | pendiente |
 | **11** — Perfil | datos reales del docente | pendiente |
@@ -592,11 +593,21 @@ sus fotos, con o sin conexión.
 
 ## Bloque 8 — Tareas y avisos (PLAN 1.8)
 
-- [ ] **8.1** `TaskRepository.publish`: `groupIds` (array), `dueDate`, `createdBy`, `active`
-- [ ] **8.2** `NoticeRepository.publish`: `audience.roles`, `audience.groupIds`, `urgent`
-- [ ] **8.3** Caché de lectura en Room (`TaskEntity`, `NoticeEntity`) desde el primer momento
-- [ ] **8.4** `TeacherTaskNewScreen` y `TeacherNoticeNewScreen` cableadas a grupos reales
-- [ ] **8.5** Eventos `task_published` y `notice_published`
+> **Estado: ✅ HECHO** — 15–17 nov 2026 · `assembleDebug` verde · **189 tests unitarios, 0 fallos**.
+> El código vive en la rama `feat/docente-pase-lista` (commits `c87e1eb`, `800621c`, `4ddc7b7`,
+> `e837e16`); el detalle completo —qué cambió en cada archivo, decisiones, pendientes y pasos de
+> prueba en el teléfono— está en el `FASE1.md` de esa rama.
+> **La verificación en el teléfono la corre el dueño del proyecto.**
+
+- [x] **8.1** `TaskRepository.publish`: `groupIds` (array), `dueDate`, `createdBy`, `active`
+- [x] **8.2** `NoticeRepository.publish`: `audience.roles`, `audience.groupIds`, `urgent`
+- [x] **8.3** Caché de lectura en Room (`TaskEntity`, `NoticeEntity`) desde el primer momento
+- [x] **8.4** `TeacherTaskNewScreen` y `TeacherNoticeNewScreen` cableadas a grupos reales
+- [x] **8.5** Eventos `task_published` y `notice_published`
+- [x] **8.6** Segmento **Publicaciones** real en el historial: tareas y avisos en una línea de tiempo,
+  con píldora de sync por fila y lectura solo de Room (funciona sin red)
+- [x] **8.7** Un solo PDF por tarea (máx. 10 MB), subido a Cloudinary con `/raw/upload` **antes** de
+  escribir el documento, con su estado visible en el historial: `Subido` / `Pendiente` / `No se subió`
 
 **Criterio:** una tarea publicada para 3° B y un aviso urgente para los tutores de 3° B aparecen en
 Firestore con la audiencia correcta y se leen sin red después de la primera carga.

@@ -99,7 +99,7 @@ Leyenda: `[x]` aprobada · `[~]` implementada, esperando prueba · `[ ]` pendien
 - [x] **3.7** Pase de lista: Verificando GPS — variante — `0879467b1682473d8d4429311b83b6ac` ✅ Aprobada
 - [x] **3.8** Pase de lista: Verificando ubicación — variante — `35a0556e68c549f0b3552c5a23cad46a` ✅ Aprobada
 - [x] **3.9** Registrar Incidente — `Routes.TEACHER_INCIDENT_NEW` — `2b5038f52ef64c8aa1f541755b2860e7` ✅ Aprobada
-- [x] **3.10** Registrar Incidente con Mapa — variante de 3.9 — `c0c76972a26549c387f8febc138ac124` ✅ Aprobada (mapa esquemático dentro de `TeacherIncidentNewScreen`)
+- [x] **3.10** Registrar Incidente con Mapa — variante de 3.9 — `c0c76972a26549c387f8febc138ac124` ✅ Aprobada (nació como mapa esquemático dentro de `TeacherIncidentNewScreen`; el bloque B14 lo cambió por Google Maps real con pin)
 - [x] **3.11** Publicar Tarea — `Routes.TEACHER_TASK_NEW` — `8acb44e85be44ad5801bd1532a7ab798` ✅ Aprobada
 - [x] **3.12** Publicar Aviso — `Routes.TEACHER_NOTICE_NEW` — `bac6bd729b1f46129bcbc5092e0d5b2d` ✅ Aprobada
 - [x] **3.13** Historial — `Routes.TEACHER_HISTORY` — `cbe12103d8494161b9e19735c062de66` ✅ Aprobada

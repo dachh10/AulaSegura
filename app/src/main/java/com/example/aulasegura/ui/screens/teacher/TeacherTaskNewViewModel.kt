@@ -2,7 +2,10 @@ package com.example.aulasegura.ui.screens.teacher
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.example.aulasegura.data.local.media.KeptTaskAttachment
+import com.example.aulasegura.data.local.media.TaskAttachmentStore
 import com.example.aulasegura.domain.model.NewTask
+import com.example.aulasegura.domain.model.NewTaskAttachment
 import com.example.aulasegura.domain.model.PublishOutcome
 import com.example.aulasegura.domain.repository.AuthRepository
 import com.example.aulasegura.domain.repository.GroupRepository
@@ -25,6 +28,11 @@ import kotlinx.coroutines.launch
  * device. The teacher's own "Publicaciones" segment is where the phone tells
  * them whether it already left.
  *
+ * The PDF follows the incident-photo pattern: the bytes are copied into private
+ * storage while the form is open (so the content URI is not needed after the
+ * picker closes and a retry uploads the same bytes), and the copy is deleted once
+ * Cloudinary accepts it or the teacher removes it.
+ *
  * The due date starts one week out at 08:00 so the form is publishable as soon as
  * the group and the title are set, and every value can still be changed.
  */
@@ -32,6 +40,7 @@ class TeacherTaskNewViewModel(
     groups: GroupRepository,
     auth: AuthRepository,
     private val tasks: TaskRepository,
+    private val attachmentStore: TaskAttachmentStore,
     private val now: () -> Long = System::currentTimeMillis,
     private val zone: TimeZone = TimeZone.getDefault(),
 ) : ViewModel() {
@@ -41,6 +50,8 @@ class TeacherTaskNewViewModel(
     private val title = MutableStateFlow("")
     private val description = MutableStateFlow("")
     private val dueDate = MutableStateFlow(defaultDueDate())
+    private val attachment = MutableStateFlow<KeptTaskAttachment?>(null)
+    private val attaching = MutableStateFlow(false)
     private val publishing = MutableStateFlow(false)
     private val published = MutableStateFlow(false)
     private val message = MutableStateFlow<String?>(null)
@@ -66,15 +77,32 @@ class TeacherTaskNewViewModel(
     private data class Flags(
         val publishing: Boolean,
         val published: Boolean,
+        val attaching: Boolean,
         val message: String?,
     )
 
-    private val flags = combine(publishing, published, message) { isPublishing, isPublished, text ->
-        Flags(publishing = isPublishing, published = isPublished, message = text)
+    private val flags = combine(publishing, published, attaching, message) {
+            isPublishing,
+            isPublished,
+            isAttaching,
+            text,
+        ->
+        Flags(
+            publishing = isPublishing,
+            published = isPublished,
+            attaching = isAttaching,
+            message = text,
+        )
     }
 
     val state: StateFlow<TeacherTaskNewUi> =
-        combine(myGroups, selectedGroupId, form, flags) { groupList, groupId, fields, status ->
+        combine(myGroups, selectedGroupId, form, attachment, flags) {
+                groupList,
+                groupId,
+                fields,
+                keptFile,
+                status,
+            ->
             TeacherTaskNewUi(
                 groups = groupList,
                 selectedGroupId = groupId,
@@ -95,6 +123,9 @@ class TeacherTaskNewViewModel(
                     publishing = status.publishing,
                     published = status.published,
                 ),
+                attachmentName = keptFile?.fileName,
+                attachmentSizeLabel = keptFile?.let { taskAttachmentSizeLabel(it.bytes) },
+                attaching = status.attaching,
             )
         }.stateIn(
             scope = viewModelScope,
@@ -152,6 +183,58 @@ class TeacherTaskNewViewModel(
         dueDate.value = calendar.timeInMillis
     }
 
+    /**
+     * Keeps the chosen PDF, replacing whatever was attached before.
+     *
+     * The picker already filters to `application/pdf`, but the limit is enforced
+     * here too: a provider can hand over a `.pdf` that is not one, and the size
+     * ceiling is a Cloudinary quota, not a UI preference.
+     */
+    fun attachPdf(fileName: String, bytes: ByteArray) {
+        if (publishing.value || published.value || attaching.value) return
+
+        val cleanName = fileName
+            .substringAfterLast('/')
+            .substringAfterLast('\\')
+            .trim()
+            .ifBlank { DEFAULT_ATTACHMENT_NAME }
+
+        if (!cleanName.lowercase().endsWith(".pdf")) {
+            message.value = "Solo se puede adjuntar un PDF."
+            return
+        }
+        if (bytes.isEmpty()) {
+            message.value = "Ese PDF está vacío."
+            return
+        }
+        if (bytes.size > TASK_ATTACHMENT_MAX_BYTES) {
+            message.value = "El PDF supera los 10 MB. Comprímelo o divide la tarea."
+            return
+        }
+
+        attaching.value = true
+        message.value = null
+
+        viewModelScope.launch {
+            val kept = attachmentStore.keep(bytes, cleanName)
+            if (kept == null) {
+                message.value = "No se pudo guardar el PDF en el teléfono."
+            } else {
+                // The previous file has no reader left: the form shows one PDF.
+                attachment.value?.let { previous -> attachmentStore.discard(previous.localPath) }
+                attachment.value = kept
+            }
+            attaching.value = false
+        }
+    }
+
+    fun removeAttachment() {
+        if (publishing.value || published.value) return
+        attachment.value?.let { attachmentStore.discard(it.localPath) }
+        attachment.value = null
+        message.value = null
+    }
+
     fun publish() {
         if (publishing.value || published.value) return
 
@@ -168,6 +251,8 @@ class TeacherTaskNewViewModel(
         publishing.value = true
         message.value = null
 
+        val keptFile = attachment.value
+
         viewModelScope.launch {
             val outcome = tasks.publish(
                 NewTask(
@@ -176,6 +261,13 @@ class TeacherTaskNewViewModel(
                     title = title.value.trim(),
                     description = description.value.trim(),
                     dueDate = dueDate.value,
+                    attachment = keptFile?.let { kept ->
+                        NewTaskAttachment(
+                            fileName = kept.fileName,
+                            localPath = kept.localPath,
+                            bytes = kept.bytes,
+                        )
+                    },
                 ),
             )
 
@@ -186,6 +278,15 @@ class TeacherTaskNewViewModel(
 
             publishing.value = false
         }
+    }
+
+    override fun onCleared() {
+        // The screen was closed without publishing: that copy will never be
+        // uploaded, and once the task is queued the worker owns the file.
+        if (!published.value) {
+            attachment.value?.let { attachmentStore.discard(it.localPath) }
+        }
+        super.onCleared()
     }
 
     /** One week from now at 08:00, which is the earliest a school day starts. */
@@ -208,5 +309,6 @@ class TeacherTaskNewViewModel(
         const val DEFAULT_DUE_DAYS = 7
         const val DEFAULT_DUE_HOUR = 8
         const val DEFAULT_SUBJECT = "General"
+        const val DEFAULT_ATTACHMENT_NAME = "documento.pdf"
     }
 }

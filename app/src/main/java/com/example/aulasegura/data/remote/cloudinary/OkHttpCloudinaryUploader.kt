@@ -22,6 +22,11 @@ import okhttp3.RequestBody.Companion.toRequestBody
  * The request carries exactly three parts — `file`, `upload_preset` and
  * `asset_folder`. No `api_key`, no signature: unsigned uploads are allowed only
  * this restricted parameter set, and the preset is what pins formats and paths.
+ *
+ * Images and documents differ only in the endpoint and the declared content type:
+ * `/image/upload` re-encodes and serves a CDN URL, `/raw/upload` keeps the bytes
+ * untouched. Sharing the request code keeps both paths on the same retry and
+ * error classification, which is the part that actually matters.
  */
 class OkHttpCloudinaryUploader(
     private val client: OkHttpClient,
@@ -35,6 +40,42 @@ class OkHttpCloudinaryUploader(
         fileName: String,
         folder: CloudinaryFolder,
         scopeId: String,
+    ): CloudinaryResult = upload(
+        endpoint = config.imageUploadUrl,
+        bytes = bytes,
+        fileName = fileName,
+        mimeType = JPEG,
+        folder = folder,
+        scopeId = scopeId,
+        thumbnailTransformation = folder.thumbnailTransformation,
+    )
+
+    override suspend fun uploadDocument(
+        bytes: ByteArray,
+        fileName: String,
+        folder: CloudinaryFolder,
+        scopeId: String,
+        mimeType: String,
+    ): CloudinaryResult = upload(
+        endpoint = config.rawUploadUrl,
+        bytes = bytes,
+        fileName = fileName,
+        mimeType = mimeType,
+        folder = folder,
+        scopeId = scopeId,
+        // A raw document has no renditions to transform, so its "thumbnail" is
+        // the file URL itself instead of a broken transformation.
+        thumbnailTransformation = null,
+    )
+
+    private suspend fun upload(
+        endpoint: String,
+        bytes: ByteArray,
+        fileName: String,
+        mimeType: String,
+        folder: CloudinaryFolder,
+        scopeId: String,
+        thumbnailTransformation: String?,
     ): CloudinaryResult = withContext(ioDispatcher) {
         if (!config.isConfigured) return@withContext CloudinaryResult.NotConfigured
         if (bytes.isEmpty()) return@withContext CloudinaryResult.Rejected(0, "Archivo vacío")
@@ -45,11 +86,11 @@ class OkHttpCloudinaryUploader(
             .setType(MultipartBody.FORM)
             .addFormDataPart("upload_preset", config.uploadPreset)
             .addFormDataPart("asset_folder", assetFolder)
-            .addFormDataPart("file", fileName, bytes.toRequestBody(JPEG.toMediaTypeOrNull()))
+            .addFormDataPart("file", fileName, bytes.toRequestBody(mimeType.toMediaTypeOrNull()))
             .build()
 
         val request = Request.Builder()
-            .url(config.imageUploadUrl)
+            .url(endpoint)
             .post(body)
             .build()
 
@@ -57,7 +98,7 @@ class OkHttpCloudinaryUploader(
             client.newCall(request).execute().use { response ->
                 val payload = response.body?.string().orEmpty()
                 if (response.isSuccessful) {
-                    toSuccess(payload, folder, assetFolder)
+                    toSuccess(payload, assetFolder, thumbnailTransformation)
                 } else if (response.code >= 500) {
                     CloudinaryResult.ServerError(response.code)
                 } else {
@@ -71,18 +112,17 @@ class OkHttpCloudinaryUploader(
 
     private fun toSuccess(
         payload: String,
-        folder: CloudinaryFolder,
         assetFolder: String,
+        thumbnailTransformation: String?,
     ): CloudinaryResult = try {
         val dto = json.decodeFromString<CloudinaryUploadDto>(payload)
         CloudinaryResult.Success(
             MediaMetadata(
                 publicId = dto.publicId,
                 url = dto.secureUrl,
-                thumbnailUrl = CloudinaryTransformations.apply(
-                    dto.secureUrl,
-                    folder.thumbnailTransformation,
-                ),
+                thumbnailUrl = thumbnailTransformation
+                    ?.let { CloudinaryTransformations.apply(dto.secureUrl, it) }
+                    ?: dto.secureUrl,
                 // The response echoes the folder; fall back to what we asked for
                 // when the account answers without it.
                 assetFolder = dto.assetFolder ?: assetFolder,

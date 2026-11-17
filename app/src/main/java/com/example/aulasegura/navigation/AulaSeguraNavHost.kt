@@ -483,6 +483,8 @@ fun AulaSeguraNavHost(
                 onDescriptionChange = taskViewModel::setDescription,
                 onDueDateChange = taskViewModel::setDueDate,
                 onDueTimeChange = taskViewModel::setDueTime,
+                onAttachPdf = taskViewModel::attachPdf,
+                onRemoveAttachment = taskViewModel::removeAttachment,
                 onPublish = taskViewModel::publish,
             )
         }

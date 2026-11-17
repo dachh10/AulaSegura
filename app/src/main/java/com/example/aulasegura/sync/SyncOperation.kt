@@ -13,6 +13,7 @@ enum class SyncOperation {
     UPLOAD_INCIDENT_MEDIA,
     UPSERT_JUSTIFICATION,
     UPSERT_TASK,
+    UPLOAD_TASK_ATTACHMENT,
     UPSERT_NOTICE,
     ;
 

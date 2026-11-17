@@ -120,15 +120,33 @@ class OutboxRepository(
      * the history cannot find would be the same lie as a `PENDING` session with
      * no outbox row.
      */
-    suspend fun enqueueTask(task: TaskEntity) {
+    suspend fun enqueueTask(task: TaskEntity, uploadAttachment: Boolean = false) {
+        val now = System.currentTimeMillis()
+
         database.withTransaction {
             database.taskDao().upsert(task)
+
+            // The file goes first and shares the timestamp: the outbox is drained
+            // by `createdAt, id`, so the upload is attempted before the document.
+            // Writing the task first would publish it with an empty `attachments`
+            // array and lose the PDF for the family.
+            if (uploadAttachment) {
+                database.outboxDao().insert(
+                    OutboxEntity(
+                        opType = SyncOperation.UPLOAD_TASK_ATTACHMENT.name,
+                        entityLocalId = task.taskId,
+                        payloadJson = "{}",
+                        createdAt = now,
+                    ),
+                )
+            }
+
             database.outboxDao().insert(
                 OutboxEntity(
                     opType = SyncOperation.UPSERT_TASK.name,
                     entityLocalId = task.taskId,
                     payloadJson = "{}",
-                    createdAt = System.currentTimeMillis(),
+                    createdAt = now,
                 ),
             )
         }

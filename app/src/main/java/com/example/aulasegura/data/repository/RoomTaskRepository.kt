@@ -3,6 +3,8 @@ package com.example.aulasegura.data.repository
 import com.example.aulasegura.data.local.dao.OutboxDao
 import com.example.aulasegura.data.local.dao.TaskDao
 import com.example.aulasegura.data.local.entity.TaskEntity
+import com.example.aulasegura.data.mapper.StoredTaskAttachment
+import com.example.aulasegura.data.mapper.encodeTaskAttachments
 import com.example.aulasegura.data.mapper.groupNamesFor
 import com.example.aulasegura.data.mapper.toPublishedTask
 import com.example.aulasegura.domain.model.NewTask
@@ -66,12 +68,28 @@ class RoomTaskRepository(
             createdBy = teacher.uid,
             createdByName = teacher.fullName,
             active = true,
+            // The PDF is already on disk; what is queued is its upload, not the
+            // file itself. `TaskSyncHandler` waits for `UPLOADED` before writing
+            // the document, so the family never sees an empty array.
+            attachmentsJson = task.attachment?.let { attachment ->
+                encodeTaskAttachments(
+                    listOf(
+                        StoredTaskAttachment(
+                            attachmentId = UUID.randomUUID().toString(),
+                            fileName = attachment.fileName,
+                            bytes = attachment.bytes,
+                            mimeType = attachment.mimeType,
+                            localPath = attachment.localPath,
+                        ),
+                    ),
+                )
+            } ?: "[]",
             createdAt = now,
             updatedAt = now,
         )
 
         return try {
-            outbox.enqueueTask(entity)
+            outbox.enqueueTask(entity, uploadAttachment = task.attachment != null)
             // A publication the teacher completed, whether or not it has left the
             // phone: the counter exists to see how many were written, and the
             // sync side already reports its own failures.

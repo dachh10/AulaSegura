@@ -20,4 +20,21 @@ interface CloudinaryUploader {
         folder: CloudinaryFolder,
         scopeId: String,
     ): CloudinaryResult
+
+    /**
+     * Uploads a document without re-encoding it.
+     *
+     * Used by the task PDF: Cloudinary serves it from `/raw/upload` and applies no
+     * transformation, so the family downloads the file the teacher attached.
+     *
+     * Requires the account to allow PDF delivery (Cloudinary → Security); without
+     * that toggle the upload succeeds and the URL answers 401.
+     */
+    suspend fun uploadDocument(
+        bytes: ByteArray,
+        fileName: String,
+        folder: CloudinaryFolder,
+        scopeId: String,
+        mimeType: String,
+    ): CloudinaryResult
 }

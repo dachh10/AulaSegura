@@ -18,6 +18,22 @@ data class NewTask(
     val title: String,
     val description: String,
     val dueDate: Long,
+    /** The single PDF of this task, already copied into private storage. */
+    val attachment: NewTaskAttachment? = null,
+)
+
+/**
+ * One PDF the teacher attached to a task.
+ *
+ * One and only one, and PDF only: the family gets a document it can open on any
+ * phone, and the form does not turn into a file manager. [localPath] is the copy
+ * the worker uploads; it is deleted once Cloudinary accepts it.
+ */
+data class NewTaskAttachment(
+    val fileName: String,
+    val localPath: String,
+    val bytes: Long,
+    val mimeType: String = "application/pdf",
 )
 
 /**
@@ -82,6 +98,8 @@ data class PublishedTask(
     val createdAt: Long,
     /** Still waiting in the outbox; `false` once Firestore accepted it. */
     val pending: Boolean,
+    /** Name of the attached PDF, when the teacher added one. */
+    val attachmentName: String? = null,
 )
 
 /** A notice this teacher published, with the same resolved shape as [PublishedTask]. */

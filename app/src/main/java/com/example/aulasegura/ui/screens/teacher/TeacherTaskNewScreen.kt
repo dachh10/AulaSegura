@@ -2,6 +2,12 @@ package com.example.aulasegura.ui.screens.teacher
 
 import android.app.DatePickerDialog
 import android.app.TimePickerDialog
+import android.content.ContentResolver
+import android.content.Context
+import android.net.Uri
+import android.provider.OpenableColumns
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -34,6 +40,7 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material.icons.filled.AttachFile
 import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.outlined.CalendarToday
@@ -50,6 +57,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -90,7 +98,12 @@ import com.example.aulasegura.ui.theme.SurfaceContainerHigh
 import com.example.aulasegura.ui.theme.SurfaceContainerLow
 import com.example.aulasegura.ui.theme.SurfaceContainerLowest
 import com.example.aulasegura.ui.theme.SurfaceVariant
+import java.io.ByteArrayOutputStream
+import java.io.IOException
 import java.util.Calendar
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 private val Hairline = Color(0xFFE6E1D8)
 private val FormCardShape = RoundedCornerShape(16.dp)
@@ -112,10 +125,13 @@ private val ToggleOn = Color(0xFF0E7C55)
  * offline-first: la tarea se guarda en Room y se encola, y el worker la escribe
  * en Firestore.
  *
- * Lo que la pantalla NO hace, y por eso se ve deshabilitado: adjuntos (necesitan
- * la subida de la Fase 4/Cloudinary y una tabla propia) y la notificación a las
- * familias (llega con FCM, bloque 10). Dejar el control activo sería prometer un
- * envío que no ocurre.
+ * Adjuntos: exactamente **un PDF** de hasta 10 MB, subido a Cloudinary antes de
+ * escribir la tarea (`UPLOAD_TASK_ATTACHMENT` corre antes que `UPSERT_TASK`). Ni
+ * fotos ni Word: la familia tiene que poder abrirlo en cualquier teléfono.
+ *
+ * Lo que la pantalla NO hace, y por eso se ve deshabilitado: la notificación a
+ * las familias (llega con FCM, bloque 10). Dejar el control activo sería
+ * prometer un envío que no ocurre.
  */
 @Composable
 fun TeacherTaskNewScreen(
@@ -127,6 +143,8 @@ fun TeacherTaskNewScreen(
     onDescriptionChange: (String) -> Unit = {},
     onDueDateChange: (year: Int, month: Int, dayOfMonth: Int) -> Unit = { _, _, _ -> },
     onDueTimeChange: (hourOfDay: Int, minute: Int) -> Unit = { _, _ -> },
+    onAttachPdf: (fileName: String, bytes: ByteArray) -> Unit = { _, _ -> },
+    onRemoveAttachment: () -> Unit = {},
     onPublish: () -> Unit = {},
 ) {
     val context = LocalContext.current
@@ -134,6 +152,28 @@ fun TeacherTaskNewScreen(
 
     var showGroups by remember { mutableStateOf(false) }
     var showSubjects by remember { mutableStateOf(false) }
+
+    // Only what the picker itself cannot tell us: a provider that hands over an
+    // unreadable stream, or a file above the 10 MB ceiling. Everything else the
+    // ViewModel validates and reports through the sticky footer.
+    var attachmentError by remember { mutableStateOf<String?>(null) }
+    val scope = rememberCoroutineScope()
+
+    val pdfLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.OpenDocument(),
+    ) { uri ->
+        if (uri == null) return@rememberLauncherForActivityResult
+        scope.launch {
+            when (val picked = readPdf(context, uri)) {
+                is PickedPdf.Ready -> {
+                    attachmentError = null
+                    onAttachPdf(picked.fileName, picked.bytes)
+                }
+                PickedPdf.TooLarge -> attachmentError = "El PDF supera los 10 MB."
+                PickedPdf.Unreadable -> attachmentError = "No se pudo leer el PDF."
+            }
+        }
+    }
 
     Column(
         modifier = Modifier
@@ -225,13 +265,13 @@ fun TeacherTaskNewScreen(
                 }
             }
 
-            // ZONE 3 — Attachments (not part of Fase 1)
+            // ZONE 3 — Attachments (one PDF per task)
             Column(
                 modifier = Modifier.padding(top = 4.dp),
                 verticalArrangement = Arrangement.spacedBy(10.dp),
             ) {
                 Text(
-                    text = "Archivos adjuntos",
+                    text = "Archivo adjunto",
                     color = PrimaryContainer,
                     fontFamily = BricolageGrotesque,
                     fontWeight = FontWeight.Bold,
@@ -240,7 +280,18 @@ fun TeacherTaskNewScreen(
                     letterSpacing = (-0.01).em,
                 )
 
-                UploadDropZone()
+                AttachmentZone(
+                    ui = ui,
+                    error = attachmentError,
+                    onPick = {
+                        attachmentError = null
+                        pdfLauncher.launch(arrayOf(PDF_MIME))
+                    },
+                    onRemove = {
+                        attachmentError = null
+                        onRemoveAttachment()
+                    },
+                )
             }
 
             // ZONE 4 — Notification toggle (FCM arrives with block 10)
@@ -675,103 +726,206 @@ private fun DateTimeField(
 
 // ZONE 3 — Attachments
 /**
- * Attachments are not part of Fase 1: they need the Cloudinary upload path of
- * Fase 4 plus their own table. The zone is shown disabled instead of hidden so
- * the screen keeps the mockup's shape and the teacher is not surprised later.
+ * The single PDF of the task.
+ *
+ * A real control now: it opens the system picker filtered to `application/pdf`,
+ * prints the file and its size, and lets the teacher replace or remove it. One
+ * file because a task is an instruction, not a file transfer.
  */
 @Composable
-private fun UploadDropZone(enabled: Boolean = false) {
+private fun AttachmentZone(
+    ui: TeacherTaskNewUi,
+    error: String?,
+    onPick: () -> Unit,
+    onRemove: () -> Unit,
+) {
+    val attached = ui.attachmentName != null
+    val enabled = !ui.published && !ui.publishing && !ui.attaching
+
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .alpha(if (enabled) 1f else 0.55f)
             .clip(FormCardShape)
-            .background(UploadTint.copy(alpha = 0.40f))
-            .dashedUploadBorder(
-                color = PrimaryContainer.copy(alpha = 0.30f),
-                cornerRadius = 16.dp,
-                strokeWidth = 2.dp,
+            .background(
+                if (attached) SurfaceContainerLowest else UploadTint.copy(alpha = 0.40f),
+            )
+            .then(
+                if (attached) {
+                    Modifier.border(1.dp, Hairline, FormCardShape)
+                } else {
+                    Modifier.dashedUploadBorder(
+                        color = PrimaryContainer.copy(alpha = 0.30f),
+                        cornerRadius = 16.dp,
+                        strokeWidth = 2.dp,
+                    )
+                },
             )
             .padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(10.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        Box(
-            modifier = Modifier
-                .size(40.dp)
-                .shadow(elevation = 1.dp, shape = CircleShape)
-                .clip(CircleShape)
-                .background(SurfaceContainerLowest),
-            contentAlignment = Alignment.Center,
-        ) {
-            Icon(
-                imageVector = Icons.Filled.AttachFile,
-                contentDescription = null,
-                tint = PrimaryContainer,
-                modifier = Modifier.size(22.dp),
-            )
+        val name = ui.attachmentName
+        if (name != null) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
+                Box(
+                    modifier = Modifier
+                        .size(40.dp)
+                        .clip(CircleShape)
+                        .background(FieldIconSurface),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Icon(
+                        imageVector = Icons.Filled.AttachFile,
+                        contentDescription = null,
+                        tint = PrimaryContainer,
+                        modifier = Modifier.size(20.dp),
+                    )
+                }
+
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = name,
+                        color = OnSurface,
+                        fontFamily = DmSans,
+                        fontWeight = FontWeight.Medium,
+                        fontSize = 13.sp,
+                        lineHeight = 18.sp,
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                    Text(
+                        text = listOfNotNull(ui.attachmentSizeLabel, "PDF").joinToString(" · "),
+                        color = Outline,
+                        fontFamily = JetBrainsMono,
+                        fontSize = 11.sp,
+                        lineHeight = 14.sp,
+                    )
+                }
+
+                Box(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(percent = 50))
+                        .clickable(enabled = enabled, onClick = onPick)
+                        .padding(horizontal = 10.dp, vertical = 6.dp),
+                ) {
+                    Text(
+                        text = "Cambiar",
+                        color = if (enabled) PrimaryContainer else Outline,
+                        fontFamily = DmSans,
+                        fontWeight = FontWeight.Medium,
+                        fontSize = 12.sp,
+                        lineHeight = 16.sp,
+                    )
+                }
+
+                Box(
+                    modifier = Modifier
+                        .size(32.dp)
+                        .clip(CircleShape)
+                        .clickable(enabled = enabled, onClick = onRemove),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Icon(
+                        imageVector = Icons.Filled.Close,
+                        contentDescription = "Quitar el PDF",
+                        tint = if (enabled) OnSurfaceVariant else Outline,
+                        modifier = Modifier.size(16.dp),
+                    )
+                }
+            }
+        } else {
+            Box(
+                modifier = Modifier
+                    .size(40.dp)
+                    .shadow(elevation = 1.dp, shape = CircleShape)
+                    .clip(CircleShape)
+                    .background(SurfaceContainerLowest),
+                contentAlignment = Alignment.Center,
+            ) {
+                Icon(
+                    imageVector = Icons.Filled.AttachFile,
+                    contentDescription = null,
+                    tint = PrimaryContainer,
+                    modifier = Modifier.size(22.dp),
+                )
+            }
+
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                Text(
+                    text = "Adjunta el PDF de la tarea",
+                    color = OnSurfaceVariant,
+                    fontFamily = DmSans,
+                    fontWeight = FontWeight.Medium,
+                    fontSize = 13.sp,
+                    lineHeight = 18.sp,
+                    textAlign = TextAlign.Center,
+                )
+                Spacer(modifier = Modifier.height(2.dp))
+                Text(
+                    text = "Un solo PDF · máximo 10 MB",
+                    color = Outline,
+                    fontFamily = JetBrainsMono,
+                    fontSize = 11.sp,
+                    lineHeight = 14.sp,
+                    textAlign = TextAlign.Center,
+                )
+            }
+
+            val (interaction, pressModifier) = rememberPressScale(0.95f)
+            Row(
+                modifier = Modifier
+                    .padding(top = 2.dp)
+                    .then(pressModifier)
+                    .shadow(elevation = 1.dp, shape = RoundedCornerShape(percent = 50))
+                    .clip(RoundedCornerShape(percent = 50))
+                    .background(if (enabled) PrimaryContainer else PrimaryContainer.copy(alpha = 0.40f))
+                    .clickable(
+                        enabled = enabled,
+                        interactionSource = interaction,
+                        indication = null,
+                        onClick = onPick,
+                    )
+                    .padding(horizontal = 16.dp, vertical = 6.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Icon(
+                    imageVector = Icons.Filled.Add,
+                    contentDescription = null,
+                    tint = Color.White,
+                    modifier = Modifier.size(16.dp),
+                )
+                Spacer(modifier = Modifier.width(6.dp))
+                Text(
+                    text = "Adjuntar PDF",
+                    color = Color.White,
+                    fontFamily = DmSans,
+                    fontWeight = FontWeight.Medium,
+                    fontSize = 12.sp,
+                    lineHeight = 16.sp,
+                    letterSpacing = 0.02.em,
+                )
+            }
         }
 
-        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+        if (ui.attaching) {
             Text(
-                text = "Arrastra o selecciona documentos de apoyo",
+                text = "Preparando el PDF…",
                 color = OnSurfaceVariant,
                 fontFamily = DmSans,
-                fontWeight = FontWeight.Medium,
-                fontSize = 13.sp,
-                lineHeight = 18.sp,
-                textAlign = TextAlign.Center,
-            )
-            Spacer(modifier = Modifier.height(2.dp))
-            Text(
-                text = "PDF, DOCX o PNG (Máx 25 MB)",
-                color = Outline,
-                fontFamily = JetBrainsMono,
                 fontSize = 11.sp,
                 lineHeight = 14.sp,
                 textAlign = TextAlign.Center,
             )
         }
 
-        val (interaction, pressModifier) = rememberPressScale(0.95f)
-        Row(
-            modifier = Modifier
-                .padding(top = 2.dp)
-                .then(pressModifier)
-                .shadow(elevation = 1.dp, shape = RoundedCornerShape(percent = 50))
-                .clip(RoundedCornerShape(percent = 50))
-                .background(PrimaryContainer)
-                .clickable(
-                    enabled = enabled,
-                    interactionSource = interaction,
-                    indication = null,
-                    onClick = {},
-                )
-                .padding(horizontal = 16.dp, vertical = 6.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Icon(
-                imageVector = Icons.Filled.Add,
-                contentDescription = null,
-                tint = Color.White,
-                modifier = Modifier.size(16.dp),
-            )
-            Spacer(modifier = Modifier.width(6.dp))
+        if (error != null) {
             Text(
-                text = "Adjuntar archivo",
-                color = Color.White,
-                fontFamily = DmSans,
-                fontWeight = FontWeight.Medium,
-                fontSize = 12.sp,
-                lineHeight = 16.sp,
-                letterSpacing = 0.02.em,
-            )
-        }
-
-        if (!enabled) {
-            Text(
-                text = "Los adjuntos llegan en una fase posterior.",
-                color = Outline,
+                text = error,
+                color = Error,
                 fontFamily = DmSans,
                 fontSize = 11.sp,
                 lineHeight = 14.sp,
@@ -780,6 +934,67 @@ private fun UploadDropZone(enabled: Boolean = false) {
         }
     }
 }
+
+/** The only type the picker offers, and the only one the worker uploads. */
+private const val PDF_MIME = "application/pdf"
+
+private const val PDF_READ_BUFFER = 64 * 1024
+
+/** What the picker gave us: readable bytes, too big, or nothing usable. */
+private sealed interface PickedPdf {
+    data class Ready(val fileName: String, val bytes: ByteArray) : PickedPdf
+    data object TooLarge : PickedPdf
+    data object Unreadable : PickedPdf
+}
+
+/**
+ * Reads the chosen document, refusing anything above the ceiling **while**
+ * reading: loading a 40 MB scan into memory first and rejecting it after is how
+ * a low-end phone runs out of heap in the middle of a school day.
+ */
+private suspend fun readPdf(context: Context, uri: Uri): PickedPdf =
+    withContext(Dispatchers.IO) {
+        val resolver = context.contentResolver
+        val name = displayName(resolver, uri) ?: "documento.pdf"
+        val declared = declaredSize(resolver, uri)
+
+        if (declared != null && declared > TASK_ATTACHMENT_MAX_BYTES) {
+            return@withContext PickedPdf.TooLarge
+        }
+
+        try {
+            resolver.openInputStream(uri)?.use { input ->
+                val output = ByteArrayOutputStream()
+                val buffer = ByteArray(PDF_READ_BUFFER)
+                var total = 0L
+
+                while (true) {
+                    val read = input.read(buffer)
+                    if (read < 0) break
+                    total += read
+                    if (total > TASK_ATTACHMENT_MAX_BYTES) {
+                        return@withContext PickedPdf.TooLarge
+                    }
+                    output.write(buffer, 0, read)
+                }
+
+                PickedPdf.Ready(name, output.toByteArray())
+            } ?: PickedPdf.Unreadable
+        } catch (failed: IOException) {
+            PickedPdf.Unreadable
+        }
+    }
+
+private fun displayName(resolver: ContentResolver, uri: Uri): String? =
+    resolver.query(uri, arrayOf(OpenableColumns.DISPLAY_NAME), null, null, null)
+        ?.use { cursor -> if (cursor.moveToFirst()) cursor.getString(0) else null }
+        ?.takeIf { it.isNotBlank() }
+
+private fun declaredSize(resolver: ContentResolver, uri: Uri): Long? =
+    resolver.query(uri, arrayOf(OpenableColumns.SIZE), null, null, null)
+        ?.use { cursor ->
+            if (cursor.moveToFirst() && !cursor.isNull(0)) cursor.getLong(0) else null
+        }
 
 // ZONE 4 — Notification toggle
 /**

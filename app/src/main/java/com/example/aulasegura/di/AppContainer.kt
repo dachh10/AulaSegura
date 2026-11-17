@@ -10,7 +10,9 @@ import com.example.aulasegura.BuildConfig
 import com.example.aulasegura.data.local.AulaSeguraDatabase
 import com.example.aulasegura.data.local.DatabaseProvider
 import com.example.aulasegura.data.local.media.FileIncidentMediaStore
+import com.example.aulasegura.data.local.media.FileTaskAttachmentStore
 import com.example.aulasegura.data.local.media.IncidentMediaStore
+import com.example.aulasegura.data.local.media.TaskAttachmentStore
 import com.example.aulasegura.data.remote.cloudinary.CloudinaryConfig
 import com.example.aulasegura.data.remote.cloudinary.CloudinaryUploader
 import com.example.aulasegura.data.remote.cloudinary.ImageCompressor
@@ -55,6 +57,7 @@ import com.example.aulasegura.sync.SyncHandlerRegistry
 import com.example.aulasegura.sync.SyncOperation
 import com.example.aulasegura.sync.SyncScheduler
 import com.example.aulasegura.sync.UploadIncidentMediaHandler
+import com.example.aulasegura.sync.UploadTaskAttachmentHandler
 import com.example.aulasegura.ui.screens.access.ForgotPasswordViewModel
 import com.example.aulasegura.ui.screens.access.LoginViewModel
 import com.example.aulasegura.ui.screens.access.SessionViewModel
@@ -274,6 +277,10 @@ class AppContainer(context: Context) {
                     incidentDao = database.incidentDao(),
                     uploader = cloudinaryUploader,
                 ),
+                SyncOperation.UPLOAD_TASK_ATTACHMENT to UploadTaskAttachmentHandler(
+                    taskDao = database.taskDao(),
+                    uploader = cloudinaryUploader,
+                ),
                 SyncOperation.UPSERT_TASK to TaskSyncHandler(
                     taskDao = database.taskDao(),
                     firestore = firestore,
@@ -324,6 +331,16 @@ class AppContainer(context: Context) {
      */
     val incidentMediaStore: IncidentMediaStore by lazy {
         FileIncidentMediaStore(appContext, imageCompressor)
+    }
+
+    /**
+     * Where the task's PDF lives between the form and the upload.
+     *
+     * Same reasoning as [incidentMediaStore]: one directory the form writes and
+     * the worker reads, so a file cannot be "attached" and then not found.
+     */
+    val taskAttachmentStore: TaskAttachmentStore by lazy {
+        FileTaskAttachmentStore(appContext)
     }
 
     // ---- Remote Config ------------------------------------------------------
@@ -410,6 +427,7 @@ class AppViewModelFactory(
                 groups = container.groupRepository,
                 auth = container.authRepository,
                 tasks = container.taskRepository,
+                attachmentStore = container.taskAttachmentStore,
             )
 
         modelClass.isAssignableFrom(TeacherNoticeNewViewModel::class.java) ->

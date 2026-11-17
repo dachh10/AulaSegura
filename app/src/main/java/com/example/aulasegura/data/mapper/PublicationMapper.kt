@@ -27,6 +27,7 @@ internal fun TaskEntity.toPublishedTask(
     dueDate = dueDate,
     createdAt = createdAt,
     pending = pending,
+    attachmentName = attachments().firstOrNull()?.fileName,
 )
 
 /** A cached notice, as the history row shows it. */
@@ -46,9 +47,9 @@ internal fun NoticeEntity.toPublishedNotice(
 /**
  * `tasks/{taskId}`, exactly as `CONTEXT.md` §`tasks/{taskId}` documents it.
  *
- * `attachments` is sent as an empty array instead of being omitted: the field is
- * part of the schema and the tutor's list reads it, so a missing array would be
- * a shape the reader has to defend against.
+ * `attachments` is always an array: empty when the task has no PDF, and with the
+ * single uploaded file when it does. A file still in flight is left out on
+ * purpose — `TaskSyncHandler` does not write the document until it is done.
  */
 internal fun TaskEntity.toFirestoreMap(): Map<String, Any?> = mapOf(
     "schoolId" to schoolId,
@@ -57,7 +58,7 @@ internal fun TaskEntity.toFirestoreMap(): Map<String, Any?> = mapOf(
     "title" to title,
     "description" to description,
     "dueDate" to dueDate.toTimestamp(),
-    "attachments" to emptyList<Map<String, Any>>(),
+    "attachments" to attachments().filter { it.isUploaded }.map { it.toFirestoreMap() },
     "createdBy" to createdBy,
     "createdByName" to createdByName,
     "createdAt" to createdAt.toTimestamp(),

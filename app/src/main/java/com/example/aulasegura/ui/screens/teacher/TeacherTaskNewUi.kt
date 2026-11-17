@@ -28,7 +28,29 @@ data class TeacherTaskNewUi(
     val published: Boolean = false,
     val message: String? = null,
     val canPublish: Boolean = false,
+    /** Name of the PDF already copied into private storage. */
+    val attachmentName: String? = null,
+    /** `"1.2 MB"`, next to the name. */
+    val attachmentSizeLabel: String? = null,
+    val attaching: Boolean = false,
 )
+
+/**
+ * The only attachment a task accepts is one PDF.
+ *
+ * One file because a task is an instruction, not a file transfer; PDF because it
+ * opens the same on every phone the families own, and Word or HEIC do not.
+ * 10 MB is the ceiling: a scanned worksheet fits, a 40-page textbook scan does
+ * not, and Cloudinary's free tier is what pays for the difference.
+ */
+const val TASK_ATTACHMENT_MAX_BYTES: Long = 10L * 1024 * 1024
+
+/** `"1.2 MB"` / `"840 KB"` for the chip under the form. */
+fun taskAttachmentSizeLabel(bytes: Long): String = when {
+    bytes >= 1024L * 1024L -> String.format(Locale.US, "%.1f MB", bytes / (1024.0 * 1024.0))
+    bytes >= 1024L -> String.format(Locale.US, "%d KB", bytes / 1024L)
+    else -> "$bytes B"
+}
 
 /** One group of the selector. */
 data class PublishGroupUi(val id: String, val label: String)

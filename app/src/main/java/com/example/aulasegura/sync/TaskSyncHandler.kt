@@ -2,6 +2,8 @@ package com.example.aulasegura.sync
 
 import com.example.aulasegura.data.local.dao.TaskDao
 import com.example.aulasegura.data.local.entity.OutboxEntity
+import com.example.aulasegura.data.mapper.StoredTaskAttachment
+import com.example.aulasegura.data.mapper.attachments
 import com.example.aulasegura.data.mapper.toFirestoreMap
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.FirebaseFirestoreException
@@ -20,6 +22,11 @@ import kotlinx.coroutines.tasks.await
  * create rule genuinely refused it — usually because the teacher no longer
  * teaches one of the groups — and retrying cannot fix that.
  *
+ * The attached PDF must have reached Cloudinary first: the document carries its
+ * URL, and a `set()` before the upload would publish `attachments: []` and never
+ * fix itself. The outbox drains by `createdAt, id` with the upload queued first,
+ * so this guard is a safety net, not the normal path.
+ *
  * There is no local sync column to update: the cache row is also the read model,
  * and the outbox row itself is what the history reads to show "pending".
  */
@@ -33,6 +40,13 @@ class TaskSyncHandler(
             ?: return SyncOutcome.Permanent(
                 "Task ${entry.entityLocalId} is no longer stored locally",
             )
+
+        val attachment = task.attachments().firstOrNull()
+        if (attachment != null && attachment.state == StoredTaskAttachment.PENDING) {
+            return SyncOutcome.Retry(
+                "Task ${task.taskId} still has a PDF to upload",
+            )
+        }
 
         return try {
             firestore.collection(COLLECTION)

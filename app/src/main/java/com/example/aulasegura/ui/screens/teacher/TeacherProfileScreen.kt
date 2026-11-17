@@ -1,5 +1,8 @@
 package com.example.aulasegura.ui.screens.teacher
 
+import android.net.Uri
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.foundation.background
@@ -30,10 +33,14 @@ import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.filled.School
 import androidx.compose.material.icons.filled.Shield
 import androidx.compose.material.icons.filled.Sync
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -43,11 +50,15 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.core.content.FileProvider
+import coil.compose.AsyncImage
 import com.example.aulasegura.ui.components.TeacherBottomBar
 import com.example.aulasegura.ui.components.TeacherTab
 import com.example.aulasegura.ui.components.rememberPressScale
@@ -65,13 +76,19 @@ import com.example.aulasegura.ui.theme.SurfaceContainer
 import com.example.aulasegura.ui.theme.SurfaceContainerLow
 import com.example.aulasegura.ui.theme.SurfaceContainerLowest
 import com.example.aulasegura.ui.theme.SurfaceVariant
+import java.io.File
 
 /**
  * Teacher — Perfil. Ported from Stitch screen `6e82dee0cb5245af83656dbbd9073ce9`
  * ("Perfil del Docente - AulaSegura", project 7677408035297541086).
  *
- * Visual shell only: the notification toggle is UI state and the version footer
- * is static.
+ * The identity block is the session profile: name, email, school and subjects come
+ * from `users/{uid}` through the ViewModel. The avatar is uploaded to Cloudinary
+ * and its URL written back to Firestore, so a cold start reads the same picture
+ * from the local profile cache.
+ *
+ * The notification switch stays inert on purpose: Android 13's permission is
+ * requested when the app opens, not from this row.
  */
 
 private val WarmBorder = Color(0xFFEAE6DF)
@@ -86,20 +103,49 @@ private val GroupCardShape = RoundedCornerShape(20.dp)
 private val IconTileShape = RoundedCornerShape(12.dp)
 private val PillShape = RoundedCornerShape(percent = 50)
 
-private data class TeacherGroupSlot(val name: String, val students: String)
-
-private val teacherGroupSlots = listOf(
-    TeacherGroupSlot("3° B", "28 alumnos"),
-    TeacherGroupSlot("3° A", "28 alumnos"),
-    TeacherGroupSlot("2° C", "28 alumnos"),
-)
-
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun TeacherProfileScreen(
+    ui: TeacherProfileUi,
     onSelectTab: (TeacherTab) -> Unit,
     onLogout: () -> Unit = {},
+    onChangePhoto: (Uri) -> Unit = {},
+    onDismissMessage: () -> Unit = {},
 ) {
-    var notificationsEnabled by remember { mutableStateOf(true) }
+    val context = LocalContext.current
+    var showPhotoOptions by remember { mutableStateOf(false) }
+    var pendingCapture by remember { mutableStateOf<File?>(null) }
+
+    // The camera writes into a cache file the FileProvider exposes to the camera
+    // app; the ViewModel only sees the resulting Uri and compresses it. The same
+    // pattern the incident form uses, with its own directory so the two never mix.
+    val cameraLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.TakePicture(),
+    ) { saved ->
+        val captured = pendingCapture
+        pendingCapture = null
+        if (saved && captured != null) {
+            onChangePhoto(Uri.fromFile(captured))
+        } else {
+            captured?.delete()
+        }
+    }
+    val galleryLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.GetContent(),
+    ) { uri ->
+        if (uri != null) onChangePhoto(uri)
+    }
+
+    fun capturePhoto() {
+        val directory = File(context.cacheDir, "perfil").apply { mkdirs() }
+        val file = File(directory, "perfil_${System.currentTimeMillis()}.jpg")
+        pendingCapture = file
+        val uri = FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", file)
+        runCatching { cameraLauncher.launch(uri) }.onFailure {
+            pendingCapture = null
+            file.delete()
+        }
+    }
 
     Box(
         modifier = Modifier
@@ -112,18 +158,28 @@ fun TeacherProfileScreen(
                 .verticalScroll(rememberScrollState())
                 .padding(bottom = 112.dp),
         ) {
-            Reveal(0) { ProfileHeader() }
-
-            Spacer(Modifier.height(16.dp))
-            Reveal(40) { MyGroupsSection() }
-
-            Spacer(Modifier.height(14.dp))
-            Reveal(100) {
-                SettingsCard(
-                    notificationsEnabled = notificationsEnabled,
-                    onNotificationsChange = { notificationsEnabled = it },
+            Reveal(0) {
+                ProfileHeader(
+                    ui = ui,
+                    onChangePhoto = { showPhotoOptions = true },
                 )
             }
+
+            if (ui.message != null) {
+                Spacer(Modifier.height(10.dp))
+                Reveal(20) {
+                    ProfileMessage(
+                        message = ui.message,
+                        onDismiss = onDismissMessage,
+                    )
+                }
+            }
+
+            Spacer(Modifier.height(16.dp))
+            Reveal(40) { MySubjectsSection(subjects = ui.subjects) }
+
+            Spacer(Modifier.height(14.dp))
+            Reveal(100) { SettingsCard(schoolId = ui.schoolId) }
 
             Spacer(Modifier.height(16.dp))
             Reveal(160) { LogoutSection(onLogout = onLogout) }
@@ -135,10 +191,82 @@ fun TeacherProfileScreen(
             modifier = Modifier.align(Alignment.BottomCenter),
         )
     }
+
+    if (showPhotoOptions) {
+        AlertDialog(onDismissRequest = { showPhotoOptions = false }) {
+            Column(modifier = Modifier.padding(24.dp)) {
+                Text(
+                    text = "Cambiar foto",
+                    color = PrimaryContainer,
+                    fontFamily = BricolageGrotesque,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 20.sp,
+                )
+                Spacer(Modifier.height(10.dp))
+                Text(
+                    text = "Elige una foto reciente o toma una ahora.",
+                    color = Outline,
+                    fontFamily = DmSans,
+                    fontSize = 14.sp,
+                )
+                Spacer(Modifier.height(14.dp))
+                TextButton(onClick = {
+                    showPhotoOptions = false
+                    capturePhoto()
+                }) {
+                    Text(text = "Tomar foto", fontFamily = DmSans)
+                }
+                TextButton(onClick = {
+                    showPhotoOptions = false
+                    galleryLauncher.launch("image/*")
+                }) {
+                    Text(text = "Elegir de la galería", fontFamily = DmSans)
+                }
+                TextButton(onClick = { showPhotoOptions = false }) {
+                    Text(text = "Cancelar", fontFamily = DmSans)
+                }
+            }
+        }
+    }
 }
 
 @Composable
-private fun ProfileHeader() {
+private fun ProfileMessage(
+    message: String,
+    onDismiss: () -> Unit,
+) {
+    val (interaction, pressModifier) = rememberPressScale(0.98f)
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp)
+            .clip(RoundedCornerShape(12.dp))
+            .background(BrandCoral.copy(alpha = 0.10f))
+            .border(1.dp, BrandCoral.copy(alpha = 0.35f), RoundedCornerShape(12.dp))
+            .clickable(
+                interactionSource = interaction,
+                indication = null,
+                onClick = onDismiss,
+            )
+            .padding(horizontal = 14.dp, vertical = 10.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(
+            text = message,
+            color = PrimaryContainer,
+            fontFamily = DmSans,
+            fontWeight = FontWeight.Medium,
+            fontSize = 13.sp,
+            lineHeight = 18.sp,
+        )
+    }
+}
+
+@Composable
+private fun ProfileHeader(
+    ui: TeacherProfileUi,
+    onChangePhoto: () -> Unit,
+) {
     Column(
         modifier = Modifier
             .fillMaxWidth()
@@ -150,23 +278,32 @@ private fun ProfileHeader() {
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
         Box(modifier = Modifier.size(80.dp)) {
-            Box(
-                modifier = Modifier
-                    .size(80.dp)
-                    .clip(CircleShape)
-                    .background(SurfaceContainer)
-                    .border(3.dp, Color.White, CircleShape),
-                contentAlignment = Alignment.Center,
-            ) {
-                Text(
-                    text = "RS",
-                    color = PrimaryContainer,
-                    fontFamily = BricolageGrotesque,
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 28.sp,
-                    lineHeight = 34.sp,
+            val avatarModifier = Modifier
+                .size(80.dp)
+                .clip(CircleShape)
+                .background(SurfaceContainer)
+                .border(3.dp, Color.White, CircleShape)
+
+            if (ui.photoUrl == null) {
+                Box(modifier = avatarModifier, contentAlignment = Alignment.Center) {
+                    Text(
+                        text = profileInitials(ui.fullName),
+                        color = PrimaryContainer,
+                        fontFamily = BricolageGrotesque,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 28.sp,
+                        lineHeight = 34.sp,
+                    )
+                }
+            } else {
+                AsyncImage(
+                    model = ui.photoUrl,
+                    contentDescription = "Foto de perfil",
+                    modifier = avatarModifier,
+                    contentScale = ContentScale.Crop,
                 )
             }
+
             val (cameraInteraction, cameraPress) = rememberPressScale(0.9f)
             Box(
                 modifier = cameraPress
@@ -175,7 +312,12 @@ private fun ProfileHeader() {
                     .clip(CircleShape)
                     .background(BrandCoral)
                     .border(2.dp, Color.White, CircleShape)
-                    .clickable(interactionSource = cameraInteraction, indication = null, onClick = {}),
+                    .clickable(
+                        enabled = !ui.uploading,
+                        interactionSource = cameraInteraction,
+                        indication = null,
+                        onClick = onChangePhoto,
+                    ),
                 contentAlignment = Alignment.Center,
             ) {
                 Icon(
@@ -189,8 +331,19 @@ private fun ProfileHeader() {
 
         Spacer(Modifier.height(8.dp))
 
+        if (ui.uploading) {
+            Text(
+                text = "Subiendo foto…",
+                color = Color.White.copy(alpha = 0.85f),
+                fontFamily = DmSans,
+                fontSize = 12.sp,
+                lineHeight = 16.sp,
+            )
+            Spacer(Modifier.height(4.dp))
+        }
+
         Text(
-            text = "Ricardo Salinas Ortega",
+            text = ui.fullName.ifBlank { "Perfil del docente" },
             color = Color.White,
             fontFamily = BricolageGrotesque,
             fontWeight = FontWeight.Bold,
@@ -209,7 +362,7 @@ private fun ProfileHeader() {
                     .padding(horizontal = 10.dp, vertical = 2.dp),
             ) {
                 Text(
-                    text = "Docente",
+                    text = profileSubtitle(ui.subjects),
                     color = Color.White,
                     fontFamily = DmSans,
                     fontWeight = FontWeight.Medium,
@@ -220,7 +373,7 @@ private fun ProfileHeader() {
             }
             Spacer(Modifier.width(8.dp))
             Text(
-                text = "ricardo.salinas@escuela.mx",
+                text = ui.email.ifBlank { "Sin correo registrado" },
                 color = Color.White.copy(alpha = 0.75f),
                 fontFamily = DmSans,
                 fontSize = 12.sp,
@@ -228,18 +381,35 @@ private fun ProfileHeader() {
                 letterSpacing = 0.24.sp,
             )
         }
+
+        if (ui.schoolId.isNotBlank()) {
+            Spacer(Modifier.height(6.dp))
+            Text(
+                text = "Escuela · ${ui.schoolId}",
+                color = Color.White.copy(alpha = 0.65f),
+                fontFamily = JetBrainsMono,
+                fontSize = 11.sp,
+                lineHeight = 14.sp,
+            )
+        }
     }
 }
 
+/**
+ * Subjects come from the profile itself. The mockup showed three invented groups
+ * with "28 alumnos" each; the real groups live in "Mis grupos", and printing fake
+ * ones here would be a lie the teacher cannot correct from this screen.
+ */
 @Composable
-private fun MyGroupsSection() {
+private fun MySubjectsSection(subjects: List<String>) {
+    val labels = subjects.filter { it.isNotBlank() }.ifEmpty { listOf("General") }
     Column(
         modifier = Modifier
             .fillMaxWidth()
             .padding(horizontal = 16.dp),
     ) {
         Text(
-            text = "MIS GRUPOS",
+            text = "MIS MATERIAS",
             color = Outline,
             fontFamily = JetBrainsMono,
             fontSize = 11.sp,
@@ -251,53 +421,40 @@ private fun MyGroupsSection() {
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.spacedBy(10.dp),
         ) {
-            teacherGroupSlots.forEach { slot ->
-                GroupSlotCard(slot = slot, modifier = Modifier.weight(1f))
+            labels.forEach { label ->
+                SubjectSlotCard(label = label, modifier = Modifier.weight(1f))
             }
         }
     }
 }
 
 @Composable
-private fun GroupSlotCard(
-    slot: TeacherGroupSlot,
+private fun SubjectSlotCard(
+    label: String,
     modifier: Modifier = Modifier,
 ) {
-    val (interaction, pressModifier) = rememberPressScale(0.98f)
     Column(
         modifier = modifier
             .clip(GroupCardShape)
             .background(SurfaceContainerLowest)
             .border(1.dp, WarmBorder, GroupCardShape)
-            .clickable(interactionSource = interaction, indication = null, onClick = {})
             .padding(horizontal = 12.dp, vertical = 12.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
         Text(
-            text = slot.name,
+            text = label,
             color = PrimaryContainer,
             fontFamily = BricolageGrotesque,
             fontWeight = FontWeight.Bold,
-            fontSize = 18.sp,
-            lineHeight = 24.sp,
-        )
-        Spacer(Modifier.height(2.dp))
-        Text(
-            text = slot.students,
-            color = Outline,
-            fontFamily = DmSans,
-            fontSize = 12.sp,
-            lineHeight = 16.sp,
-            letterSpacing = 0.24.sp,
+            fontSize = 16.sp,
+            lineHeight = 22.sp,
+            maxLines = 2,
         )
     }
 }
 
 @Composable
-private fun SettingsCard(
-    notificationsEnabled: Boolean,
-    onNotificationsChange: (Boolean) -> Unit,
-) {
+private fun SettingsCard(schoolId: String) {
     Column(
         modifier = Modifier
             .fillMaxWidth()
@@ -318,10 +475,9 @@ private fun SettingsCard(
             onClick = {},
         )
         SettingsDivider()
-        NotificationToggleRow(
-            enabled = notificationsEnabled,
-            onChange = onNotificationsChange,
-        )
+        SettingsValueRow(label = "Escuela", value = schoolId.ifBlank { "Sin asignar" })
+        SettingsDivider()
+        NotificationToggleRow()
         SettingsDivider()
         SettingsRow(
             icon = Icons.Filled.Shield,
@@ -368,10 +524,41 @@ private fun SettingsRow(
 }
 
 @Composable
-private fun NotificationToggleRow(
-    enabled: Boolean,
-    onChange: (Boolean) -> Unit,
-) {
+private fun SettingsValueRow(label: String, value: String) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(52.dp)
+            .padding(horizontal = 14.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        SettingsIconTile(icon = Icons.Filled.School)
+        Spacer(Modifier.width(12.dp))
+        Text(
+            text = label,
+            modifier = Modifier.weight(1f),
+            color = PrimaryContainer,
+            fontFamily = DmSans,
+            fontWeight = FontWeight.Medium,
+            fontSize = 15.sp,
+            lineHeight = 20.sp,
+        )
+        Text(
+            text = value,
+            color = Outline,
+            fontFamily = JetBrainsMono,
+            fontSize = 12.sp,
+            lineHeight = 16.sp,
+        )
+    }
+}
+
+/**
+ * Inert on purpose: the permission is requested by `MainActivity` when the app
+ * opens. A switch here would suggest it controls a setting that lives elsewhere.
+ */
+@Composable
+private fun NotificationToggleRow() {
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -381,23 +568,32 @@ private fun NotificationToggleRow(
     ) {
         SettingsIconTile(icon = Icons.Filled.Notifications)
         Spacer(Modifier.width(12.dp))
-        Text(
-            text = "Notificaciones",
-            modifier = Modifier.weight(1f),
-            color = PrimaryContainer,
-            fontFamily = DmSans,
-            fontWeight = FontWeight.Medium,
-            fontSize = 15.sp,
-            lineHeight = 20.sp,
-        )
-        NotificationToggle(checked = enabled, onCheckedChange = onChange)
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = "Notificaciones",
+                color = PrimaryContainer,
+                fontFamily = DmSans,
+                fontWeight = FontWeight.Medium,
+                fontSize = 15.sp,
+                lineHeight = 20.sp,
+            )
+            Text(
+                text = "El permiso se pide al iniciar la app",
+                color = Outline,
+                fontFamily = DmSans,
+                fontSize = 11.sp,
+                lineHeight = 14.sp,
+            )
+        }
+        NotificationToggle(checked = true, enabled = false)
     }
 }
 
 @Composable
 private fun NotificationToggle(
     checked: Boolean,
-    onCheckedChange: (Boolean) -> Unit,
+    enabled: Boolean = true,
+    onCheckedChange: (Boolean) -> Unit = {},
 ) {
     val trackColor by animateColorAsState(
         targetValue = if (checked) PrimaryContainer else SurfaceVariant,
@@ -415,6 +611,7 @@ private fun NotificationToggle(
             .clip(PillShape)
             .background(trackColor)
             .clickable(
+                enabled = enabled,
                 interactionSource = remember { MutableInteractionSource() },
                 indication = null,
                 onClick = { onCheckedChange(!checked) },

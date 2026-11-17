@@ -74,6 +74,7 @@ import com.example.aulasegura.ui.screens.teacher.TeacherChatViewModel
 import com.example.aulasegura.ui.screens.teacher.TeacherConversationViewModel
 import com.example.aulasegura.ui.screens.teacher.TeacherNoticeNewViewModel
 import com.example.aulasegura.ui.screens.teacher.TeacherNotificationsViewModel
+import com.example.aulasegura.ui.screens.teacher.TeacherProfileViewModel
 import com.example.aulasegura.ui.screens.teacher.TeacherTaskNewViewModel
 import com.google.firebase.analytics.FirebaseAnalytics
 import com.google.firebase.auth.FirebaseAuth
@@ -502,6 +503,13 @@ class AppViewModelFactory(
                 groups = container.groupRepository,
                 auth = container.authRepository,
                 notices = container.noticeRepository,
+            )
+
+        modelClass.isAssignableFrom(TeacherProfileViewModel::class.java) ->
+            TeacherProfileViewModel(
+                auth = container.authRepository,
+                compressor = container.imageCompressor,
+                uploader = container.cloudinaryUploader,
             )
 
         else -> error("No ViewModel registered for ${modelClass.name}")

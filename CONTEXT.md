@@ -215,6 +215,12 @@ updatedAt        timestamp
 lastLoginAt      timestamp
 ```
 
+`photoPublicId` es la ruta completa del asset en Cloudinary (`aulasegura/profiles/{uid}`), no un
+`public_id` suelto: el preset de subida no prefija la carpeta. La Fase 1 (bloque 11) lo escribe
+junto a `photoUrl` con un `update()` de dos campos. La caché Room del perfil guarda solo `photoUrl`,
+porque mostrar la foto no necesita el id y una foto nueva genera uno nuevo: eso evita una migración
+de esquema para un campo que solo se usa al reemplazar la imagen.
+
 #### `students/{studentId}`
 ```
 firstName, lastName, fullName   string

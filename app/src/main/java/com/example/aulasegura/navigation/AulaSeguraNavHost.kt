@@ -86,6 +86,7 @@ import com.example.aulasegura.ui.screens.teacher.TeacherHomeScreen
 import com.example.aulasegura.ui.screens.teacher.TeacherLocationVerifyingScreen
 import com.example.aulasegura.ui.screens.teacher.TeacherNoticeNewScreen
 import com.example.aulasegura.ui.screens.teacher.TeacherNoticeNewViewModel
+import com.example.aulasegura.ui.screens.teacher.TeacherProfileViewModel
 import com.example.aulasegura.ui.screens.teacher.TeacherNotificationsViewModel
 import com.example.aulasegura.ui.screens.teacher.TeacherNotificationsScreen
 import com.example.aulasegura.ui.screens.teacher.TeacherOutsideRadiusScreen
@@ -317,7 +318,13 @@ fun AulaSeguraNavHost(
 
         // ---- Teacher ----
         composable(Routes.TEACHER_HOME) {
+            // The session profile is already resolved by Splash; reading it here
+            // keeps the greeting and avatar on the same source as the profile screen.
+            val teacher = rememberAppContainer().authRepository.currentUser
             TeacherHomeScreen(
+                fullName = teacher?.fullName.orEmpty(),
+                subjects = teacher?.subjects.orEmpty(),
+                photoUrl = teacher?.photoUrl,
                 onIrAGrupos = { navController.navigate(Routes.TEACHER_GROUPS) },
                 onIrAPaseLista = { navController.navigate(Routes.TEACHER_GROUPS) },
                 onIrARegistrarIncidente = { navController.navigate(Routes.TEACHER_INCIDENT_NEW) },
@@ -604,9 +611,15 @@ fun AulaSeguraNavHost(
             )
         }
         composable(Routes.TEACHER_PROFILE) {
+            val profileViewModel: TeacherProfileViewModel =
+                viewModel(factory = rememberAppContainer().viewModelFactory)
+            val profileUi by profileViewModel.ui.collectAsState()
             TeacherProfileScreen(
+                ui = profileUi,
                 onSelectTab = { navController.openTeacherTab(it) },
                 onLogout = { sessionViewModel.signOut() },
+                onChangePhoto = profileViewModel::changePhoto,
+                onDismissMessage = profileViewModel::clearMessage,
             )
         }
 

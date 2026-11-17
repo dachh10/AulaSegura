@@ -23,7 +23,7 @@
 | **8B** — PDF en tareas | un solo PDF (10 MB) subido antes de publicar | ✅ **hecho** · `4ddc7b7` + `e837e16` · `assembleDebug` + 189 tests |
 | **9** — Chat | conversaciones y mensajes en RTDB | ✅ **hecho** · `396830d` · `assembleDebug` + 205 tests |
 | **10** — Notificaciones y FCM | push desde la consola + bandeja real + script de avisos | ✅ **cerrado 17 nov 2026** · probado en teléfono · 219 tests |
-| **11** — Perfil | datos reales del docente | pendiente |
+| **11** — Perfil | datos reales del docente + foto en Cloudinary | ✅ **hecho** · `assembleDebug` + 227 tests |
 
 **Criterio de cierre de la fase** (`PLAN.md`): con **modo avión** activo, el docente pasa lista y
 registra un incidente con foto; al reconectar, ambos aparecen en Firestore **sin duplicados** y
@@ -1009,11 +1009,71 @@ node scripts/notify/index.js \
 
 ## Bloque 11 — Perfil (PLAN 1.12)
 
-- [ ] **11.1** `TeacherProfileScreen` con datos reales (`fullName`, `email`, `schoolId`, `subjects`)
-- [ ] **11.2** Saludo del `TeacherHomeScreen` desde `fullName` (cierra el pendiente de la Fase 0)
-- [ ] **11.3** Foto: comprimir + subir a `aulasegura/profiles/{uid}` + escribir `photoUrl` y `photoPublicId`
-- [ ] **11.4** Foto visible en la UI y persistida entre sesiones (Coil)
-- [ ] **11.5** Logout y cierre forzado por `active = false` siguen funcionando
+> **Estado: ✅ HECHO** — 17 nov 2026 · `assembleDebug` verde · **227 tests unitarios, 0 fallos**
+> (+8: 2 del documento de la foto, 1 de la caché del perfil y 5 de etiquetas del perfil y el saludo).
+> **La verificación en el teléfono la corre el dueño del proyecto**; los pasos van al final.
+
+- [x] **11.1** `TeacherProfileScreen` con datos reales (`fullName`, `email`, `schoolId`, `subjects`)
+- [x] **11.2** Saludo del `TeacherHomeScreen` desde `fullName` (cierra el pendiente de la Fase 0)
+- [x] **11.3** Foto: comprimir + subir a `aulasegura/profiles/{uid}` + escribir `photoUrl` y `photoPublicId`
+- [x] **11.4** Foto visible en la UI y persistida entre sesiones (Coil)
+- [x] **11.5** Logout y cierre forzado por `active = false` siguen funcionando
+
+**Qué cambió en este bloque**
+
+| Archivo | Cambio |
+|---|---|
+| `domain/model/AppUser.kt` | `photoPublicId`, para representar el campo que ya existe en `users/{uid}` |
+| `domain/repository/AuthRepository.kt` · `data/repository/AuthRepositoryImpl.kt` | **nuevo** `updateProfilePhoto`: `update()` de solo dos campos, refresco de la memoria y de la caché Room, y resultado tipado |
+| `data/mapper/ProfilePhotoMapper.kt` | **nuevo**: el mapa de `photoUrl` + `photoPublicId`, sin tocar `role`, `schoolId` ni `active` |
+| `ui/screens/teacher/TeacherProfileUi.kt` · `TeacherProfileViewModel.kt` | **nuevos**: estado del perfil, iniciales, materia del perfil, saludo y flujo cámara/galería → compresión → Cloudinary → perfil |
+| `ui/screens/teacher/TeacherProfileScreen.kt` | cableada: nombre, correo, escuela y materias reales; `AsyncImage` con iniciales de respaldo; diálogo para tomar foto o elegirla; aviso de subida y de resultado |
+| `ui/screens/teacher/TeacherHomeScreen.kt` | saludo y avatar desde el perfil de la sesión, en vez de "Hola, profe Ricardo" / "RS" |
+| `di/AppContainer.kt` · `navigation/AulaSeguraNavHost.kt` | factory del ViewModel del perfil, ruta cableada y perfil de la sesión propagado al inicio |
+| `gradle/libs.versions.toml` · `app/build.gradle.kts` | **Coil 2.7.0** (alias `coil-compose`), la versión ya presente en la caché local de Gradle |
+| `app/src/main/res/xml/file_paths.xml` | `cache-path` propio para la foto del perfil, separado del de incidentes |
+| `test/.../ProfilePhotoMapperTest.kt` · `TeacherProfileUiTest.kt` · `ProfileMappersTest.kt` · `AuthViewModelsTest.kt` | **nuevos/ampliados**: forma del `update`, round-trip de la caché, iniciales, saludo, materia y fake del repositorio |
+
+**Decisiones que importan**
+
+- **Sin migración de Room.** `photoPublicId` se escribe en Firestore y viaja en `AppUser`, pero no se
+  guarda en `ProfileEntity` (la tabla sigue en `version = 3`). El criterio solo necesita `photoUrl`,
+  que ya tiene columna, para volver a mostrar la foto después de reiniciar.
+- **Dos campos, no un `set()`.** El perfil lo escriben también los flujos del directivo; mandar el
+  documento completo desde el teléfono del docente competiría con `role`, `schoolId` y `active`.
+  Las reglas ya prohíben cambiarlos, y el `update()` tampoco los menciona.
+- **La foto no pasa por la outbox.** Es una escritura pequeña y el perfil se relee al entrar; una
+  cola de sincronización para un avatar no compraba nada y dejaría la pantalla con una URL vieja.
+- **El permiso de notificaciones no se toca desde aquí.** El interruptor del mockup queda atenuado
+  con el motivo: Android 13 lo pide `MainActivity` al abrir la app.
+- **"MIS MATERIAS", no tres grupos inventados.** El mockup mostraba 3° B / 3° A / 2° C con "28
+  alumnos" cada uno; los grupos reales están en "Mis grupos" y aquí solo se muestra lo que el
+  perfil sí contiene.
+- **La subida usa el mismo stack que los incidentes.** `ImageCompressor` y `CloudinaryFolder.PROFILES`
+  ya existían; el avatar solo cambia el `scopeId` por el uid y escribe la URL devuelta en el perfil.
+
+**Cómo probarlo en el teléfono** (lo corre el dueño del proyecto)
+
+1. Entra como docente: el saludo dice tu nombre real y el avatar muestra tu foto si la tienes, o tus
+   iniciales si no. La tarjeta "MIS MATERIAS" muestra tus materias del perfil.
+2. Toca la cámara → **Tomar foto** o **Elegir de la galería** → el aviso "Subiendo foto…" y después
+   "Foto actualizada." En Firestore, `users/{tuUid}` trae `photoUrl` y `photoPublicId` con la ruta
+   `aulasegura/profiles/{uid}`.
+3. Cierra la app con el botón de atrás y vuelve a abrirla: la foto sigue ahí sin haber tocado red
+   (viene de la caché Room del perfil).
+4. Cierra sesión: `users/{uid}/fcmTokens` queda vacío y vuelve la pantalla de acceso.
+5. Desde la consola, pon `active: false` en tu usuario con la app abierta: la sesión se cierra sola.
+
+**Pendientes conocidos**
+
+1. **La foto anterior no se borra de Cloudinary.** Queda como asset huérfano cuando se reemplaza;
+   borrarla pide una llamada de administración con la API de Cloudinary, fuera de Fase 1.
+2. **`photoPublicId` no se cachea en Room.** Si abres la app sin red, la foto se muestra por su URL,
+   pero el `publicId` local es `null`; no afecta porque una foto nueva genera uno nuevo.
+3. **Sin recorte ni filtros.** La foto se comprime y se sube tal cual; el recorte interactivo es de
+   una fase posterior.
+4. **Sin cámara en tablet sin cámara.** La opción de galería sigue disponible.
+5. **Verificación en el teléfono** a cargo del dueño del proyecto (los 5 pasos de arriba).
 
 **Criterio:** el docente cambia su foto, cierra la app, vuelve a entrar y la foto sigue ahí; el
 saludo muestra su nombre real.
@@ -1024,8 +1084,8 @@ saludo muestra su nombre real.
 
 - [ ] **C1** Modo avión: pase de lista completo **y** incidente con foto
 - [ ] **C2** Reconectar: ambos en Firestore, **sin duplicados**, media subida
-- [ ] **C3** `assembleDebug` verde
-- [ ] **C4** `testDebugUnitTest` verde (sin bajar el número de la Fase 0: eran 61)
+- [x] **C3** `assembleDebug` verde
+- [x] **C4** `testDebugUnitTest` verde (227 tests, 0 fallos; la Fase 0 tenía 61)
 - [ ] **C5** `connectedDebugAndroidTest` verde en device físico
 - [ ] **C6** Reglas de Firestore y de RTDB publicadas
 - [ ] **C7** `FASE1.md` completo y `CONTEXT.md` actualizado con lo que cambió de esquema

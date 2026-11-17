@@ -48,7 +48,35 @@ interface AuthRepository {
      */
     suspend fun sendPasswordReset(email: String): PasswordResetResult
 
+    /**
+     * Stores the avatar coordinates in `users/{uid}` and refreshes the cached
+     * profile, so the new picture survives a restart without another network read.
+     *
+     * No network call belongs here: compression and the Cloudinary upload happen
+     * in the caller. This method only writes the two fields the profile owns.
+     */
+    suspend fun updateProfilePhoto(
+        photoUrl: String,
+        photoPublicId: String,
+    ): ProfilePhotoResult
+
     fun signOut()
+}
+
+/** Outcome of an avatar write, kept typed so the UI can explain a rejection. */
+sealed interface ProfilePhotoResult {
+
+    /** Firestore accepted it and the in-memory and cached profiles were updated. */
+    data object Saved : ProfilePhotoResult
+
+    /** The session ended while the picture was being uploaded. */
+    data object SignedOut : ProfilePhotoResult
+
+    /** The rules refused the write — e.g. the account was deactivated meanwhile. */
+    data object Rejected : ProfilePhotoResult
+
+    /** Transport failure; the picture is in Cloudinary but the profile still points to the old one. */
+    data object Failed : ProfilePhotoResult
 }
 
 sealed interface PasswordResetResult {

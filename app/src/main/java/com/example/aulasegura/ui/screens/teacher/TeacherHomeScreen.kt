@@ -24,6 +24,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import coil.compose.AsyncImage
 import androidx.compose.material.icons.automirrored.filled.FactCheck
 import androidx.compose.material.icons.automirrored.outlined.Assignment
 import androidx.compose.material.icons.filled.Campaign
@@ -40,6 +41,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -82,6 +84,9 @@ private val RowShape = RoundedCornerShape(16.dp)
 
 @Composable
 fun TeacherHomeScreen(
+    fullName: String = "",
+    subjects: List<String> = emptyList(),
+    photoUrl: String? = null,
     onIrAGrupos: () -> Unit = {},
     onIrAPaseLista: () -> Unit = {},
     onIrARegistrarIncidente: () -> Unit = {},
@@ -108,7 +113,14 @@ fun TeacherHomeScreen(
                 .padding(top = 12.dp, bottom = 96.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
-            Reveal(0) { TeacherTopBar(onNotifications = onIrANotificaciones) }
+            Reveal(0) {
+                TeacherTopBar(
+                    fullName = fullName,
+                    subjects = subjects,
+                    photoUrl = photoUrl,
+                    onNotifications = onIrANotificaciones,
+                )
+            }
             Reveal(60) { TeacherHeroCard(onPasarLista = onIrAPaseLista) }
             Reveal(120) { TeacherTodaySummary() }
             Reveal(180) {
@@ -140,36 +152,47 @@ fun TeacherHomeScreen(
 
 // ZONE 1 — Top bar
 @Composable
-private fun TeacherTopBar(onNotifications: () -> Unit) {
+private fun TeacherTopBar(
+    fullName: String,
+    subjects: List<String>,
+    photoUrl: String?,
+    onNotifications: () -> Unit,
+) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
             .padding(horizontal = 16.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        // The mockup uses a portrait photograph; here it is imitated with a
-        // monogram inside the same 44dp ringed circle.
-        Box(
-            modifier = Modifier
-                .size(44.dp)
-                .clip(CircleShape)
-                .background(SurfaceContainerLowest)
-                .border(1.5.dp, Hairline, CircleShape),
-            contentAlignment = Alignment.Center,
-        ) {
-            Text(
-                text = "RS",
-                color = PrimaryContainer,
-                fontFamily = BricolageGrotesque,
-                fontWeight = FontWeight.Bold,
-                fontSize = 15.sp,
-                lineHeight = 15.sp,
+        val avatarModifier = Modifier
+            .size(44.dp)
+            .clip(CircleShape)
+            .background(SurfaceContainerLowest)
+            .border(1.5.dp, Hairline, CircleShape)
+
+        if (photoUrl == null) {
+            Box(modifier = avatarModifier, contentAlignment = Alignment.Center) {
+                Text(
+                    text = profileInitials(fullName),
+                    color = PrimaryContainer,
+                    fontFamily = BricolageGrotesque,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 15.sp,
+                    lineHeight = 15.sp,
+                )
+            }
+        } else {
+            AsyncImage(
+                model = photoUrl,
+                contentDescription = "Foto de perfil",
+                modifier = avatarModifier,
+                contentScale = ContentScale.Crop,
             )
         }
         Spacer(modifier = Modifier.width(12.dp))
         Column(modifier = Modifier.weight(1f)) {
             Text(
-                text = "Hola, profe Ricardo",
+                text = teacherGreeting(fullName),
                 color = OnboardingHeading,
                 fontFamily = BricolageGrotesque,
                 fontWeight = FontWeight.Bold,
@@ -178,7 +201,7 @@ private fun TeacherTopBar(onNotifications: () -> Unit) {
                 letterSpacing = (-0.01).em,
             )
             Text(
-                text = "Docente · Matemáticas",
+                text = profileSubtitle(subjects),
                 color = OnboardingMuted,
                 fontFamily = DmSans,
                 fontWeight = FontWeight.Medium,

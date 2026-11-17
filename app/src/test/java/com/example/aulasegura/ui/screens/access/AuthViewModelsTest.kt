@@ -6,6 +6,7 @@ import com.example.aulasegura.domain.repository.AuthFailure
 import com.example.aulasegura.domain.repository.AuthRepository
 import com.example.aulasegura.domain.repository.AuthResult
 import com.example.aulasegura.domain.repository.PasswordResetResult
+import com.example.aulasegura.domain.repository.ProfilePhotoResult
 import com.example.aulasegura.domain.repository.PushTokenRepository
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -37,6 +38,9 @@ private class FakeAuthRepository(
     var signInCalls = 0
     var signOutCalls = 0
     var lastEmail: String? = null
+    var lastPhotoUrl: String? = null
+    var lastPhotoPublicId: String? = null
+    var photoResult: ProfilePhotoResult = ProfilePhotoResult.Saved
 
     override val currentUserId: String? = null
 
@@ -54,6 +58,15 @@ private class FakeAuthRepository(
 
     override suspend fun sendPasswordReset(email: String): PasswordResetResult =
         PasswordResetResult.Sent
+
+    override suspend fun updateProfilePhoto(
+        photoUrl: String,
+        photoPublicId: String,
+    ): ProfilePhotoResult {
+        lastPhotoUrl = photoUrl
+        lastPhotoPublicId = photoPublicId
+        return photoResult
+    }
 
     override fun signOut() {
         signOutCalls++

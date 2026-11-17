@@ -3,12 +3,14 @@ package com.example.aulasegura.data.repository
 import com.example.aulasegura.data.local.dao.ProfileDao
 import com.example.aulasegura.data.local.mapper.toCachedEntity
 import com.example.aulasegura.data.local.mapper.toCachedUser
+import com.example.aulasegura.data.mapper.profilePhotoUpdate
 import com.example.aulasegura.domain.model.AppUser
 import com.example.aulasegura.domain.model.UserRole
 import com.example.aulasegura.domain.repository.AuthFailure
 import com.example.aulasegura.domain.repository.AuthRepository
 import com.example.aulasegura.domain.repository.AuthResult
 import com.example.aulasegura.domain.repository.PasswordResetResult
+import com.example.aulasegura.domain.repository.ProfilePhotoResult
 import com.example.aulasegura.domain.telemetry.AnalyticsEvent
 import com.example.aulasegura.domain.telemetry.AnalyticsLogger
 import com.example.aulasegura.domain.telemetry.NoOpAnalyticsLogger
@@ -73,6 +75,43 @@ class AuthRepositoryImpl(
     override suspend fun restoreSession(): AuthResult {
         if (auth.currentUser == null) return AuthResult.Failure(AuthFailure.NO_SESSION)
         return resolveProfile()
+    }
+
+    override suspend fun updateProfilePhoto(
+        photoUrl: String,
+        photoPublicId: String,
+    ): ProfilePhotoResult {
+        val profile = currentUser ?: return ProfilePhotoResult.SignedOut
+        val uid = auth.currentUser?.uid
+        if (uid == null || uid != profile.uid) return ProfilePhotoResult.SignedOut
+
+        return try {
+            firestore.collection(USERS).document(uid)
+                .update(profilePhotoUpdate(photoUrl, photoPublicId))
+                .await()
+
+            // The avatar must already be visible when the screen comes back: the
+            // in-memory profile feeds the greeting and the UI directly, and Room
+            // is what restores it on the next cold start without a network read.
+            val updated = profile.copy(
+                photoUrl = photoUrl,
+                photoPublicId = photoPublicId,
+            )
+            currentUser = updated
+            runCatching {
+                profileDao.upsert(updated.toCachedEntity(System.currentTimeMillis()))
+            }
+
+            ProfilePhotoResult.Saved
+        } catch (denied: FirebaseFirestoreException) {
+            if (denied.code == FirebaseFirestoreException.Code.PERMISSION_DENIED) {
+                ProfilePhotoResult.Rejected
+            } else {
+                ProfilePhotoResult.Failed
+            }
+        } catch (e: Exception) {
+            ProfilePhotoResult.Failed
+        }
     }
 
     override fun signOut() {

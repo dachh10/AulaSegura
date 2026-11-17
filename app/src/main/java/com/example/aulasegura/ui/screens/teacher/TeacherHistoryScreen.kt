@@ -25,6 +25,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowLeft
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
+import androidx.compose.material.icons.filled.AttachFile
 import androidx.compose.material.icons.filled.CloudDone
 import androidx.compose.material.icons.filled.CloudOff
 import androidx.compose.material.icons.filled.CloudUpload
@@ -48,6 +49,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.aulasegura.domain.model.AttachmentSyncState
 import com.example.aulasegura.domain.model.AttendanceMark
 import com.example.aulasegura.domain.model.MediaUploadPhase
 import com.example.aulasegura.domain.model.RollCallSync
@@ -162,7 +164,16 @@ fun TeacherHistoryScreen(
                         }
                     }
 
-                    else -> HistoryPendingTab(label = historySegments[segment])
+                    else -> when {
+                        ui.publications.isEmpty() ->
+                            PublicationEmptyState(refreshing = ui.refreshing)
+
+                        else -> Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                            ui.publications.forEach { publication ->
+                                PublicationCard(publication = publication)
+                            }
+                        }
+                    }
                 }
             }
         }
@@ -401,11 +412,150 @@ private fun HistoryEmptyState(refreshing: Boolean) {
 }
 
 /**
- * Incidentes and Publicaciones still have no data: their blocks are 6, 8 and 9.
- * Saying so is better than an empty list that looks like a bug.
+ * One task or notice the teacher published.
+ *
+ * Deliberately flatter than [SessionCard]: a publication has no roster to expand,
+ * so it is a single card with its audience and its sync state. The pill is per
+ * row because one publication can be waiting in the outbox while the next one
+ * already reached Firestore.
  */
 @Composable
-private fun HistoryPendingTab(label: String) {
+private fun PublicationCard(publication: HistoryPublicationUi) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp)
+            .clip(HistoryCardShape)
+            .background(SurfaceContainerLowest)
+            .border(1.dp, HistoryHairline, HistoryCardShape)
+            .padding(14.dp),
+        verticalArrangement = Arrangement.spacedBy(6.dp),
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(6.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            PublicationKindChip(
+                label = publication.kindLabel,
+                urgent = publication.urgent,
+            )
+            Spacer(Modifier.weight(1f))
+            Text(
+                text = publication.postedLabel,
+                color = Outline,
+                fontFamily = JetBrainsMono,
+                fontSize = 10.5.sp,
+                lineHeight = 14.sp,
+                maxLines = 1,
+            )
+        }
+
+        Text(
+            text = publication.title,
+            color = PrimaryContainer,
+            fontFamily = DmSans,
+            fontWeight = FontWeight.Bold,
+            fontSize = 15.sp,
+            lineHeight = 20.sp,
+            maxLines = 2,
+            overflow = TextOverflow.Ellipsis,
+        )
+
+        if (publication.detail.isNotBlank()) {
+            Text(
+                text = publication.detail,
+                color = OnSurfaceVariant,
+                fontFamily = DmSans,
+                fontSize = 12.sp,
+                lineHeight = 16.sp,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis,
+            )
+        }
+
+        // The attached PDF and what happened to it. The teacher asked for this
+        // row to be able to confirm, days later, that the file really went up.
+        publication.attachmentLabel?.let { label ->
+            val tint = when (publication.attachmentState) {
+                AttachmentSyncState.UPLOADED -> PresentText
+                AttachmentSyncState.FAILED -> AbsentText
+                else -> PendingText
+            }
+
+            Row(
+                modifier = Modifier
+                    .clip(HistoryPillShape)
+                    .background(SurfaceContainer)
+                    .padding(horizontal = 8.dp, vertical = 4.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
+            ) {
+                Icon(
+                    imageVector = Icons.Filled.AttachFile,
+                    contentDescription = null,
+                    tint = tint,
+                    modifier = Modifier.size(13.dp),
+                )
+                Text(
+                    text = label,
+                    color = tint,
+                    fontFamily = JetBrainsMono,
+                    fontWeight = FontWeight.SemiBold,
+                    fontSize = 10.5.sp,
+                    lineHeight = 14.sp,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
+        }
+
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(
+                text = publication.audience,
+                modifier = Modifier.weight(1f),
+                color = OnSurfaceVariant,
+                fontFamily = DmSans,
+                fontWeight = FontWeight.Medium,
+                fontSize = 11.5.sp,
+                lineHeight = 15.sp,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+            Text(
+                text = publicationSyncLabel(publication.pending),
+                color = if (publication.pending) PendingText else PresentText,
+                fontFamily = JetBrainsMono,
+                fontWeight = FontWeight.SemiBold,
+                fontSize = 10.5.sp,
+                lineHeight = 14.sp,
+                maxLines = 1,
+            )
+        }
+    }
+}
+
+@Composable
+private fun PublicationKindChip(label: String, urgent: Boolean) {
+    Text(
+        text = label,
+        color = if (urgent) AbsentText else MutedChipText,
+        fontFamily = JetBrainsMono,
+        fontWeight = FontWeight.SemiBold,
+        fontSize = 10.sp,
+        lineHeight = 13.sp,
+        modifier = Modifier
+            .clip(HistoryPillShape)
+            .background(if (urgent) AbsentBg else MutedChipBg)
+            .padding(horizontal = 8.dp, vertical = 2.dp),
+    )
+}
+
+@Composable
+private fun PublicationEmptyState(refreshing: Boolean) {
     Box(
         modifier = Modifier
             .fillMaxWidth()
@@ -417,8 +567,12 @@ private fun HistoryPendingTab(label: String) {
         contentAlignment = Alignment.Center,
     ) {
         Text(
-            text = "El historial de $label llega con su bloque de la fase. " +
-                "Por ahora solo las listas tienen datos reales.",
+            text = if (refreshing) {
+                "Buscando tus publicaciones…"
+            } else {
+                "Aún no has publicado tareas ni avisos. Lo que publiques aparece aquí, " +
+                    "también sin conexión."
+            },
             color = OnSurfaceVariant,
             fontFamily = DmSans,
             fontSize = 13.sp,

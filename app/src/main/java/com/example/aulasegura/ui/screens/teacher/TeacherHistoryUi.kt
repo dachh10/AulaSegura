@@ -1,5 +1,6 @@
 package com.example.aulasegura.ui.screens.teacher
 
+import com.example.aulasegura.domain.model.AttachmentSyncState
 import com.example.aulasegura.domain.model.AttendanceMark
 import com.example.aulasegura.domain.model.AttendanceSessionDetail
 import com.example.aulasegura.domain.model.AttendanceSessionRecord
@@ -7,9 +8,13 @@ import com.example.aulasegura.domain.model.AttendanceSessionSummary
 import com.example.aulasegura.domain.model.IncidentEvidence
 import com.example.aulasegura.domain.model.IncidentSummary
 import com.example.aulasegura.domain.model.MediaUploadPhase
+import com.example.aulasegura.domain.model.PublishedNotice
+import com.example.aulasegura.domain.model.PublishedTask
 import com.example.aulasegura.domain.model.RollCallSync
 import com.example.aulasegura.domain.model.SyncPhase
 import com.example.aulasegura.util.AttendanceTimes
+import java.text.SimpleDateFormat
+import java.util.Date
 import java.util.Locale
 import java.util.TimeZone
 import kotlin.math.roundToInt
@@ -24,6 +29,7 @@ import kotlin.math.roundToInt
 data class TeacherHistoryUi(
     val sections: List<HistorySectionUi> = emptyList(),
     val incidentSections: List<IncidentSectionUi> = emptyList(),
+    val publications: List<HistoryPublicationUi> = emptyList(),
     val refreshing: Boolean = true,
     val notice: String? = null,
     val expandedId: String? = null,
@@ -96,6 +102,34 @@ data class HistoryIncidentUi(
     val mediaCount: Int,
     val expanded: Boolean,
     val evidence: List<HistoryEvidenceUi> = emptyList(),
+)
+
+/**
+ * One task or notice the teacher published, as the "Publicaciones" segment shows
+ * it.
+ *
+ * Both kinds share a row because the teacher is reading one timeline of what they
+ * sent to families; splitting them into two lists would make them ask "where is
+ * the notice I sent yesterday?" at the wrong tab.
+ */
+data class HistoryPublicationUi(
+    val id: String,
+    /** `"Tarea"`, `"Aviso"` or `"Aviso urgente"`. */
+    val kindLabel: String,
+    val title: String,
+    /** Subject of a task, first line of a notice's body. */
+    val detail: String,
+    /** `"3° B"` or `"3° B · 4° A"`, already resolved against the roster. */
+    val audience: String,
+    val postedLabel: String,
+    /** Still in the outbox: Firestore does not have it yet. */
+    val pending: Boolean,
+    val urgent: Boolean,
+    /** `"hoja.pdf · Subido"`, when the task carries a PDF. */
+    val attachmentLabel: String? = null,
+    val attachmentState: AttachmentSyncState? = null,
+    /** Only for ordering; the row prints [postedLabel]. */
+    val createdAt: Long,
 )
 
 /**
@@ -188,6 +222,80 @@ fun incidentSections(
         buckets[label]?.let { IncidentSectionUi(label = label, incidents = it) }
     }
 }
+
+/**
+ * Merges the teacher's tasks and notices into one timeline, newest first.
+ *
+ * Pending is per row and not per list: a task written offline shows as pending
+ * while the notice published before it already reached Firestore, and collapsing
+ * both into one state would tell the teacher the wrong thing about one of them.
+ */
+fun publicationRows(
+    tasks: List<PublishedTask>,
+    notices: List<PublishedNotice>,
+    zone: TimeZone = TimeZone.getDefault(),
+): List<HistoryPublicationUi> {
+    if (tasks.isEmpty() && notices.isEmpty()) return emptyList()
+
+    val rows = tasks.map { task ->
+        HistoryPublicationUi(
+            id = task.taskId,
+            kindLabel = "Tarea",
+            title = task.title,
+            detail = task.subject,
+            audience = task.groupNames.joinToString(" · "),
+            postedLabel = publicationTimestampLabel(task.createdAt, zone),
+            pending = task.pending,
+            urgent = false,
+            attachmentLabel = task.attachmentName?.let { name ->
+                publicationAttachmentLabel(name, task.attachmentState)
+            },
+            attachmentState = task.attachmentState,
+            createdAt = task.createdAt,
+        )
+    } + notices.map { notice ->
+        HistoryPublicationUi(
+            id = notice.noticeId,
+            kindLabel = if (notice.urgent) "Aviso urgente" else "Aviso",
+            title = notice.title,
+            detail = notice.body.lineSequence().firstOrNull().orEmpty().trim(),
+            audience = notice.groupNames.joinToString(" · "),
+            postedLabel = publicationTimestampLabel(notice.createdAt, zone),
+            pending = notice.pending,
+            urgent = notice.urgent,
+            createdAt = notice.createdAt,
+        )
+    }
+
+    return rows.sortedByDescending { it.createdAt }
+}
+
+/**
+ * The attachment line of a publication, with the truth about the file.
+ *
+ * It is evidence, not decoration: `Subido` means Cloudinary answered and the URL
+ * is in the document, `Pendiente` means the file is still on this phone, and
+ * `No se subió` means the task went out without it.
+ */
+fun publicationAttachmentLabel(name: String, state: AttachmentSyncState?): String =
+    when (state) {
+        AttachmentSyncState.UPLOADED -> "$name · Subido"
+        AttachmentSyncState.FAILED -> "$name · No se subió"
+        AttachmentSyncState.PENDING, null -> "$name · Pendiente"
+    }
+
+/** `"12 nov · 08:00"` — when the teacher published it, in local time. */
+fun publicationTimestampLabel(
+    epochMillis: Long,
+    zone: TimeZone = TimeZone.getDefault(),
+): String = SimpleDateFormat("d MMM · HH:mm", SPANISH_MX)
+    .apply { timeZone = zone }
+    .format(Date(epochMillis))
+    .replace(".", "")
+
+/** `"Pendiente de enviar"` / `"Publicado"` — the pill of one row. */
+fun publicationSyncLabel(pending: Boolean): String =
+    if (pending) "Pendiente de enviar" else "Publicado"
 
 internal fun IncidentSummary.toUi(
     expanded: Boolean,
@@ -292,6 +400,9 @@ const val TODAY = "HOY"
 const val THIS_WEEK = "ESTA SEMANA"
 const val LAST_WEEK = "SEMANA ANTERIOR"
 const val OLDER = "ANTERIORES"
+
+/** Fixed to Spanish because the whole UI is, whatever the device language is. */
+private val SPANISH_MX: Locale = Locale.forLanguageTag("es-MX")
 
 private val SECTION_ORDER = listOf(TODAY, THIS_WEEK, LAST_WEEK, OLDER)
 private const val MILLIS_PER_DAY = 86_400_000L

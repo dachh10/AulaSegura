@@ -21,6 +21,16 @@ data class CloudinaryConfig(
     val imageUploadUrl: String
         get() = "$apiBaseUrl/v1_1/$cloudName/image/upload"
 
+    /**
+     * Unsigned endpoint for files Cloudinary must not touch: the task PDF.
+     *
+     * A PDF sent to `/image/upload` is converted to an image and stops being a
+     * document; `/raw/upload` stores the bytes as they are, which is the only
+     * shape a teacher's worksheet can have.
+     */
+    val rawUploadUrl: String
+        get() = "$apiBaseUrl/v1_1/$cloudName/raw/upload"
+
     companion object {
         /** Overridable so tests can point the uploader at a local stub. */
         const val DEFAULT_API_BASE_URL: String = "https://api.cloudinary.com"

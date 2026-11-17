@@ -10,7 +10,9 @@ import com.example.aulasegura.BuildConfig
 import com.example.aulasegura.data.local.AulaSeguraDatabase
 import com.example.aulasegura.data.local.DatabaseProvider
 import com.example.aulasegura.data.local.media.FileIncidentMediaStore
+import com.example.aulasegura.data.local.media.FileTaskAttachmentStore
 import com.example.aulasegura.data.local.media.IncidentMediaStore
+import com.example.aulasegura.data.local.media.TaskAttachmentStore
 import com.example.aulasegura.data.remote.cloudinary.CloudinaryConfig
 import com.example.aulasegura.data.remote.cloudinary.CloudinaryUploader
 import com.example.aulasegura.data.remote.cloudinary.ImageCompressor
@@ -26,6 +28,8 @@ import com.example.aulasegura.data.repository.FirestoreRosterRepository
 import com.example.aulasegura.data.repository.FirestoreSchoolRepository
 import com.example.aulasegura.data.repository.RoomAttendanceRepository
 import com.example.aulasegura.data.repository.RoomIncidentRepository
+import com.example.aulasegura.data.repository.RoomNoticeRepository
+import com.example.aulasegura.data.repository.RoomTaskRepository
 import com.example.aulasegura.data.telemetry.FirebaseAnalyticsLogger
 import com.example.aulasegura.domain.repository.AiAssistant
 import com.example.aulasegura.domain.repository.AttendanceHistoryRepository
@@ -33,8 +37,10 @@ import com.example.aulasegura.domain.repository.AttendanceRepository
 import com.example.aulasegura.domain.repository.AuthRepository
 import com.example.aulasegura.domain.repository.GroupRepository
 import com.example.aulasegura.domain.repository.IncidentRepository
+import com.example.aulasegura.domain.repository.NoticeRepository
 import com.example.aulasegura.domain.repository.SchoolRepository
 import com.example.aulasegura.domain.repository.StudentRepository
+import com.example.aulasegura.domain.repository.TaskRepository
 import com.example.aulasegura.domain.telemetry.AnalyticsLogger
 import com.example.aulasegura.domain.usecase.AskAssistantUseCase
 import com.example.aulasegura.domain.usecase.CreateIncidentUseCase
@@ -42,6 +48,8 @@ import com.example.aulasegura.domain.usecase.SaveRollCallUseCase
 import com.example.aulasegura.domain.usecase.StartRollCallUseCase
 import com.example.aulasegura.sync.AttendanceSyncHandler
 import com.example.aulasegura.sync.IncidentSyncHandler
+import com.example.aulasegura.sync.NoticeSyncHandler
+import com.example.aulasegura.sync.TaskSyncHandler
 import com.example.aulasegura.sync.CrashlyticsSyncReporter
 import com.example.aulasegura.sync.OutboxRepository
 import com.example.aulasegura.sync.SyncFailureReporter
@@ -49,12 +57,15 @@ import com.example.aulasegura.sync.SyncHandlerRegistry
 import com.example.aulasegura.sync.SyncOperation
 import com.example.aulasegura.sync.SyncScheduler
 import com.example.aulasegura.sync.UploadIncidentMediaHandler
+import com.example.aulasegura.sync.UploadTaskAttachmentHandler
 import com.example.aulasegura.ui.screens.access.ForgotPasswordViewModel
 import com.example.aulasegura.ui.screens.access.LoginViewModel
 import com.example.aulasegura.ui.screens.access.SessionViewModel
 import com.example.aulasegura.ui.screens.teacher.TeacherGroupsViewModel
 import com.example.aulasegura.ui.screens.teacher.TeacherHistoryViewModel
 import com.example.aulasegura.ui.screens.teacher.TeacherIncidentViewModel
+import com.example.aulasegura.ui.screens.teacher.TeacherNoticeNewViewModel
+import com.example.aulasegura.ui.screens.teacher.TeacherTaskNewViewModel
 import com.google.firebase.analytics.FirebaseAnalytics
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FirebaseFirestore
@@ -211,6 +222,32 @@ class AppContainer(context: Context) {
         CreateIncidentUseCase(incidents = incidentRepository, analytics = analyticsLogger)
     }
 
+    /**
+     * Publications, offline-first like the incidents: a cached row plus an outbox
+     * row, and `TaskSyncHandler`/`NoticeSyncHandler` are what reach Firestore.
+     */
+    val taskRepository: TaskRepository by lazy {
+        RoomTaskRepository(
+            taskDao = database.taskDao(),
+            outboxDao = database.outboxDao(),
+            outbox = outboxRepository,
+            groups = groupRepository,
+            auth = authRepository,
+            analytics = analyticsLogger,
+        )
+    }
+
+    val noticeRepository: NoticeRepository by lazy {
+        RoomNoticeRepository(
+            noticeDao = database.noticeDao(),
+            outboxDao = database.outboxDao(),
+            outbox = outboxRepository,
+            groups = groupRepository,
+            auth = authRepository,
+            analytics = analyticsLogger,
+        )
+    }
+
     val startRollCallUseCase: StartRollCallUseCase by lazy {
         StartRollCallUseCase(attendance = attendanceRepository, analytics = analyticsLogger)
     }
@@ -239,6 +276,18 @@ class AppContainer(context: Context) {
                 SyncOperation.UPLOAD_INCIDENT_MEDIA to UploadIncidentMediaHandler(
                     incidentDao = database.incidentDao(),
                     uploader = cloudinaryUploader,
+                ),
+                SyncOperation.UPLOAD_TASK_ATTACHMENT to UploadTaskAttachmentHandler(
+                    taskDao = database.taskDao(),
+                    uploader = cloudinaryUploader,
+                ),
+                SyncOperation.UPSERT_TASK to TaskSyncHandler(
+                    taskDao = database.taskDao(),
+                    firestore = firestore,
+                ),
+                SyncOperation.UPSERT_NOTICE to NoticeSyncHandler(
+                    noticeDao = database.noticeDao(),
+                    firestore = firestore,
                 ),
             ),
         )
@@ -282,6 +331,16 @@ class AppContainer(context: Context) {
      */
     val incidentMediaStore: IncidentMediaStore by lazy {
         FileIncidentMediaStore(appContext, imageCompressor)
+    }
+
+    /**
+     * Where the task's PDF lives between the form and the upload.
+     *
+     * Same reasoning as [incidentMediaStore]: one directory the form writes and
+     * the worker reads, so a file cannot be "attached" and then not found.
+     */
+    val taskAttachmentStore: TaskAttachmentStore by lazy {
+        FileTaskAttachmentStore(appContext)
     }
 
     // ---- Remote Config ------------------------------------------------------
@@ -349,6 +408,8 @@ class AppViewModelFactory(
             TeacherHistoryViewModel(
                 history = container.attendanceHistoryRepository,
                 incidents = container.incidentHistoryRepository,
+                tasks = container.taskRepository,
+                notices = container.noticeRepository,
             )
 
         modelClass.isAssignableFrom(TeacherIncidentViewModel::class.java) ->
@@ -359,6 +420,21 @@ class AppViewModelFactory(
                 incidents = container.incidentRepository,
                 mediaStore = container.incidentMediaStore,
                 readMediaLimit = { container.remoteConfigRepository.incidentMediaMax() },
+            )
+
+        modelClass.isAssignableFrom(TeacherTaskNewViewModel::class.java) ->
+            TeacherTaskNewViewModel(
+                groups = container.groupRepository,
+                auth = container.authRepository,
+                tasks = container.taskRepository,
+                attachmentStore = container.taskAttachmentStore,
+            )
+
+        modelClass.isAssignableFrom(TeacherNoticeNewViewModel::class.java) ->
+            TeacherNoticeNewViewModel(
+                groups = container.groupRepository,
+                auth = container.authRepository,
+                notices = container.noticeRepository,
             )
 
         else -> error("No ViewModel registered for ${modelClass.name}")

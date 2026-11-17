@@ -1,5 +1,13 @@
 package com.example.aulasegura.ui.screens.teacher
 
+import android.app.DatePickerDialog
+import android.app.TimePickerDialog
+import android.content.ContentResolver
+import android.content.Context
+import android.net.Uri
+import android.provider.OpenableColumns
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -31,24 +39,29 @@ import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material.icons.filled.AttachFile
+import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Notifications
-import androidx.compose.material.icons.filled.PictureAsPdf
 import androidx.compose.material.icons.outlined.CalendarToday
 import androidx.compose.material.icons.outlined.Description
 import androidx.compose.material.icons.outlined.Edit
 import androidx.compose.material.icons.outlined.Groups
+import androidx.compose.material.icons.outlined.MenuBook
 import androidx.compose.material.icons.outlined.Schedule
 import androidx.compose.material3.Icon
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.draw.rotate
@@ -60,6 +73,7 @@ import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -74,7 +88,6 @@ import com.example.aulasegura.ui.theme.BrandCream
 import com.example.aulasegura.ui.theme.BricolageGrotesque
 import com.example.aulasegura.ui.theme.DmSans
 import com.example.aulasegura.ui.theme.Error
-import com.example.aulasegura.ui.theme.ErrorContainer
 import com.example.aulasegura.ui.theme.JetBrainsMono
 import com.example.aulasegura.ui.theme.OnSurface
 import com.example.aulasegura.ui.theme.OnSurfaceVariant
@@ -85,30 +98,82 @@ import com.example.aulasegura.ui.theme.SurfaceContainerHigh
 import com.example.aulasegura.ui.theme.SurfaceContainerLow
 import com.example.aulasegura.ui.theme.SurfaceContainerLowest
 import com.example.aulasegura.ui.theme.SurfaceVariant
+import java.io.ByteArrayOutputStream
+import java.io.IOException
+import java.util.Calendar
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+
+private val Hairline = Color(0xFFE6E1D8)
+private val FormCardShape = RoundedCornerShape(16.dp)
+
+/** Fondo de los iconos de cada campo; el mismo lavanda suave del mockup. */
+private val FieldIconSurface = Color(0xFFE8E9F7)
+
+/** Tinte de la zona de adjuntos, que en Fase 1 solo se muestra deshabilitada. */
+private val UploadTint = Color(0xFFE8E9F7)
+
+/** Interruptor encendido; el mismo verde que la app usa para "verificado". */
+private val ToggleOn = Color(0xFF0E7C55)
 
 /**
  * 3.11 — Publicar tarea (panel del docente).
  *
- * Port visual 1:1 del mockup `8acb44e85be44ad5801bd1532a7ab798`. Es solo el
- * cascarón de la pantalla: no hay selección de grupo, adjuntos, fecha, hora ni
- * publicación real. Los campos de texto y el interruptor guardan únicamente su
- * estado visual local.
+ * Port visual 1:1 del mockup `8acb44e85be44ad5801bd1532a7ab798`, ahora con los
+ * grupos reales del docente, una fecha de entrega de verdad y publicación
+ * offline-first: la tarea se guarda en Room y se encola, y el worker la escribe
+ * en Firestore.
+ *
+ * Adjuntos: exactamente **un PDF** de hasta 10 MB, subido a Cloudinary antes de
+ * escribir la tarea (`UPLOAD_TASK_ATTACHMENT` corre antes que `UPSERT_TASK`). Ni
+ * fotos ni Word: la familia tiene que poder abrirlo en cualquier teléfono.
+ *
+ * Lo que la pantalla NO hace, y por eso se ve deshabilitado: la notificación a
+ * las familias (llega con FCM, bloque 10). Dejar el control activo sería
+ * prometer un envío que no ocurre.
  */
-
-private val Hairline = Color(0xFFE5E2DD)
-private val FieldIconSurface = Color(0xFFF6F3EE)
-private val UploadTint = Color(0xFFE8E9F7)
-private val ToggleOn = Color(0xFF2B2F77)
-
-private val FormCardShape = RoundedCornerShape(16.dp)
-
 @Composable
 fun TeacherTaskNewScreen(
+    ui: TeacherTaskNewUi,
     onBack: () -> Unit = {},
+    onSelectGroup: (String) -> Unit = {},
+    onSelectSubject: (String) -> Unit = {},
+    onTitleChange: (String) -> Unit = {},
+    onDescriptionChange: (String) -> Unit = {},
+    onDueDateChange: (year: Int, month: Int, dayOfMonth: Int) -> Unit = { _, _, _ -> },
+    onDueTimeChange: (hourOfDay: Int, minute: Int) -> Unit = { _, _ -> },
+    onAttachPdf: (fileName: String, bytes: ByteArray) -> Unit = { _, _ -> },
+    onRemoveAttachment: () -> Unit = {},
+    onPublish: () -> Unit = {},
 ) {
-    var title by remember { mutableStateOf("Fracciones, ejercicios 1-10") }
-    var instructions by remember { mutableStateOf("") }
-    var notifyFamilies by remember { mutableStateOf(true) }
+    val context = LocalContext.current
+    val due = remember(ui.dueDate) { Calendar.getInstance().apply { timeInMillis = ui.dueDate } }
+
+    var showGroups by remember { mutableStateOf(false) }
+    var showSubjects by remember { mutableStateOf(false) }
+
+    // Only what the picker itself cannot tell us: a provider that hands over an
+    // unreadable stream, or a file above the 10 MB ceiling. Everything else the
+    // ViewModel validates and reports through the sticky footer.
+    var attachmentError by remember { mutableStateOf<String?>(null) }
+    val scope = rememberCoroutineScope()
+
+    val pdfLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.OpenDocument(),
+    ) { uri ->
+        if (uri == null) return@rememberLauncherForActivityResult
+        scope.launch {
+            when (val picked = readPdf(context, uri)) {
+                is PickedPdf.Ready -> {
+                    attachmentError = null
+                    onAttachPdf(picked.fileName, picked.bytes)
+                }
+                PickedPdf.TooLarge -> attachmentError = "El PDF supera los 10 MB."
+                PickedPdf.Unreadable -> attachmentError = "No se pudo leer el PDF."
+            }
+        }
+    }
 
     Column(
         modifier = Modifier
@@ -130,14 +195,26 @@ fun TeacherTaskNewScreen(
         ) {
             // ZONE 2 — Form fields
             Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
-                GroupField()
+                GroupField(
+                    value = ui.selectedGroupLabel ?: "Elegir grupo",
+                    chosen = ui.selectedGroupLabel != null,
+                    onClick = { if (!ui.published) showGroups = true },
+                )
+                if (ui.subjects.size > 1) {
+                    SubjectField(
+                        value = ui.subject,
+                        onClick = { if (!ui.published) showSubjects = true },
+                    )
+                }
                 TitleField(
-                    value = title,
-                    onValueChange = { title = it },
+                    value = ui.title,
+                    onValueChange = onTitleChange,
+                    enabled = !ui.published,
                 )
                 InstructionsField(
-                    value = instructions,
-                    onValueChange = { if (it.length <= 500) instructions = it },
+                    value = ui.description,
+                    onValueChange = onDescriptionChange,
+                    enabled = !ui.published,
                 )
                 Row(
                     modifier = Modifier
@@ -148,31 +225,53 @@ fun TeacherTaskNewScreen(
                     DateTimeField(
                         icon = Icons.Outlined.CalendarToday,
                         label = "Fecha entrega",
-                        value = "Mié 5 nov 2026",
+                        value = ui.dueDateLabel,
                         mono = false,
                         modifier = Modifier
                             .weight(1f)
                             .fillMaxHeight(),
+                        onClick = {
+                            if (ui.published) return@DateTimeField
+                            DatePickerDialog(
+                                context,
+                                { _, year, month, day ->
+                                    onDueDateChange(year, month, day)
+                                },
+                                due.get(Calendar.YEAR),
+                                due.get(Calendar.MONTH),
+                                due.get(Calendar.DAY_OF_MONTH),
+                            ).show()
+                        },
                     )
                     DateTimeField(
                         icon = Icons.Outlined.Schedule,
                         label = "Hora",
-                        value = "08:00",
+                        value = ui.dueTimeLabel,
                         mono = true,
                         modifier = Modifier
                             .weight(1f)
                             .fillMaxHeight(),
+                        onClick = {
+                            if (ui.published) return@DateTimeField
+                            TimePickerDialog(
+                                context,
+                                { _, hour, minute -> onDueTimeChange(hour, minute) },
+                                due.get(Calendar.HOUR_OF_DAY),
+                                due.get(Calendar.MINUTE),
+                                true,
+                            ).show()
+                        },
                     )
                 }
             }
 
-            // ZONE 3 — Attachments
+            // ZONE 3 — Attachments (one PDF per task)
             Column(
                 modifier = Modifier.padding(top = 4.dp),
                 verticalArrangement = Arrangement.spacedBy(10.dp),
             ) {
                 Text(
-                    text = "Archivos adjuntos",
+                    text = "Archivo adjunto",
                     color = PrimaryContainer,
                     fontFamily = BricolageGrotesque,
                     fontWeight = FontWeight.Bold,
@@ -181,21 +280,65 @@ fun TeacherTaskNewScreen(
                     letterSpacing = (-0.01).em,
                 )
 
-                UploadDropZone()
-
-                AttachedFileRow(fileName = "Guia_fracciones.pdf", fileSize = "240 KB")
+                AttachmentZone(
+                    ui = ui,
+                    error = attachmentError,
+                    onPick = {
+                        attachmentError = null
+                        pdfLauncher.launch(arrayOf(PDF_MIME))
+                    },
+                    onRemove = {
+                        attachmentError = null
+                        onRemoveAttachment()
+                    },
+                )
             }
 
-            // ZONE 4 — Notification toggle
+            // ZONE 4 — Notification toggle (FCM arrives with block 10)
             NotificationCard(
-                checked = notifyFamilies,
-                onToggle = { notifyFamilies = !notifyFamilies },
+                checked = false,
+                onToggle = {},
                 modifier = Modifier.padding(top = 4.dp),
             )
         }
 
         // ZONE 5 — Sticky bottom bar
-        TaskFooter()
+        TaskFooter(
+            message = ui.message,
+            canPublish = ui.canPublish,
+            publishing = ui.publishing,
+            published = ui.published,
+            onPublish = onPublish,
+            onClose = onBack,
+        )
+    }
+
+    if (showGroups) {
+        PickerDialog(
+            title = "Grupo",
+            options = ui.groups.map { it.id to it.label },
+            selected = ui.selectedGroupId,
+            emptyText = "No hay grupos en este dispositivo. Actualiza tus grupos.",
+            onSelect = { id ->
+                onSelectGroup(id)
+                showGroups = false
+            },
+            onDismiss = { showGroups = false },
+        )
+    }
+
+    if (showSubjects) {
+        PickerDialog(
+            title = "Materia",
+            options = ui.subjects.map { it to it },
+            selected = ui.subject,
+            emptyText = "Sin materias configuradas.",
+            onSelect = { value ->
+                onSelectSubject(value)
+                showSubjects = false
+            },
+            onDismiss = { showSubjects = false },
+        )
     }
 }
 
@@ -276,13 +419,24 @@ private fun TaskTopBar(onBack: () -> Unit) {
 
 // ZONE 2 — Form fields
 @Composable
-private fun GroupField() {
+private fun GroupField(
+    value: String,
+    chosen: Boolean,
+    onClick: () -> Unit,
+) {
+    val (interaction, pressModifier) = rememberPressScale(0.99f)
     Row(
         modifier = Modifier
             .fillMaxWidth()
+            .then(pressModifier)
             .clip(FormCardShape)
             .background(SurfaceContainerLowest)
             .border(1.dp, SurfaceVariant, FormCardShape)
+            .clickable(
+                interactionSource = interaction,
+                indication = null,
+                onClick = onClick,
+            )
             .padding(14.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
@@ -297,8 +451,8 @@ private fun GroupField() {
         ) {
             FieldLabel(text = "Grupo")
             Text(
-                text = "3° B · Matemáticas",
-                color = OnSurface,
+                text = value,
+                color = if (chosen) OnSurface else Outline.copy(alpha = 0.70f),
                 fontFamily = DmSans,
                 fontWeight = FontWeight.SemiBold,
                 fontSize = 15.sp,
@@ -317,14 +471,74 @@ private fun GroupField() {
     }
 }
 
+/**
+ * Subject of the task, picked from `users/{uid}.subjects`.
+ *
+ * Only rendered when the teacher has more than one: a single-subject teacher
+ * does not need to confirm what the app already knows.
+ */
+@Composable
+private fun SubjectField(
+    value: String,
+    onClick: () -> Unit,
+) {
+    val (interaction, pressModifier) = rememberPressScale(0.99f)
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .then(pressModifier)
+            .clip(FormCardShape)
+            .background(SurfaceContainerLowest)
+            .border(1.dp, SurfaceVariant, FormCardShape)
+            .clickable(
+                interactionSource = interaction,
+                indication = null,
+                onClick = onClick,
+            )
+            .padding(14.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        FieldIcon(icon = Icons.Outlined.MenuBook)
+
+        Spacer(modifier = Modifier.width(12.dp))
+
+        Column(
+            modifier = Modifier
+                .weight(1f)
+                .padding(end = 8.dp),
+        ) {
+            FieldLabel(text = "Materia")
+            Text(
+                text = value,
+                color = OnSurface,
+                fontFamily = DmSans,
+                fontWeight = FontWeight.SemiBold,
+                fontSize = 15.sp,
+                lineHeight = 20.sp,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+        }
+
+        Icon(
+            imageVector = Icons.Filled.ArrowDropDown,
+            contentDescription = "Cambiar materia",
+            tint = Outline,
+            modifier = Modifier.size(24.dp),
+        )
+    }
+}
+
 @Composable
 private fun TitleField(
     value: String,
     onValueChange: (String) -> Unit,
+    enabled: Boolean,
 ) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
+            .alpha(if (enabled) 1f else 0.60f)
             .clip(FormCardShape)
             .background(SurfaceContainerLowest)
             .border(1.dp, SurfaceVariant, FormCardShape)
@@ -340,6 +554,7 @@ private fun TitleField(
             BasicTextField(
                 value = value,
                 onValueChange = onValueChange,
+                enabled = enabled,
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(top = 1.dp),
@@ -375,10 +590,12 @@ private fun TitleField(
 private fun InstructionsField(
     value: String,
     onValueChange: (String) -> Unit,
+    enabled: Boolean,
 ) {
     Column(
         modifier = Modifier
             .fillMaxWidth()
+            .alpha(if (enabled) 1f else 0.60f)
             .clip(FormCardShape)
             .background(SurfaceContainerLowest)
             .border(1.dp, SurfaceVariant, FormCardShape)
@@ -394,6 +611,7 @@ private fun InstructionsField(
                 BasicTextField(
                     value = value,
                     onValueChange = onValueChange,
+                    enabled = enabled,
                     modifier = Modifier
                         .fillMaxWidth()
                         .heightIn(min = 60.dp),
@@ -447,12 +665,20 @@ private fun DateTimeField(
     value: String,
     mono: Boolean,
     modifier: Modifier = Modifier,
+    onClick: () -> Unit,
 ) {
+    val (interaction, pressModifier) = rememberPressScale(0.98f)
     Row(
         modifier = modifier
+            .then(pressModifier)
             .clip(FormCardShape)
             .background(SurfaceContainerLowest)
             .border(1.dp, SurfaceVariant, FormCardShape)
+            .clickable(
+                interactionSource = interaction,
+                indication = null,
+                onClick = onClick,
+            )
             .padding(12.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
@@ -499,174 +725,294 @@ private fun DateTimeField(
 }
 
 // ZONE 3 — Attachments
+/**
+ * The single PDF of the task.
+ *
+ * A real control now: it opens the system picker filtered to `application/pdf`,
+ * prints the file and its size, and lets the teacher replace or remove it. One
+ * file because a task is an instruction, not a file transfer.
+ */
 @Composable
-private fun UploadDropZone() {
+private fun AttachmentZone(
+    ui: TeacherTaskNewUi,
+    error: String?,
+    onPick: () -> Unit,
+    onRemove: () -> Unit,
+) {
+    val attached = ui.attachmentName != null
+    val enabled = !ui.published && !ui.publishing && !ui.attaching
+
     Column(
         modifier = Modifier
             .fillMaxWidth()
             .clip(FormCardShape)
-            .background(UploadTint.copy(alpha = 0.40f))
-            .dashedUploadBorder(
-                color = PrimaryContainer.copy(alpha = 0.30f),
-                cornerRadius = 16.dp,
-                strokeWidth = 2.dp,
+            .background(
+                if (attached) SurfaceContainerLowest else UploadTint.copy(alpha = 0.40f),
+            )
+            .then(
+                if (attached) {
+                    Modifier.border(1.dp, Hairline, FormCardShape)
+                } else {
+                    Modifier.dashedUploadBorder(
+                        color = PrimaryContainer.copy(alpha = 0.30f),
+                        cornerRadius = 16.dp,
+                        strokeWidth = 2.dp,
+                    )
+                },
             )
             .padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(10.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        Box(
-            modifier = Modifier
-                .size(40.dp)
-                .shadow(elevation = 1.dp, shape = CircleShape)
-                .clip(CircleShape)
-                .background(SurfaceContainerLowest),
-            contentAlignment = Alignment.Center,
-        ) {
-            Icon(
-                imageVector = Icons.Filled.AttachFile,
-                contentDescription = null,
-                tint = PrimaryContainer,
-                modifier = Modifier.size(22.dp),
-            )
+        val name = ui.attachmentName
+        if (name != null) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
+                Box(
+                    modifier = Modifier
+                        .size(40.dp)
+                        .clip(CircleShape)
+                        .background(FieldIconSurface),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Icon(
+                        imageVector = Icons.Filled.AttachFile,
+                        contentDescription = null,
+                        tint = PrimaryContainer,
+                        modifier = Modifier.size(20.dp),
+                    )
+                }
+
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = name,
+                        color = OnSurface,
+                        fontFamily = DmSans,
+                        fontWeight = FontWeight.Medium,
+                        fontSize = 13.sp,
+                        lineHeight = 18.sp,
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                    Text(
+                        text = listOfNotNull(ui.attachmentSizeLabel, "PDF").joinToString(" · "),
+                        color = Outline,
+                        fontFamily = JetBrainsMono,
+                        fontSize = 11.sp,
+                        lineHeight = 14.sp,
+                    )
+                }
+
+                Box(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(percent = 50))
+                        .clickable(enabled = enabled, onClick = onPick)
+                        .padding(horizontal = 10.dp, vertical = 6.dp),
+                ) {
+                    Text(
+                        text = "Cambiar",
+                        color = if (enabled) PrimaryContainer else Outline,
+                        fontFamily = DmSans,
+                        fontWeight = FontWeight.Medium,
+                        fontSize = 12.sp,
+                        lineHeight = 16.sp,
+                    )
+                }
+
+                Box(
+                    modifier = Modifier
+                        .size(32.dp)
+                        .clip(CircleShape)
+                        .clickable(enabled = enabled, onClick = onRemove),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Icon(
+                        imageVector = Icons.Filled.Close,
+                        contentDescription = "Quitar el PDF",
+                        tint = if (enabled) OnSurfaceVariant else Outline,
+                        modifier = Modifier.size(16.dp),
+                    )
+                }
+            }
+        } else {
+            Box(
+                modifier = Modifier
+                    .size(40.dp)
+                    .shadow(elevation = 1.dp, shape = CircleShape)
+                    .clip(CircleShape)
+                    .background(SurfaceContainerLowest),
+                contentAlignment = Alignment.Center,
+            ) {
+                Icon(
+                    imageVector = Icons.Filled.AttachFile,
+                    contentDescription = null,
+                    tint = PrimaryContainer,
+                    modifier = Modifier.size(22.dp),
+                )
+            }
+
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                Text(
+                    text = "Adjunta el PDF de la tarea",
+                    color = OnSurfaceVariant,
+                    fontFamily = DmSans,
+                    fontWeight = FontWeight.Medium,
+                    fontSize = 13.sp,
+                    lineHeight = 18.sp,
+                    textAlign = TextAlign.Center,
+                )
+                Spacer(modifier = Modifier.height(2.dp))
+                Text(
+                    text = "Un solo PDF · máximo 10 MB",
+                    color = Outline,
+                    fontFamily = JetBrainsMono,
+                    fontSize = 11.sp,
+                    lineHeight = 14.sp,
+                    textAlign = TextAlign.Center,
+                )
+            }
+
+            val (interaction, pressModifier) = rememberPressScale(0.95f)
+            Row(
+                modifier = Modifier
+                    .padding(top = 2.dp)
+                    .then(pressModifier)
+                    .shadow(elevation = 1.dp, shape = RoundedCornerShape(percent = 50))
+                    .clip(RoundedCornerShape(percent = 50))
+                    .background(if (enabled) PrimaryContainer else PrimaryContainer.copy(alpha = 0.40f))
+                    .clickable(
+                        enabled = enabled,
+                        interactionSource = interaction,
+                        indication = null,
+                        onClick = onPick,
+                    )
+                    .padding(horizontal = 16.dp, vertical = 6.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Icon(
+                    imageVector = Icons.Filled.Add,
+                    contentDescription = null,
+                    tint = Color.White,
+                    modifier = Modifier.size(16.dp),
+                )
+                Spacer(modifier = Modifier.width(6.dp))
+                Text(
+                    text = "Adjuntar PDF",
+                    color = Color.White,
+                    fontFamily = DmSans,
+                    fontWeight = FontWeight.Medium,
+                    fontSize = 12.sp,
+                    lineHeight = 16.sp,
+                    letterSpacing = 0.02.em,
+                )
+            }
         }
 
-        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+        if (ui.attaching) {
             Text(
-                text = "Arrastra o selecciona documentos de apoyo",
+                text = "Preparando el PDF…",
                 color = OnSurfaceVariant,
                 fontFamily = DmSans,
-                fontWeight = FontWeight.Medium,
-                fontSize = 13.sp,
-                lineHeight = 18.sp,
-                textAlign = TextAlign.Center,
-            )
-            Spacer(modifier = Modifier.height(2.dp))
-            Text(
-                text = "PDF, DOCX o PNG (Máx 25 MB)",
-                color = Outline,
-                fontFamily = JetBrainsMono,
                 fontSize = 11.sp,
                 lineHeight = 14.sp,
                 textAlign = TextAlign.Center,
             )
         }
 
-        val (interaction, pressModifier) = rememberPressScale(0.95f)
-        Row(
-            modifier = Modifier
-                .padding(top = 2.dp)
-                .then(pressModifier)
-                .shadow(elevation = 1.dp, shape = RoundedCornerShape(percent = 50))
-                .clip(RoundedCornerShape(percent = 50))
-                .background(PrimaryContainer)
-                .clickable(
-                    interactionSource = interaction,
-                    indication = null,
-                    onClick = {},
-                )
-                .padding(horizontal = 16.dp, vertical = 6.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Icon(
-                imageVector = Icons.Filled.Add,
-                contentDescription = null,
-                tint = Color.White,
-                modifier = Modifier.size(16.dp),
-            )
-            Spacer(modifier = Modifier.width(6.dp))
+        if (error != null) {
             Text(
-                text = "Adjuntar archivo",
-                color = Color.White,
+                text = error,
+                color = Error,
                 fontFamily = DmSans,
-                fontWeight = FontWeight.Medium,
-                fontSize = 12.sp,
-                lineHeight = 16.sp,
-                letterSpacing = 0.02.em,
-            )
-        }
-    }
-}
-
-@Composable
-private fun AttachedFileRow(fileName: String, fileSize: String) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clip(FormCardShape)
-            .background(SurfaceContainerLowest)
-            .border(1.dp, SurfaceVariant, FormCardShape)
-            .padding(12.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Box(
-            modifier = Modifier
-                .size(36.dp)
-                .clip(RoundedCornerShape(12.dp))
-                .background(ErrorContainer.copy(alpha = 0.40f)),
-            contentAlignment = Alignment.Center,
-        ) {
-            Icon(
-                imageVector = Icons.Filled.PictureAsPdf,
-                contentDescription = null,
-                tint = Error,
-                modifier = Modifier.size(20.dp),
-            )
-        }
-
-        Spacer(modifier = Modifier.width(12.dp))
-
-        Column(
-            modifier = Modifier
-                .weight(1f)
-                .padding(end = 8.dp),
-        ) {
-            Text(
-                text = fileName,
-                color = OnSurface,
-                fontFamily = DmSans,
-                fontWeight = FontWeight.Medium,
-                fontSize = 14.sp,
-                lineHeight = 20.sp,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
-            Text(
-                text = fileSize,
-                color = Outline,
-                fontFamily = JetBrainsMono,
                 fontSize = 11.sp,
                 lineHeight = 14.sp,
-            )
-        }
-
-        Box(
-            modifier = Modifier
-                .size(28.dp)
-                .clip(CircleShape)
-                .background(SurfaceContainer),
-            contentAlignment = Alignment.Center,
-        ) {
-            Icon(
-                imageVector = Icons.Filled.Close,
-                contentDescription = "Eliminar $fileName",
-                tint = OnSurfaceVariant,
-                modifier = Modifier.size(16.dp),
+                textAlign = TextAlign.Center,
             )
         }
     }
 }
+
+/** The only type the picker offers, and the only one the worker uploads. */
+private const val PDF_MIME = "application/pdf"
+
+private const val PDF_READ_BUFFER = 64 * 1024
+
+/** What the picker gave us: readable bytes, too big, or nothing usable. */
+private sealed interface PickedPdf {
+    data class Ready(val fileName: String, val bytes: ByteArray) : PickedPdf
+    data object TooLarge : PickedPdf
+    data object Unreadable : PickedPdf
+}
+
+/**
+ * Reads the chosen document, refusing anything above the ceiling **while**
+ * reading: loading a 40 MB scan into memory first and rejecting it after is how
+ * a low-end phone runs out of heap in the middle of a school day.
+ */
+private suspend fun readPdf(context: Context, uri: Uri): PickedPdf =
+    withContext(Dispatchers.IO) {
+        val resolver = context.contentResolver
+        val name = displayName(resolver, uri) ?: "documento.pdf"
+        val declared = declaredSize(resolver, uri)
+
+        if (declared != null && declared > TASK_ATTACHMENT_MAX_BYTES) {
+            return@withContext PickedPdf.TooLarge
+        }
+
+        try {
+            resolver.openInputStream(uri)?.use { input ->
+                val output = ByteArrayOutputStream()
+                val buffer = ByteArray(PDF_READ_BUFFER)
+                var total = 0L
+
+                while (true) {
+                    val read = input.read(buffer)
+                    if (read < 0) break
+                    total += read
+                    if (total > TASK_ATTACHMENT_MAX_BYTES) {
+                        return@withContext PickedPdf.TooLarge
+                    }
+                    output.write(buffer, 0, read)
+                }
+
+                PickedPdf.Ready(name, output.toByteArray())
+            } ?: PickedPdf.Unreadable
+        } catch (failed: IOException) {
+            PickedPdf.Unreadable
+        }
+    }
+
+private fun displayName(resolver: ContentResolver, uri: Uri): String? =
+    resolver.query(uri, arrayOf(OpenableColumns.DISPLAY_NAME), null, null, null)
+        ?.use { cursor -> if (cursor.moveToFirst()) cursor.getString(0) else null }
+        ?.takeIf { it.isNotBlank() }
+
+private fun declaredSize(resolver: ContentResolver, uri: Uri): Long? =
+    resolver.query(uri, arrayOf(OpenableColumns.SIZE), null, null, null)
+        ?.use { cursor ->
+            if (cursor.moveToFirst() && !cursor.isNull(0)) cursor.getLong(0) else null
+        }
 
 // ZONE 4 — Notification toggle
+/**
+ * The "notify the families" switch is disabled on purpose: it promises an FCM
+ * push, and push arrives with block 10. An enabled switch that silently sends
+ * nothing is worse than an honest disabled one.
+ */
 @Composable
 private fun NotificationCard(
     checked: Boolean,
     onToggle: () -> Unit,
     modifier: Modifier = Modifier,
+    enabled: Boolean = false,
 ) {
     Row(
         modifier = modifier
             .fillMaxWidth()
+            .alpha(if (enabled) 1f else 0.60f)
             .clip(FormCardShape)
             .background(SurfaceContainerLowest)
             .border(1.dp, SurfaceVariant, FormCardShape)
@@ -705,7 +1051,11 @@ private fun NotificationCard(
             )
             Spacer(modifier = Modifier.height(2.dp))
             Text(
-                text = "Se enviará una notificación al publicar",
+                text = if (enabled) {
+                    "Se enviará una notificación al publicar"
+                } else {
+                    "Todavía no se envían notificaciones push."
+                },
                 color = Outline,
                 fontFamily = DmSans,
                 fontSize = 12.sp,
@@ -721,6 +1071,7 @@ private fun NotificationCard(
                 .clip(RoundedCornerShape(percent = 50))
                 .background(if (checked) ToggleOn else SurfaceContainerHigh)
                 .clickable(
+                    enabled = enabled,
                     interactionSource = interaction,
                     indication = null,
                     onClick = onToggle,
@@ -740,8 +1091,25 @@ private fun NotificationCard(
 }
 
 // ZONE 5 — Sticky bottom bar
+/**
+ * The footer is the only place that talks about the outcome.
+ *
+ * - [message] carries why a publication did not happen, in the teacher's words.
+ * - The button is enabled only when [canPublish]; a task sent to the wrong group
+ *   reaches thirty families.
+ * - Once [published] the button turns into the confirmation and the secondary
+ *   action closes the screen: there is nothing left to edit on this form, and the
+ *   task is already queued.
+ */
 @Composable
-private fun TaskFooter() {
+private fun TaskFooter(
+    message: String?,
+    canPublish: Boolean,
+    publishing: Boolean,
+    published: Boolean,
+    onPublish: () -> Unit,
+    onClose: () -> Unit,
+) {
     Column(
         modifier = Modifier
             .fillMaxWidth()
@@ -762,6 +1130,21 @@ private fun TaskFooter() {
                 .padding(top = 12.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
+            if (message != null) {
+                Text(
+                    text = message,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(bottom = 10.dp),
+                    color = Error,
+                    fontFamily = DmSans,
+                    fontWeight = FontWeight.Medium,
+                    fontSize = 12.sp,
+                    lineHeight = 16.sp,
+                    textAlign = TextAlign.Center,
+                )
+            }
+
             val (interaction, pressModifier) = rememberPressScale(0.98f)
             Row(
                 modifier = Modifier
@@ -769,33 +1152,42 @@ private fun TaskFooter() {
                     .height(48.dp)
                     .then(pressModifier)
                     .shadow(
-                        elevation = 8.dp,
+                        elevation = if (canPublish) 8.dp else 0.dp,
                         shape = RoundedCornerShape(percent = 50),
                         ambientColor = BrandCoral.copy(alpha = 0.30f),
                         spotColor = BrandCoral.copy(alpha = 0.30f),
                     )
                     .clip(RoundedCornerShape(percent = 50))
-                    .background(BrandCoral)
+                    .background(if (canPublish) BrandCoral else SurfaceContainerHigh)
                     .clickable(
+                        enabled = canPublish,
                         interactionSource = interaction,
                         indication = null,
-                        onClick = {},
+                        onClick = onPublish,
                     ),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.Center,
             ) {
                 Icon(
-                    imageVector = Icons.AutoMirrored.Filled.Send,
+                    imageVector = if (published) {
+                        Icons.Filled.Check
+                    } else {
+                        Icons.AutoMirrored.Filled.Send
+                    },
                     contentDescription = null,
-                    tint = Color.White,
+                    tint = if (canPublish) Color.White else Outline,
                     modifier = Modifier
-                        .rotate(-12f)
+                        .rotate(if (published) 0f else -12f)
                         .size(19.dp),
                 )
                 Spacer(modifier = Modifier.width(8.dp))
                 Text(
-                    text = "Publicar tarea",
-                    color = Color.White,
+                    text = when {
+                        published -> "Tarea guardada"
+                        publishing -> "Guardando…"
+                        else -> "Publicar tarea"
+                    },
+                    color = if (canPublish) Color.White else Outline,
                     fontFamily = DmSans,
                     fontWeight = FontWeight.Bold,
                     fontSize = 15.sp,
@@ -805,19 +1197,16 @@ private fun TaskFooter() {
                 )
             }
 
-            Text(
-                text = "Guardar borrador",
-                modifier = Modifier
-                    .padding(top = 10.dp)
-                    .padding(horizontal = 12.dp, vertical = 4.dp),
-                color = PrimaryContainer,
-                fontFamily = DmSans,
-                fontWeight = FontWeight.SemiBold,
-                fontSize = 13.sp,
-                lineHeight = 18.sp,
-            )
-
-            Spacer(modifier = Modifier.height(8.dp))
+            TextButton(onClick = onClose) {
+                Text(
+                    text = if (published) "Cerrar" else "Cancelar",
+                    color = PrimaryContainer,
+                    fontFamily = DmSans,
+                    fontWeight = FontWeight.SemiBold,
+                    fontSize = 13.sp,
+                    lineHeight = 18.sp,
+                )
+            }
 
             Box(
                 modifier = Modifier
@@ -828,6 +1217,118 @@ private fun TaskFooter() {
             )
 
             Spacer(modifier = Modifier.height(4.dp))
+        }
+    }
+}
+
+/**
+ * One selector for both group and subject.
+ *
+ * [options] is `(id, label)`: the subject picker passes the same string twice, so
+ * [selected] can always be compared against the id and the two call sites keep one
+ * widget instead of two nearly identical dialogs.
+ */
+@Composable
+private fun PickerDialog(
+    title: String,
+    options: List<Pair<String, String>>,
+    selected: String?,
+    emptyText: String,
+    onSelect: (String) -> Unit,
+    onDismiss: () -> Unit,
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        containerColor = SurfaceContainerLowest,
+        title = {
+            Text(
+                text = title,
+                color = PrimaryContainer,
+                fontFamily = BricolageGrotesque,
+                fontWeight = FontWeight.Bold,
+                fontSize = 20.sp,
+                lineHeight = 26.sp,
+            )
+        },
+        text = {
+            if (options.isEmpty()) {
+                Text(
+                    text = emptyText,
+                    color = OnSurfaceVariant,
+                    fontFamily = DmSans,
+                    fontSize = 14.sp,
+                    lineHeight = 20.sp,
+                )
+            } else {
+                Column(
+                    modifier = Modifier
+                        .heightIn(max = 360.dp)
+                        .verticalScroll(rememberScrollState()),
+                    verticalArrangement = Arrangement.spacedBy(6.dp),
+                ) {
+                    options.forEach { (id, label) ->
+                        PickerOptionRow(
+                            label = label,
+                            selected = id == selected,
+                            onClick = { onSelect(id) },
+                        )
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = onDismiss) {
+                Text(
+                    text = "Cerrar",
+                    color = PrimaryContainer,
+                    fontFamily = DmSans,
+                    fontWeight = FontWeight.SemiBold,
+                    fontSize = 14.sp,
+                )
+            }
+        },
+    )
+}
+
+@Composable
+private fun PickerOptionRow(
+    label: String,
+    selected: Boolean,
+    onClick: () -> Unit,
+) {
+    val (interaction, pressModifier) = rememberPressScale(0.99f)
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .then(pressModifier)
+            .clip(RoundedCornerShape(12.dp))
+            .background(if (selected) SurfaceContainerLow else Color.Transparent)
+            .clickable(
+                interactionSource = interaction,
+                indication = null,
+                onClick = onClick,
+            )
+            .padding(horizontal = 12.dp, vertical = 12.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(
+            text = label,
+            modifier = Modifier.weight(1f),
+            color = OnSurface,
+            fontFamily = DmSans,
+            fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium,
+            fontSize = 15.sp,
+            lineHeight = 20.sp,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+        )
+        if (selected) {
+            Icon(
+                imageVector = Icons.Filled.Check,
+                contentDescription = "Seleccionado",
+                tint = BrandCoral,
+                modifier = Modifier.size(18.dp),
+            )
         }
     }
 }

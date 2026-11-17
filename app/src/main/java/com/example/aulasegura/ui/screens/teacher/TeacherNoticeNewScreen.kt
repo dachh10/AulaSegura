@@ -45,6 +45,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.draw.shadow
@@ -66,6 +67,7 @@ import com.example.aulasegura.ui.theme.BrandCream
 import com.example.aulasegura.ui.theme.BrandMint
 import com.example.aulasegura.ui.theme.BricolageGrotesque
 import com.example.aulasegura.ui.theme.DmSans
+import com.example.aulasegura.ui.theme.Error
 import com.example.aulasegura.ui.theme.JetBrainsMono
 import com.example.aulasegura.ui.theme.OnSurface
 import com.example.aulasegura.ui.theme.OnSurfaceVariant
@@ -80,10 +82,17 @@ import com.example.aulasegura.ui.theme.SurfaceContainerLowest
 /**
  * 3.12 — Publicar aviso (panel del docente).
  *
- * Port visual 1:1 del mockup `bac6bd729b1f46129bcbc5092e0d5b2d`. Es solo el
- * cascarón: los destinatarios y la prioridad están fijos como en el mockup, y
- * no hay envío, programación ni persistencia. Los campos de texto y el
- * interruptor conservan únicamente su estado visual local.
+ * Port visual 1:1 del mockup `bac6bd729b1f46129bcbc5092e0d5b2d`, ahora con los
+ * grupos reales del docente y publicación offline-first: el aviso se guarda en
+ * Room y se encola, y `NoticeSyncHandler` lo escribe en Firestore.
+ *
+ * La audiencia es siempre la de los tutores de los grupos elegidos: el preview
+ * dice "ASÍ LO VERÁN LAS FAMILIAS" y un aviso que también fuera para docentes
+ * necesitaría una bandeja de docente que la Fase 1 no tiene.
+ *
+ * Lo que la pantalla NO hace, y por eso se ve deshabilitado: enviar notificación
+ * push (llega con FCM, bloque 10). Dejarlo activo prometería un envío que no
+ * ocurre.
  */
 
 private val Hairline = Color(0xFFE6E1D8)
@@ -93,30 +102,18 @@ private val ChipIconSurface = Color(0xFFE8E9F7)
 private val NoticeCardShape = RoundedCornerShape(16.dp)
 private val PreviewCardShape = RoundedCornerShape(20.dp)
 
-private data class AudienceChip(
-    val label: String,
-    val icon: ImageVector,
-    val selected: Boolean = false,
-)
-
-private val audienceChips = listOf(
-    AudienceChip("Mi grupo 3° B", Icons.Filled.Groups, selected = true),
-    AudienceChip("3° A", Icons.Filled.School),
-    AudienceChip("2° C", Icons.Filled.School),
-    AudienceChip("Todos mis grupos", Icons.Filled.GroupWork),
-)
-
 @Composable
 fun TeacherNoticeNewScreen(
+    ui: TeacherNoticeNewUi,
     onBack: () -> Unit = {},
+    onToggleGroup: (String) -> Unit = {},
+    onToggleAllGroups: () -> Unit = {},
+    onTitleChange: (String) -> Unit = {},
+    onBodyChange: (String) -> Unit = {},
+    onUrgentChange: (Boolean) -> Unit = {},
+    onPublish: () -> Unit = {},
 ) {
-    var title by remember { mutableStateOf("Material para la feria de ciencias") }
-    var message by remember {
-        mutableStateOf(
-            "Traer cartulina, plumones y un objeto reciclado para el proyecto del viernes.",
-        )
-    }
-    var notifyFamilies by remember { mutableStateOf(true) }
+    val allSelected = ui.groups.isNotEmpty() && ui.selectedGroupIds.size == ui.groups.size
 
     Column(
         modifier = Modifier
@@ -145,8 +142,21 @@ fun TeacherNoticeNewScreen(
                         .padding(horizontal = 16.dp),
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
                 ) {
-                    audienceChips.forEach { chip ->
-                        AudiencePill(chip = chip)
+                    AudiencePill(
+                        label = "Todos mis grupos",
+                        icon = Icons.Filled.GroupWork,
+                        selected = allSelected,
+                        enabled = !ui.published,
+                        onClick = onToggleAllGroups,
+                    )
+                    ui.groups.forEach { group ->
+                        AudiencePill(
+                            label = group.label,
+                            icon = Icons.Filled.School,
+                            selected = group.id in ui.selectedGroupIds,
+                            enabled = !ui.published,
+                            onClick = { onToggleGroup(group.id) },
+                        )
                     }
                 }
             }
@@ -159,11 +169,12 @@ fun TeacherNoticeNewScreen(
                 NoticeFieldCard(
                     icon = Icons.Outlined.Title,
                     label = "Título del aviso",
-                    counter = "${title.length}/80",
+                    counter = "${ui.title.length}/${NOTICE_TITLE_MAX_CHARS}",
                 ) {
                     BasicTextField(
-                        value = title,
-                        onValueChange = { if (it.length <= 80) title = it },
+                        value = ui.title,
+                        onValueChange = onTitleChange,
+                        enabled = !ui.published,
                         modifier = Modifier.fillMaxWidth(),
                         textStyle = TextStyle(
                             color = OnSurface,
@@ -176,7 +187,7 @@ fun TeacherNoticeNewScreen(
                         singleLine = true,
                         decorationBox = { innerTextField ->
                             Box {
-                                if (title.isEmpty()) {
+                                if (ui.title.isEmpty()) {
                                     Text(
                                         text = "Ej. Recordatorio de excursión",
                                         color = Outline.copy(alpha = 0.70f),
@@ -194,11 +205,12 @@ fun TeacherNoticeNewScreen(
                 NoticeFieldCard(
                     icon = Icons.Outlined.EditNote,
                     label = "Mensaje",
-                    counter = "${message.length}/300",
+                    counter = "${ui.body.length}/${NOTICE_BODY_MAX_CHARS}",
                 ) {
                     BasicTextField(
-                        value = message,
-                        onValueChange = { if (it.length <= 300) message = it },
+                        value = ui.body,
+                        onValueChange = onBodyChange,
+                        enabled = !ui.published,
                         modifier = Modifier
                             .fillMaxWidth()
                             .heightIn(min = 60.dp),
@@ -212,7 +224,7 @@ fun TeacherNoticeNewScreen(
                         maxLines = 5,
                         decorationBox = { innerTextField ->
                             Box {
-                                if (message.isEmpty()) {
+                                if (ui.body.isEmpty()) {
                                     Text(
                                         text = "Escriba aquí los detalles...",
                                         color = Outline.copy(alpha = 0.70f),
@@ -234,7 +246,11 @@ fun TeacherNoticeNewScreen(
                 verticalArrangement = Arrangement.spacedBy(8.dp),
             ) {
                 SectionLabel(text = "Prioridad", color = PrimaryContainer)
-                PriorityCard()
+                PriorityCard(
+                    urgent = ui.urgent,
+                    enabled = !ui.published,
+                    onUrgentChange = onUrgentChange,
+                )
             }
 
             // ZONE 5 — Vista previa
@@ -243,21 +259,38 @@ fun TeacherNoticeNewScreen(
                 verticalArrangement = Arrangement.spacedBy(8.dp),
             ) {
                 PreviewHeader()
-                PreviewCard(title = title, message = message)
+                PreviewCard(
+                    title = ui.title,
+                    message = ui.body,
+                    teacherName = ui.teacherName,
+                    audienceLabel = ui.selectedGroupLabels.joinToString(", "),
+                )
             }
 
-            // ZONE 6 — Notification toggle
+            // ZONE 6 — Notification toggle (FCM arrives with block 10)
             NotifyToggleCard(
-                checked = notifyFamilies,
-                onToggle = { notifyFamilies = !notifyFamilies },
+                checked = false,
+                onToggle = {},
                 modifier = Modifier.padding(horizontal = 16.dp),
             )
         }
 
         // ZONE 7 — Sticky bottom bar
-        NoticeFooter()
+        NoticeFooter(
+            message = ui.message,
+            canPublish = ui.canPublish,
+            publishing = ui.publishing,
+            published = ui.published,
+            onPublish = onPublish,
+            onClose = onBack,
+        )
     }
 }
+
+/** Must match the caps in `TeacherNoticeNewViewModel`. */
+private const val NOTICE_TITLE_MAX_CHARS = 80
+private const val NOTICE_BODY_MAX_CHARS = 300
+
 
 // ZONE 1 — Top app bar
 @Composable
@@ -338,12 +371,20 @@ private fun DestinatariosLabel() {
 }
 
 @Composable
-private fun AudiencePill(chip: AudienceChip) {
+private fun AudiencePill(
+    label: String,
+    icon: ImageVector,
+    selected: Boolean,
+    enabled: Boolean,
+    onClick: () -> Unit,
+) {
+    val (interaction, pressModifier) = rememberPressScale(0.97f)
     Row(
         modifier = Modifier
             .height(36.dp)
+            .then(pressModifier)
             .then(
-                if (chip.selected) {
+                if (selected) {
                     Modifier
                         .shadow(elevation = 1.dp, shape = RoundedCornerShape(percent = 50))
                         .background(PrimaryContainer)
@@ -353,20 +394,27 @@ private fun AudiencePill(chip: AudienceChip) {
                         .border(1.dp, Hairline, RoundedCornerShape(percent = 50))
                 },
             )
+            .alpha(if (enabled) 1f else 0.60f)
             .clip(RoundedCornerShape(percent = 50))
+            .clickable(
+                enabled = enabled,
+                interactionSource = interaction,
+                indication = null,
+                onClick = onClick,
+            )
             .padding(horizontal = 14.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Icon(
-            imageVector = chip.icon,
+            imageVector = icon,
             contentDescription = null,
-            tint = if (chip.selected) Color.White else PrimaryContainer,
+            tint = if (selected) Color.White else PrimaryContainer,
             modifier = Modifier.size(18.dp),
         )
         Spacer(modifier = Modifier.width(6.dp))
         Text(
-            text = chip.label,
-            color = if (chip.selected) Color.White else PrimaryContainer,
+            text = label,
+            color = if (selected) Color.White else PrimaryContainer,
             fontFamily = DmSans,
             fontWeight = FontWeight.Medium,
             fontSize = 13.sp,
@@ -431,8 +479,19 @@ private fun NoticeFieldCard(
 }
 
 // ZONE 4 — Prioridad
+/**
+ * Two mutually exclusive chips, driven by [urgent].
+ *
+ * The document stores only `urgent`; `category` (`urgente` / `grupo`) is derived
+ * in the repository so the chip the teacher picks and the value the tutor filters
+ * by cannot disagree.
+ */
 @Composable
-private fun PriorityCard() {
+private fun PriorityCard(
+    urgent: Boolean,
+    enabled: Boolean,
+    onUrgentChange: (Boolean) -> Unit,
+) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -442,59 +501,79 @@ private fun PriorityCard() {
             .padding(6.dp),
         horizontalArrangement = Arrangement.spacedBy(6.dp),
     ) {
-        // Normal is selected in the mockup.
-        Row(
-            modifier = Modifier
-                .weight(1f)
-                .height(40.dp)
-                .shadow(elevation = 1.dp, shape = RoundedCornerShape(12.dp))
-                .clip(RoundedCornerShape(12.dp))
-                .background(PrimaryContainer),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.Center,
-        ) {
-            Icon(
-                imageVector = Icons.Filled.CheckCircle,
-                contentDescription = null,
-                tint = Color.White,
-                modifier = Modifier.size(18.dp),
-            )
-            Spacer(modifier = Modifier.width(8.dp))
-            Text(
-                text = "Normal",
-                color = Color.White,
-                fontFamily = DmSans,
-                fontWeight = FontWeight.SemiBold,
-                fontSize = 13.sp,
-                lineHeight = 18.sp,
-            )
-        }
+        PriorityOption(
+            label = noticePriorityLabel(urgent = false),
+            icon = Icons.Filled.CheckCircle,
+            selected = !urgent,
+            accent = PrimaryContainer,
+            enabled = enabled,
+            onClick = { onUrgentChange(false) },
+            modifier = Modifier.weight(1f),
+        )
+        PriorityOption(
+            label = noticePriorityLabel(urgent = true),
+            icon = Icons.Outlined.ErrorOutline,
+            selected = urgent,
+            accent = BrandCoral,
+            enabled = enabled,
+            onClick = { onUrgentChange(true) },
+            modifier = Modifier.weight(1f),
+        )
+    }
+}
 
-        Row(
-            modifier = Modifier
-                .weight(1f)
-                .height(40.dp)
-                .clip(RoundedCornerShape(12.dp))
-                .border(1.dp, SecondaryFixed, RoundedCornerShape(12.dp)),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.Center,
-        ) {
-            Icon(
-                imageVector = Icons.Outlined.ErrorOutline,
-                contentDescription = null,
-                tint = BrandCoral,
-                modifier = Modifier.size(18.dp),
+@Composable
+private fun PriorityOption(
+    label: String,
+    icon: ImageVector,
+    selected: Boolean,
+    accent: Color,
+    enabled: Boolean,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val (interaction, pressModifier) = rememberPressScale(0.97f)
+    Row(
+        modifier = modifier
+            .height(40.dp)
+            .then(pressModifier)
+            .then(
+                if (selected) {
+                    Modifier
+                        .shadow(elevation = 1.dp, shape = RoundedCornerShape(12.dp))
+                        .clip(RoundedCornerShape(12.dp))
+                        .background(accent)
+                } else {
+                    Modifier
+                        .clip(RoundedCornerShape(12.dp))
+                        .border(1.dp, SecondaryFixed, RoundedCornerShape(12.dp))
+                },
             )
-            Spacer(modifier = Modifier.width(8.dp))
-            Text(
-                text = "Importante",
-                color = BrandCoral,
-                fontFamily = DmSans,
-                fontWeight = FontWeight.Medium,
-                fontSize = 13.sp,
-                lineHeight = 18.sp,
-            )
-        }
+            .alpha(if (enabled) 1f else 0.60f)
+            .clickable(
+                enabled = enabled,
+                interactionSource = interaction,
+                indication = null,
+                onClick = onClick,
+            ),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.Center,
+    ) {
+        Icon(
+            imageVector = icon,
+            contentDescription = null,
+            tint = if (selected) Color.White else accent,
+            modifier = Modifier.size(18.dp),
+        )
+        Spacer(modifier = Modifier.width(8.dp))
+        Text(
+            text = label,
+            color = if (selected) Color.White else accent,
+            fontFamily = DmSans,
+            fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Medium,
+            fontSize = 13.sp,
+            lineHeight = 18.sp,
+        )
     }
 }
 
@@ -535,7 +614,12 @@ private fun PreviewHeader() {
 }
 
 @Composable
-private fun PreviewCard(title: String, message: String) {
+private fun PreviewCard(
+    title: String,
+    message: String,
+    teacherName: String,
+    audienceLabel: String,
+) {
     Box(
         modifier = Modifier
             .fillMaxWidth()
@@ -645,15 +729,23 @@ private fun PreviewCard(title: String, message: String) {
 }
 
 // ZONE 6 — Notification toggle
+/**
+ * El interruptor de push se muestra deshabilitado a propósito: el envío real
+ * llega con el bloque 10 (FCM), y en Spark el push se manda desde la consola.
+ * Un interruptor que se puede tocar y no manda nada es peor que uno apagado que
+ * dice por qué.
+ */
 @Composable
 private fun NotifyToggleCard(
     checked: Boolean,
     onToggle: () -> Unit,
     modifier: Modifier = Modifier,
+    enabled: Boolean = false,
 ) {
     Row(
         modifier = modifier
             .fillMaxWidth()
+            .alpha(if (enabled) 1f else 0.60f)
             .clip(NoticeCardShape)
             .background(SurfaceContainerLowest)
             .border(1.dp, FieldBorder, NoticeCardShape)
@@ -692,7 +784,11 @@ private fun NotifyToggleCard(
             )
             Spacer(modifier = Modifier.height(2.dp))
             Text(
-                text = "Avisar inmediatamente en sus teléfonos",
+                text = if (enabled) {
+                    "Avisar inmediatamente en sus teléfonos"
+                } else {
+                    "Todavía no se envían notificaciones push."
+                },
                 color = OnSurfaceVariant,
                 fontFamily = DmSans,
                 fontSize = 12.sp,
@@ -710,6 +806,7 @@ private fun NotifyToggleCard(
                 .clickable(
                     interactionSource = interaction,
                     indication = null,
+                    enabled = enabled,
                     onClick = onToggle,
                 )
                 .padding(2.dp),
@@ -727,8 +824,24 @@ private fun NotifyToggleCard(
 }
 
 // ZONE 7 — Sticky bottom bar
+/**
+ * Footer que también cuenta lo que pasó.
+ *
+ * - [message] dice por qué no se pudo publicar, en las palabras del docente.
+ * - El botón solo se habilita con [canPublish]: un aviso mandado al grupo
+ *   equivocado llega a treinta familias.
+ * - Con [published] el botón se vuelve la confirmación y cierra la pantalla: el
+ *   aviso ya quedó encolado y no hay nada que editar en este formulario.
+ */
 @Composable
-private fun NoticeFooter() {
+private fun NoticeFooter(
+    message: String?,
+    canPublish: Boolean,
+    publishing: Boolean,
+    published: Boolean,
+    onPublish: () -> Unit,
+    onClose: () -> Unit,
+) {
     Column(
         modifier = Modifier
             .fillMaxWidth()
@@ -749,6 +862,21 @@ private fun NoticeFooter() {
                 .padding(top = 12.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
+            if (message != null) {
+                Text(
+                    text = message,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(bottom = 10.dp),
+                    color = Error,
+                    fontFamily = DmSans,
+                    fontWeight = FontWeight.Medium,
+                    fontSize = 12.sp,
+                    lineHeight = 16.sp,
+                    textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                )
+            }
+
             val (interaction, pressModifier) = rememberPressScale(0.98f)
             Row(
                 modifier = Modifier
@@ -756,30 +884,39 @@ private fun NoticeFooter() {
                     .height(48.dp)
                     .then(pressModifier)
                     .shadow(
-                        elevation = 8.dp,
+                        elevation = if (canPublish) 8.dp else 0.dp,
                         shape = RoundedCornerShape(percent = 50),
                         ambientColor = BrandCoral.copy(alpha = 0.30f),
                         spotColor = BrandCoral.copy(alpha = 0.30f),
                     )
                     .clip(RoundedCornerShape(percent = 50))
-                    .background(BrandCoral)
+                    .background(if (canPublish) BrandCoral else BrandCoral.copy(alpha = 0.40f))
                     .clickable(
                         interactionSource = interaction,
                         indication = null,
-                        onClick = {},
+                        enabled = canPublish,
+                        onClick = if (published) onClose else onPublish,
                     ),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.Center,
             ) {
                 Icon(
-                    imageVector = Icons.AutoMirrored.Filled.Send,
+                    imageVector = if (published) {
+                        Icons.Filled.CheckCircle
+                    } else {
+                        Icons.AutoMirrored.Filled.Send
+                    },
                     contentDescription = null,
                     tint = Color.White,
                     modifier = Modifier.size(20.dp),
                 )
                 Spacer(modifier = Modifier.width(8.dp))
                 Text(
-                    text = "Publicar aviso",
+                    text = when {
+                        published -> "Aviso guardado"
+                        publishing -> "Guardando…"
+                        else -> "Publicar aviso"
+                    },
                     color = Color.White,
                     fontFamily = DmSans,
                     fontWeight = FontWeight.Bold,

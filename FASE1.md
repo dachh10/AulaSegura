@@ -593,24 +593,184 @@ sus fotos, con o sin conexión.
 
 ## Bloque 8 — Tareas y avisos (PLAN 1.8)
 
-> **Estado: ✅ HECHO** — 15–17 nov 2026 · `assembleDebug` verde · **189 tests unitarios, 0 fallos**.
-> El código vive en la rama `feat/docente-pase-lista` (commits `c87e1eb`, `800621c`, `4ddc7b7`,
-> `e837e16`); el detalle completo —qué cambió en cada archivo, decisiones, pendientes y pasos de
-> prueba en el teléfono— está en el `FASE1.md` de esa rama.
-> **La verificación en el teléfono la corre el dueño del proyecto.**
+> **Estado: ✅ HECHO** — 15 nov 2026 · `assembleDebug` verde · **179 tests unitarios, 0 fallos**
+> (+12 de este bloque: 5 del documento de Firestore y 7 de la línea de tiempo de Publicaciones).
+> **Commit principal `c87e1eb`** (26 archivos); el copy de los controles no disponibles se ajustó en
+> `800621c`. El PDF de las tareas llegó después, como **bloque 8B** (`4ddc7b7` + `e837e16`).
+> **La verificación en el teléfono la corre el dueño del proyecto**; los pasos van al final de cada
+> bloque.
 
 - [x] **8.1** `TaskRepository.publish`: `groupIds` (array), `dueDate`, `createdBy`, `active`
 - [x] **8.2** `NoticeRepository.publish`: `audience.roles`, `audience.groupIds`, `urgent`
 - [x] **8.3** Caché de lectura en Room (`TaskEntity`, `NoticeEntity`) desde el primer momento
 - [x] **8.4** `TeacherTaskNewScreen` y `TeacherNoticeNewScreen` cableadas a grupos reales
 - [x] **8.5** Eventos `task_published` y `notice_published`
-- [x] **8.6** Segmento **Publicaciones** real en el historial: tareas y avisos en una línea de tiempo,
-  con píldora de sync por fila y lectura solo de Room (funciona sin red)
-- [x] **8.7** Un solo PDF por tarea (máx. 10 MB), subido a Cloudinary con `/raw/upload` **antes** de
-  escribir el documento, con su estado visible en el historial: `Subido` / `Pendiente` / `No se subió`
+- [x] **8.6** Segmento **Publicaciones** real en el historial del docente (línea de tiempo cache-first)
+- [x] **8.7** Controles que aún no funcionan, honestos: adjuntos (resuelto en 8B) y notificación (bloque 10)
+
+**Qué cambió en este bloque**
+
+| Archivo | Cambio |
+|---|---|
+| `domain/model/Publication.kt` | **nuevo** `NewTask`, `NewNotice`, `PublishOutcome`, `PublishedTask`, `PublishedNotice` |
+| `domain/repository/TaskRepository.kt` · `NoticeRepository.kt` | **nuevos** contratos: `publish` offline-first + lectura cache-first |
+| `data/mapper/PublicationMapper.kt` | **nuevo** documento `tasks/{taskId}` y `notices/{noticeId}` (audiencia anidada), y fila cacheada → fila de historial |
+| `data/repository/RoomTaskRepository.kt` · `RoomNoticeRepository.kt` | **nuevos**: resuelven el grupo del roster cacheado, escriben caché + outbox y emiten el evento |
+| `data/local/dao/TaskDao.kt` · `NoticeDao.kt` | `observeByCreator(uid)` para la lectura del docente |
+| `sync/TaskSyncHandler.kt` · `NoticeSyncHandler.kt` | **nuevos**: `set()` idempotente por UUID sobre el documento del cliente |
+| `sync/OutboxRepository.kt` · `sync/SyncOperation.kt` | `enqueueTask`/`enqueueNotice` transaccionales y `UPSERT_TASK`/`UPSERT_NOTICE` |
+| `ui/screens/teacher/TeacherTaskNewUi.kt` · `TeacherTaskNewViewModel.kt` | **nuevos**: grupos reales, materia del perfil, fecha/hora de entrega, `canPublishTask` y etiquetas |
+| `ui/screens/teacher/TeacherNoticeNewUi.kt` · `TeacherNoticeNewViewModel.kt` | **nuevos**: chips multigrupo, "todos mis grupos", urgencia y `canPublishNotice` |
+| `ui/screens/teacher/TeacherTaskNewScreen.kt` · `TeacherNoticeNewScreen.kt` | cableadas a su ViewModel; footer con mensaje, estado de envío y confirmación; controles no disponibles con su motivo (adjuntos → 8B, notificación → bloque 10) |
+| `ui/screens/teacher/TeacherHistoryUi.kt` · `TeacherHistoryViewModel.kt` · `TeacherHistoryScreen.kt` | segmento **Publicaciones** real: una sola línea de tiempo de tareas y avisos con su píldora de sync |
+| `di/AppContainer.kt` · `navigation/AulaSeguraNavHost.kt` | repos, handlers registrados, ViewModels y las dos rutas cableadas |
+| `test/.../PublicationMapperTest.kt` · `TeacherPublicationUiTest.kt` | **nuevos**: forma de los documentos, orden de la línea de tiempo, etiquetas y `canPublish` |
+
+Lo que este bloque **no** trajo, y se resolvió después: el PDF de la tarea (bloque 8B), la notificación
+push (bloque 10) y la lista de publicaciones desde otro teléfono (reglas, Fase 2).
+
+**Decisiones que importan**
+
+- **"Publicado" en esta pantalla significa encolado.** Igual que en incidentes: Room + outbox en una
+  transacción, y el worker es lo único que habla con Firestore. El docente ve "guardada" porque eso
+  es lo que es verdad en ese momento, no porque el documento ya esté en la nube.
+- **La píldora de sync es por fila, no por lista.** La fuente es el outbox: una tarea escrita sin red
+  queda "Pendiente de enviar" aunque el aviso que se publicó después ya haya llegado.
+- **El grupo se resuelve del roster cacheado, nunca del formulario.** Las reglas exigen
+  `groupIds.hasOnly(myGroups())`; mandar un id que el docente ya no imparte se rechaza en la nube
+  cuando el formulario ya está cerrado.
+- **`category` del aviso se deriva de `urgent`.** Una sola perilla: el chip que elige el docente y el
+  valor por el que filtra el tutor no pueden contradecirse.
+- **Un aviso multigrupo es un documento, no varios.** La audiencia es un array, así que marcar 3° B y
+  4° A es el mismo aviso para las dos familias; duplicarlo habría dado dos veces el mismo timbre.
+- **Nada de audiencia preseleccionada.** Ni grupo en la tarea ni "todos mis grupos" en el aviso: los
+  dos formularios empiezan vacíos y el botón está deshabilitado hasta que el docente elige.
+- **`attachments` y `expiresAt` se escriben explícitos** (lista vacía o el PDF del bloque 8B, y `null`).
+  La caducidad no la decide Fase 1, pero el documento tiene la forma completa desde hoy.
+- **"Publicaciones" lee solo Room.** Un docente no puede listar `tasks` ni `notices` con las reglas
+  actuales (ver pendientes), así que el segmento es lo que este dispositivo publicó —que es
+  exactamente lo que la caché ya tiene— y por eso funciona sin red.
+- **Un control deshabilitado dice el motivo, no "próxima versión".** El mockup traía esa frase y
+  confundía dos casos distintos: los adjuntos no eran de Fase 1 (hoy hay un PDF, ver 8B) y la
+  notificación es el bloque 10 de esta misma fase. El interruptor del aviso, además, se veía activo
+  aunque no respondía; ahora está atenuado e inerte (`800621c`).
+
+**Cómo probarlo en el teléfono** (lo corre el dueño del proyecto)
+
+1. Con red: publica una tarea para 3° B y un aviso urgente a 3° B y 4° A. En Firestore,
+   `tasks/{id}` trae `groupIds`, `dueDate`, `createdBy`, `active` y `attachments: []`; `notices/{id}`
+   trae `audience.roles: ["tutor"]`, `audience.groupIds`, `urgent: true`, `category: "urgente"`,
+   `expiresAt: null`.
+2. **Modo avión**: publica una tarea y un aviso → las dos aparecen en **Publicaciones** como
+   "Pendiente de enviar". Cierra y reabre la app: siguen ahí. Reconecta → pasan a "Publicado" y hay
+   **un solo documento** de cada uno.
+3. Los formularios no dejan publicar sin grupo ni título: el botón está deshabilitado y el footer
+   explica qué falta.
+4. "Adjuntar PDF" ya funciona (ver 8B) y "Notificar a las familias" sigue deshabilitado con el motivo.
+
+**Pendientes conocidos de este bloque**
+
+1. **La lista del docente es local.** `notices` deja leer al docente solo si `audience.roles` incluye
+   `'docente'` (los avisos van a tutores), y `tasks` exige `groupIds.hasAny(myGroups())` sin filtro por
+   autor: ninguna de las dos se puede probar como consulta. Ver lo publicado desde otro teléfono pide
+   ampliar reglas —decisión de Fase 2, con la bandeja del tutor—, no un parche aquí.
+2. **Sin editar ni borrar publicaciones.** Las reglas sí permiten `update`/`delete` al autor; la
+   pantalla de gestión no está en FASE 1.
+3. **La fecha de entrega no se valida contra el presente**: el selector arranca en una semana y deja
+   elegir una fecha pasada, que se publica igual.
+4. **"Notificar a las familias" queda deshabilitado a propósito**: llega con el bloque 10 (FCM).
+   Dejarlo activo sería prometer un envío que no ocurre. Los adjuntos se resolvieron en el bloque 8B.
+5. **Verificación en el teléfono** a cargo del dueño del proyecto (modo avión → publicar tarea y aviso
+   → reconectar → revisar Firestore y el segmento Publicaciones).
 
 **Criterio:** una tarea publicada para 3° B y un aviso urgente para los tutores de 3° B aparecen en
 Firestore con la audiencia correcta y se leen sin red después de la primera carga.
+
+---
+
+## Bloque 8B — Un PDF por tarea (agregado al bloque 8)
+
+> **Estado: ✅ HECHO** — 17 nov 2026 · `assembleDebug` verde · **189 tests unitarios, 0 fallos**
+> (+10 de este bloque: 9 de `TaskAttachmentMapperTest` y el adjunto en la línea de tiempo).
+
+- [x] **8B.1** Un solo PDF por tarea, máximo 10 MB; ni fotos ni Word
+- [x] **8B.2** Selector del sistema filtrado a `application/pdf`, con tope aplicado **mientras se lee**
+- [x] **8B.3** Copia en `filesDir` (no caché) mientras la tarea espera señal
+- [x] **8B.4** `UPLOAD_TASK_ATTACHMENT` encolado **antes** de `UPSERT_TASK`
+- [x] **8B.5** Subida a `/raw/upload` de Cloudinary, con `asset_folder` por tarea
+
+**Qué cambió en este bloque**
+
+| Archivo | Cambio |
+|---|---|
+| `data/remote/cloudinary/CloudinaryConfig.kt` | `rawUploadUrl` para documentos |
+| `data/remote/cloudinary/CloudinaryUploader.kt` · `OkHttpCloudinaryUploader.kt` | **nuevo** `uploadDocument` (`/raw/upload`, sin transformaciones); el código de request se comparte con imágenes |
+| `data/local/media/TaskAttachmentStore.kt` | **nuevo**: copia el PDF a `filesDir/task-attachments` y lo borra al subir o al quitarlo |
+| `data/mapper/TaskAttachmentJson.kt` | **nuevo**: `StoredTaskAttachment` en `TaskEntity.attachmentsJson` (`PENDING`/`UPLOADED`/`FAILED`) y el mapa de Firestore |
+| `domain/model/Publication.kt` | `NewTask.attachment`, `NewTaskAttachment`, `PublishedTask.attachmentName` + `attachmentState` y el enum `AttachmentSyncState` |
+| `data/mapper/PublicationMapper.kt` | `attachments` sale del estado real del archivo; la fila de historial lleva el nombre y el estado del PDF |
+| `data/repository/RoomTaskRepository.kt` | guarda el adjunto en la fila y encola la subida antes del documento |
+| `sync/SyncOperation.kt` · `OutboxRepository.enqueueTask` | **nuevo** `UPLOAD_TASK_ATTACHMENT`, con `createdAt` compartido para que se drene primero |
+| `sync/UploadTaskAttachmentHandler.kt` | **nuevo**: sube el PDF, marca `UPLOADED` y borra la copia local |
+| `sync/TaskSyncHandler.kt` | no escribe la tarea mientras el PDF esté `PENDING` |
+| `ui/screens/teacher/TeacherTaskNewUi.kt` · `TeacherTaskNewViewModel.kt` | **nuevos** `TASK_ATTACHMENT_MAX_BYTES`, `taskAttachmentSizeLabel`, `attachPdf`/`removeAttachment` y limpieza en `onCleared` |
+| `ui/screens/teacher/TeacherHistoryUi.kt` · `TeacherHistoryScreen.kt` | la tarjeta de Publicaciones muestra el PDF con su estado (`Subido` / `Pendiente` / `No se subió`), para que el docente pueda corroborarlo después |
+| `ui/screens/teacher/TeacherTaskNewScreen.kt` | zona de adjuntos real: selector, chip con nombre y tamaño, cambiar y quitar |
+| `di/AppContainer.kt` · `navigation/AulaSeguraNavHost.kt` | store y handler registrados; callbacks cableados |
+| `test/.../TaskAttachmentMapperTest.kt` | **nuevo**: documento con y sin URL, columna JSON, columna corrupta y los tres estados en el historial |
+| `test/.../TeacherPublicationUiTest.kt` | **ampliado**: la píldora del adjunto con `Subido` / `Pendiente` / `No se subió` |
+
+**Decisiones que importan**
+
+- **Un solo PDF.** Una tarea es una instrucción, no una transferencia de archivos. PDF porque abre
+  igual en cualquier teléfono; Word y HEIC no.
+- **Sin migración de Room.** El adjunto vive en `attachmentsJson`, la columna que ya existía para el
+  array del documento. Una tabla aparte y su migración para un único archivo no compraban nada.
+- **El archivo se sube antes de escribir la tarea.** `UPLOAD_TASK_ATTACHMENT` y `UPSERT_TASK` comparten
+  `createdAt`, así que se drenan en ese orden; `TaskSyncHandler` además se niega a escribir con el
+  archivo en vuelo. Publicar primero dejaría `attachments: []` para siempre.
+- **`/raw/upload` y no `/image/upload`.** El endpoint de imágenes convierte el PDF en imagen; raw guarda
+  los bytes y la familia descarga el documento que el docente adjuntó.
+- **Un adjunto que no se puede subir no tumba la tarea.** Se marca `FAILED`, se borra la copia local y
+  la tarea se publica sin archivo: perder el anuncio por un PDF ilegible sería peor. El historial sigue
+  mostrando el nombre.
+- **El tope se aplica leyendo**, no después: se consulta `OpenableColumns.SIZE` y, si el proveedor miente,
+  la lectura se corta a los 10 MB. Cargar un escaneo de 40 MB para rechazarlo después es un `OOM`.
+
+**Configuración que depende de Cloudinary (no de Firebase)**
+
+1. El preset unsigned debe admitir PDF (o no tener lista de formatos). Con `allowed_formats=jpg,png,webp`
+   la subida responde 400 y el adjunto se marca `FAILED`.
+2. *Security → Allow delivery of PDF and ZIP files*. Sin ese interruptor el archivo sube, pero la URL
+   responde 401 y el tutor no lo puede abrir.
+
+Ninguno de los dos se configura en Firebase: las reglas de `tasks` no validan `attachments`, así que
+esta parte no pide tocar el proyecto de Firebase.
+
+**Cómo probarlo en el teléfono** (lo corre el dueño del proyecto)
+
+1. Publica una tarea y toca **Adjuntar PDF**: el selector solo muestra PDFs. Elige uno chico → aparece
+   el chip con nombre y tamaño; **Cambiar** lo reemplaza y **Quitar** lo elimina.
+2. Prueba un PDF de más de 10 MB → "El PDF supera los 10 MB." (se corta durante la lectura).
+3. Con red: publica con PDF → en Firestore, `tasks/{id}.attachments` trae **un elemento** con
+   `fileName`, `mimeType: "application/pdf"`, `bytes` y `url` de `.../raw/upload/...`. Abre la URL: debe
+   descargar el PDF (si da 401, falta el interruptor de PDF delivery en Cloudinary).
+4. En **Publicaciones**, la tarjeta muestra `archivo.pdf · Subido` en verde; si publicaste en modo
+   avión, primero dice `· Pendiente` y cambia sola a `· Subido` al reconectar.
+5. Caso de fallo: si Cloudinary rechaza el archivo (p. ej. el preset no admite `pdf`), la tarea se
+   publica igual y la tarjeta dice `· No se subió`.
+6. Una tarea sin PDF no muestra ninguna píldora de archivo.
+
+**Pendientes conocidos**
+
+1. **El tutor todavía no ve el adjunto**: su pantalla es mock hasta su fase. El documento ya lleva la URL.
+2. **Sin reintento manual del archivo.** El historial dice si el PDF subió, quedó pendiente o no se subió,
+   pero no deja reintentarlo: si falló, el docente vuelve a adjuntarlo desde el formulario.
+3. **Sin vista previa dentro de la app**: el PDF se abre con el visor del teléfono.
+
+**Criterio:** en modo avión, adjuntar un PDF y publicar deja la tarea "Pendiente de enviar" con el
+adjunto en "Pendiente"; al reconectar, `tasks/{id}.attachments` tiene un elemento con `url` de
+Cloudinary, el historial pasa a "hoja.pdf · Subido" y hay un solo documento.
 
 ---
 

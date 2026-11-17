@@ -98,8 +98,9 @@ import com.example.aulasegura.ui.screens.teacher.TeacherTaskNewViewModel
 /**
  * Navigation graph for the whole app.
  *
- * Every screen is currently a stub so the full flow is walkable end to end.
- * Each stub is replaced by the real Compose screen as its Stitch design is ported.
+ * Each route resolves the session and wires a ViewModel from the container. The
+ * screens for phases already delivered are real; the ones still pending keep
+ * their visual port until their own block lands.
  */
 @Composable
 fun AulaSeguraNavHost(

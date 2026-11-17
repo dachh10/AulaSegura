@@ -695,8 +695,9 @@ push (bloque 10) y la lista de publicaciones desde otro teléfono (reglas, Fase 
    pantalla de gestión no está en FASE 1.
 3. **La fecha de entrega no se valida contra el presente**: el selector arranca en una semana y deja
    elegir una fecha pasada, que se publica igual.
-4. **"Notificar a las familias" queda deshabilitado a propósito**: llega con el bloque 10 (FCM).
-   Dejarlo activo sería prometer un envío que no ocurre. Los adjuntos se resolvieron en el bloque 8B.
+4. **"Notificar a las familias" sigue deshabilitado**: el bloque 10 trajo el push manual (consola y
+   `scripts/notify`), no un envío automático por evento, que en Spark requiere Blaze. Dejarlo activo
+   sería prometer un envío que no ocurre. Los adjuntos se resolvieron en el bloque 8B.
 5. **Verificación en el teléfono** a cargo del dueño del proyecto (modo avión → publicar tarea y aviso
    → reconectar → revisar Firestore y el segmento Publicaciones).
 
@@ -895,7 +896,7 @@ consola**; el intercambio real entre dos teléfonos llega con el chat del tutor 
 > Probado en un dispositivo real: el token aparece en `users/{uid}/fcmTokens/{token}` al iniciar
 > sesión (y se borra al cerrarla), el *Send test message* de la consola llega con la app abierta y
 > cerrada, y un documento creado a mano en `notifications` aparece en la bandeja con su hora, su
-> grupo y el badge de no leídos, se marca leído al tocarlo y navega al `deepLink`.
+> tipo y el badge de no leídos, se marca leído al tocarlo y navega al `deepLink`.
 
 - [x] **10.1** `FirebaseMessagingService`: token en `users/{uid}/fcmTokens/{token}` (`token`, `platform`, `updatedAt`)
 - [x] **10.2** Rotación de token (`onNewToken`) y borrado del token al cerrar sesión
@@ -958,7 +959,7 @@ consola**; el intercambio real entre dos teléfonos llega con el chat del tutor 
    llegar con la app abierta y cerrada.
 5. En el campo de datos (Custom data), usar `deepLink` = `teacher/history` (o `teacher/chat/<id>`): al
    tocar la notificación debe abrir esa pantalla. Un valor inventado no debe abrir nada.
-6. Bandeja: crear un documento en `notifications` con tu uid → aparece con su hora y su grupo; tocarlo lo
+6. Bandeja: crear un documento en `notifications` con tu uid → aparece con su hora y su tipo; tocarlo lo
    marca leído; "marcar todo leído" baja el contador a cero.
 7. Cerrar sesión → el documento del token desaparece de `users/{uid}/fcmTokens`.
 

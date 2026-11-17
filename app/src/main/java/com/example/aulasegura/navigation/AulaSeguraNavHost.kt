@@ -76,6 +76,8 @@ import com.example.aulasegura.ui.screens.teacher.TeacherChatScreen
 import com.example.aulasegura.ui.screens.teacher.TeacherChatViewModel
 import com.example.aulasegura.ui.screens.teacher.TeacherConversationViewModel
 import com.example.aulasegura.ui.screens.teacher.TeacherConversationScreen
+import com.example.aulasegura.ui.screens.teacher.TeacherGroupDetailScreen
+import com.example.aulasegura.ui.screens.teacher.TeacherGroupDetailViewModel
 import com.example.aulasegura.ui.screens.teacher.TeacherGroupsScreen
 import com.example.aulasegura.ui.screens.teacher.TeacherGroupsViewModel
 import com.example.aulasegura.ui.screens.teacher.TeacherHistoryScreen
@@ -371,12 +373,29 @@ fun AulaSeguraNavHost(
                 onVerAlumnos = { groupId -> navController.navigate(Routes.teacherGroupDetail(groupId)) },
             )
         }
-        composable(Routes.TEACHER_GROUP_DETAIL) {
-            PlaceholderScreen(
-                title = "Detalle de grupo",
-                next = "Pase de lista",
-                onNext = { navController.navigate(Routes.teacherRollCall("3B")) },
-                extraActions = listOf("Volver" to { navController.popBackStack() }),
+        composable(Routes.TEACHER_GROUP_DETAIL) { entry ->
+            // The group id comes from the route, so the ViewModel is keyed by it:
+            // two groups in the back stack must not share a state.
+            val groupId = entry.arguments?.getString("groupId").orEmpty()
+            val groupDetailViewModel: TeacherGroupDetailViewModel = viewModel(
+                key = "group-detail-$groupId",
+                factory = rememberAppContainer().viewModelFactory,
+            )
+            val detail by groupDetailViewModel.state.collectAsState()
+
+            LaunchedEffect(groupId) { groupDetailViewModel.open(groupId) }
+
+            TeacherGroupDetailScreen(
+                ui = detail,
+                onBack = { navController.popBackStack() },
+                onPasarLista = { navController.navigate(Routes.teacherRollCall(groupId)) },
+                onNuevaTarea = { navController.navigate(Routes.TEACHER_TASK_NEW) },
+                onNuevoAviso = { navController.navigate(Routes.TEACHER_NOTICE_NEW) },
+                // El formulario elige el alumno y de ahí sale el grupo: no hay
+                // ruta con grupo fijo, así que se abre el mismo formulario real.
+                onRegistrarIncidente = { navController.navigate(Routes.TEACHER_INCIDENT_NEW) },
+                onMonthChange = groupDetailViewModel::changeMonth,
+                onToggleIncident = groupDetailViewModel::toggleIncident,
             )
         }
         // GPS-first: entrar a "Pase de lista" dispara la verificación real de

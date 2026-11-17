@@ -71,6 +71,7 @@ import com.example.aulasegura.sync.UploadTaskAttachmentHandler
 import com.example.aulasegura.ui.screens.access.ForgotPasswordViewModel
 import com.example.aulasegura.ui.screens.access.LoginViewModel
 import com.example.aulasegura.ui.screens.access.SessionViewModel
+import com.example.aulasegura.ui.screens.teacher.TeacherGroupDetailViewModel
 import com.example.aulasegura.ui.screens.teacher.TeacherGroupsViewModel
 import com.example.aulasegura.ui.screens.teacher.TeacherHistoryViewModel
 import com.example.aulasegura.ui.screens.teacher.TeacherHomeViewModel
@@ -478,6 +479,16 @@ class AppViewModelFactory(
         modelClass.isAssignableFrom(TeacherGroupsViewModel::class.java) ->
             TeacherGroupsViewModel(
                 groups = container.groupRepository,
+                auth = container.authRepository,
+            )
+
+        modelClass.isAssignableFrom(TeacherGroupDetailViewModel::class.java) ->
+            TeacherGroupDetailViewModel(
+                groups = container.groupRepository,
+                students = container.studentRepository,
+                history = container.attendanceHistoryRepository,
+                incidents = container.incidentHistoryRepository,
+                schedule = container.scheduleRepository,
                 auth = container.authRepository,
             )
 

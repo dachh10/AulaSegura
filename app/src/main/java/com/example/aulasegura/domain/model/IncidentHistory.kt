@@ -13,6 +13,12 @@ package com.example.aulasegura.domain.model
  */
 data class IncidentSummary(
     val incidentId: String,
+    /**
+     * Group the incident belongs to, so the group detail can filter its own
+     * incidents out of the teacher's history. Empty only for a summary built
+     * without a cached draft, which the write path never produces.
+     */
+    val groupId: String = "",
     val studentName: String,
     val title: String,
     val description: String,

@@ -24,6 +24,7 @@ import com.google.firebase.Timestamp
 internal fun IncidentDraftEntity.toIncidentSummary(mediaCount: Int): IncidentSummary =
     IncidentSummary(
         incidentId = incidentId,
+        groupId = groupId,
         studentName = studentName,
         title = title,
         description = description,

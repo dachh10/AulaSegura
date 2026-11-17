@@ -21,7 +21,7 @@
 | **7B** — Mis incidentes | historial propio cache-first | ✅ **hecho** · `assembleDebug` + 167 tests |
 | **8** — Tareas y avisos | publicar con audiencia | ✅ **hecho** · `c87e1eb` · `assembleDebug` + 179 tests |
 | **8B** — PDF en tareas | un solo PDF (10 MB) subido antes de publicar | ✅ **hecho** · `4ddc7b7` + `e837e16` · `assembleDebug` + 189 tests |
-| **9** — Chat | conversaciones y mensajes en RTDB | ✅ **hecho** · `assembleDebug` + 205 tests |
+| **9** — Chat | conversaciones y mensajes en RTDB | ✅ **hecho** · `396830d` · `assembleDebug` + 205 tests |
 | **10** — Notificaciones y FCM | push enviado desde la consola | pendiente |
 | **11** — Perfil | datos reales del docente | pendiente |
 
@@ -41,7 +41,9 @@ Para que el repo compile apenas se clona (por ejemplo, al arrancar la Fase 2):
 3. **Las claves de Cloudinary no están en el repo.** Agregar a `local.properties`
    `CLOUDINARY_CLOUD_NAME` y `CLOUDINARY_UPLOAD_PRESET`; sin ellas la app compila igual y solo la
    subida de archivos queda como "no configurada".
-4. Antes de mergear: `./gradlew :app:assembleDebug :app:testDebugUnitTest` en verde. `main` siempre
+4. **Chat y RTDB ya están configurados** en el proyecto de Firebase (base creada y reglas publicadas):
+   clonar y correr alcanza para probar los mensajes.
+5. Antes de mergear: `./gradlew :app:assembleDebug :app:testDebugUnitTest` en verde. `main` siempre
    compila.
 
 ---
@@ -791,13 +793,13 @@ Cloudinary, el historial pasa a "hoja.pdf · Subido" y hay un solo documento.
 
 ## Bloque 9 — Chat (PLAN 1.10)
 
-> **Estado: ✅ HECHO en código** — 17 nov 2026 · `assembleDebug` verde · **205 tests unitarios, 0 fallos**
-> (+16: 5 del id de conversación y 11 de etiquetas, filtros y contactos).
-> **Falta publicar las reglas de RTDB desde la consola** (ver abajo): sin eso este bloque **no** está
-> cerrado, porque hoy la base está en el modo por defecto del proyecto.
+> **Estado: ✅ HECHO** — 17 nov 2026 · commit `396830d` · `assembleDebug` verde · **205 tests unitarios,
+> 0 fallos** (+16: 5 del id de conversación y 11 de etiquetas, filtros y contactos).
+> Realtime Database creada y `docs/rtdb.rules` **publicadas** en la consola; verificado en el teléfono
+> (abrir chat, enviar, lista con último mensaje y hora).
 
 - [x] **9.1** `firebase-database` en el módulo (ya estaba desde la Fase 0)
-- [x] **9.2** `docs/rtdb.rules` + `database` en `firebase.json` — **escrito, pendiente de deploy**
+- [x] **9.2** `docs/rtdb.rules` + `database` en `firebase.json` — **publicado en la consola**
 - [x] **9.3** Esquema RTDB: `conversations/{cid}/messages/{id}` (`senderId`, `text`, `sentAt`) y `presence/{cid}/{uid}`
 - [x] **9.4** `conversations/{id}` en Firestore: `participants`, `participantNames`, `lastMessage`, `lastMessageAt`, `unread`
 - [x] **9.5** `ChatRepository` con `Flow` de conversaciones y mensajes + envío que aparece al instante
@@ -819,16 +821,17 @@ Cloudinary, el historial pasa a "hoja.pdf · Subido" y hay un solo documento.
 | `di/AppContainer.kt` · `navigation/AulaSeguraNavHost.kt` | `chatRepository`, `FirebaseDatabase`, los dos ViewModels y las rutas de chat cableadas |
 | `test/.../ChatTest.kt` · `TeacherChatUiTest.kt` | **nuevos**: id determinista, membresía, "Hoy/Ayer/Lun", iniciales, filtros y contactos |
 
-**Configuración que tienes que hacer en Firebase (esto sí es de la consola)**
+**Configuración de Firebase (hecha el 17 nov 2026, se deja como registro)**
 
-1. **Crear la Realtime Database**: *Build → Realtime Database → Create Database*, región `us-central1`,
-   empezar en **modo bloqueado**. Sin instancia, los mensajes no salen del teléfono.
-2. **Publicar las reglas de RTDB**: pegar `docs/rtdb.rules` en la pestaña **Rules** de la base, o
-   `firebase deploy --only database`. Hasta que se publiquen, la base sigue abierta/cerrada por defecto.
-3. **Confirmar el índice de Firestore** `conversations: participants + lastMessageAt desc` (ya está en
-   `docs/firestore.indexes.json`): `firebase deploy --only firestore:indexes` si aún no se desplegó.
-4. **App Check**: si lo fuerzas para RTDB, el build de debug necesita su token de debug; si no, déjalo sin
-   forzar por ahora.
+1. **Realtime Database creada**: *Build → Realtime Database*, región `us-central1`, reglas no abiertas.
+2. **`docs/rtdb.rules` publicadas** en la pestaña **Rules** de la base (o `firebase deploy --only database`).
+   Son la única barrera de la base: sin ellas, cualquiera con la config lee todas las conversaciones.
+3. **Índice de Firestore** `conversations: participants + lastMessageAt desc` desplegado (está versionado en
+   `docs/firestore.indexes.json`).
+4. **App Check** no está forzado para RTDB; si algún día se fuerza, el build de debug necesita su token.
+
+> Al clonar el repo no hay que repetir nada de esto: la base existe en el proyecto y las reglas están
+> publicadas. Solo se repite si se recrea el proyecto de Firebase desde cero.
 
 **Decisiones que importan**
 

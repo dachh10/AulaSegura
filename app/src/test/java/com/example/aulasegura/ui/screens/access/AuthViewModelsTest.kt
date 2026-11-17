@@ -6,6 +6,7 @@ import com.example.aulasegura.domain.repository.AuthFailure
 import com.example.aulasegura.domain.repository.AuthRepository
 import com.example.aulasegura.domain.repository.AuthResult
 import com.example.aulasegura.domain.repository.PasswordResetResult
+import com.example.aulasegura.domain.repository.PushTokenRepository
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
@@ -137,10 +138,36 @@ class LoginViewModelTest {
     }
 }
 
+/**
+ * Counts the token work so the logout contract can be asserted without Firebase.
+ * The real repository deletes `users/{uid}/fcmTokens/{token}`.
+ */
+private class FakePushTokenRepository : PushTokenRepository {
+
+    var syncCalls = 0
+    var deleteCalls = 0
+
+    override suspend fun syncToken(): String? {
+        syncCalls++
+        return "token-1"
+    }
+
+    override suspend fun registerToken(token: String) = Unit
+
+    override suspend fun deleteCurrentToken() {
+        deleteCalls++
+    }
+}
+
 @OptIn(ExperimentalCoroutinesApi::class)
 class SessionViewModelTest {
 
     private val dispatcher = StandardTestDispatcher()
+
+    private fun session(
+        repo: FakeAuthRepository,
+        push: FakePushTokenRepository = FakePushTokenRepository(),
+    ) = SessionViewModel(repo, push)
 
     @Before
     fun setUp() {
@@ -155,7 +182,7 @@ class SessionViewModelTest {
     @Test
     fun `restoring a session publishes the role`() = runTest(dispatcher) {
         val repo = FakeAuthRepository(restoreResult = AuthResult.Success(user(UserRole.ADMIN)))
-        val viewModel = SessionViewModel(repo)
+        val viewModel = session(repo)
 
         viewModel.resolveSession()
         advanceUntilIdle()
@@ -166,7 +193,7 @@ class SessionViewModelTest {
     @Test
     fun `restoring without session signs out`() = runTest(dispatcher) {
         val repo = FakeAuthRepository(restoreResult = AuthResult.Failure(AuthFailure.NO_SESSION))
-        val viewModel = SessionViewModel(repo)
+        val viewModel = session(repo)
 
         viewModel.resolveSession()
         advanceUntilIdle()
@@ -177,14 +204,44 @@ class SessionViewModelTest {
     @Test
     fun `logout calls the repository and clears the state`() = runTest(dispatcher) {
         val repo = FakeAuthRepository(restoreResult = AuthResult.Success(user(UserRole.TEACHER)))
-        val viewModel = SessionViewModel(repo)
+        val viewModel = session(repo)
 
         viewModel.resolveSession()
         advanceUntilIdle()
         viewModel.signOut()
+        advanceUntilIdle()
 
         assertEquals(1, repo.signOutCalls)
         assertEquals(SessionState.SignedOut, viewModel.state.value)
+    }
+
+    @Test
+    fun `logout deletes the device token first, so a shared phone stops receiving push`() =
+        runTest(dispatcher) {
+            val repo = FakeAuthRepository(restoreResult = AuthResult.Success(user(UserRole.TEACHER)))
+            val push = FakePushTokenRepository()
+            val viewModel = session(repo, push)
+
+            viewModel.resolveSession()
+            advanceUntilIdle()
+            viewModel.signOut()
+            advanceUntilIdle()
+
+            assertEquals(1, push.deleteCalls)
+            assertEquals("the token is deleted before the session disappears", 1, repo.signOutCalls)
+            assertEquals(SessionState.SignedOut, viewModel.state.value)
+        }
+
+    @Test
+    fun `a resolved session registers this device's token`() = runTest(dispatcher) {
+        val repo = FakeAuthRepository(restoreResult = AuthResult.Success(user(UserRole.TEACHER)))
+        val push = FakePushTokenRepository()
+        val viewModel = session(repo, push)
+
+        viewModel.resolveSession()
+        advanceUntilIdle()
+
+        assertEquals(1, push.syncCalls)
     }
 
     @Test
@@ -193,7 +250,7 @@ class SessionViewModelTest {
             restoreResult = AuthResult.Success(user(UserRole.TEACHER)),
             accountActive = flowOf(false),
         )
-        val viewModel = SessionViewModel(repo)
+        val viewModel = session(repo)
 
         viewModel.resolveSession()
         advanceUntilIdle()
@@ -208,7 +265,7 @@ class SessionViewModelTest {
             restoreResult = AuthResult.Success(user(UserRole.TEACHER)),
             accountActive = flowOf(true, true),
         )
-        val viewModel = SessionViewModel(repo)
+        val viewModel = session(repo)
 
         viewModel.resolveSession()
         advanceUntilIdle()

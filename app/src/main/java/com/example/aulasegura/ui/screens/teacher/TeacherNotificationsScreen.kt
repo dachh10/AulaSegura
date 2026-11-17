@@ -45,6 +45,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.aulasegura.domain.model.NotificationType
 import com.example.aulasegura.ui.components.rememberPressScale
 import com.example.aulasegura.ui.screens.access.Reveal
 import com.example.aulasegura.ui.theme.BrandCoral
@@ -62,10 +63,47 @@ import com.example.aulasegura.ui.theme.SurfaceContainer
 import com.example.aulasegura.ui.theme.SurfaceContainerLowest
 
 /**
+ * The mockup's icon and tints, chosen by `type`.
+ *
+ * One mapping instead of a field per row: the notification document carries a
+ * type, and the color is presentation.
+ */
+private fun NotificationRowUi.toRender(): TeacherNotification = TeacherNotification(
+    id = id,
+    title = title,
+    body = body,
+    time = time,
+    icon = when (type) {
+        NotificationType.MENSAJE -> Icons.Filled.ChatBubble
+        NotificationType.AVISO, NotificationType.INCIDENTE -> Icons.Filled.Campaign
+        NotificationType.TAREA -> Icons.Filled.Description
+        NotificationType.ASISTENCIA -> Icons.Filled.Schedule
+        NotificationType.SISTEMA, NotificationType.OTRO -> Icons.Filled.Sync
+    },
+    iconTint = when (type) {
+        NotificationType.MENSAJE -> BrandCoral
+        NotificationType.AVISO, NotificationType.INCIDENTE -> PrimaryContainer
+        NotificationType.TAREA -> VioletTint
+        NotificationType.ASISTENCIA -> AmberTint
+        NotificationType.SISTEMA, NotificationType.OTRO -> MintTint
+    },
+    iconBackground = when (type) {
+        NotificationType.MENSAJE -> BrandCoral.copy(alpha = 0.15f)
+        NotificationType.AVISO, NotificationType.INCIDENTE -> PrimaryContainer.copy(alpha = 0.10f)
+        NotificationType.TAREA -> VioletBackground.copy(alpha = 0.15f)
+        NotificationType.ASISTENCIA -> AmberBackground.copy(alpha = 0.15f)
+        NotificationType.SISTEMA, NotificationType.OTRO -> BrandMint.copy(alpha = 0.20f)
+    },
+    unread = !read,
+)
+
+/**
  * Teacher — Notificaciones. Ported from Stitch screen `cd4bc66529b14e1a9aed9bfa3bcc4208`
  * ("Notificaciones - AulaSegura", project 7677408035297541086).
  *
- * Visual shell only: filters and the "mark all read" action are UI state.
+ * The rows come from `notifications` through `TeacherNotificationsViewModel`: the
+ * filters map to a `type`, a tap marks the document read and follows its
+ * `deepLink`, and "marcar todo leído" commits one batch.
  */
 
 private val WarmBorder = Color(0xFFE6E1D8)
@@ -90,69 +128,15 @@ private data class TeacherNotification(
     val unread: Boolean,
 )
 
-private fun sampleNotifications(): List<TeacherNotification> = listOf(
-    TeacherNotification(
-        id = "1",
-        title = "Mensaje de Carlos Gómez",
-        body = "Gracias, profesor. ¿Qué temas incluye?",
-        time = "10:41",
-        icon = Icons.Filled.ChatBubble,
-        iconTint = BrandCoral,
-        iconBackground = BrandCoral.copy(alpha = 0.15f),
-        unread = true,
-    ),
-    TeacherNotification(
-        id = "2",
-        title = "Aviso de Dirección",
-        body = "Entrega de listas antes de las 10:00",
-        time = "08:00",
-        icon = Icons.Filled.Campaign,
-        iconTint = PrimaryContainer,
-        iconBackground = PrimaryContainer.copy(alpha = 0.10f),
-        unread = true,
-    ),
-    TeacherNotification(
-        id = "3",
-        title = "Sincronización completada",
-        body = "Se enviaron 3 registros guardados sin conexión.",
-        time = "07:58",
-        icon = Icons.Filled.Sync,
-        iconTint = MintTint,
-        iconBackground = BrandMint.copy(alpha = 0.20f),
-        unread = false,
-    ),
-    TeacherNotification(
-        id = "4",
-        title = "Lista pendiente",
-        body = "Aún no pasas lista en 3° B · Matemáticas.",
-        time = "07:45",
-        icon = Icons.Filled.Schedule,
-        iconTint = AmberTint,
-        iconBackground = AmberBackground.copy(alpha = 0.15f),
-        unread = false,
-    ),
-    TeacherNotification(
-        id = "5",
-        title = "Justificante recibido",
-        body = "Laura Ríos envió un comprobante de Bruno Castillo.",
-        time = "Ayer",
-        icon = Icons.Filled.Description,
-        iconTint = VioletTint,
-        iconBackground = VioletBackground.copy(alpha = 0.15f),
-        unread = false,
-    ),
-)
-
-private val notificationFilters = listOf("Todas", "Mensajes", "Sistema", "Dirección")
 
 @Composable
 fun TeacherNotificationsScreen(
     onBack: () -> Unit,
+    ui: TeacherNotificationsUi = TeacherNotificationsUi(),
+    onFilterChange: (String) -> Unit = {},
     onMarkAllRead: () -> Unit = {},
+    onOpen: (NotificationRowUi) -> Unit = {},
 ) {
-    var activeFilter by remember { mutableStateOf("Todas") }
-    var allRead by remember { mutableStateOf(false) }
-    val notifications = remember { sampleNotifications() }
 
     Box(
         modifier = Modifier
@@ -169,31 +153,38 @@ fun TeacherNotificationsScreen(
             Reveal(0) {
                 NotificationsTopBar(
                     onBack = onBack,
-                    onMarkAllRead = {
-                        allRead = true
-                        onMarkAllRead()
-                    },
+                    onMarkAllRead = onMarkAllRead,
                 )
             }
             Reveal(60) {
                 NotificationFilters(
-                    activeFilter = activeFilter,
-                    onFilterChange = { activeFilter = it },
+                    filters = ui.filters,
+                    activeFilter = ui.activeFilter,
+                    onFilterChange = onFilterChange,
                 )
             }
-            Reveal(120) {
-                NotificationGroup(
-                    label = "HOY",
-                    notifications = notifications.take(4),
-                    allRead = allRead,
-                )
+            ui.groups.forEachIndexed { index, group ->
+                Reveal(120 + index * 60) {
+                    NotificationGroup(
+                        label = group.label,
+                        rows = group.rows,
+                        onOpen = onOpen,
+                    )
+                }
             }
-            Reveal(180) {
-                NotificationGroup(
-                    label = "ANTERIORES",
-                    notifications = notifications.drop(4),
-                    allRead = allRead,
-                )
+            if (!ui.loading && ui.groups.isEmpty()) {
+                Reveal(120) {
+                    Text(
+                        text = ui.notice ?: "No tienes notificaciones todavía.",
+                        color = Outline,
+                        fontFamily = DmSans,
+                        fontSize = 13.sp,
+                        textAlign = TextAlign.Center,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 24.dp, vertical = 24.dp),
+                    )
+                }
             }
         }
     }
@@ -270,6 +261,7 @@ private fun NotificationsTopBar(
 
 @Composable
 private fun NotificationFilters(
+    filters: List<String>,
     activeFilter: String,
     onFilterChange: (String) -> Unit,
 ) {
@@ -282,7 +274,7 @@ private fun NotificationFilters(
         horizontalArrangement = Arrangement.spacedBy(8.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        notificationFilters.forEach { filter ->
+        filters.forEach { filter ->
             NotificationFilterChip(
                 label = filter,
                 selected = filter == activeFilter,
@@ -332,8 +324,8 @@ private fun NotificationFilterChip(
 @Composable
 private fun NotificationGroup(
     label: String,
-    notifications: List<TeacherNotification>,
-    allRead: Boolean,
+    rows: List<NotificationRowUi>,
+    onOpen: (NotificationRowUi) -> Unit,
 ) {
     Column(
         modifier = Modifier
@@ -353,10 +345,11 @@ private fun NotificationGroup(
             letterSpacing = 0.55.sp,
         )
 
-        notifications.forEach { notification ->
+        rows.forEach { row ->
             NotificationCard(
-                notification = notification,
-                showUnreadDot = notification.unread && !allRead,
+                notification = row.toRender(),
+                showUnreadDot = !row.read,
+                onClick = { onOpen(row) },
             )
         }
     }
@@ -366,6 +359,7 @@ private fun NotificationGroup(
 private fun NotificationCard(
     notification: TeacherNotification,
     showUnreadDot: Boolean,
+    onClick: () -> Unit,
 ) {
     val (interaction, pressModifier) = rememberPressScale(0.99f)
     Row(
@@ -374,7 +368,7 @@ private fun NotificationCard(
             .clip(NotificationCardShape)
             .background(SurfaceContainerLowest)
             .border(1.dp, WarmBorder, NotificationCardShape)
-            .clickable(interactionSource = interaction, indication = null, onClick = {})
+            .clickable(interactionSource = interaction, indication = null, onClick = onClick)
             .padding(14.dp),
         verticalAlignment = Alignment.Top,
     ) {

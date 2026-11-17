@@ -29,6 +29,8 @@ import com.example.aulasegura.data.repository.FirestoreSchoolRepository
 import com.example.aulasegura.data.repository.RoomAttendanceRepository
 import com.example.aulasegura.data.repository.RoomIncidentRepository
 import com.example.aulasegura.data.repository.FirestoreChatRepository
+import com.example.aulasegura.data.repository.FirestoreNotificationRepository
+import com.example.aulasegura.data.repository.FirestorePushTokenRepository
 import com.example.aulasegura.data.repository.RoomNoticeRepository
 import com.example.aulasegura.data.repository.RoomTaskRepository
 import com.example.aulasegura.data.telemetry.FirebaseAnalyticsLogger
@@ -37,6 +39,8 @@ import com.example.aulasegura.domain.repository.AttendanceHistoryRepository
 import com.example.aulasegura.domain.repository.AttendanceRepository
 import com.example.aulasegura.domain.repository.AuthRepository
 import com.example.aulasegura.domain.repository.ChatRepository
+import com.example.aulasegura.domain.repository.NotificationRepository
+import com.example.aulasegura.domain.repository.PushTokenRepository
 import com.example.aulasegura.domain.repository.GroupRepository
 import com.example.aulasegura.domain.repository.IncidentRepository
 import com.example.aulasegura.domain.repository.NoticeRepository
@@ -69,6 +73,7 @@ import com.example.aulasegura.ui.screens.teacher.TeacherIncidentViewModel
 import com.example.aulasegura.ui.screens.teacher.TeacherChatViewModel
 import com.example.aulasegura.ui.screens.teacher.TeacherConversationViewModel
 import com.example.aulasegura.ui.screens.teacher.TeacherNoticeNewViewModel
+import com.example.aulasegura.ui.screens.teacher.TeacherNotificationsViewModel
 import com.example.aulasegura.ui.screens.teacher.TeacherTaskNewViewModel
 import com.google.firebase.analytics.FirebaseAnalytics
 import com.google.firebase.auth.FirebaseAuth
@@ -259,6 +264,27 @@ class AppContainer(context: Context) {
         )
     }
 
+    /**
+     * This device's FCM token, under `users/{uid}/fcmTokens`.
+     *
+     * In Spark nothing sends automatically, but the token is what the console's
+     * *Send test message* needs and what the tray's notifications point to.
+     */
+    val pushTokenRepository: PushTokenRepository by lazy {
+        FirestorePushTokenRepository(
+            firestore = firestore,
+            auth = authRepository,
+        )
+    }
+
+    /** The teacher's notification tray: read-only except for the `read` flag. */
+    val notificationRepository: NotificationRepository by lazy {
+        FirestoreNotificationRepository(
+            firestore = firestore,
+            auth = authRepository,
+        )
+    }
+
     val noticeRepository: NoticeRepository by lazy {
         RoomNoticeRepository(
             noticeDao = database.noticeDao(),
@@ -415,7 +441,10 @@ class AppViewModelFactory(
             LoginViewModel(container.authRepository)
 
         modelClass.isAssignableFrom(SessionViewModel::class.java) ->
-            SessionViewModel(container.authRepository)
+            SessionViewModel(
+                authRepository = container.authRepository,
+                pushTokens = container.pushTokenRepository,
+            )
 
         modelClass.isAssignableFrom(ForgotPasswordViewModel::class.java) ->
             ForgotPasswordViewModel(container.authRepository)
@@ -450,6 +479,11 @@ class AppViewModelFactory(
                 auth = container.authRepository,
                 tasks = container.taskRepository,
                 attachmentStore = container.taskAttachmentStore,
+            )
+
+        modelClass.isAssignableFrom(TeacherNotificationsViewModel::class.java) ->
+            TeacherNotificationsViewModel(
+                notifications = container.notificationRepository,
             )
 
         modelClass.isAssignableFrom(TeacherChatViewModel::class.java) ->

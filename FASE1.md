@@ -22,7 +22,7 @@
 | **8** — Tareas y avisos | publicar con audiencia | ✅ **hecho** · `c87e1eb` · `assembleDebug` + 179 tests |
 | **8B** — PDF en tareas | un solo PDF (10 MB) subido antes de publicar | ✅ **hecho** · `4ddc7b7` + `e837e16` · `assembleDebug` + 189 tests |
 | **9** — Chat | conversaciones y mensajes en RTDB | ✅ **hecho** · `396830d` · `assembleDebug` + 205 tests |
-| **10** — Notificaciones y FCM | push enviado desde la consola | pendiente |
+| **10** — Notificaciones y FCM | push desde la consola + bandeja real | 🟡 **código listo** · `assembleDebug` + 219 tests · falta probar en el teléfono |
 | **11** — Perfil | datos reales del docente | pendiente |
 
 **Criterio de cierre de la fase** (`PLAN.md`): con **modo avión** activo, el docente pasa lista y
@@ -889,22 +889,82 @@ consola**; el intercambio real entre dos teléfonos llega con el chat del tutor 
 
 ## Bloque 10 — Notificaciones y FCM (PLAN 1.11)
 
-- [ ] **10.1** `FirebaseMessagingService`: token en `users/{uid}/fcmTokens/{tokenId}` (`token`, `platform`, `updatedAt`)
-- [ ] **10.2** Rotación de token (`onNewToken`) y borrado del token al cerrar sesión
-- [ ] **10.3** Canal de notificación + permiso `POST_NOTIFICATIONS` en Android 13+
-- [ ] **10.4** Apertura por `deepLink` (el campo `notifications.deepLink` ya está en el esquema)
-- [ ] **10.5** `TeacherNotificationsScreen` con la colección `notifications` real (`userId`, `read`)
-- [ ] **10.6** Escritura de `fcmTokens` validada contra las reglas
+> **Estado: 🟡 CÓDIGO LISTO, VERIFICACIÓN EN TELÉFONO PENDIENTE** — 17 nov 2026 · `assembleDebug`
+> verde · **219 tests unitarios, 0 fallos** (+14: 5 de deep links, 7 de la bandeja y 2 del token al
+> cerrar sesión). Lo que falta es la prueba real: token → consola → notificación → tap.
 
-**Criterio:** desde la consola de Firebase se envía una notificación al token del dispositivo, llega,
-y al tocarla abre la pantalla correcta. Marcar como leída la quita del contador.
+- [x] **10.1** `FirebaseMessagingService`: token en `users/{uid}/fcmTokens/{token}` (`token`, `platform`, `updatedAt`)
+- [x] **10.2** Rotación de token (`onNewToken`) y borrado del token al cerrar sesión
+- [x] **10.3** Canal de notificación + permiso `POST_NOTIFICATIONS` en Android 13+
+- [x] **10.4** Apertura por `deepLink` (lista blanca de rutas, no un pass-through)
+- [x] **10.5** `TeacherNotificationsScreen` con la colección `notifications` real (`userId`, `read`)
+- [x] **10.6** Escritura de `fcmTokens` validada contra las reglas (solo el dueño escribe su subcolección)
 
-**Cómo probarlo**
+**Qué cambió en este bloque**
 
-1. Copiar el token con `adb logcat` (o desde la pantalla de perfil en debug).
-2. Firebase Console → Messaging → *Send test message* → pegar el token → enviar.
-3. Tocar la notificación → abre la pantalla del `deepLink`.
-4. Login/Logout → el token desaparece de `users/{uid}/fcmTokens` al salir.
+| Archivo | Cambio |
+|---|---|
+| `domain/model/AppNotification.kt` | **nuevo**: modelo del documento y `NotificationType` con su `firestoreValue` |
+| `domain/repository/NotificationRepository.kt` · `PushTokenRepository.kt` | **nuevos** contratos: bandeja de solo lectura + token del dispositivo |
+| `data/repository/FirestoreNotificationRepository.kt` | **nuevo**: snapshot en vivo de `notifications` por `userId`, `markRead` y `markAllRead` en batch |
+| `data/repository/FirestorePushTokenRepository.kt` | **nuevo**: `users/{uid}/fcmTokens/{token}` con el token como id |
+| `push/AulaSeguraMessagingService.kt` | **nuevo**: `onNewToken` (registra + log en debug) y `onMessageReceived` (data messages → notificación local) |
+| `push/NotificationPoster.kt` | **nuevo**: canal único, permiso de Android 13 y `PendingIntent` con `deepLink` |
+| `res/drawable/ic_stat_notification.xml` | **nuevo**: icono monocromo de la notificación |
+| `navigation/DeepLinks.kt` | **nuevo**: `resolveDeepLink` con lista blanca (rechaza rutas desconocidas y chats con segmentos extra) |
+| `MainActivity.kt` | lee los extras del intent, pide `POST_NOTIFICATIONS` y pasa el `deepLink` al NavHost |
+| `navigation/AulaSeguraNavHost.kt` | navega al `deepLink` cuando hay sesión resuelta |
+| `ui/screens/access/SessionViewModel.kt` | registra el token al entrar y lo borra antes de cerrar sesión (con timeout) |
+| `ui/screens/teacher/TeacherNotificationsUi.kt` · `TeacherNotificationsViewModel.kt` | **nuevos**: agrupación HOY/ANTERIORES, chips por tipo, no leídos y tap que marca leído y sigue el `deepLink` |
+| `ui/screens/teacher/TeacherNotificationsScreen.kt` | cableada a la colección real; iconos y tintes por `type` |
+| `test/.../DeepLinkTest.kt` · `TeacherNotificationsUiTest.kt` · `AuthViewModelsTest.kt` | **nuevos/ampliados**: whitelist, agrupación, filtros, badge y borrado del token al salir |
+
+**Decisiones que importan**
+
+- **El id del documento es el token.** Registrar dos veces escribe el mismo documento, y dos teléfonos
+  no se pisan (una subcolección y no un array, por lo mismo que `fcmTokens` en `CONTEXT.md` §6.2).
+- **El token se borra antes de cerrar sesión**, con timeout de 2.5 s: un teléfono compartido no puede
+  seguir recibiendo el push del docente anterior, pero el logout tampoco puede colgarse sin red.
+- **`deepLink` es una lista blanca.** El valor viene de un documento escrito fuera de la app; pasarlo
+  directo a `navigate()` permitiría abrir cualquier ruta. Desconocido → no abre nada.
+- **La bandeja es de solo lectura salvo `read`.** Las reglas ya lo limitan así: un cliente que pudiera
+  crear notificaciones podría falsificar un comunicado de la dirección.
+- **Sin caché local.** Es un documento pequeño por aviso, el índice ya existe, y una bandeja de ayer
+  engaña más que una que pide red.
+- **Un solo canal de notificación.** Dividir en "mensajes", "asistencia" y "avisos" es una decisión de
+  producto, y un canal creado no se puede borrar.
+
+**Configuración de Firebase (comprobar, no crear)**
+
+1. **No hay nada que activar para recibir.** `google-services.json` ya está versionado y FCM viene con
+   el proyecto; si en *Project settings → Cloud Messaging* aparece deshabilitada la API **V1**, hay que
+   habilitarla (es un botón, no un plan de pago).
+2. **Enviar la prueba**: *Messaging → Send test message* pide un token, no una campaña.
+3. **Los documentos de `notifications` los escribe la consola o el script**: las reglas prohíben que un
+   cliente los cree. Para probar la bandeja, crear un documento a mano con `userId` = tu uid, `title`,
+   `body`, `type`, `deepLink`, `read: false` y `createdAt`.
+
+**Cómo probarlo en el teléfono** (lo corre el dueño del proyecto)
+
+1. Instalar el build de debug, entrar como docente y aceptar el permiso de notificaciones de Android 13.
+2. Copiar el token de `adb logcat -s FCM` (solo aparece en debug).
+3. Verificar en Firestore que quedó `users/{tuUid}/fcmTokens/{token}` con `platform: "android"`.
+4. Firebase Console → Messaging → *Send test message* → pegar el token → enviar. La notificación debe
+   llegar con la app abierta y cerrada.
+5. En el campo de datos (Custom data), usar `deepLink` = `teacher/history` (o `teacher/chat/<id>`): al
+   tocar la notificación debe abrir esa pantalla. Un valor inventado no debe abrir nada.
+6. Bandeja: crear un documento en `notifications` con tu uid → aparece con su hora y su grupo; tocarlo lo
+   marca leído; "marcar todo leído" baja el contador a cero.
+7. Cerrar sesión → el documento del token desaparece de `users/{uid}/fcmTokens`.
+
+**Pendientes conocidos**
+
+1. **Sin envío automático.** En Spark no hay Cloud Functions: el push lo dispara una persona desde la
+   consola. Un push "cuando pasa X" no existe todavía y no se debe diseñar como si existiera.
+2. **Los `deepLink` solo cubren rutas del docente.** Cuando existan las pantallas del tutor y del
+   directivo se agregan a la lista blanca.
+3. **Sin contador de no leídos en la campana** de la barra inferior: el número vive en la pantalla.
+4. **Sin agrupación de notificaciones ni sonido/prioridad por tipo** (canal único).
 
 > **Esto es Spark: no hay envío automático.** En plan gratuito no hay Cloud Functions, así que un
 > push "cuando pasa X" **no existe** todavía. En esta fase el envío es manual desde la consola y el

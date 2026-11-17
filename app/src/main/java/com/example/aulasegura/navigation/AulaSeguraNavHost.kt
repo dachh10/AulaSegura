@@ -86,6 +86,7 @@ import com.example.aulasegura.ui.screens.teacher.TeacherHomeScreen
 import com.example.aulasegura.ui.screens.teacher.TeacherLocationVerifyingScreen
 import com.example.aulasegura.ui.screens.teacher.TeacherNoticeNewScreen
 import com.example.aulasegura.ui.screens.teacher.TeacherNoticeNewViewModel
+import com.example.aulasegura.ui.screens.teacher.TeacherNotificationsViewModel
 import com.example.aulasegura.ui.screens.teacher.TeacherNotificationsScreen
 import com.example.aulasegura.ui.screens.teacher.TeacherOutsideRadiusScreen
 import com.example.aulasegura.ui.screens.teacher.TeacherProfileScreen
@@ -105,8 +106,19 @@ fun AulaSeguraNavHost(
     navController: NavHostController = rememberNavController(),
     sessionViewModel: SessionViewModel = viewModel(factory = rememberAppContainer().viewModelFactory),
     loginViewModel: LoginViewModel = viewModel(factory = rememberAppContainer().viewModelFactory),
+    deepLink: String? = null,
+    onDeepLinkHandled: () -> Unit = {},
 ) {
     val sessionState by sessionViewModel.state.collectAsState()
+
+    // A notification tap is only followed once there is a session: navigating to
+    // a teacher screen from Splash would land on the login guard instead.
+    LaunchedEffect(deepLink, sessionState) {
+        if (sessionState !is SessionState.SignedIn) return@LaunchedEffect
+        val route = resolveDeepLink(deepLink) ?: return@LaunchedEffect
+        navController.navigate(route) { launchSingleTop = true }
+        onDeepLinkHandled()
+    }
 
     // Single place that reacts to a lost session: logout from any role, or a
     // deactivated account being ejected while it is already inside the app.
@@ -570,8 +582,24 @@ fun AulaSeguraNavHost(
             )
         }
         composable(Routes.TEACHER_NOTIFICATIONS) {
+            val container = rememberAppContainer()
+            val notificationsViewModel: TeacherNotificationsViewModel =
+                viewModel(factory = container.viewModelFactory)
+            val notificationsUi by notificationsViewModel.state.collectAsState()
+            val notificationDeepLink by notificationsViewModel.pendingDeepLink.collectAsState()
+
+            LaunchedEffect(notificationDeepLink) {
+                val route = resolveDeepLink(notificationDeepLink) ?: return@LaunchedEffect
+                navController.navigate(route) { launchSingleTop = true }
+                notificationsViewModel.deepLinkHandled()
+            }
+
             TeacherNotificationsScreen(
+                ui = notificationsUi,
                 onBack = { navController.popBackStack() },
+                onFilterChange = notificationsViewModel::setFilter,
+                onMarkAllRead = notificationsViewModel::markAllRead,
+                onOpen = notificationsViewModel::open,
             )
         }
         composable(Routes.TEACHER_PROFILE) {

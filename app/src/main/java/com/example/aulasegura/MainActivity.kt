@@ -1,10 +1,17 @@
 package com.example.aulasegura
 
+import android.Manifest
 import android.content.Intent
+import android.content.pm.PackageManager
+import android.os.Build
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.runtime.mutableStateOf
+import androidx.core.content.ContextCompat
+import com.example.aulasegura.push.NotificationPoster
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.ui.Modifier
@@ -14,14 +21,31 @@ import com.example.aulasegura.ui.theme.AulaSeguraTheme
 import com.example.aulasegura.ui.theme.PrimaryContainer
 
 class MainActivity : ComponentActivity() {
+
+    /**
+     * Route a notification asked for, if any.
+     *
+     * Held as Compose state so `onNewIntent` (tapping a notification while the
+     * app is already open) reaches the NavHost without recreating the activity.
+     */
+    private val pendingDeepLink = mutableStateOf<String?>(null)
+
+    private val notificationPermission =
+        registerForActivityResult(ActivityResultContracts.RequestPermission()) { }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         crashForCrashlyticsVerificationIfRequested(intent)
+        readDeepLink(intent)
+        askForNotificationPermission()
         enableEdgeToEdge()
         setContent {
             AulaSeguraTheme {
                 Box(modifier = Modifier.fillMaxSize()) {
-                    AulaSeguraNavHost()
+                    AulaSeguraNavHost(
+                        deepLink = pendingDeepLink.value,
+                        onDeepLinkHandled = { pendingDeepLink.value = null },
+                    )
                     // App-wide shield watermark, so every screen of every role carries
                     // the same premium background texture.
                     ShieldPattern(
@@ -32,6 +56,36 @@ class MainActivity : ComponentActivity() {
                 }
             }
         }
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        readDeepLink(intent)
+    }
+
+    /**
+     * Android 13+ asks once. Without the grant a push is still delivered, but the
+     * system drops it silently, which looks exactly like "FCM is broken".
+     */
+    private fun askForNotificationPermission() {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) return
+        val granted = ContextCompat.checkSelfPermission(
+            this,
+            Manifest.permission.POST_NOTIFICATIONS,
+        ) == PackageManager.PERMISSION_GRANTED
+        if (!granted) {
+            notificationPermission.launch(Manifest.permission.POST_NOTIFICATIONS)
+        }
+    }
+
+    private fun readDeepLink(intent: Intent?) {
+        val link = intent?.getStringExtra(NotificationPoster.EXTRA_DEEP_LINK).orEmpty()
+        if (link.isNotBlank()) {
+            pendingDeepLink.value = link
+        }
+        // Consumed once: a configuration change must not reopen the same screen.
+        intent?.removeExtra(NotificationPoster.EXTRA_DEEP_LINK)
     }
 
     /**

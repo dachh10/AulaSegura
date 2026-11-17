@@ -5,8 +5,10 @@ import com.example.aulasegura.domain.model.UserRole
 import com.example.aulasegura.domain.repository.AuthFailure
 import com.example.aulasegura.domain.repository.AuthRepository
 import com.example.aulasegura.domain.repository.AuthResult
+import com.example.aulasegura.domain.repository.PasswordChangeResult
 import com.example.aulasegura.domain.repository.PasswordResetResult
 import com.example.aulasegura.domain.repository.ProfilePhotoResult
+import com.example.aulasegura.domain.repository.ProfileUpdateResult
 import com.example.aulasegura.domain.repository.PushTokenRepository
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -41,6 +43,12 @@ private class FakeAuthRepository(
     var lastPhotoUrl: String? = null
     var lastPhotoPublicId: String? = null
     var photoResult: ProfilePhotoResult = ProfilePhotoResult.Saved
+    var lastName: String? = null
+    var lastSubjects: List<String> = emptyList()
+    var profileResult: ProfileUpdateResult = ProfileUpdateResult.Saved
+    var currentPassword: String? = null
+    var newPassword: String? = null
+    var passwordResult: PasswordChangeResult = PasswordChangeResult.Changed
 
     override val currentUserId: String? = null
 
@@ -66,6 +74,24 @@ private class FakeAuthRepository(
         lastPhotoUrl = photoUrl
         lastPhotoPublicId = photoPublicId
         return photoResult
+    }
+
+    override suspend fun updateProfile(
+        fullName: String,
+        subjects: List<String>,
+    ): ProfileUpdateResult {
+        lastName = fullName
+        lastSubjects = subjects
+        return profileResult
+    }
+
+    override suspend fun changePassword(
+        currentPassword: String,
+        newPassword: String,
+    ): PasswordChangeResult {
+        this.currentPassword = currentPassword
+        this.newPassword = newPassword
+        return passwordResult
     }
 
     override fun signOut() {

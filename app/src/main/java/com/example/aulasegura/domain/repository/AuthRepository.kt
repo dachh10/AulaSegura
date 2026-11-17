@@ -60,7 +60,61 @@ interface AuthRepository {
         photoPublicId: String,
     ): ProfilePhotoResult
 
+    /**
+     * Edits the identity fields this app owns: name and subjects.
+     *
+     * Email, role, school and active are written by the director's flows and
+     * rejected by the rules from a teacher device. As with the avatar, the
+     * in-memory profile and its Room cache are refreshed here so the greeting
+     * changes without a reload.
+     */
+    suspend fun updateProfile(
+        fullName: String,
+        subjects: List<String>,
+    ): ProfileUpdateResult
+
+    /**
+     * Changes the Firebase Auth password after reauthenticating with the current
+     * one. Firebase requires a recent login for this operation.
+     */
+    suspend fun changePassword(
+        currentPassword: String,
+        newPassword: String,
+    ): PasswordChangeResult
+
     fun signOut()
+}
+
+/** Outcome of an identity edit. */
+sealed interface ProfileUpdateResult {
+
+    /** Firestore accepted it, and memory and cache were refreshed. */
+    data object Saved : ProfileUpdateResult
+
+    data object SignedOut : ProfileUpdateResult
+
+    /** The rules refused it — e.g. the account was deactivated meanwhile. */
+    data object Rejected : ProfileUpdateResult
+
+    data object Failed : ProfileUpdateResult
+}
+
+/** Why a password change did not happen, in the teacher's words. */
+sealed interface PasswordChangeResult {
+
+    data object Changed : PasswordChangeResult
+
+    data object WrongPassword : PasswordChangeResult
+
+    data object WeakPassword : PasswordChangeResult
+
+    data object RequiresRecentLogin : PasswordChangeResult
+
+    data object SignedOut : PasswordChangeResult
+
+    data object NetworkError : PasswordChangeResult
+
+    data object Failed : PasswordChangeResult
 }
 
 /** Outcome of an avatar write, kept typed so the UI can explain a rejection. */

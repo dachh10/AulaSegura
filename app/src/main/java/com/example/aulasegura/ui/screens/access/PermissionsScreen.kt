@@ -1,5 +1,14 @@
 package com.example.aulasegura.ui.screens.access
 
+import android.Manifest
+import android.content.Context
+import android.content.Intent
+import android.content.pm.PackageManager
+import android.net.Uri
+import android.os.Build
+import android.provider.Settings
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.RepeatMode
@@ -40,6 +49,7 @@ import androidx.compose.material.icons.outlined.VerifiedUser
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -47,6 +57,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
@@ -60,6 +72,10 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.core.app.NotificationManagerCompat
+import androidx.core.content.ContextCompat
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
 import com.example.aulasegura.ui.components.PillButton
 import com.example.aulasegura.ui.components.ShieldPattern
 import com.example.aulasegura.ui.theme.BrandCream
@@ -102,10 +118,57 @@ fun PermissionsScreen(
     onSkip: () -> Unit,
     onBack: () -> Unit,
 ) {
-    // UI-only permission states (no real runtime permission calls)
-    var locationState by remember { mutableStateOf(PermState.GRANTED) }
-    var cameraState by remember { mutableStateOf(PermState.PENDING) }
-    var notifState by remember { mutableStateOf(PermState.PENDING) }
+    val context = LocalContext.current
+
+    // The OS is the source of truth. A flag painted here would say "Activado"
+    // while the phone had denied the permission, which is worse than no screen.
+    var locationGranted by remember { mutableStateOf(locationGranted(context)) }
+    var notificationsGranted by remember { mutableStateOf(notificationsGranted(context)) }
+
+    val requestLocation = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestPermission(),
+    ) { granted -> locationGranted = granted }
+    val requestNotifications = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestPermission(),
+    ) { granted -> notificationsGranted = granted }
+
+    val lifecycleOwner = LocalLifecycleOwner.current
+    DisposableEffect(lifecycleOwner, context) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_RESUME) {
+                locationGranted = locationGranted(context)
+                notificationsGranted = notificationsGranted(context)
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+    }
+
+    fun openAppSettings() {
+        val intent = Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS)
+            .setData(Uri.fromParts("package", context.packageName, null))
+        runCatching { context.startActivity(intent) }
+    }
+
+    fun onLocationClick() {
+        if (locationGranted) {
+            openAppSettings()
+        } else {
+            runCatching {
+                requestLocation.launch(Manifest.permission.ACCESS_FINE_LOCATION)
+            }.onFailure { openAppSettings() }
+        }
+    }
+
+    fun onNotificationsClick() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU && !notificationsGranted) {
+            runCatching {
+                requestNotifications.launch(Manifest.permission.POST_NOTIFICATIONS)
+            }.onFailure { openAppSettings() }
+        } else {
+            openAppSettings()
+        }
+    }
 
     Box(
         modifier = Modifier
@@ -144,7 +207,7 @@ fun PermissionsScreen(
 
                 Spacer(Modifier.height(16.dp))
 
-                // Permission cards
+                // Permission cards — state comes from the OS, not from a local flag.
                 Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                     Reveal(delayMillis = 100) {
                         PermissionCard(
@@ -153,31 +216,23 @@ fun PermissionsScreen(
                             iconBg = TertiaryFixed.copy(alpha = 0.3f),
                             title = "Ubicación",
                             description = "Para confirmar que la asistencia se registra dentro de la escuela.",
-                            state = locationState,
-                            onGrant = { locationState = PermState.GRANTED },
+                            state = permState(locationGranted),
+                            onGrant = ::onLocationClick,
                         )
                     }
                     Reveal(delayMillis = 150) {
-                        PermissionCard(
-                            icon = Icons.Outlined.CameraAlt,
-                            iconTint = PrimaryContainer,
-                            iconBg = PrimaryFixed,
-                            title = "Cámara",
-                            description = "Para tomar fotos o videos de incidentes y comprobantes.",
-                            state = cameraState,
-                            onGrant = { cameraState = PermState.GRANTED },
-                        )
-                    }
-                    Reveal(delayMillis = 200) {
                         PermissionCard(
                             icon = Icons.Outlined.Notifications,
                             iconTint = PrimaryContainer,
                             iconBg = PrimaryFixed,
                             title = "Notificaciones",
                             description = "Para avisarte de faltas, tareas y mensajes nuevos.",
-                            state = notifState,
-                            onGrant = { notifState = PermState.GRANTED },
+                            state = permState(notificationsGranted),
+                            onGrant = ::onNotificationsClick,
                         )
+                    }
+                    Reveal(delayMillis = 200) {
+                        PermissionNote()
                     }
                 }
 
@@ -314,6 +369,67 @@ private fun PermHeader() {
             fontFamily = DmSans,
             fontSize = 14.sp,
             lineHeight = 20.sp,
+            color = OnSurfaceVariant,
+        )
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Real permission state
+// ---------------------------------------------------------------------------
+
+private fun permState(granted: Boolean): PermState =
+    if (granted) PermState.GRANTED else PermState.PENDING
+
+private fun locationGranted(context: Context): Boolean =
+    ContextCompat.checkSelfPermission(
+        context,
+        Manifest.permission.ACCESS_FINE_LOCATION,
+    ) == PackageManager.PERMISSION_GRANTED ||
+        ContextCompat.checkSelfPermission(
+            context,
+            Manifest.permission.ACCESS_COARSE_LOCATION,
+        ) == PackageManager.PERMISSION_GRANTED
+
+private fun notificationsGranted(context: Context): Boolean =
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+        ContextCompat.checkSelfPermission(
+            context,
+            Manifest.permission.POST_NOTIFICATIONS,
+        ) == PackageManager.PERMISSION_GRANTED
+    } else {
+        NotificationManagerCompat.from(context).areNotificationsEnabled()
+    }
+
+/**
+ * The mockup had a third "Cámara" card, but the app has no CAMERA permission:
+ * photos go through the system camera app or the gallery picker. Saying so is
+ * more useful than a button that would open a setting that does not exist.
+ */
+@Composable
+private fun PermissionNote() {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(16.dp))
+            .background(SurfaceContainerLow.copy(alpha = 0.8f))
+            .border(1.dp, OutlineVariant.copy(alpha = 0.4f), RoundedCornerShape(16.dp))
+            .padding(12.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(10.dp),
+    ) {
+        Icon(
+            imageVector = Icons.Outlined.VerifiedUser,
+            contentDescription = null,
+            tint = PrimaryContainer,
+            modifier = Modifier.size(18.dp),
+        )
+        Text(
+            text = "Las fotos se toman con la cámara del teléfono o se eligen de la galería; " +
+                "no piden permiso adicional.",
+            fontFamily = DmSans,
+            fontSize = 11.sp,
+            lineHeight = 15.sp,
             color = OnSurfaceVariant,
         )
     }

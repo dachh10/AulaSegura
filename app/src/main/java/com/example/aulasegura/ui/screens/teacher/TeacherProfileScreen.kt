@@ -1,6 +1,12 @@
 package com.example.aulasegura.ui.screens.teacher
 
+import android.Manifest
+import android.content.Context
+import android.content.Intent
+import android.content.pm.PackageManager
 import android.net.Uri
+import android.os.Build
+import android.provider.Settings
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.animateColorAsState
@@ -9,9 +15,11 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -37,11 +45,14 @@ import androidx.compose.material.icons.filled.PhotoLibrary
 import androidx.compose.material.icons.filled.School
 import androidx.compose.material.icons.filled.Shield
 import androidx.compose.material.icons.filled.Sync
+import androidx.compose.material3.Button
 import androidx.compose.material3.Icon
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.Surface
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -52,13 +63,21 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
+import androidx.core.app.NotificationManagerCompat
+import androidx.core.content.ContextCompat
 import androidx.core.content.FileProvider
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
 import coil.compose.AsyncImage
 import com.example.aulasegura.ui.components.TeacherBottomBar
 import com.example.aulasegura.ui.components.TeacherTab
@@ -111,10 +130,51 @@ fun TeacherProfileScreen(
     onLogout: () -> Unit = {},
     onChangePhoto: (Uri) -> Unit = {},
     onDismissMessage: () -> Unit = {},
+    onEditProfile: () -> Unit = {},
+    onChangePassword: () -> Unit = {},
+    onOpenPermissions: () -> Unit = {},
+    onEditNameChange: (String) -> Unit = {},
+    onEditSubjectsChange: (String) -> Unit = {},
+    onSaveProfile: () -> Unit = {},
+    onCurrentPasswordChange: (String) -> Unit = {},
+    onNewPasswordChange: (String) -> Unit = {},
+    onConfirmPasswordChange: (String) -> Unit = {},
+    onSavePassword: () -> Unit = {},
+    onCloseDialog: () -> Unit = {},
 ) {
     val context = LocalContext.current
     var showPhotoOptions by remember { mutableStateOf(false) }
     var pendingCapture by remember { mutableStateOf<File?>(null) }
+
+    // The notification switch reflects the Android permission, not a local flag:
+    // the OS is what decides whether the phone rings, and it can only be changed
+    // from the system dialog or Settings. OnResume keeps the row honest after the
+    // teacher comes back from either one.
+    var notificationsGranted by remember { mutableStateOf(notificationsEnabled(context)) }
+    val requestNotifications = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestPermission(),
+    ) { granted -> notificationsGranted = granted }
+
+    val lifecycleOwner = LocalLifecycleOwner.current
+    DisposableEffect(lifecycleOwner, context) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_RESUME) {
+                notificationsGranted = notificationsEnabled(context)
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+    }
+
+    fun openNotificationSettings() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU && !notificationsGranted) {
+            runCatching { requestNotifications.launch(Manifest.permission.POST_NOTIFICATIONS) }
+        } else {
+            val intent = Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS)
+                .putExtra(Settings.EXTRA_APP_PACKAGE, context.packageName)
+            runCatching { context.startActivity(intent) }
+        }
+    }
 
     // The camera writes into a cache file the FileProvider exposes to the camera
     // app; the ViewModel only sees the resulting Uri and compresses it. The same
@@ -179,7 +239,16 @@ fun TeacherProfileScreen(
             Reveal(40) { MySubjectsSection(subjects = ui.subjects) }
 
             Spacer(Modifier.height(14.dp))
-            Reveal(100) { SettingsCard(schoolId = ui.schoolId) }
+            Reveal(100) {
+                SettingsCard(
+                    schoolId = ui.schoolId,
+                    onEditProfile = onEditProfile,
+                    onChangePassword = onChangePassword,
+                    onOpenPermissions = onOpenPermissions,
+                    notificationsGranted = notificationsGranted,
+                    onNotificationsClick = ::openNotificationSettings,
+                )
+            }
 
             Spacer(Modifier.height(16.dp))
             Reveal(160) { LogoutSection(onLogout = onLogout) }
@@ -314,6 +383,186 @@ fun TeacherProfileScreen(
                 }
             }
         }
+    }
+
+    when (ui.dialog) {
+        ProfileDialog.EditProfile -> EditProfileDialog(
+            ui = ui,
+            onNameChange = onEditNameChange,
+            onSubjectsChange = onEditSubjectsChange,
+            onSave = onSaveProfile,
+            onClose = onCloseDialog,
+        )
+        ProfileDialog.ChangePassword -> ChangePasswordDialog(
+            ui = ui,
+            onCurrentChange = onCurrentPasswordChange,
+            onNewChange = onNewPasswordChange,
+            onConfirmChange = onConfirmPasswordChange,
+            onSave = onSavePassword,
+            onClose = onCloseDialog,
+        )
+        ProfileDialog.None -> Unit
+    }
+}
+
+/** Shared opaque card for the two account dialogs. */
+@Composable
+private fun AccountDialog(
+    onClose: () -> Unit,
+    content: @Composable ColumnScope.() -> Unit,
+) {
+    Dialog(onDismissRequest = onClose) {
+        Surface(
+            shape = RoundedCornerShape(24.dp),
+            color = SurfaceContainerLowest,
+            tonalElevation = 6.dp,
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 24.dp),
+        ) {
+            Column(
+                modifier = Modifier.padding(24.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp),
+                content = content,
+            )
+        }
+    }
+}
+
+@Composable
+private fun EditProfileDialog(
+    ui: TeacherProfileUi,
+    onNameChange: (String) -> Unit,
+    onSubjectsChange: (String) -> Unit,
+    onSave: () -> Unit,
+    onClose: () -> Unit,
+) {
+    AccountDialog(onClose = onClose) {
+        Text(
+            text = "Editar perfil",
+            color = PrimaryContainer,
+            fontFamily = BricolageGrotesque,
+            fontWeight = FontWeight.Bold,
+            fontSize = 20.sp,
+        )
+        OutlinedTextField(
+            value = ui.editName,
+            onValueChange = onNameChange,
+            label = { Text(text = "Nombre completo") },
+            modifier = Modifier.fillMaxWidth(),
+            singleLine = true,
+            keyboardOptions = KeyboardOptions(imeAction = ImeAction.Next),
+        )
+        OutlinedTextField(
+            value = ui.editSubjects,
+            onValueChange = onSubjectsChange,
+            label = { Text(text = "Materias") },
+            placeholder = { Text(text = "Matemáticas, Ciencias") },
+            modifier = Modifier.fillMaxWidth(),
+            singleLine = true,
+            keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
+        )
+        Text(
+            text = "Separa las materias con una coma.",
+            color = Outline,
+            fontFamily = DmSans,
+            fontSize = 11.sp,
+        )
+        DialogActions(
+            saving = ui.saving,
+            saveLabel = "Guardar",
+            onSave = onSave,
+            onClose = onClose,
+        )
+    }
+}
+
+@Composable
+private fun ChangePasswordDialog(
+    ui: TeacherProfileUi,
+    onCurrentChange: (String) -> Unit,
+    onNewChange: (String) -> Unit,
+    onConfirmChange: (String) -> Unit,
+    onSave: () -> Unit,
+    onClose: () -> Unit,
+) {
+    AccountDialog(onClose = onClose) {
+        Text(
+            text = "Cambiar contraseña",
+            color = PrimaryContainer,
+            fontFamily = BricolageGrotesque,
+            fontWeight = FontWeight.Bold,
+            fontSize = 20.sp,
+        )
+        OutlinedTextField(
+            value = ui.currentPassword,
+            onValueChange = onCurrentChange,
+            label = { Text(text = "Contraseña actual") },
+            visualTransformation = PasswordVisualTransformation(),
+            keyboardOptions = KeyboardOptions(
+                keyboardType = KeyboardType.Password,
+                imeAction = ImeAction.Next,
+            ),
+            modifier = Modifier.fillMaxWidth(),
+            singleLine = true,
+        )
+        OutlinedTextField(
+            value = ui.newPassword,
+            onValueChange = onNewChange,
+            label = { Text(text = "Nueva contraseña") },
+            visualTransformation = PasswordVisualTransformation(),
+            keyboardOptions = KeyboardOptions(
+                keyboardType = KeyboardType.Password,
+                imeAction = ImeAction.Next,
+            ),
+            modifier = Modifier.fillMaxWidth(),
+            singleLine = true,
+        )
+        OutlinedTextField(
+            value = ui.confirmPassword,
+            onValueChange = onConfirmChange,
+            label = { Text(text = "Repite la nueva contraseña") },
+            visualTransformation = PasswordVisualTransformation(),
+            keyboardOptions = KeyboardOptions(
+                keyboardType = KeyboardType.Password,
+                imeAction = ImeAction.Done,
+            ),
+            modifier = Modifier.fillMaxWidth(),
+            singleLine = true,
+        )
+        DialogActions(
+            saving = ui.saving,
+            saveLabel = "Cambiar",
+            onSave = onSave,
+            onClose = onClose,
+        )
+    }
+}
+
+@Composable
+private fun DialogActions(
+    saving: Boolean,
+    saveLabel: String,
+    onSave: () -> Unit,
+    onClose: () -> Unit,
+) {
+    Spacer(Modifier.height(4.dp))
+    Button(
+        onClick = onSave,
+        enabled = !saving,
+        modifier = Modifier.fillMaxWidth(),
+    ) {
+        Text(
+            text = if (saving) "Guardando…" else saveLabel,
+            fontFamily = DmSans,
+            fontWeight = FontWeight.Bold,
+        )
+    }
+    TextButton(
+        onClick = onClose,
+        modifier = Modifier.fillMaxWidth(),
+    ) {
+        Text(text = "Cancelar", color = Outline, fontFamily = DmSans)
     }
 }
 
@@ -541,7 +790,14 @@ private fun SubjectSlotCard(
 }
 
 @Composable
-private fun SettingsCard(schoolId: String) {
+private fun SettingsCard(
+    schoolId: String,
+    onEditProfile: () -> Unit,
+    onChangePassword: () -> Unit,
+    onOpenPermissions: () -> Unit,
+    notificationsGranted: Boolean,
+    onNotificationsClick: () -> Unit,
+) {
     Column(
         modifier = Modifier
             .fillMaxWidth()
@@ -553,23 +809,26 @@ private fun SettingsCard(schoolId: String) {
         SettingsRow(
             icon = Icons.Filled.Person,
             label = "Editar perfil",
-            onClick = {},
+            onClick = onEditProfile,
         )
         SettingsDivider()
         SettingsRow(
             icon = Icons.Filled.Lock,
             label = "Cambiar contraseña",
-            onClick = {},
+            onClick = onChangePassword,
         )
         SettingsDivider()
         SettingsValueRow(label = "Escuela", value = schoolId.ifBlank { "Sin asignar" })
         SettingsDivider()
-        NotificationToggleRow()
+        NotificationToggleRow(
+            granted = notificationsGranted,
+            onClick = onNotificationsClick,
+        )
         SettingsDivider()
         SettingsRow(
             icon = Icons.Filled.Shield,
             label = "Permisos de la app",
-            onClick = {},
+            onClick = onOpenPermissions,
         )
         SettingsDivider()
         SyncStatusRow()
@@ -641,15 +900,27 @@ private fun SettingsValueRow(label: String, value: String) {
 }
 
 /**
- * Inert on purpose: the permission is requested by `MainActivity` when the app
- * opens. A switch here would suggest it controls a setting that lives elsewhere.
+ * The switch is a readout of the Android permission. Tapping the row either asks
+ * for it (Android 13+) or opens the app's notification settings, where the teacher
+ * can turn it off. Writing a flag in Firestore would be cosmetic: without Cloud
+ * Functions the push is sent manually from the console.
  */
 @Composable
-private fun NotificationToggleRow() {
+private fun NotificationToggleRow(
+    granted: Boolean,
+    onClick: () -> Unit,
+) {
+    val (interaction, pressModifier) = rememberPressScale(0.99f)
     Row(
         modifier = Modifier
             .fillMaxWidth()
             .height(52.dp)
+            .then(pressModifier)
+            .clickable(
+                interactionSource = interaction,
+                indication = null,
+                onClick = onClick,
+            )
             .padding(horizontal = 14.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
@@ -665,21 +936,37 @@ private fun NotificationToggleRow() {
                 lineHeight = 20.sp,
             )
             Text(
-                text = "El permiso se pide al iniciar la app",
+                text = if (granted) {
+                    "Activadas en este teléfono · toca para cambiar"
+                } else {
+                    "Pendiente de permiso · toca para activar"
+                },
                 color = Outline,
                 fontFamily = DmSans,
                 fontSize = 11.sp,
                 lineHeight = 14.sp,
             )
         }
-        NotificationToggle(checked = true, enabled = false)
+        NotificationToggle(checked = granted, interactive = false)
     }
 }
+
+/** Current state of the Android notification permission. */
+private fun notificationsEnabled(context: Context): Boolean =
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+        ContextCompat.checkSelfPermission(
+            context,
+            Manifest.permission.POST_NOTIFICATIONS,
+        ) == PackageManager.PERMISSION_GRANTED
+    } else {
+        NotificationManagerCompat.from(context).areNotificationsEnabled()
+    }
 
 @Composable
 private fun NotificationToggle(
     checked: Boolean,
     enabled: Boolean = true,
+    interactive: Boolean = true,
     onCheckedChange: (Boolean) -> Unit = {},
 ) {
     val trackColor by animateColorAsState(
@@ -698,7 +985,7 @@ private fun NotificationToggle(
             .clip(PillShape)
             .background(trackColor)
             .clickable(
-                enabled = enabled,
+                enabled = enabled && interactive,
                 interactionSource = remember { MutableInteractionSource() },
                 indication = null,
                 onClick = { onCheckedChange(!checked) },

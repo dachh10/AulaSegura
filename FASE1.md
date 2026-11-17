@@ -23,7 +23,7 @@
 | **8B** — PDF en tareas | un solo PDF (10 MB) subido antes de publicar | ✅ **hecho** · `4ddc7b7` + `e837e16` · `assembleDebug` + 189 tests |
 | **9** — Chat | conversaciones y mensajes en RTDB | ✅ **hecho** · `396830d` · `assembleDebug` + 205 tests |
 | **10** — Notificaciones y FCM | push desde la consola + bandeja real + script de avisos | ✅ **cerrado 17 nov 2026** · probado en teléfono · 219 tests |
-| **11** — Perfil | datos reales del docente + foto en Cloudinary | ✅ **hecho** · `assembleDebug` + 227 tests |
+| **11** — Perfil | datos reales del docente + foto en Cloudinary + ajustes de cuenta | ✅ **hecho** · `assembleDebug` + 234 tests |
 
 **Criterio de cierre de la fase** (`PLAN.md`): con **modo avión** activo, el docente pasa lista y
 registra un incidente con foto; al reconectar, ambos aparecen en Firestore **sin duplicados** y
@@ -1009,8 +1009,9 @@ node scripts/notify/index.js \
 
 ## Bloque 11 — Perfil (PLAN 1.12)
 
-> **Estado: ✅ HECHO** — 17 nov 2026 · `assembleDebug` verde · **227 tests unitarios, 0 fallos**
-> (+8: 2 del documento de la foto, 1 de la caché del perfil y 5 de etiquetas del perfil y el saludo).
+> **Estado: ✅ HECHO** — 17 nov 2026 · `assembleDebug` verde · **234 tests unitarios, 0 fallos**
+> (+15: 2 del documento de la foto, 1 de la caché del perfil, 5 de etiquetas del perfil y el saludo,
+> 2 del `update()` de perfil y 5 de validaciones de edición y contraseña).
 > **La verificación en el teléfono la corre el dueño del proyecto**; los pasos van al final.
 
 - [x] **11.1** `TeacherProfileScreen` con datos reales (`fullName`, `email`, `schoolId`, `subjects`)
@@ -1018,6 +1019,10 @@ node scripts/notify/index.js \
 - [x] **11.3** Foto: comprimir + subir a `aulasegura/profiles/{uid}` + escribir `photoUrl` y `photoPublicId`
 - [x] **11.4** Foto visible en la UI y persistida entre sesiones (Coil)
 - [x] **11.5** Logout y cierre forzado por `active = false` siguen funcionando
+- [x] **11.6** "Editar perfil": nombre y materias reales, guardados en `users/{uid}` y en la caché
+- [x] **11.7** "Cambiar contraseña": actual + nueva + confirmación, con reautenticación de Firebase
+- [x] **11.8** "Permisos de la app": la pantalla consulta el estado real del sistema y abre Ajustes
+- [x] **11.9** "Notificaciones": interruptor que refleja el permiso real de Android y lo cambia
 
 **Qué cambió en este bloque**
 
@@ -1074,6 +1079,43 @@ node scripts/notify/index.js \
    una fase posterior.
 4. **Sin cámara en tablet sin cámara.** La opción de galería sigue disponible.
 5. **Verificación en el teléfono** a cargo del dueño del proyecto (los 5 pasos de arriba).
+
+**Extensión de los ajustes de la cuenta** (mismo commit del bloque, 17 nov 2026)
+
+Las cuatro filas que seguían decorativas en el perfil ya hacen algo:
+
+| Fila | Comportamiento |
+|---|---|
+| Editar perfil | Diálogo con nombre y materias (separadas por coma); `update()` de solo `fullName` y `subjects`, con refresco de la memoria y de la caché Room |
+| Cambiar contraseña | Diálogo con actual + nueva + confirmación; reautenticación con la contraseña actual antes de `updatePassword`, y mensaje concreto para cada fallo |
+| Permisos de la app | Abre `Routes.PERMISSIONS`, que ahora consulta ubicación y notificaciones con `ContextCompat.checkSelfPermission` y permite pedirlas o abrir Ajustes |
+| Notificaciones | Muestra el permiso real del teléfono; si falta lo pide (API 33+) y si ya está concedido abre los ajustes de notificaciones de la app |
+
+Decisiones que importan:
+
+- **No se escribe `preferences.notificationsEnabled`.** Ningún código de `data/`, `domain/` ni el
+  script de envío lo lee, y en Spark no hay Cloud Functions: escribirlo no cambiaría que el teléfono
+  suene o deje de sonar. El permiso del sistema es la única verdad, y se consulta también al volver
+  de Ajustes (`ON_RESUME`).
+- **El `update()` del perfil manda dos campos, nunca el documento completo.** Las reglas usan una
+  lista negra de campos inmutables; no mandar `role`, `schoolId` ni `active` evita pisar un cambio
+  que la dirección haga al mismo tiempo.
+- **La contraseña pide reautenticación.** Firebase exige un login reciente para `updatePassword`;
+  sin eso el cambio falla a mitad de jornada.
+- **La tarjeta de "Cámara" de la pantalla de permisos se quitó.** El manifest no declara `CAMERA`:
+  las fotos usan la cámara del sistema o *GetContent*, y un botón para conceder un permiso que no
+  existe sería una mentira. Quedó una nota que lo explica.
+
+Cómo probarlo en el teléfono:
+
+1. **Editar perfil**: cambia el nombre y las materias, guarda, y vuelve al inicio: el saludo usa el
+   nombre nuevo y "MIS MATERIAS" las nuevas. En Firestore cambiaron solo esos dos campos.
+2. **Cambiar contraseña**: prueba contraseña actual equivocada (mensaje específico), nueva corta,
+   confirmación distinta y finally el caso válido. Cierra sesión y entra con la nueva.
+3. **Permisos de la app**: la fila abre la pantalla; ubicación y notificaciones muestran su estado
+   real. Quita la ubicación desde Ajustes, vuelve y la tarjeta debe decir "Pendiente".
+4. **Notificaciones**: con el permiso concedido, tocar la fila abre los ajustes de notificaciones
+   de la app; al desactivarlas desde ahí y volver, el interruptor debe aparecer apagado.
 
 **Criterio:** el docente cambia su foto, cierra la app, vuelve a entrar y la foto sigue ahí; el
 saludo muestra su nombre real.

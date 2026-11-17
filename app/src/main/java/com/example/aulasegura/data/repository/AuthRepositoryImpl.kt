@@ -4,20 +4,26 @@ import com.example.aulasegura.data.local.dao.ProfileDao
 import com.example.aulasegura.data.local.mapper.toCachedEntity
 import com.example.aulasegura.data.local.mapper.toCachedUser
 import com.example.aulasegura.data.mapper.profilePhotoUpdate
+import com.example.aulasegura.data.mapper.profileUpdate
 import com.example.aulasegura.domain.model.AppUser
 import com.example.aulasegura.domain.model.UserRole
 import com.example.aulasegura.domain.repository.AuthFailure
 import com.example.aulasegura.domain.repository.AuthRepository
 import com.example.aulasegura.domain.repository.AuthResult
+import com.example.aulasegura.domain.repository.PasswordChangeResult
 import com.example.aulasegura.domain.repository.PasswordResetResult
 import com.example.aulasegura.domain.repository.ProfilePhotoResult
+import com.example.aulasegura.domain.repository.ProfileUpdateResult
 import com.example.aulasegura.domain.telemetry.AnalyticsEvent
 import com.example.aulasegura.domain.telemetry.AnalyticsLogger
 import com.example.aulasegura.domain.telemetry.NoOpAnalyticsLogger
 import com.google.firebase.FirebaseNetworkException
 import com.google.firebase.auth.FirebaseAuth
+import com.google.firebase.auth.EmailAuthProvider
 import com.google.firebase.auth.FirebaseAuthInvalidCredentialsException
 import com.google.firebase.auth.FirebaseAuthInvalidUserException
+import com.google.firebase.auth.FirebaseAuthRecentLoginRequiredException
+import com.google.firebase.auth.FirebaseAuthWeakPasswordException
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.FirebaseFirestoreException
 import kotlinx.coroutines.channels.awaitClose
@@ -111,6 +117,68 @@ class AuthRepositoryImpl(
             }
         } catch (e: Exception) {
             ProfilePhotoResult.Failed
+        }
+    }
+
+    override suspend fun updateProfile(
+        fullName: String,
+        subjects: List<String>,
+    ): ProfileUpdateResult {
+        val profile = currentUser ?: return ProfileUpdateResult.SignedOut
+        val uid = auth.currentUser?.uid
+        if (uid == null || uid != profile.uid) return ProfileUpdateResult.SignedOut
+
+        return try {
+            firestore.collection(USERS).document(uid)
+                .update(profileUpdate(fullName, subjects))
+                .await()
+
+            val updated = profile.copy(fullName = fullName, subjects = subjects)
+            currentUser = updated
+            runCatching {
+                profileDao.upsert(updated.toCachedEntity(System.currentTimeMillis()))
+            }
+
+            ProfileUpdateResult.Saved
+        } catch (denied: FirebaseFirestoreException) {
+            if (denied.code == FirebaseFirestoreException.Code.PERMISSION_DENIED) {
+                ProfileUpdateResult.Rejected
+            } else {
+                ProfileUpdateResult.Failed
+            }
+        } catch (e: Exception) {
+            ProfileUpdateResult.Failed
+        }
+    }
+
+    override suspend fun changePassword(
+        currentPassword: String,
+        newPassword: String,
+    ): PasswordChangeResult {
+        val firebaseUser = auth.currentUser
+            ?: return PasswordChangeResult.SignedOut
+        val email = firebaseUser.email ?: currentUser?.email
+            ?: return PasswordChangeResult.Failed
+
+        return try {
+            // Firebase rejects updatePassword after a long session without a
+            // recent login. Reauthenticating with the current password is what
+            // makes the change possible instead of failing hours into the shift.
+            firebaseUser.reauthenticate(
+                EmailAuthProvider.getCredential(email, currentPassword),
+            ).await()
+            firebaseUser.updatePassword(newPassword).await()
+            PasswordChangeResult.Changed
+        } catch (e: FirebaseAuthInvalidCredentialsException) {
+            PasswordChangeResult.WrongPassword
+        } catch (e: FirebaseAuthWeakPasswordException) {
+            PasswordChangeResult.WeakPassword
+        } catch (e: FirebaseAuthRecentLoginRequiredException) {
+            PasswordChangeResult.RequiresRecentLogin
+        } catch (e: FirebaseNetworkException) {
+            PasswordChangeResult.NetworkError
+        } catch (e: Exception) {
+            PasswordChangeResult.Failed
         }
     }
 

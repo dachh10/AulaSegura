@@ -620,6 +620,17 @@ fun AulaSeguraNavHost(
                 onLogout = { sessionViewModel.signOut() },
                 onChangePhoto = profileViewModel::changePhoto,
                 onDismissMessage = profileViewModel::clearMessage,
+                onEditProfile = profileViewModel::openEditProfile,
+                onChangePassword = profileViewModel::openChangePassword,
+                onOpenPermissions = { navController.navigate(Routes.PERMISSIONS) },
+                onEditNameChange = profileViewModel::setEditName,
+                onEditSubjectsChange = profileViewModel::setEditSubjects,
+                onSaveProfile = profileViewModel::saveProfile,
+                onCurrentPasswordChange = profileViewModel::setCurrentPassword,
+                onNewPasswordChange = profileViewModel::setNewPassword,
+                onConfirmPasswordChange = profileViewModel::setConfirmPassword,
+                onSavePassword = profileViewModel::savePassword,
+                onCloseDialog = profileViewModel::closeDialog,
             )
         }
 

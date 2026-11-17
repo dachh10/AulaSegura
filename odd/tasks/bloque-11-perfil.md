@@ -46,3 +46,30 @@ Route: inline en las 6 tareas. Ningún trigger de delegación se cumple: una sol
 **L6** — 11.5 verificado por readback: `SessionViewModel.signOut()` y `observeAccountActive().firstOrNull { !it }` siguen intactos; el logout del perfil llama al mismo `sessionViewModel.signOut()` de siempre. La desactivación remota no se probó en dispositivo.
 
 **L7** — 17 nov 2026, corrección visual tras la prueba del dueño: el `AlertDialog` con overload de `content` no dibujaba su contenedor y las opciones quedaban superpuestas sobre la pantalla. Se reemplaza por `Dialog` + `Surface` opaca con dos botones de ancho completo y cancelar; el resto del bloque funcionó en el teléfono. `assembleDebug` y 227 tests siguen verdes.
+
+---
+
+## Extensión — las cuatro filas del perfil
+
+**S7** — Usuario: `ya solo en la parte de perfil necesito que le des funcionalidad a todo lo de "editar perfil", "cambiar contraseña", "permisos de la pp", "notificaciones".`
+
+**S8** — Editar perfil: cambiar `fullName` y `subjects` en `users/{uid}`, con validación y reflejo inmediato en la caché Room y en el saludo.
+
+**S9** — Cambiar contraseña: contraseña actual + nueva + confirmación, con reautenticación de Firebase antes de `updatePassword`.
+
+**S10** — Permisos de la app: la fila abre una pantalla real que consulta el estado de los permisos del sistema y permite concederlos o abrir Ajustes.
+
+**S11** — Notificaciones: la fila muestra el estado real del permiso `POST_NOTIFICATIONS` (API 33+) y permite pedirlo o abrir los ajustes de notificaciones de la app.
+
+**T7** — S8,S9 — inline — **hecho** — Contrato y mapper: `updateProfile`, `changePassword`, resultados tipados, implementación con reautenticación y fake de tests.
+**T8** — S8 — inline — **hecho** — Diálogo de edición de nombre y materias cableado al ViewModel y a la fila.
+**T9** — S9 — inline — **hecho** — Diálogo de cambio de contraseña cableado al ViewModel y a la fila.
+**T10** — S10 — inline — **hecho** — `PermissionsScreen` real (estados consultados + Intents) y ruta conectada desde el perfil docente.
+**T11** — S11 — inline — **hecho** — Estado real de notificaciones en la fila, request de permiso y apertura de Ajustes.
+**T12** — S7..S11 — inline — **hecho** — Tests, documentación, verificación y commit.
+
+**L8** — Decisión: `preferences.notificationsEnabled` no se escribe. No hay ningún lector en `data/`, `domain/` ni en el script de envío, y sin Cloud Functions el push es manual desde la consola: escribir el flag sería cosmético. La fila de notificaciones controla el permiso del sistema, que es lo que sí determina si el teléfono suena.
+
+**L9** — Decisión: "Permisos de la app" reutiliza `Routes.PERMISSIONS` en vez de crear otro diálogo, pero esa pantalla era decorativa (`PermissionsScreen.kt:105` decía "no real runtime permission calls"); se hace real con `ContextCompat.checkSelfPermission` e Intents de Ajustes. No se muestra cámara porque el manifest no declara `CAMERA`: el avatar usa `TakePicture`/`GetContent`.
+
+**L10** — 17 nov 2026: verificación verde con `assembleDebug` y 39 suites / 234 tests / 0 fallos / 0 errores (eran 227). Un error de compilación durante la implementación: `Modifier.align` solo resuelve dentro de `BoxScope`; el botón de cancelar pasó a ancho completo. Quedan dos warnings de deprecación (`LocalLifecycleOwner` de `ui` y `Icons.Outlined.ArrowBack`), ambos preexistentes en patrón y sin impacto funcional.

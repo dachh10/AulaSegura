@@ -2,7 +2,10 @@ package com.example.aulasegura.ui.screens.teacher
 
 import com.example.aulasegura.domain.model.AppUser
 import com.example.aulasegura.domain.model.UserRole
+import com.example.aulasegura.domain.repository.PasswordChangeResult
+import com.example.aulasegura.domain.repository.ProfileUpdateResult
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
 import org.junit.Test
 
 /**
@@ -57,5 +60,58 @@ class TeacherProfileUiTest {
         assertEquals(teacher.photoUrl, ui.photoUrl)
         assertEquals(false, ui.uploading)
         assertEquals(null, ui.message)
+    }
+
+    @Test
+    fun `subjects round trip through the editable field`() {
+        val input = subjectsInput(listOf("Matemáticas", "Ciencias"))
+
+        assertEquals("Matemáticas, Ciencias", input)
+        assertEquals(listOf("Matemáticas", "Ciencias"), parseSubjects(input))
+    }
+
+    @Test
+    fun `subjects input trims repeats and empties`() {
+        assertEquals(
+            listOf("Matemáticas", "Ciencias"),
+            parseSubjects(" Matemáticas , , Ciencias , Matemáticas "),
+        )
+        assertEquals(emptyList<String>(), parseSubjects("   "))
+    }
+
+    @Test
+    fun `the profile form refuses an empty name`() {
+        assertEquals("Escribe tu nombre.", profileEditError("   "))
+        assertNull(profileEditError("Ricardo Salinas"))
+    }
+
+    @Test
+    fun `the password form checks length and confirmation`() {
+        assertEquals(
+            "Escribe tu contraseña actual.",
+            passwordChangeError("", "abc123", "abc123"),
+        )
+        assertEquals(
+            "La contraseña debe tener al menos 6 caracteres.",
+            passwordChangeError("vieja", "abc", "abc"),
+        )
+        assertEquals(
+            "Las contraseñas no coinciden.",
+            passwordChangeError("vieja", "abc123", "otra123"),
+        )
+        assertNull(passwordChangeError("vieja", "abc123", "abc123"))
+    }
+
+    @Test
+    fun `results explain themselves in the teacher language`() {
+        assertEquals("Perfil actualizado.", profileUpdateMessage(ProfileUpdateResult.Saved))
+        assertEquals(
+            "La contraseña actual no es correcta.",
+            passwordChangeMessage(PasswordChangeResult.WrongPassword),
+        )
+        assertEquals(
+            "Vuelve a iniciar sesión para cambiar la contraseña.",
+            passwordChangeMessage(PasswordChangeResult.RequiresRecentLogin),
+        )
     }
 }

@@ -221,6 +221,11 @@ junto a `photoUrl` con un `update()` de dos campos. La caché Room del perfil gu
 porque mostrar la foto no necesita el id y una foto nueva genera uno nuevo: eso evita una migración
 de esquema para un campo que solo se usa al reemplazar la imagen.
 
+`preferences.notificationsEnabled` existe en el esquema pero **ningún consumidor lo lee**: en Spark
+no hay Cloud Functions y el push se envía desde la consola o desde `scripts/notify`. La app no lo
+escribe; la pantalla de notificaciones consulta el permiso del sistema operativo, que es lo que
+realmente decide si el teléfono suena.
+
 #### `students/{studentId}`
 ```
 firstName, lastName, fullName   string

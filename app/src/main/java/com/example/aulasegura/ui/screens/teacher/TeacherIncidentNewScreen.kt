@@ -4,11 +4,6 @@ import android.content.Context
 import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.animation.core.RepeatMode
-import androidx.compose.animation.core.animateFloat
-import androidx.compose.animation.core.infiniteRepeatable
-import androidx.compose.animation.core.rememberInfiniteTransition
-import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
@@ -18,7 +13,6 @@ import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsFocusedAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
@@ -61,6 +55,7 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -73,18 +68,11 @@ import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.PathEffect
-import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.asImageBitmap
-import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
-import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.input.pointer.pointerInput
-import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.TextStyle
@@ -101,6 +89,9 @@ import com.example.aulasegura.domain.model.IncidentSeverity
 import com.example.aulasegura.domain.model.SchoolSite
 import com.example.aulasegura.domain.model.SyncPhase
 import com.example.aulasegura.location.haversineMeters
+import com.example.aulasegura.location.rememberCurrentLocation
+import com.example.aulasegura.ui.components.CampusGeo
+import com.example.aulasegura.ui.components.CampusMap
 import com.example.aulasegura.ui.components.rememberPressScale
 import com.example.aulasegura.ui.screens.access.revealOnEnter
 import com.example.aulasegura.ui.theme.BrandCream
@@ -114,6 +105,7 @@ import com.example.aulasegura.ui.theme.Primary
 import com.example.aulasegura.ui.theme.SurfaceContainerHigh
 import com.example.aulasegura.ui.theme.SurfaceContainerLow
 import com.example.aulasegura.ui.theme.SurfaceContainerLowest
+import com.google.android.gms.maps.model.LatLng
 import java.io.File
 import java.util.Locale
 
@@ -121,19 +113,20 @@ import java.util.Locale
  * 3.9 — Registrar incidente (panel del docente).
  *
  * Reproduce el mockup de Stitch `2b5038f52ef64c8aa1f541755b2860e7`:
- * selector de alumno, gravedad, ubicación con mapa esquemático y geocerca,
- * evidencia (foto/video), descripción, fecha y pie fijo con el CTA coral.
+ * selector de alumno, gravedad, ubicación con mapa real y geocerca, evidencia
+ * (foto/video), descripción, fecha y pie fijo con el CTA coral.
  *
- * El mapa es un dibujo vectorial del mockup (no Google Maps) para que la pantalla
- * se vea idéntica sin depender de la API key. Tocar el mapa mueve el marcador y
- * actualiza las coordenadas; el botón de ubicación lo regresa al centro del plantel.
+ * El mapa es Google Maps ([CampusMap]): el marcador es una coordenada real que el
+ * docente coloca tocando el mapa, y es exactamente lo que se guarda en
+ * `IncidentLocation`. Antes las coordenadas salían de la fracción del dibujo, así
+ * que el documento apuntaba siempre al mismo patio aunque el incidente hubiera
+ * pasado en otro lado.
  */
 
 private val Hairline = Color(0xFFE6E1D8)
 private val Coral = Color(0xFFFF6B57)
 private val CoralDeep = Color(0xFFAE3123)
 private val MapPaper = Color(0xFFECE9E1)
-private val Mint = Color(0xFF5ED3B0)
 private val GreenChipBg = Color(0xFFECFDF5)
 private val GreenChipText = Color(0xFF065F46)
 private val GreenChipBorder = Color(0xFFA7F3D0)
@@ -144,14 +137,6 @@ private val StudentShape = RoundedCornerShape(20.dp)
 private val MapShape = RoundedCornerShape(20.dp)
 private val FieldShape = RoundedCornerShape(20.dp)
 private val TileShape = RoundedCornerShape(16.dp)
-
-/** Fracción del mapa donde vive el marcador en el mockup (180/328, 82/180). */
-private const val MARKER_X = 0.5488f
-private const val MARKER_Y = 0.4556f
-
-/** Coordenadas del patio central que muestra el mockup. */
-private const val BASE_LAT = 19.292600
-private const val BASE_LON = -99.655700
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
@@ -169,8 +154,50 @@ fun TeacherIncidentNewScreen(
 ) {
     val context = LocalContext.current
 
-    var marker by remember { mutableStateOf(Offset(MARKER_X, MARKER_Y)) }
+    // Lectura real del GPS. Si el permiso ya está concedido, llega la primera
+    // lectura sola y el formulario abre con el pin puesto.
+    val location = rememberCurrentLocation()
+
+    var pin by remember { mutableStateOf<LatLng?>(null) }
+    var placedByTeacher by remember { mutableStateOf(false) }
+    var pinAccuracy by remember { mutableStateOf<Double?>(null) }
     var pickerOpen by remember { mutableStateOf(false) }
+
+    // El mapa necesita un centro real. El GPS es la verdad; el centro del plantel
+    // es la siguiente coordenada real; sin ninguna de las dos no hay pin, porque
+    // inventar una coordenada es peor que dejar el mapa sin marcar.
+    LaunchedEffect(location.fix, school) {
+        if (placedByTeacher || pin != null) return@LaunchedEffect
+        val fix = location.fix
+        val seeded = when {
+            fix != null -> LatLng(fix.latitude, fix.longitude)
+            school != null -> LatLng(school.latitude, school.longitude)
+            else -> null
+        } ?: return@LaunchedEffect
+
+        pin = seeded
+        pinAccuracy = fix?.accuracyMeters?.toDouble()
+    }
+
+    fun placePin(point: LatLng) {
+        pin = point
+        placedByTeacher = true
+        // Un punto tocado es un lugar elegido, no una lectura: no lleva precisión.
+        pinAccuracy = null
+    }
+
+    fun useCurrentLocation() {
+        val fix = location.fix
+        if (fix == null) {
+            if (location.permissionGranted) location.retry() else location.requestPermission()
+            return
+        }
+        pin = LatLng(fix.latitude, fix.longitude)
+        pinAccuracy = fix.accuracyMeters?.toDouble()
+        placedByTeacher = true
+    }
+
+    val verdict = incidentPinVerdict(pin?.latitude, pin?.longitude, school)
 
     // The camera app writes into this file; the ViewModel compresses it and keeps
     // the result. `TakePicture` and not `TakePicturePreview`: the preview hands
@@ -199,12 +226,6 @@ fun TeacherIncidentNewScreen(
                 file.delete()
             }
     }
-
-    // The pin is what gets stored; the strings are only what the card prints.
-    val latitudeValue = BASE_LAT + (MARKER_Y - marker.y) * 0.002f
-    val longitudeValue = BASE_LON + (marker.x - MARKER_X) * 0.002f
-    val latitude = String.format(Locale.US, "%.6f", latitudeValue)
-    val longitude = String.format(Locale.US, "%.6f", longitudeValue)
 
     Column(
         modifier = Modifier
@@ -282,11 +303,13 @@ fun TeacherIncidentNewScreen(
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 SectionLabel(text = "Ubicación del incidente")
                 IncidentLocationCard(
-                    marker = marker,
-                    onMarkerChange = { marker = it },
-                    onUseCurrentLocation = { marker = Offset(MARKER_X, MARKER_Y) },
-                    latitude = latitude,
-                    longitude = longitude,
+                    school = school,
+                    pin = pin,
+                    verdict = verdict,
+                    locating = location.locating,
+                    permissionGranted = location.permissionGranted,
+                    onPinChange = ::placePin,
+                    onUseCurrentLocation = { useCurrentLocation() },
                 )
             }
 
@@ -320,10 +343,6 @@ fun TeacherIncidentNewScreen(
             DateTimeCard(timestamp = incidentTimestampLabel(ui.occurredAt))
         }
 
-        val distance = school?.let {
-            haversineMeters(latitudeValue, longitudeValue, it.latitude, it.longitude)
-        }
-
         IncidentFooter(
             enabled = ui.canSave,
             saving = ui.saving,
@@ -331,19 +350,31 @@ fun TeacherIncidentNewScreen(
             onSave = {
                 onSave(
                     // The pin is where the teacher says it happened, so that is
-                    // what gets stored. `accuracy` stays null on purpose: a pin
-                    // is not a GPS reading and must not pretend to be one.
-                    IncidentLocation(
-                        latitude = latitudeValue,
-                        longitude = longitudeValue,
-                        accuracyMeters = null,
-                        distanceMeters = distance,
-                        verified = if (school == null || distance == null) {
-                            false
-                        } else {
-                            distance <= school.radiusMeters
-                        },
-                    ),
+                    // what gets stored. `accuracy` only travels when the pin came
+                    // from a real GPS reading: a tapped point must not pretend to
+                    // be one.
+                    pin?.let { point ->
+                        val site = school
+                        val distance = site?.let {
+                            haversineMeters(
+                                point.latitude,
+                                point.longitude,
+                                it.latitude,
+                                it.longitude,
+                            )
+                        }
+                        IncidentLocation(
+                            latitude = point.latitude,
+                            longitude = point.longitude,
+                            accuracyMeters = pinAccuracy,
+                            distanceMeters = distance,
+                            verified = if (site == null || distance == null) {
+                                false
+                            } else {
+                                distance <= site.radiusMeters
+                            },
+                        )
+                    },
                 )
             },
         )
@@ -804,11 +835,13 @@ private fun CategoryChip(
 // ZONE 4 — Location
 @Composable
 private fun IncidentLocationCard(
-    marker: Offset,
-    onMarkerChange: (Offset) -> Unit,
+    school: SchoolSite?,
+    pin: LatLng?,
+    verdict: IncidentPinVerdict,
+    locating: Boolean,
+    permissionGranted: Boolean,
+    onPinChange: (LatLng) -> Unit,
     onUseCurrentLocation: () -> Unit,
-    latitude: String,
-    longitude: String,
 ) {
     Column(
         modifier = Modifier
@@ -820,28 +853,36 @@ private fun IncidentLocationCard(
             .padding(14.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        BoxWithConstraints(
+        Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .height(180.dp)
+                .height(200.dp)
                 .clip(MapShape)
                 .border(1.dp, OutlineVariant.copy(alpha = 0.30f), MapShape)
-                .background(MapPaper)
-                .pointerInput(Unit) {
-                    detectTapGestures { tap ->
-                        if (size.width > 0 && size.height > 0) {
-                            onMarkerChange(
-                                Offset(
-                                    x = (tap.x / size.width).coerceIn(0.08f, 0.92f),
-                                    y = (tap.y / size.height).coerceIn(0.18f, 0.92f),
-                                ),
-                            )
-                        }
-                    }
-                },
+                .background(MapPaper),
         ) {
-            Canvas(modifier = Modifier.fillMaxSize()) {
-                drawCampusMap()
+            if (pin == null) {
+                NoPinMapPlaceholder(
+                    locating = locating,
+                    permissionGranted = permissionGranted,
+                )
+            } else {
+                CampusMap(
+                    teacherFix = null,
+                    modifier = Modifier.fillMaxSize(),
+                    // La geocerca se pinta roja con el pin fuera, igual que el
+                    // veredicto del chip: una sola respuesta visual.
+                    outsideRadius = verdict.distanceMeters != null && !verdict.inside,
+                    campus = school?.let { LatLng(it.latitude, it.longitude) },
+                    radiusMeters = school?.radiusMeters?.toFloat() ?: CampusGeo.RadiusMeters,
+                    schoolName = school?.name,
+                    pin = pin,
+                    onPinChange = onPinChange,
+                    // El formulario tiene scroll: un mapa que se quede con los
+                    // arrastres verticales encierra al docente en la tarjeta. El
+                    // toque sí mueve el pin.
+                    scrollGesturesEnabled = false,
+                )
             }
 
             // Campus label
@@ -864,64 +905,16 @@ private fun IncidentLocationCard(
                 )
                 Spacer(modifier = Modifier.width(4.dp))
                 Text(
-                    text = "Patio Central · Secundaria",
+                    // El nombre real del plantel cacheado, nunca "Patio Central".
+                    text = school?.name ?: "Plantel",
                     color = Primary,
                     fontFamily = DmSans,
                     fontWeight = FontWeight.Bold,
                     fontSize = 10.sp,
                     lineHeight = 13.sp,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
                 )
-            }
-
-            // Incident marker, anchored by the tip of the teardrop.
-            Column(
-                modifier = Modifier
-                    .offset(x = maxWidth * marker.x, y = maxHeight * marker.y)
-                    .graphicsLayer {
-                        translationX = -size.width / 2f
-                        translationY = -size.height
-                    },
-                horizontalAlignment = Alignment.CenterHorizontally,
-            ) {
-                val pulse = rememberInfiniteTransition(label = "incidentPulse")
-                val dotAlpha by pulse.animateFloat(
-                    initialValue = 0.35f,
-                    targetValue = 1f,
-                    animationSpec = infiniteRepeatable(
-                        animation = tween(durationMillis = 900),
-                        repeatMode = RepeatMode.Reverse,
-                    ),
-                    label = "incidentDot",
-                )
-
-                Row(
-                    modifier = Modifier
-                        .shadow(elevation = 3.dp, shape = RoundedCornerShape(percent = 50))
-                        .clip(RoundedCornerShape(percent = 50))
-                        .background(Color.White)
-                        .border(1.dp, OutlineVariant.copy(alpha = 0.30f), RoundedCornerShape(percent = 50))
-                        .padding(horizontal = 8.dp, vertical = 2.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Box(
-                        modifier = Modifier
-                            .size(6.dp)
-                            .graphicsLayer { alpha = dotAlpha }
-                            .clip(CircleShape)
-                            .background(Coral),
-                    )
-                    Spacer(modifier = Modifier.width(4.dp))
-                    Text(
-                        text = "Incidente",
-                        color = Primary,
-                        fontFamily = JetBrainsMono,
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 10.sp,
-                        lineHeight = 13.sp,
-                    )
-                }
-                Spacer(modifier = Modifier.height(2.dp))
-                IncidentTeardrop()
             }
 
             // My location control
@@ -952,26 +945,27 @@ private fun IncidentLocationCard(
             }
         }
 
-        Row(
-            modifier = Modifier.padding(start = 4.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Icon(
-                imageVector = Icons.Outlined.TouchApp,
-                contentDescription = null,
-                tint = Primary,
-                modifier = Modifier.size(15.dp),
-            )
-            Spacer(modifier = Modifier.width(6.dp))
-            Text(
-                text = "Toca el mapa o arrastra el marcador para cambiar el lugar",
-                color = Outline,
-                fontFamily = DmSans,
-                fontSize = 10.5.sp,
-                lineHeight = 15.sp,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
+        if (pin != null) {
+            Row(
+                modifier = Modifier.padding(start = 4.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Icon(
+                    imageVector = Icons.Outlined.TouchApp,
+                    contentDescription = null,
+                    tint = Primary,
+                    modifier = Modifier.size(15.dp),
+                )
+                Spacer(modifier = Modifier.width(6.dp))
+                Text(
+                    text = "Toca el mapa para mover el marcador a donde ocurrió",
+                    color = Outline,
+                    fontFamily = DmSans,
+                    fontSize = 10.5.sp,
+                    lineHeight = 15.sp,
+                    maxLines = 2,
+                )
+            }
         }
 
         Row(
@@ -980,12 +974,12 @@ private fun IncidentLocationCard(
         ) {
             CoordinateBox(
                 label = "Latitud",
-                value = latitude,
+                value = pin?.let { formatCoordinate(it.latitude) } ?: "—",
                 modifier = Modifier.weight(1f),
             )
             CoordinateBox(
                 label = "Longitud",
-                value = longitude,
+                value = pin?.let { formatCoordinate(it.longitude) } ?: "—",
                 modifier = Modifier.weight(1f),
             )
         }
@@ -1025,35 +1019,110 @@ private fun IncidentLocationCard(
             )
         }
 
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .clip(RoundedCornerShape(percent = 50))
-                .background(GreenChipBg)
-                .border(1.dp, GreenChipBorder, RoundedCornerShape(percent = 50))
-                .padding(horizontal = 12.dp, vertical = 4.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.Center,
-        ) {
-            Icon(
-                imageVector = Icons.Filled.Verified,
-                contentDescription = null,
-                tint = GreenChipIcon,
-                modifier = Modifier.size(15.dp),
-            )
-            Spacer(modifier = Modifier.width(6.dp))
-            Text(
-                text = "Dentro del plantel · Verificada",
-                color = GreenChipText,
-                fontFamily = DmSans,
-                fontWeight = FontWeight.Medium,
-                fontSize = 11.5.sp,
-                lineHeight = 16.sp,
-                letterSpacing = (-0.01).em,
-            )
-        }
+        PinVerdictChip(verdict = verdict)
     }
 }
+
+/**
+ * El chip cierra la tarjeta con el veredicto **real** del pin: dentro, fuera o sin
+ * geocerca. El mockup lo pinta siempre verde con "Verificada"; guardar un incidente
+ * con un pin a 3 km como si estuviera dentro sería mentirle al tutor.
+ */
+@Composable
+private fun PinVerdictChip(verdict: IncidentPinVerdict) {
+    val accent = when {
+        verdict.inside -> GreenChipText
+        verdict.distanceMeters != null -> Color(0xFF9E640B)
+        else -> Outline
+    }
+    val background = when {
+        verdict.inside -> GreenChipBg
+        verdict.distanceMeters != null -> Color(0xFFFFF8E1)
+        else -> SurfaceContainerLow
+    }
+    val border = when {
+        verdict.inside -> GreenChipBorder
+        verdict.distanceMeters != null -> Color(0xFFF2C94C)
+        else -> OutlineVariant.copy(alpha = 0.50f)
+    }
+    val icon = when {
+        verdict.inside -> Icons.Filled.Verified
+        verdict.distanceMeters != null -> Icons.Outlined.Warning
+        else -> Icons.Outlined.MyLocation
+    }
+
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(percent = 50))
+            .background(background)
+            .border(1.dp, border, RoundedCornerShape(percent = 50))
+            .padding(horizontal = 12.dp, vertical = 4.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.Center,
+    ) {
+        Icon(
+            imageVector = icon,
+            contentDescription = null,
+            tint = if (verdict.inside) GreenChipIcon else accent,
+            modifier = Modifier.size(15.dp),
+        )
+        Spacer(modifier = Modifier.width(6.dp))
+        Text(
+            text = incidentPinChipLabel(verdict),
+            color = accent,
+            fontFamily = DmSans,
+            fontWeight = FontWeight.Medium,
+            fontSize = 11.5.sp,
+            lineHeight = 16.sp,
+            letterSpacing = (-0.01).em,
+        )
+    }
+}
+
+/**
+ * Sin coordenada real no se inventa un mapa: se explica por qué y se deja el botón
+ * de ubicación (abajo en la tarjeta) como salida.
+ */
+@Composable
+private fun NoPinMapPlaceholder(
+    locating: Boolean,
+    permissionGranted: Boolean,
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(horizontal = 20.dp)
+            .padding(top = 36.dp),
+        verticalArrangement = Arrangement.Center,
+        horizontalAlignment = Alignment.CenterHorizontally,
+    ) {
+        Icon(
+            imageVector = Icons.Outlined.MyLocation,
+            contentDescription = null,
+            tint = Outline,
+            modifier = Modifier.size(26.dp),
+        )
+        Spacer(modifier = Modifier.height(6.dp))
+        Text(
+            text = when {
+                locating -> "Buscando tu ubicación…"
+                !permissionGranted ->
+                    "Sin ubicación todavía. Activa el permiso para que el mapa se centre en ti."
+                else ->
+                    "Sin coordenada real todavía. Usa tu ubicación actual para marcar el lugar."
+            },
+            color = Outline,
+            fontFamily = DmSans,
+            fontSize = 11.5.sp,
+            lineHeight = 16.sp,
+            textAlign = TextAlign.Center,
+        )
+    }
+}
+
+/** `"19.292600"` — six decimals, punto decimal, sin importar el idioma del teléfono. */
+private fun formatCoordinate(value: Double): String = String.format(Locale.US, "%.6f", value)
 
 @Composable
 private fun CoordinateBox(
@@ -1084,48 +1153,6 @@ private fun CoordinateBox(
             fontSize = 13.sp,
             lineHeight = 18.sp,
             letterSpacing = (-0.02).em,
-        )
-    }
-}
-
-/** Coral teardrop of the mockup (30 × 36), with the white inner dot. */
-@Composable
-private fun IncidentTeardrop() {
-    Canvas(modifier = Modifier.size(width = 30.dp, height = 36.dp)) {
-        val w = size.width
-        val h = size.height
-
-        fun drop(offsetY: Float): Path = Path().apply {
-            moveTo(15f * w / 30f, offsetY)
-            cubicTo(
-                6.71573f * w / 30f, offsetY,
-                0f * w / 30f, 6.71573f * h / 36f + offsetY,
-                0f * w / 30f, 15f * h / 36f + offsetY,
-            )
-            cubicTo(
-                0f * w / 30f, 24.5f * h / 36f + offsetY,
-                15f * w / 30f, 36f * h / 36f + offsetY,
-                15f * w / 30f, 36f * h / 36f + offsetY,
-            )
-            cubicTo(
-                15f * w / 30f, 36f * h / 36f + offsetY,
-                30f * w / 30f, 24.5f * h / 36f + offsetY,
-                30f * w / 30f, 15f * h / 36f + offsetY,
-            )
-            cubicTo(
-                30f * w / 30f, 6.71573f * h / 36f + offsetY,
-                23.2843f * w / 30f, offsetY,
-                15f * w / 30f, offsetY,
-            )
-            close()
-        }
-
-        drawPath(drop(1.5.dp.toPx()), Color.Black.copy(alpha = 0.16f))
-        drawPath(drop(0f), Coral)
-        drawCircle(
-            color = Color.White,
-            radius = 5f * w / 30f,
-            center = Offset(15f * w / 30f, 14f * h / 36f),
         )
     }
 }
@@ -1606,166 +1633,3 @@ private fun Modifier.dashedBorder(
     )
 }
 
-/**
- * Vector replica of the schematic campus map in the mockup (viewBox 328×180).
- * Drawn at 1 dp per SVG unit and centred horizontally, so it crops exactly like
- * the mockup's `preserveAspectRatio="slice"` on a 360 dp phone.
- */
-private fun DrawScope.drawCampusMap() {
-    val u = 1.dp.toPx()
-    val offsetX = (size.width - 328f * u) / 2f
-
-    fun x(value: Float) = offsetX + value * u
-    fun y(value: Float) = value * u
-
-    drawRect(color = Color(0xFFF4F2EC), size = size)
-
-    // Green areas
-    val lowerLawn = Path().apply {
-        moveTo(x(-10f), y(130f))
-        cubicTo(x(30f), y(120f), x(80f), y(140f), x(110f), y(185f))
-        lineTo(x(-10f), y(185f))
-        close()
-    }
-    drawPath(lowerLawn, Color(0xFFE2F5EE))
-
-    val upperLawn = Path().apply {
-        moveTo(x(210f), y(-10f))
-        cubicTo(x(240f), y(20f), x(270f), y(30f), x(335f), y(15f))
-        lineTo(x(335f), y(-10f))
-        close()
-    }
-    drawPath(upperLawn, Color(0xFFE2F5EE))
-
-    // Sports pitch
-    drawRoundRect(
-        color = Color(0xFFD6F0E6),
-        topLeft = Offset(x(230f), y(85f)),
-        size = Size(75f * u, 50f * u),
-        cornerRadius = CornerRadius(6f * u),
-    )
-    drawRoundRect(
-        color = Color(0xFFBCE3D5),
-        topLeft = Offset(x(230f), y(85f)),
-        size = Size(75f * u, 50f * u),
-        cornerRadius = CornerRadius(6f * u),
-        style = Stroke(width = 1.5f * u),
-    )
-    drawCircle(
-        color = Color(0xFFBCE3D5),
-        radius = 10f * u,
-        center = Offset(x(267f), y(110f)),
-        style = Stroke(width = 1f * u),
-    )
-
-    // Campus roads
-    fun road(x1: Float, y1: Float, x2: Float, y2: Float, width: Float, round: Boolean) {
-        drawLine(
-            color = Color.White,
-            start = Offset(x(x1), y(y1)),
-            end = Offset(x(x2), y(y2)),
-            strokeWidth = width * u,
-            cap = if (round) StrokeCap.Round else StrokeCap.Butt,
-        )
-    }
-
-    road(-20f, 65f, 348f, 65f, 12f, round = true)
-    road(140f, -10f, 140f, 190f, 14f, round = true)
-    road(40f, 65f, 40f, 190f, 8f, round = false)
-    road(140f, 125f, 340f, 125f, 9f, round = false)
-    road(-10f, 30f, 140f, 30f, 7f, round = false)
-
-    // Walkway
-    val walkway = Path().apply {
-        moveTo(x(90f), y(65f))
-        cubicTo(x(90f), y(95f), x(120f), y(110f), x(140f), y(110f))
-    }
-    drawPath(
-        path = walkway,
-        color = Color(0xFFDDD7CB),
-        style = Stroke(
-            width = 1.5f * u,
-            pathEffect = PathEffect.dashPathEffect(floatArrayOf(3f * u, 3f * u)),
-        ),
-    )
-
-    // Buildings
-    fun building(left: Float, top: Float, width: Float, height: Float) {
-        val topLeft = Offset(x(left), y(top))
-        val blockSize = Size(width * u, height * u)
-        val corner = CornerRadius(4f * u)
-        drawRoundRect(
-            color = Color(0xFFE8E4DA),
-            topLeft = topLeft,
-            size = blockSize,
-            cornerRadius = corner,
-        )
-        drawRoundRect(
-            color = Color(0xFFD3CDC0),
-            topLeft = topLeft,
-            size = blockSize,
-            cornerRadius = corner,
-            style = Stroke(width = 1f * u),
-        )
-    }
-
-    building(55f, 15f, 60f, 35f)
-    building(165f, 15f, 55f, 35f)
-    building(70f, 85f, 50f, 35f)
-
-    // School geofence
-    val campusCenter = Offset(x(140f), y(85f))
-    drawCircle(
-        color = Mint.copy(alpha = 0.14f),
-        radius = 62f * u,
-        center = campusCenter,
-    )
-    drawCircle(
-        color = Mint,
-        radius = 62f * u,
-        center = campusCenter,
-        style = Stroke(
-            width = 2f * u,
-            pathEffect = PathEffect.dashPathEffect(floatArrayOf(4f * u, 3f * u)),
-        ),
-    )
-
-    // Campus pin with graduation cap
-    drawCircle(
-        color = Color(0x332B2F77),
-        radius = 13f * u,
-        center = Offset(x(140f), y(86f)),
-    )
-    drawCircle(
-        color = Color(0xFF2B2F77),
-        radius = 11f * u,
-        center = campusCenter,
-    )
-
-    val capX = 130f
-    val capY = 68f
-    val cap = Path().apply {
-        moveTo(x(capX + 5f), y(capY + 8f))
-        lineTo(x(capX + 10f), y(capY + 5.5f))
-        lineTo(x(capX + 15f), y(capY + 8f))
-        lineTo(x(capX + 10f), y(capY + 10.5f))
-        close()
-    }
-    drawPath(cap, Color.White)
-
-    val strap = Path().apply {
-        moveTo(x(capX + 7.5f), y(capY + 10.2f))
-        lineTo(x(capX + 7.5f), y(capY + 12.5f))
-        cubicTo(
-            x(capX + 7.5f), y(capY + 13.5f),
-            x(capX + 12.5f), y(capY + 13.5f),
-            x(capX + 12.5f), y(capY + 12.5f),
-        )
-        lineTo(x(capX + 12.5f), y(capY + 10.2f))
-    }
-    drawPath(
-        path = strap,
-        color = Color.White,
-        style = Stroke(width = 1.1f * u, cap = StrokeCap.Round),
-    )
-}

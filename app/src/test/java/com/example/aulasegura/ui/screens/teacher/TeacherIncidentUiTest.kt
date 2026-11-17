@@ -3,6 +3,7 @@ package com.example.aulasegura.ui.screens.teacher
 import com.example.aulasegura.domain.model.IncidentCategory
 import com.example.aulasegura.domain.model.IncidentSeverity
 import com.example.aulasegura.domain.model.MediaUploadPhase
+import com.example.aulasegura.domain.model.SchoolSite
 import com.example.aulasegura.domain.model.SyncPhase
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -156,6 +157,59 @@ class TeacherIncidentUiTest {
     fun `the counter uses the delivered limit`() {
         assertEquals("2 de 3 archivos", incidentMediaCountLabel(2, 3))
         assertEquals("0 de 5 archivos", incidentMediaCountLabel(0, 5))
+    }
+
+    // B14: el chip de la tarjeta dice la verdad del pin real y no "Verificada"
+    // siempre. El `verified` que se guarda sale de este mismo veredicto.
+
+    private val school = SchoolSite(
+        schoolId = "school-aulasegu",
+        name = "Secundaria AulaSegura",
+        latitude = 19.292600,
+        longitude = -99.655700,
+        radiusMeters = 500.0,
+    )
+
+    @Test
+    fun `an unmarked pin says so and verifies nothing`() {
+        val verdict = incidentPinVerdict(null, null, school)
+
+        assertFalse(verdict.verified)
+        assertFalse(verdict.inside)
+        assertNull(verdict.distanceMeters)
+        assertEquals("Marca el lugar en el mapa", incidentPinChipLabel(verdict))
+    }
+
+    @Test
+    fun `a pin on the school is inside and verified`() {
+        val verdict = incidentPinVerdict(school.latitude, school.longitude, school)
+
+        assertTrue(verdict.verified)
+        assertTrue(verdict.inside)
+        assertEquals(0.0, verdict.distanceMeters!!, 0.5)
+        assertEquals("Dentro del plantel · Verificada", incidentPinChipLabel(verdict))
+    }
+
+    @Test
+    fun `a pin outside the radius is not verified and prints the distance`() {
+        // ~2.2 km al norte del plantel: fuera de un radio de 500 m.
+        val verdict = incidentPinVerdict(school.latitude + 0.02, school.longitude, school)
+
+        assertFalse("un pin fuera no puede guardarse como verificado", verdict.verified)
+        assertFalse(verdict.inside)
+        assertTrue("la distancia tiene que ser real", verdict.distanceMeters!! > school.radiusMeters)
+        val chip = incidentPinChipLabel(verdict)
+        assertTrue(chip, chip.startsWith("Fuera del plantel · "))
+        assertTrue(chip, chip.endsWith(" m"))
+    }
+
+    @Test
+    fun `without a cached school the pin cannot be verified`() {
+        val verdict = incidentPinVerdict(19.2926, -99.6557, null)
+
+        assertFalse(verdict.verified)
+        assertNull(verdict.distanceMeters)
+        assertEquals("Sin geocerca del plantel", incidentPinChipLabel(verdict))
     }
 
     @Test

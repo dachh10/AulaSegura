@@ -4,7 +4,9 @@ import android.graphics.Bitmap
 import com.example.aulasegura.domain.model.IncidentCategory
 import com.example.aulasegura.domain.model.IncidentSeverity
 import com.example.aulasegura.domain.model.MediaUploadPhase
+import com.example.aulasegura.domain.model.SchoolSite
 import com.example.aulasegura.domain.model.SyncPhase
+import com.example.aulasegura.location.haversineMeters
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -86,6 +88,72 @@ data class TeacherIncidentUi(
             !saving &&
             !saved &&
             !preparing
+}
+
+/**
+ * Veredicto del pin que el docente colocó en el mapa, contra la geocerca real.
+ *
+ * Existe separado de [IncidentLocation] para poder testearlo sin Android: el chip
+ * de la tarjeta y el `verified` que se guarda salen de la misma función, así que la
+ * pantalla no puede decir "Dentro del plantel" y el documento guardar `verified =
+ * false` sobre el mismo punto.
+ *
+ * [verified] solo es true dentro del radio del plantel: un pin fuera o sin plantel
+ * cacheado se guarda sin verificar, que es la verdad.
+ */
+data class IncidentPinVerdict(
+    val label: String,
+    val verified: Boolean,
+    val inside: Boolean,
+    val distanceMeters: Double?,
+)
+
+/**
+ * Evalúa el pin ([latitude], [longitude]) contra [school].
+ *
+ * Tres estados distintos y no dos: "el docente no marcó el lugar", "no hay
+ * plantel cacheado" y "el pin está fuera" no son la misma situación y no merecen el
+ * mismo mensaje.
+ */
+fun incidentPinVerdict(
+    latitude: Double?,
+    longitude: Double?,
+    school: SchoolSite?,
+): IncidentPinVerdict {
+    if (latitude == null || longitude == null) {
+        return IncidentPinVerdict(
+            label = "Marca el lugar en el mapa",
+            verified = false,
+            inside = false,
+            distanceMeters = null,
+        )
+    }
+
+    if (school == null) {
+        return IncidentPinVerdict(
+            label = "Sin geocerca del plantel",
+            verified = false,
+            inside = false,
+            distanceMeters = null,
+        )
+    }
+
+    val distance = haversineMeters(latitude, longitude, school.latitude, school.longitude)
+    val inside = distance <= school.radiusMeters
+
+    return IncidentPinVerdict(
+        label = if (inside) "Dentro del plantel" else "Fuera del plantel",
+        verified = inside,
+        inside = inside,
+        distanceMeters = distance,
+    )
+}
+
+/** `"Fuera del plantel · 320 m"` — el chip que cierra la tarjeta de ubicación. */
+fun incidentPinChipLabel(verdict: IncidentPinVerdict): String = when {
+    verdict.distanceMeters == null -> verdict.label
+    verdict.verified -> "${verdict.label} · Verificada"
+    else -> "${verdict.label} · ${verdict.distanceMeters.toInt()} m"
 }
 
 /**

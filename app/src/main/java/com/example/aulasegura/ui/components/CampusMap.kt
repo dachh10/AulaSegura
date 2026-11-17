@@ -38,6 +38,11 @@ object CampusGeo {
  * @param outsideRadius pinta la geocerca en rojo cuando el docente está fuera.
  * @param schoolName nombre del plantel para el marcador; `null` deja un rótulo
  *   neutro en lugar de "Colegio San Agustín", que no es esta escuela.
+ * @param pin marcador que mueve la persona que reporta (incidente). Es una
+ *   coordenada real, no una fracción de dibujo; `null` no dibuja marcador.
+ * @param onPinChange si no es `null`, tocar el mapa mueve el [pin] a ese punto.
+ * @param scrollGesturesEnabled el incidente vive dentro de un formulario con
+ *   scroll; ahí se apaga para que el dedo siga desplazando la pantalla.
  */
 @Composable
 fun CampusMap(
@@ -47,18 +52,31 @@ fun CampusMap(
     campus: LatLng? = CampusGeo.SanAgustin,
     radiusMeters: Float = CampusGeo.RadiusMeters,
     schoolName: String? = null,
+    pin: LatLng? = null,
+    pinTitle: String = "Incidente",
+    onPinChange: ((LatLng) -> Unit)? = null,
+    scrollGesturesEnabled: Boolean = true,
 ) {
     val geofenceColor = if (outsideRadius) Color(0xFFE5484D) else Color(0xFF5ED3B0)
 
     val cameraPositionState = rememberCameraPositionState {
-        position = CameraPosition.fromLatLngZoom(campus ?: CampusGeo.SanAgustin, 16.2f)
+        // El pin manda cuando no hay plantel: es la única coordenada real que la
+        // pantalla conoce, y centrar el mapa en un plantel de ejemplo sería
+        // enseñarle al docente un lugar que no existe.
+        position = CameraPosition.fromLatLngZoom(
+            campus ?: pin ?: CampusGeo.SanAgustin,
+            16.2f,
+        )
     }
 
     // The school arrives from the cache a few milliseconds after the screen is
     // composed. Without this, the camera would stay on the fallback point while
-    // the geofence circle sits somewhere off screen.
+    // the geofence circle sits somewhere off screen. With a pin on the map the
+    // camera stays put: the teacher's point is what they are looking at.
     LaunchedEffect(campus) {
-        campus?.let { cameraPositionState.position = CameraPosition.fromLatLngZoom(it, 16.2f) }
+        if (pin == null) {
+            campus?.let { cameraPositionState.position = CameraPosition.fromLatLngZoom(it, 16.2f) }
+        }
     }
 
     val context = LocalContext.current
@@ -73,6 +91,7 @@ fun CampusMap(
             MapMarkerIcons(
                 school = BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_VIOLET),
                 teacher = BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_AZURE),
+                incident = BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_RED),
             )
         }.getOrNull()
     }
@@ -80,12 +99,16 @@ fun CampusMap(
     GoogleMap(
         modifier = modifier,
         cameraPositionState = cameraPositionState,
+        // Tapping places the pin; it is not a gesture, so it keeps working with
+        // the scroll gestures off inside the incident form.
+        onMapClick = { point -> onPinChange?.invoke(point) },
         properties = MapProperties(isBuildingEnabled = true),
         uiSettings = MapUiSettings(
             zoomControlsEnabled = false,
             myLocationButtonEnabled = false,
             mapToolbarEnabled = false,
             compassEnabled = false,
+            scrollGesturesEnabled = scrollGesturesEnabled,
         ),
     ) {
         campus?.let { site ->
@@ -102,6 +125,20 @@ fun CampusMap(
                 title = schoolName ?: "Plantel",
                 snippet = "Radio permitido · ${radiusMeters.toInt()} m",
                 icon = markerIcons?.school,
+            )
+        }
+
+        pin?.let { point ->
+            // `rememberMarkerState` solo usa `position` para inicializar, así que
+            // la clave es la coordenada: cada toque crea un estado con la posición
+            // nueva en vez de dejar el marcador clavado en el primero.
+            Marker(
+                state = rememberMarkerState(
+                    key = "${point.latitude},${point.longitude}",
+                    position = point,
+                ),
+                title = pinTitle,
+                icon = markerIcons?.incident,
             )
         }
 
@@ -128,4 +165,5 @@ fun CampusMap(
 private data class MapMarkerIcons(
     val school: BitmapDescriptor,
     val teacher: BitmapDescriptor,
+    val incident: BitmapDescriptor,
 )

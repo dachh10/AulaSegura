@@ -26,12 +26,12 @@ Registro oficial del bloque: `FASE1.md` §Bloque 12. Este archivo es el logbook 
 
 ## Tasks
 
-**T1** — S1,S6 — inline — pendiente — Horario real: modelo de bloque horario, lectura de `groups/{groupId}/schedule`, selección de la próxima clase según día y hora.
-**T2** — S1,S6 — inline — pendiente — Card hero con hora, materia, grupo y alumnos reales; estado vacío cuando no hay horario.
-**T3** — S2,S7 — inline — pendiente — "Resumen de hoy": listas de hoy, faltas de hoy y pendientes de sincronizar con datos reales.
-**T4** — S3,S8 — inline — pendiente — "Actividad reciente": combinación de asistencia, incidentes, tareas y avisos del docente.
-**T5** — S4,S9 — inline — pendiente — Campanita con el conteo real de no leídas y badge oculto en cero.
-**T6** — S1..S9 — inline — pendiente — Tests, documentación en `FASE1.md`, verificación y commit.
+**T1** — S1,S6 — inline — **hecho** — `ClassSlot` (weekday 1=lunes de `CONTEXT.md`), `ScheduleRepository` + `FirestoreScheduleRepository` (una lectura por grupo, timeout 8 s, `toRosterFailure` para el error) y `nextClassOf` (en curso gana a siguiente; slot sin hora legible se descarta).
+**T2** — S1,S6 — inline — **hecho** — `TeacherHeroCard` recibe `NextClassUi?` + `scheduleNotice`; `SIGUIENTE CLASE · hh:mm` / `EN CURSO · hh:mm – hh:mm`, materia · grupo y alumnos reales. Sin horario: "No hay clases próximas" y el motivo debajo. "Pasar lista" navega al grupo de esa clase.
+**T3** — S2,S7 — inline — **hecho** — `todaySummary`: listas de hoy por grupo distinto, faltas sumadas, `OutboxDao.observeCount()` vía `SyncQueueRepository`.
+**T4** — S3,S8 — inline — **hecho** — `recentActivity` combina asistencia, incidentes, tareas y avisos, ordena por fecha y recorta a 4; etiqueta de hora hoy/ayer/fecha. Estado vacío propio.
+**T5** — S4,S9 — inline — **hecho** — `unreadNotifications` del repositorio de notificaciones en `TeacherHomeUi`; el badge no se dibuja en 0 y baja al abrir una notificación (misma fuente que marca `read`).
+**T6** — S1..S9 — inline — **hecho** — `TeacherHomeViewModel` + `TeacherHomeUi`, factory en `AppContainer`, cableado en el NavHost, 12 tests nuevos en `TeacherHomeUiTest`, build y commit.
 
 ## Log
 
@@ -60,3 +60,15 @@ Detalle de Grupo (Docente - Incidentes) - AulaSegura
 **L4** — Decisión: el horario existe en el esquema (`groups/{groupId}/schedule/{slotId}`) y las reglas dejan leerlo a cualquier docente activo de la escuela, pero **los documentos los crea el rol directivo** (que todavía no existe) y hoy no hay ninguno. Por eso la card tiene que tener un estado vacío honesto: si no hay horario, lo dice. Los documentos de prueba los crea el dueño en la consola de Firebase.
 
 **L5** — Decisión: "Por sincronizar" sale del `outbox` de Room, que ya tiene consultas `COUNT(*)`; "Faltas hoy" y "Listas pasadas" salen del historial de asistencia (cache-first); "Actividad reciente" combina historial de asistencia, incidentes, tareas y avisos del propio docente.
+
+**L6** — Decisión: el horario **no** se cachea en Room. Los documentos los escribe el rol directivo, que aún no existe, y una tabla nueva sería una migración para datos que pueden no llegar nunca. La lectura es una por grupo (no `collectionGroup`) porque las reglas autorizan `schedule` con un `get()` del grupo padre.
+
+**L7** — Decisión: la card muestra la clase **en curso** si hay una. A las 08:10 el docente está frente a ese grupo; "Siguiente clase 10:00" lo mandaría al salón equivocado. Se distingue con `EN CURSO · inicio – fin`.
+
+**L8** — Decisión: cuatro mensajes distintos en el hero vacío (`Aún no hay horario programado`, `No hay más clases hoy`, `Sin conexión para revisar el horario`, `No tienes acceso al horario del plantel`). Decir "no hay clases" cuando en realidad no se pudo leer sería mentirle al docente en la puerta.
+
+**L9** — Decisión: `java.time` sigue sin usarse (`minSdk` 24 sin desugaring). El día de la semana se convierte desde `Calendar` con `((calendarDay + 5) % 7) + 1`, que es la única línea donde el esquema domingo-primero de Android se cruza con el lunes-primero del documento; tiene test propio porque un desfase de un día se ve plausible.
+
+**L10** — 18 nov 2026: `assembleDebug` verde y **248 tests / 0 fallos / 0 errores** (eran 236; +12 de `TeacherHomeUiTest`). Un fallo durante la implementación: una aserción esperaba "Ayer" en la última fila de actividad cuando el límite de 4 ya había descartado el aviso de ayer; se corrigió la aserción y se probó `activityTimeLabel` por separado. No se probó en dispositivo.
+
+**L11** — Datos para ver la card: `groups/{grp-3b|grp-3a|grp-2c|grp-1a}/schedule/slot-1` con `weekday` (1=lunes … 7=domingo), `startTime` `"08:00"`, `endTime` `"08:45"`, `subject`, `teacherId`. Sin esos documentos la card dice que no hay horario, que es el estado correcto.

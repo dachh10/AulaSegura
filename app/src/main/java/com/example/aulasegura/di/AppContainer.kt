@@ -25,7 +25,9 @@ import com.example.aulasegura.data.repository.FirestoreIncidentHistoryRepository
 import com.example.aulasegura.domain.repository.IncidentHistoryRepository
 import com.example.aulasegura.data.repository.FirestoreAttendanceHistoryRepository
 import com.example.aulasegura.data.repository.FirestoreRosterRepository
+import com.example.aulasegura.data.repository.FirestoreScheduleRepository
 import com.example.aulasegura.data.repository.FirestoreSchoolRepository
+import com.example.aulasegura.data.repository.RoomSyncQueueRepository
 import com.example.aulasegura.data.repository.RoomAttendanceRepository
 import com.example.aulasegura.data.repository.RoomIncidentRepository
 import com.example.aulasegura.data.repository.FirestoreChatRepository
@@ -44,8 +46,10 @@ import com.example.aulasegura.domain.repository.PushTokenRepository
 import com.example.aulasegura.domain.repository.GroupRepository
 import com.example.aulasegura.domain.repository.IncidentRepository
 import com.example.aulasegura.domain.repository.NoticeRepository
+import com.example.aulasegura.domain.repository.ScheduleRepository
 import com.example.aulasegura.domain.repository.SchoolRepository
 import com.example.aulasegura.domain.repository.StudentRepository
+import com.example.aulasegura.domain.repository.SyncQueueRepository
 import com.example.aulasegura.domain.repository.TaskRepository
 import com.example.aulasegura.domain.telemetry.AnalyticsLogger
 import com.example.aulasegura.domain.usecase.AskAssistantUseCase
@@ -69,6 +73,7 @@ import com.example.aulasegura.ui.screens.access.LoginViewModel
 import com.example.aulasegura.ui.screens.access.SessionViewModel
 import com.example.aulasegura.ui.screens.teacher.TeacherGroupsViewModel
 import com.example.aulasegura.ui.screens.teacher.TeacherHistoryViewModel
+import com.example.aulasegura.ui.screens.teacher.TeacherHomeViewModel
 import com.example.aulasegura.ui.screens.teacher.TeacherIncidentViewModel
 import com.example.aulasegura.ui.screens.teacher.TeacherChatViewModel
 import com.example.aulasegura.ui.screens.teacher.TeacherConversationViewModel
@@ -160,6 +165,26 @@ class AppContainer(context: Context) {
      * cached here: the console value can be refreshed while the app is running,
      * and a stale radius is still a valid radius only until the next evaluation.
      */
+    /**
+     * The timetable of the teacher's groups.
+     *
+     * Read live and not cached: the documents are the `directivo` role's to write
+     * and there are none yet, so a Room table would be a migration for data that
+     * may never arrive.
+     */
+    val scheduleRepository: ScheduleRepository by lazy {
+        FirestoreScheduleRepository(
+            firestore = firestore,
+            auth = authRepository,
+            groups = groupRepository,
+        )
+    }
+
+    /** Outbox rows waiting for Firestore, for the home's "Por sincronizar". */
+    val syncQueueRepository: SyncQueueRepository by lazy {
+        RoomSyncQueueRepository(database.outboxDao())
+    }
+
     val schoolRepository: SchoolRepository by lazy {
         FirestoreSchoolRepository(
             firestore = firestore,
@@ -454,6 +479,18 @@ class AppViewModelFactory(
             TeacherGroupsViewModel(
                 groups = container.groupRepository,
                 auth = container.authRepository,
+            )
+
+        modelClass.isAssignableFrom(TeacherHomeViewModel::class.java) ->
+            TeacherHomeViewModel(
+                groups = container.groupRepository,
+                schedule = container.scheduleRepository,
+                history = container.attendanceHistoryRepository,
+                incidents = container.incidentHistoryRepository,
+                tasks = container.taskRepository,
+                notices = container.noticeRepository,
+                notifications = container.notificationRepository,
+                pending = container.syncQueueRepository,
             )
 
         modelClass.isAssignableFrom(TeacherHistoryViewModel::class.java) ->

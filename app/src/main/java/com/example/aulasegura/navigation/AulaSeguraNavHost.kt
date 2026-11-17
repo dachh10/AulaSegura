@@ -83,6 +83,7 @@ import com.example.aulasegura.ui.screens.teacher.TeacherHistoryViewModel
 import com.example.aulasegura.ui.screens.teacher.TeacherIncidentNewScreen
 import com.example.aulasegura.ui.screens.teacher.TeacherIncidentViewModel
 import com.example.aulasegura.ui.screens.teacher.TeacherHomeScreen
+import com.example.aulasegura.ui.screens.teacher.TeacherHomeViewModel
 import com.example.aulasegura.ui.screens.teacher.TeacherLocationVerifyingScreen
 import com.example.aulasegura.ui.screens.teacher.TeacherNoticeNewScreen
 import com.example.aulasegura.ui.screens.teacher.TeacherNoticeNewViewModel
@@ -321,12 +322,25 @@ fun AulaSeguraNavHost(
             // The session profile is already resolved by Splash; reading it here
             // keeps the greeting and avatar on the same source as the profile screen.
             val teacher = rememberAppContainer().authRepository.currentUser
+            val homeViewModel: TeacherHomeViewModel =
+                viewModel(factory = rememberAppContainer().viewModelFactory)
+            val homeState by homeViewModel.state.collectAsState()
+
             TeacherHomeScreen(
+                ui = homeState,
                 fullName = teacher?.fullName.orEmpty(),
                 subjects = teacher?.subjects.orEmpty(),
                 photoUrl = teacher?.photoUrl,
                 onIrAGrupos = { navController.navigate(Routes.TEACHER_GROUPS) },
-                onIrAPaseLista = { navController.navigate(Routes.TEACHER_GROUPS) },
+                // Con horario, "Pasar lista" va directo al grupo de la clase; sin
+                // él no hay grupo que adivinar: se abre la lista de grupos.
+                onIrAPaseLista = { groupId ->
+                    if (groupId != null) {
+                        navController.navigate(Routes.teacherRollCall(groupId))
+                    } else {
+                        navController.navigate(Routes.TEACHER_GROUPS)
+                    }
+                },
                 onIrARegistrarIncidente = { navController.navigate(Routes.TEACHER_INCIDENT_NEW) },
                 onIrAPublicarTarea = { navController.navigate(Routes.TEACHER_TASK_NEW) },
                 onIrAPublicarAviso = { navController.navigate(Routes.TEACHER_NOTICE_NEW) },

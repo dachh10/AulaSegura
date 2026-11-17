@@ -4,8 +4,8 @@ Actualizado: 18 nov 2026. Este archivo existe para retomar el trabajo en otra su
 
 ## Estado del repo
 
-- Rama de trabajo: `main`, 2 commits adelante de `origin/main` (`cdd438e`): no se subió nada. `origin/feat/docente-pase-lista` se quedó en `f44ad9d` (falta subirla).
-- Últimos commits: `6e3dda0` B14 · `ddedc2a` handoff · `cdd438e` B15 · `7164572` B12 · `28d9b14` chip PDF.
+- Rama de trabajo: `main`, 5 commits adelante de `origin/main` (`cdd438e`): no se subió nada. `origin/feat/docente-pase-lista` se quedó en `f44ad9d` (falta subirla).
+- Últimos commits: `fa793c0` B13 · `6e3dda0` B14 · `ddedc2a` handoff · `cdd438e` B15 · `7164572` B12.
 - Trabajo sin commitear: nada, salvo `.atl/` (ignorado).
 - **Pendiente de decisión del dueño:** `main` se subió sin autorización explícita en esa sesión. Las opciones son dejarlo (recomendado), revertir con `git revert` + push, o forzar `main` a `f44ad9d` (no recomendado). No hacer nada de esto sin que lo pida.
 
@@ -15,7 +15,7 @@ Actualizado: 18 nov 2026. Este archivo existe para retomar el trabajo en otra su
 ./gradlew :app:assembleDebug :app:testDebugUnitTest --console=plain
 ```
 
-Estado al escribir esto: **BUILD SUCCESSFUL · 261 tests · 0 fallos**. Un bloque no se cierra con build rojo ni con tests en rojo. No hay dispositivo conectado en este entorno: las pruebas en teléfono las corre el dueño, y hay que decirlo en el cierre.
+Estado al escribir esto: **BUILD SUCCESSFUL · 274 tests · 0 fallos**. Un bloque no se cierra con build rojo ni con tests en rojo. No hay dispositivo conectado en este entorno: las pruebas en teléfono las corre el dueño, y hay que decirlo en el cierre.
 
 Conteo de tests, si hace falta:
 
@@ -29,6 +29,7 @@ grep -h -o 'tests="[0-9]*" skipped="[0-9]*" failures="[0-9]*" errors="[0-9]*"' a
 
 **Correcciones posteriores** (logbooks en `odd/tasks/`):
 
+- `bloque-13-detalle-grupo.md` — `teacher/groups/{groupId}` es una pantalla real con tres pestañas: Alumnos (roster con búsqueda), Asistencia (calendario del mes con el porcentaje real de cada día + últimas listas con chips P/F/R/J y sincronización) e Incidentes (tarjetas expandibles del grupo). El hero dice si la lista de hoy está pendiente, hecha o si hoy no hay clases. `IncidentSummary` ganó `groupId`.
 - `bloque-14-mapa-real-incidente.md` — el registro de incidente usa `CampusMap` (Google Maps) con pin real: se siembra con el GPS y, si no hay, con el centro del plantel; tocar el mapa lo mueve y "Usar mi ubicación actual" usa el fix. Se guardan coordenadas reales en `IncidentLocation` (`accuracy` solo si el pin vino del GPS) y el chip dice el veredicto real: dentro, fuera con distancia o sin geocerca.
 - `bloque-16-chips-historial.md` — chips de una línea (`maxLines`/`softWrap`), `FlowRow`, evidencia con icono, PDF de una tarea abre con `ACTION_VIEW` y su fila muestra chip `PDF` en vez del nombre.
 - `bloque-12-inicio-real.md` — inicio con datos reales: siguiente clase desde `groups/{groupId}/schedule`, resumen de hoy (listas/grupos, faltas, outbox), actividad reciente (asistencia + incidentes + tareas + avisos), campanita con no leídas reales y badge oculto en 0.
@@ -38,7 +39,6 @@ grep -h -o 'tests="[0-9]*" skipped="[0-9]*" failures="[0-9]*" errors="[0-9]*"' a
 
 | # | Bloque | Qué incluye | Dependencia |
 |---|---|---|---|
-| B13 | Detalle de grupo | Una sola pantalla con tres pestañas (Resumen / Asistencia / Incidentes) para `TeacherGroupDetail`; hoy es `PlaceholderScreen` y navega con `"3B"` fijo. Falta exponer sesiones por grupo (`AttendanceDao.observeSessionsByGroup`) y filtrar incidentes por grupo (`IncidentSummary` no lleva `groupId`). | **el dueño debe pasar el código/capturas de Stitch**: "Detalle de Grupo (Docente)", "(Docente - Asistencia)", "(Docente - Incidentes)" |
 | B17 | Perfil según Stitch | Convertir los diálogos de editar perfil y cambiar contraseña en pantallas con el diseño de Stitch. La lógica ya es real (nombre/materias en `users/{uid}`, contraseña con reautenticación). | **código de Stitch**: "Editar Perfil (Docente)", "Cambiar contraseña" |
 
 La Fase 2 (directivo) la lleva Evelyn en su rama; no tocar sus archivos sin coordinar. Sus reglas de Firestore son compartidas: cuando ella publique las nuevas, revisar que sigan pasando los flujos del docente (bandeja, `fcmTokens`, `attendanceSessions`).
@@ -53,6 +53,7 @@ La Fase 2 (directivo) la lleva Evelyn en su rama; no tocar sus archivos sin coor
 - **Chips:** `softWrap = false` + `FlowRow`. Un chip que no cabe baja de línea entero; nunca se parte letra por letra. El "0 R" se conserva en gris a propósito.
 - **PDF de tarea:** `attachmentUrl` solo existe cuando el archivo está en Cloudinary (`isUploaded`); si está en cola o falló, la fila no es tocable y dice "Pendiente" / "No se subió".
 - **Mapa del incidente:** el pin es la coordenada que se guarda, no una decoración. Se siembra con el GPS, luego con `schools.location`, y si no hay ninguna de las dos **no se inventa**: la tarjeta explica y deja el botón de ubicación. Se mueve tocando el mapa (no arrastrando: el formulario tiene scroll y `scrollGesturesEnabled = false` dentro de la tarjeta). `accuracyMeters` solo viaja con lecturas del GPS.
+- **Detalle de grupo:** una sola pantalla con tres pestañas, no tres rutas. Las métricas muestran `—` cuando no hay dato (sin lista hoy no hay faltas; sin listas no hay porcentaje) y el calendario solo pinta lunes a viernes. No se porta lo que el proyecto no tiene: salón ("Aula 12"), chat por alumno, porcentaje por alumno ni el resumen de AulaBot.
 - **Notificaciones:** `notifications` es de solo lectura salvo `read`; el `create` es del Admin SDK. Un push de la consola **no** crea documento en la bandeja.
 - **Push:** en Spark no hay Cloud Functions; el envío es manual con `scripts/notify` o `messaging.sendEachForMulticast`.
 - **Saludo/idioma:** UI en español neutro/mexicano, código e identificadores en inglés.

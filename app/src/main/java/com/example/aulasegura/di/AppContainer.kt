@@ -19,6 +19,8 @@ import com.example.aulasegura.data.remote.cloudinary.OkHttpCloudinaryUploader
 import com.example.aulasegura.data.remote.remoteconfig.FirebaseRemoteConfigSource
 import com.example.aulasegura.data.remote.remoteconfig.RemoteConfigRepository
 import com.example.aulasegura.data.repository.AuthRepositoryImpl
+import com.example.aulasegura.data.repository.FirestoreIncidentHistoryRepository
+import com.example.aulasegura.domain.repository.IncidentHistoryRepository
 import com.example.aulasegura.data.repository.FirestoreAttendanceHistoryRepository
 import com.example.aulasegura.data.repository.FirestoreRosterRepository
 import com.example.aulasegura.data.repository.FirestoreSchoolRepository
@@ -180,6 +182,19 @@ class AppContainer(context: Context) {
     }
 
     /**
+     * The teacher's own incident history. Read-only and cache-first like the roll
+     * call history, but under the `reportedBy == uid` clause the rules already
+     * allow for a docente.
+     */
+    val incidentHistoryRepository: IncidentHistoryRepository by lazy {
+        FirestoreIncidentHistoryRepository(
+            firestore = firestore,
+            incidentDao = database.incidentDao(),
+            auth = authRepository,
+        )
+    }
+
+    /**
      * The incident write path, offline-first like the roll call: Room draft plus
      * outbox row, and `IncidentSyncHandler` is what reaches Firestore.
      */
@@ -331,7 +346,10 @@ class AppViewModelFactory(
             )
 
         modelClass.isAssignableFrom(TeacherHistoryViewModel::class.java) ->
-            TeacherHistoryViewModel(history = container.attendanceHistoryRepository)
+            TeacherHistoryViewModel(
+                history = container.attendanceHistoryRepository,
+                incidents = container.incidentHistoryRepository,
+            )
 
         modelClass.isAssignableFrom(TeacherIncidentViewModel::class.java) ->
             TeacherIncidentViewModel(

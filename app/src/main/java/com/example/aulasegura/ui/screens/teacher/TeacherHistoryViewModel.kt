@@ -4,8 +4,11 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.aulasegura.domain.model.AttendanceSessionDetail
 import com.example.aulasegura.domain.model.AttendanceSessionSummary
+import com.example.aulasegura.domain.model.IncidentEvidence
+import com.example.aulasegura.domain.model.IncidentSummary
 import com.example.aulasegura.domain.repository.AttendanceHistoryRepository
 import com.example.aulasegura.domain.repository.HistoryRefreshResult
+import com.example.aulasegura.domain.repository.IncidentHistoryRepository
 import com.example.aulasegura.domain.repository.RosterFailure
 import com.example.aulasegura.util.AttendanceTimes
 import kotlinx.coroutines.Job
@@ -19,61 +22,105 @@ import kotlinx.coroutines.launch
 /**
  * State for "Historial".
  *
- * Same shape as [TeacherGroupsViewModel]: the list is a cache `Flow`, so it
- * survives a rotation, redraws when the sync worker writes and opens without a
- * connection. The refresh runs once on open and its failure never clears the
- * list — a teacher who saved a roll call in the classroom still has to be able to
- * see it an hour later at home, with no signal.
+ * Same shape as [TeacherGroupsViewModel]: the lists are cache `Flow`s, so they
+ * survive a rotation, redraw when the sync worker writes and open without a
+ * connection. The refresh runs once on open and its failure never clears a list —
+ * a teacher who reported an incident in the classroom still has to be able to
+ * read it an hour later at home, with no signal.
  *
- * Expanding a row is a separate job: only one session is open at a time, and
- * switching rows cancels the previous collection instead of leaving it running.
+ * Both segments are loaded together: switching between "Listas" and "Incidentes"
+ * must not wait on the network for the second one.
+ *
+ * Expanding a row is a separate job per segment: only one row is open at a time,
+ * and switching rows cancels the previous collection instead of leaving it
+ * running.
  */
 class TeacherHistoryViewModel(
     private val history: AttendanceHistoryRepository,
+    private val incidents: IncidentHistoryRepository,
     private val today: () -> String = { AttendanceTimes.isoDate(System.currentTimeMillis()) },
 ) : ViewModel() {
 
     private val refreshing = MutableStateFlow(true)
     private val notice = MutableStateFlow<String?>(null)
+
     private val expandedId = MutableStateFlow<String?>(null)
     private val detail = MutableStateFlow<AttendanceSessionDetail?>(null)
     private val detailLoading = MutableStateFlow(false)
 
-    private var detailJob: Job? = null
+    private val expandedIncidentId = MutableStateFlow<String?>(null)
+    private val evidence = MutableStateFlow<List<IncidentEvidence>>(emptyList())
 
-    private data class Base(
+    private var detailJob: Job? = null
+    private var evidenceJob: Job? = null
+
+    private data class Lists(
         val sessions: List<AttendanceSessionSummary>,
+        val incidents: List<IncidentSummary>,
         val refreshing: Boolean,
         val notice: String?,
     )
 
-    private val base = combine(
+    private data class Open(
+        val sessionId: String?,
+        val detail: AttendanceSessionDetail?,
+        val detailLoading: Boolean,
+        val incidentId: String?,
+        val evidence: List<IncidentEvidence>,
+    )
+
+    private val lists = combine(
         history.observeHistory(),
+        incidents.observeIncidents(),
         refreshing,
         notice,
-    ) { sessions, isRefreshing, message ->
-        Base(sessions = sessions, refreshing = isRefreshing, notice = message)
+    ) { sessions, incidentList, isRefreshing, message ->
+        Lists(
+            sessions = sessions,
+            incidents = incidentList,
+            refreshing = isRefreshing,
+            notice = message,
+        )
     }
 
-    val state: StateFlow<TeacherHistoryUi> = combine(
-        base,
+    private val open = combine(
         expandedId,
         detail,
         detailLoading,
-    ) { cached, expanded, sessionDetail, loading ->
+        expandedIncidentId,
+        evidence,
+    ) { sessionId, sessionDetail, loading, incidentId, files ->
+        Open(
+            sessionId = sessionId,
+            detail = sessionDetail,
+            detailLoading = loading,
+            incidentId = incidentId,
+            evidence = files,
+        )
+    }
+
+    val state: StateFlow<TeacherHistoryUi> = combine(lists, open) { cached, shown ->
         TeacherHistoryUi(
             sections = historySections(
                 sessions = cached.sessions,
                 todayIso = today(),
-                expandedId = expanded,
-                detail = sessionDetail,
-                detailLoading = loading,
+                expandedId = shown.sessionId,
+                detail = shown.detail,
+                detailLoading = shown.detailLoading,
+            ),
+            incidentSections = incidentSections(
+                incidents = cached.incidents,
+                todayIso = today(),
+                expandedId = shown.incidentId,
+                evidence = shown.evidence,
             ),
             refreshing = cached.refreshing,
             notice = cached.notice,
-            expandedId = expanded,
-            detailLoading = loading,
+            expandedId = shown.sessionId,
+            expandedIncidentId = shown.incidentId,
+            detailLoading = shown.detailLoading,
             totalSessions = cached.sessions.size,
+            totalIncidents = cached.incidents.size,
         )
     }.stateIn(
         scope = viewModelScope,
@@ -88,11 +135,16 @@ class TeacherHistoryViewModel(
     fun refresh() {
         viewModelScope.launch {
             refreshing.value = true
-            notice.value = when (val result = history.refreshHistory()) {
-                is HistoryRefreshResult.Updated -> null
-                HistoryRefreshResult.SignedOut -> null
-                is HistoryRefreshResult.Failed -> result.reason.userMessage()
-            }
+            val sessions = history.refreshHistory()
+            val incidentList = incidents.refresh()
+
+            // One banner for both: two notices stacked would say the same thing
+            // twice, and the teacher has one retry button.
+            notice.value = listOf(sessions, incidentList)
+                .filterIsInstance<HistoryRefreshResult.Failed>()
+                .firstOrNull()
+                ?.reason
+                ?.userMessage()
             refreshing.value = false
         }
     }
@@ -127,12 +179,40 @@ class TeacherHistoryViewModel(
         }
     }
 
+    /**
+     * Opens [incidentId], or closes it when it is already open.
+     *
+     * There is no server read behind this one: the incident document is already
+     * cached by the list refresh, and its evidence rows came with it.
+     */
+    fun toggleIncident(incidentId: String) {
+        if (expandedIncidentId.value == incidentId) {
+            closeIncident()
+            return
+        }
+
+        expandedIncidentId.value = incidentId
+        evidence.value = emptyList()
+
+        evidenceJob?.cancel()
+        evidenceJob = viewModelScope.launch {
+            incidents.observeEvidence(incidentId).collect { evidence.value = it }
+        }
+    }
+
     private fun closeDetail() {
         detailJob?.cancel()
         detailJob = null
         expandedId.value = null
         detail.value = null
         detailLoading.value = false
+    }
+
+    private fun closeIncident() {
+        evidenceJob?.cancel()
+        evidenceJob = null
+        expandedIncidentId.value = null
+        evidence.value = emptyList()
     }
 
     private companion object {

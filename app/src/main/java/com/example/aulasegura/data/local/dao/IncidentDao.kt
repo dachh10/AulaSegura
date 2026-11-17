@@ -1,6 +1,7 @@
 package com.example.aulasegura.data.local.dao
 
 import androidx.room.Dao
+import androidx.room.Embedded
 import androidx.room.Query
 import androidx.room.Upsert
 import com.example.aulasegura.data.local.entity.IncidentDraftEntity
@@ -8,6 +9,12 @@ import com.example.aulasegura.data.local.entity.IncidentMediaEntity
 import com.example.aulasegura.data.local.entity.SyncState
 import com.example.aulasegura.data.local.entity.UploadState
 import kotlinx.coroutines.flow.Flow
+
+/** A draft plus how many evidence files it has, for the history row. */
+data class IncidentWithMediaCount(
+    @Embedded val draft: IncidentDraftEntity,
+    val mediaCount: Int,
+)
 
 /**
  * Incident drafts and their evidence files.
@@ -18,6 +25,23 @@ import kotlinx.coroutines.flow.Flow
  */
 @Dao
 interface IncidentDao {
+
+    /**
+     * The teacher's own history, newest first.
+     *
+     * The count is a correlated subquery instead of a second query per row: the
+     * history opens with every incident at once, and one query per row would be
+     * one read per incident on a screen that has no reason to cost that.
+     */
+    @Query(
+        """
+        SELECT d.*,
+               (SELECT COUNT(*) FROM incident_media m WHERE m.incidentId = d.incidentId) AS mediaCount
+        FROM incident_drafts d
+        ORDER BY d.occurredAt DESC
+        """,
+    )
+    fun observeHistory(): Flow<List<IncidentWithMediaCount>>
 
     @Query("SELECT * FROM incident_drafts WHERE groupId = :groupId ORDER BY occurredAt DESC")
     fun observeDraftsByGroup(groupId: String): Flow<List<IncidentDraftEntity>>
@@ -42,6 +66,9 @@ interface IncidentDao {
 
     @Upsert
     suspend fun upsertDraft(draft: IncidentDraftEntity)
+
+    @Upsert
+    suspend fun upsertDrafts(drafts: List<IncidentDraftEntity>)
 
     /** The handler's one-column bookkeeping; no need to rewrite the whole draft. */
     @Query("UPDATE incident_drafts SET syncState = :state WHERE incidentId = :incidentId")

@@ -495,6 +495,7 @@ fun AulaSeguraNavHost(
                 onSelectTab = { navController.openTeacherTab(it) },
                 onRetry = historyViewModel::refresh,
                 onToggleSession = historyViewModel::toggleSession,
+                onToggleIncident = historyViewModel::toggleIncident,
             )
         }
         composable(Routes.TEACHER_NOTIFICATIONS) {

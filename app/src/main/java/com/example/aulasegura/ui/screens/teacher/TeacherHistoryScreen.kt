@@ -1,5 +1,7 @@
 package com.example.aulasegura.ui.screens.teacher
 
+import android.content.Intent
+import android.net.Uri
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -28,6 +30,7 @@ import androidx.compose.material.icons.filled.CloudOff
 import androidx.compose.material.icons.filled.CloudUpload
 import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material.icons.filled.Verified
+import androidx.compose.material.icons.outlined.PhotoCamera
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -40,11 +43,13 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.aulasegura.domain.model.AttendanceMark
+import com.example.aulasegura.domain.model.MediaUploadPhase
 import com.example.aulasegura.domain.model.RollCallSync
 import com.example.aulasegura.ui.components.TeacherBottomBar
 import com.example.aulasegura.ui.components.TeacherTab
@@ -96,6 +101,7 @@ fun TeacherHistoryScreen(
     onSelectTab: (TeacherTab) -> Unit,
     onRetry: () -> Unit = {},
     onToggleSession: (String) -> Unit = {},
+    onToggleIncident: (String) -> Unit = {},
 ) {
     var segment by remember { mutableStateOf(0) }
 
@@ -131,8 +137,8 @@ fun TeacherHistoryScreen(
             }
 
             Reveal(200) {
-                if (segment == 0) {
-                    when {
+                when (segment) {
+                    0 -> when {
                         ui.sections.isEmpty() -> HistoryEmptyState(refreshing = ui.refreshing)
                         else -> Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
                             ui.sections.forEach { section ->
@@ -143,8 +149,20 @@ fun TeacherHistoryScreen(
                             }
                         }
                     }
-                } else {
-                    HistoryPendingTab(label = historySegments[segment])
+
+                    1 -> when {
+                        ui.incidentSections.isEmpty() -> IncidentEmptyState(refreshing = ui.refreshing)
+                        else -> Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                            ui.incidentSections.forEach { section ->
+                                IncidentSection(
+                                    section = section,
+                                    onToggleIncident = onToggleIncident,
+                                )
+                            }
+                        }
+                    }
+
+                    else -> HistoryPendingTab(label = historySegments[segment])
                 }
             }
         }
@@ -401,6 +419,265 @@ private fun HistoryPendingTab(label: String) {
         Text(
             text = "El historial de $label llega con su bloque de la fase. " +
                 "Por ahora solo las listas tienen datos reales.",
+            color = OnSurfaceVariant,
+            fontFamily = DmSans,
+            fontSize = 13.sp,
+            textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+            modifier = Modifier.padding(horizontal = 24.dp),
+        )
+    }
+}
+
+@Composable
+private fun IncidentSection(
+    section: IncidentSectionUi,
+    onToggleIncident: (String) -> Unit,
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp),
+        verticalArrangement = Arrangement.spacedBy(10.dp),
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = 4.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(
+                text = section.label,
+                color = Outline,
+                fontFamily = JetBrainsMono,
+                fontWeight = FontWeight.Medium,
+                fontSize = 11.sp,
+                lineHeight = 14.sp,
+                letterSpacing = 0.55.sp,
+            )
+            Spacer(Modifier.width(8.dp))
+            Box(
+                modifier = Modifier
+                    .weight(1f)
+                    .height(1.dp)
+                    .background(OutlineVariant.copy(alpha = 0.3f)),
+            )
+        }
+
+        section.incidents.forEach { incident ->
+            IncidentCard(
+                incident = incident,
+                onToggle = { onToggleIncident(incident.id) },
+            )
+        }
+    }
+}
+
+/**
+ * One incident of the teacher's own history.
+ *
+ * Same shape as [SessionCard] on purpose: the two segments are the same screen,
+ * and a teacher should not have to learn a second card to read what they
+ * reported.
+ */
+@Composable
+private fun IncidentCard(
+    incident: HistoryIncidentUi,
+    onToggle: () -> Unit,
+) {
+    val (interaction, pressModifier) = rememberPressScale(0.99f)
+
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(HistoryCardShape)
+            .background(SurfaceContainerLowest)
+            .border(1.dp, HistoryHairline, HistoryCardShape),
+    ) {
+        Row(
+            modifier = pressModifier
+                .fillMaxWidth()
+                .clickable(interactionSource = interaction, indication = null, onClick = onToggle)
+                .padding(14.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            DateBlock(day = incident.day, weekday = incident.weekday)
+            Spacer(Modifier.width(12.dp))
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = incident.studentName,
+                    color = PrimaryContainer,
+                    fontFamily = DmSans,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 15.sp,
+                    lineHeight = 20.sp,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                Spacer(Modifier.height(4.dp))
+                Text(
+                    text = incident.title,
+                    color = OnSurfaceVariant,
+                    fontFamily = DmSans,
+                    fontSize = 12.sp,
+                    lineHeight = 16.sp,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                Spacer(Modifier.height(6.dp))
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    incident.severity?.let { SeverityChip(label = it) }
+                    StatChip(label = incident.status, background = MutedChipBg, contentColor = MutedChipText)
+                    if (incident.mediaCount > 0) {
+                        StatChip(
+                            label = if (incident.mediaCount == 1) "1 foto" else "${incident.mediaCount} fotos",
+                            background = MutedChipBg,
+                            contentColor = MutedChipText,
+                        )
+                    }
+                }
+            }
+            Spacer(Modifier.width(8.dp))
+            SyncPill(sync = incident.sync)
+            Icon(
+                imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
+                contentDescription = if (incident.expanded) "Cerrar detalle" else "Ver el incidente",
+                tint = Outline,
+                modifier = Modifier
+                    .size(18.dp)
+                    .rotate(if (incident.expanded) 90f else 0f),
+            )
+        }
+
+        if (incident.expanded) {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(1.dp)
+                    .background(OutlineVariant.copy(alpha = 0.35f)),
+            )
+            IncidentDetail(incident = incident)
+        }
+    }
+}
+
+@Composable
+private fun SeverityChip(label: String) {
+    val (background, contentColor) = when (label) {
+        "Grave" -> AbsentBg to AbsentText
+        "Moderado" -> LateBg to LateText
+        else -> PresentBg to PresentText
+    }
+    StatChip(label = label, background = background, contentColor = contentColor)
+}
+
+@Composable
+private fun IncidentDetail(incident: HistoryIncidentUi) {
+    Column(
+        modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp),
+        verticalArrangement = Arrangement.spacedBy(6.dp),
+    ) {
+        Text(
+            text = incident.description,
+            color = PrimaryContainer,
+            fontFamily = DmSans,
+            fontSize = 13.sp,
+            lineHeight = 19.sp,
+        )
+        Text(
+            text = listOf(incident.category, incident.occurredLabel)
+                .filter { it.isNotBlank() }
+                .joinToString(" · "),
+            color = Outline,
+            fontFamily = JetBrainsMono,
+            fontSize = 10.sp,
+            lineHeight = 14.sp,
+        )
+        incident.locationLabel?.let { label ->
+            Text(
+                text = label,
+                color = Outline,
+                fontFamily = JetBrainsMono,
+                fontSize = 10.sp,
+                lineHeight = 14.sp,
+            )
+        }
+
+        if (incident.evidence.isEmpty()) {
+            RecordsHint("No hay archivos guardados de este incidente en el dispositivo.")
+        } else {
+            incident.evidence.forEach { file -> EvidenceRow(evidence = file) }
+        }
+    }
+}
+
+/**
+ * One evidence file. Tapping it opens the Cloudinary URL, which is the only copy
+ * that exists once the upload finished: the local file was deleted on purpose.
+ */
+@Composable
+private fun EvidenceRow(evidence: HistoryEvidenceUi) {
+    val context = LocalContext.current
+    val url = evidence.url
+    val canOpen = url != null && evidence.phase == MediaUploadPhase.UPLOADED
+
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(HistoryCardShape)
+            .clickable(enabled = canOpen) {
+                runCatching {
+                    context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)))
+                }
+            }
+            .padding(vertical = 5.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Icon(
+            imageVector = Icons.Outlined.PhotoCamera,
+            contentDescription = null,
+            tint = Outline,
+            modifier = Modifier.size(15.dp),
+        )
+        Spacer(Modifier.width(8.dp))
+        Text(
+            text = evidence.label,
+            color = PrimaryContainer,
+            fontFamily = JetBrainsMono,
+            fontSize = 11.sp,
+            lineHeight = 15.sp,
+            modifier = Modifier.weight(1f),
+        )
+        Text(
+            text = if (canOpen) "Abrir" else mediaPhaseLabel(evidence.phase) ?: "Sin archivo",
+            color = if (canOpen) PresentText else PendingText,
+            fontFamily = DmSans,
+            fontWeight = FontWeight.Medium,
+            fontSize = 11.sp,
+            lineHeight = 15.sp,
+        )
+    }
+}
+
+@Composable
+private fun IncidentEmptyState(refreshing: Boolean) {
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp)
+            .height(120.dp)
+            .clip(HistoryCardShape)
+            .background(SurfaceContainerLowest)
+            .border(1.dp, HistoryHairline, HistoryCardShape),
+        contentAlignment = Alignment.Center,
+    ) {
+        Text(
+            text = if (refreshing) {
+                "Buscando tus incidentes…"
+            } else {
+                "Aún no has registrado incidentes. Los que reportes aparecen aquí, " +
+                    "también sin conexión."
+            },
             color = OnSurfaceVariant,
             fontFamily = DmSans,
             fontSize = 13.sp,

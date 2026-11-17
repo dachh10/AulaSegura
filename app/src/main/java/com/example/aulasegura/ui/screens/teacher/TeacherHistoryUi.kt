@@ -4,8 +4,15 @@ import com.example.aulasegura.domain.model.AttendanceMark
 import com.example.aulasegura.domain.model.AttendanceSessionDetail
 import com.example.aulasegura.domain.model.AttendanceSessionRecord
 import com.example.aulasegura.domain.model.AttendanceSessionSummary
+import com.example.aulasegura.domain.model.IncidentEvidence
+import com.example.aulasegura.domain.model.IncidentSummary
+import com.example.aulasegura.domain.model.MediaUploadPhase
 import com.example.aulasegura.domain.model.RollCallSync
+import com.example.aulasegura.domain.model.SyncPhase
 import com.example.aulasegura.util.AttendanceTimes
+import java.util.Locale
+import java.util.TimeZone
+import kotlin.math.roundToInt
 
 /**
  * What the history screen renders, already resolved.
@@ -16,12 +23,16 @@ import com.example.aulasegura.util.AttendanceTimes
  */
 data class TeacherHistoryUi(
     val sections: List<HistorySectionUi> = emptyList(),
+    val incidentSections: List<IncidentSectionUi> = emptyList(),
     val refreshing: Boolean = true,
     val notice: String? = null,
     val expandedId: String? = null,
+    val expandedIncidentId: String? = null,
     val detailLoading: Boolean = false,
     val totalSessions: Int = 0,
+    val totalIncidents: Int = 0,
 )
+
 
 data class HistorySectionUi(
     val label: String,
@@ -52,6 +63,52 @@ data class HistoryRecordUi(
     val name: String,
     val mark: AttendanceMark?,
     val time: String?,
+)
+
+/** One bucket of the incident history: the same labels the roll calls use. */
+data class IncidentSectionUi(
+    val label: String,
+    val incidents: List<HistoryIncidentUi>,
+)
+
+/**
+ * One incident row.
+ *
+ * [severity] is `null` when the stored wire value is not one this build knows:
+ * the chip disappears instead of printing a raw `"leve "` with a typo in it.
+ *
+ * [title] falls back to the first line of the description because that is how the
+ * write path derives it; a document without a title still has something to print.
+ */
+data class HistoryIncidentUi(
+    val id: String,
+    val day: String,
+    val weekday: String,
+    val studentName: String,
+    val title: String,
+    val severity: String?,
+    val category: String,
+    val description: String,
+    val status: String,
+    val occurredLabel: String,
+    val locationLabel: String?,
+    val sync: SyncPhase,
+    val mediaCount: Int,
+    val expanded: Boolean,
+    val evidence: List<HistoryEvidenceUi> = emptyList(),
+)
+
+/**
+ * One evidence entry of the expanded incident.
+ *
+ * [url] is the Cloudinary delivery URL: the local file was deleted once the
+ * upload finished, so the URL is the only way back to the photo.
+ */
+data class HistoryEvidenceUi(
+    val mediaId: String,
+    val label: String,
+    val url: String?,
+    val phase: MediaUploadPhase,
 )
 
 /**
@@ -92,6 +149,103 @@ fun historySections(
     return SECTION_ORDER.mapNotNull { label ->
         buckets[label]?.let { HistorySectionUi(label = label, sessions = it) }
     }
+}
+
+/**
+ * Buckets the teacher's incidents with the same recency labels as the roll calls.
+ *
+ * [todayIso] and [zone] are passed in so the grouping is reproducible in a test;
+ * an unparseable date lands in "ANTERIORES" for the same reason it does in
+ * [historySections] — a wrong bucket beats a hidden incident.
+ *
+ * Only the expanded row receives [evidence]: handing the files to every row would
+ * paint the same photos under each card.
+ */
+fun incidentSections(
+    incidents: List<IncidentSummary>,
+    todayIso: String,
+    expandedId: String? = null,
+    evidence: List<IncidentEvidence> = emptyList(),
+    zone: TimeZone = TimeZone.getDefault(),
+): List<IncidentSectionUi> {
+    if (incidents.isEmpty()) return emptyList()
+
+    val today = AttendanceTimes.isoDateToMillis(todayIso, zone)
+    val buckets = linkedMapOf<String, MutableList<HistoryIncidentUi>>()
+
+    incidents.forEach { incident ->
+        val iso = AttendanceTimes.isoDate(incident.occurredAt, zone)
+        val label = bucketOf(iso, today)
+        val isOpen = incident.incidentId == expandedId
+        buckets.getOrPut(label) { mutableListOf() } += incident.toUi(
+            expanded = isOpen,
+            evidence = if (isOpen) evidence else emptyList(),
+            zone = zone,
+        )
+    }
+
+    return SECTION_ORDER.mapNotNull { label ->
+        buckets[label]?.let { IncidentSectionUi(label = label, incidents = it) }
+    }
+}
+
+internal fun IncidentSummary.toUi(
+    expanded: Boolean,
+    evidence: List<IncidentEvidence>,
+    zone: TimeZone,
+): HistoryIncidentUi {
+    val iso = AttendanceTimes.isoDate(occurredAt, zone)
+    return HistoryIncidentUi(
+        id = incidentId,
+        day = iso.substringAfterLast('-').padStart(2, '0'),
+        weekday = AttendanceTimes.weekdayLabel(iso, zone),
+        studentName = studentName,
+        title = title.ifBlank { description.lineSequence().firstOrNull().orEmpty() },
+        severity = severity?.label,
+        category = category?.label.orEmpty(),
+        description = description,
+        status = status.label,
+        occurredLabel = incidentTimestampLabel(occurredAt, zone),
+        locationLabel = incidentLocationLabel(locationVerified, locationDistanceMeters),
+        sync = sync,
+        mediaCount = mediaCount,
+        expanded = expanded,
+        evidence = evidence.map { it.toUi() },
+    )
+}
+
+/**
+ * `"Dentro de la escuela · 12 m"`, or `null` when no pin was captured.
+ *
+ * The distance is the pin's distance to the school, so it is printed only when it
+ * exists; "verified" without a distance still says something useful.
+ */
+fun incidentLocationLabel(verified: Boolean?, distanceMeters: Double?): String? {
+    val distance = distanceMeters?.takeIf { it.isFinite() }?.roundToInt()?.let { "$it m" }
+    return when (verified) {
+        true -> listOfNotNull("Dentro de la escuela", distance).joinToString(" · ")
+        false -> listOfNotNull("Fuera del radio", distance).joinToString(" · ")
+        null -> null
+    }
+}
+
+internal fun IncidentEvidence.toUi(): HistoryEvidenceUi = HistoryEvidenceUi(
+    mediaId = mediaId,
+    label = evidenceLabel(format, bytes),
+    url = url,
+    phase = phase,
+)
+
+/** `"JPG · 200 KB"` — what the expanded row prints next to one file. */
+fun evidenceLabel(format: String?, bytes: Long): String =
+    listOfNotNull(format?.uppercase(Locale.US)?.takeIf { it.isNotBlank() }, evidenceSizeLabel(bytes))
+        .joinToString(" · ")
+
+fun evidenceSizeLabel(bytes: Long): String = when {
+    bytes <= 0L -> "tamaño desconocido"
+    bytes < 1024L -> "$bytes B"
+    bytes < 1024L * 1024L -> "${(bytes / 1024.0).roundToInt()} KB"
+    else -> String.format(Locale.US, "%.1f MB", bytes / (1024.0 * 1024.0))
 }
 
 private fun bucketOf(date: String, todayMillis: Long?): String {

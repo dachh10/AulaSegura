@@ -18,6 +18,7 @@
 | **5** — Historial | sesiones pasadas del docente | ✅ **hecho** · `cb69681` |
 | **6** — Incidentes | reporte con severidad | ✅ **hecho** · `d08f75f` |
 | **7** — Media del incidente | foto comprimida a Cloudinary | ✅ **hecho** · `assembleDebug` + 154 tests |
+| **7B** — Mis incidentes | historial propio cache-first | ✅ **hecho** · `assembleDebug` + 167 tests |
 | **8** — Tareas y avisos | publicar con audiencia | pendiente |
 | **9** — Chat | RTDB y presencia | pendiente |
 | **10** — Notificaciones y FCM | push enviado desde la consola | pendiente |
@@ -530,6 +531,62 @@ Cloudinary, sin perder la foto ni duplicar el incidente.
 >
 > **Orden que no se puede invertir:** subir primero y escribir después. Al revés, el incidente queda
 > en Firestore con `media` vacío y el tutor ve un incidente sin evidencia.
+
+---
+
+## Bloque 7B — Mis incidentes en el historial (agregado, no estaba en `PLAN.md`)
+
+> **Por qué existe:** el bloque 7 dejó al docente creando incidentes que no podía volver a leer. El
+> plan solo contempla la bandeja del admin/tutor (`PLAN.md` 2.7, Fase 2), así que en Fase 1 el
+> reporte era de una sola dirección: se escribía y desaparecía de la app. El segmento "Incidentes"
+> del historial ya existía como placeholder; esto lo convierte en la lectura real.
+
+- [x] **7B.1** `IncidentHistoryRepository` cache-first: `observeIncidents()` desde Room + `refresh()` contra `incidents where reportedBy == uid`
+- [x] **7B.2** Refresco sin `orderBy` a propósito: la consulta coincide con la regla y no necesita índice compuesto
+- [x] **7B.3** Mapeo inverso documento → fila cacheada (`SYNCED`) y entrada `media` → fila `UPLOADED` sin archivo local
+- [x] **7B.4** Segmento "Incidentes" real en `TeacherHistoryScreen`, con las mismas etiquetas de fecha que las listas
+- [x] **7B.5** Detalle expandible: descripción, categoría, fecha, pin y archivos con **Abrir** a la URL de Cloudinary
+- [x] **7B.6** Sin conexión se lee lo cacheado, incluidos los incidentes que todavía no subieron
+
+**Criterio:** el docente vuelve a leer desde la app cualquier incidente que reportó, con su detalle y
+sus fotos, con o sin conexión.
+
+**Qué cambió en este bloque**
+
+| Archivo | Cambio |
+|---|---|
+| `domain/model/IncidentHistory.kt` | **nuevo** `IncidentSummary`, `IncidentStatus` y `IncidentEvidence` |
+| `domain/repository/IncidentHistoryRepository.kt` | **nuevo** contrato de lectura: lista, refresco y archivos de un incidente |
+| `data/local/dao/IncidentDao.kt` | `observeHistory()` con el conteo de archivos por subconsulta y `upsertDrafts` |
+| `data/mapper/IncidentHistoryMapper.kt` | **nuevo** entidad → resumen, documento → entidad y entrada `media` → fila cacheada |
+| `data/repository/FirestoreIncidentHistoryRepository.kt` | **nuevo** cache-first: `Source.SERVER` con filtro `reportedBy == uid`, sin `orderBy` |
+| `ui/screens/teacher/TeacherHistoryUi.kt` | `incidentSections()`, `HistoryIncidentUi`, `incidentLocationLabel()`, `evidenceLabel()` |
+| `ui/screens/teacher/TeacherHistoryViewModel.kt` | segunda lista y expansión independiente de la de listas |
+| `ui/screens/teacher/TeacherHistoryScreen.kt` | segmento "Incidentes" real: tarjeta, detalle y "Abrir" del archivo |
+| `di/AppContainer.kt` · `navigation/AulaSeguraNavHost.kt` | repositorio, ViewModel y callback cableados |
+| `test/.../IncidentHistoryUiTest.kt` · `IncidentHistoryMapperTest.kt` | **nuevos**: buckets, etiquetas, archivos y mapeo inverso |
+
+**Decisiones que importan**
+
+- **Se lee bajo la regla que ya existe.** `resource.data.reportedBy == request.auth.uid` es la
+  condición que `docs/firestore.rules` ya acepta para docente, así que la consulta no pide permisos
+  nuevos ni toca la bandeja del admin, que es de Fase 2.
+- **Sin `orderBy` en la consulta.** `reportedBy` + `occurredAt` pediría un índice compuesto y un
+  despliegue más; el orden lo pone Room sobre lo cacheado, que además es lo correcto sin conexión.
+- **El detalle no vuelve al servidor.** El refresco de la lista ya cacheó el documento y su array
+  `media`; abrir una fila es una consulta local, no una lectura por incidente.
+- **La foto se abre por URL.** La copia local se borra al terminar la subida, así que la única copia
+  que queda es la de Cloudinary; el detalle abre esa y no inventa una miniatura que no puede pintar.
+- **Un documento incompleto no se cachea.** Si le falta escuela, grupo o autor, se descarta: una fila
+  sin nombre en el historial se lee como un bug de la app, no como un documento roto.
+
+**Pendientes conocidos de este bloque**
+
+1. **Sin `Coil`: las fotos se abren en el navegador**, no como miniatura dentro de la app. Agregar la
+   dependencia es una decisión aparte (peso del APK y una librería más).
+2. **"Publicaciones" sigue con su placeholder** hasta el bloque 8, igual que antes.
+3. **La consulta trae los últimos 120 incidentes**: paginar es de otra fase, como en el historial de
+   listas.
 
 ---
 

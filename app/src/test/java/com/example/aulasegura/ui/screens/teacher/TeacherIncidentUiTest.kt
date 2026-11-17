@@ -2,6 +2,7 @@ package com.example.aulasegura.ui.screens.teacher
 
 import com.example.aulasegura.domain.model.IncidentCategory
 import com.example.aulasegura.domain.model.IncidentSeverity
+import com.example.aulasegura.domain.model.MediaUploadPhase
 import com.example.aulasegura.domain.model.SyncPhase
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -120,5 +121,49 @@ class TeacherIncidentUiTest {
             "Mar 3 nov 2026 · 10:42",
             incidentTimestampLabel(instant, zone),
         )
+    }
+
+    @Test
+    fun `the footer waits for the photo that is still being prepared`() {
+        val complete = TeacherIncidentUi(
+            students = listOf(student),
+            selectedId = "stu-1",
+            severity = IncidentSeverity.GRAVE,
+            description = "Se cayó",
+        )
+
+        assertTrue(complete.canSave)
+        assertFalse(
+            "saving now would drop the photo the store is still compressing",
+            complete.copy(preparing = true).canSave,
+        )
+    }
+
+    @Test
+    fun `the add tile disappears at the configured limit and not at three`() {
+        val files = List(2) { IncidentEvidenceUi(localPath = "/tmp/$it.jpg") }
+        val ui = TeacherIncidentUi(evidence = files, mediaLimit = 2)
+
+        assertFalse("the limit is Remote Config's, whatever it says", ui.canAddEvidence)
+        assertTrue(ui.copy(evidence = files.take(1)).canAddEvidence)
+        assertFalse(
+            "a queued incident takes no more photos",
+            ui.copy(evidence = files.take(1), saved = true).canAddEvidence,
+        )
+    }
+
+    @Test
+    fun `the counter uses the delivered limit`() {
+        assertEquals("2 de 3 archivos", incidentMediaCountLabel(2, 3))
+        assertEquals("0 de 5 archivos", incidentMediaCountLabel(0, 5))
+    }
+
+    @Test
+    fun `every upload phase has its own label and an unsaved file has none`() {
+        MediaUploadPhase.entries.forEach { phase ->
+            assertTrue("missing label for $phase", mediaPhaseLabel(phase) != null)
+        }
+        assertNull("the local file has nothing to report yet", mediaPhaseLabel(null))
+        assertEquals("No se pudo subir", mediaPhaseLabel(MediaUploadPhase.FAILED))
     }
 }

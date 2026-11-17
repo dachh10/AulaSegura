@@ -38,11 +38,30 @@ data class IncidentLocation(
 )
 
 /**
+ * One evidence file that already lives on this device, compressed.
+ *
+ * Only the path travels into the write path: the bytes stay on disk until the
+ * sync worker uploads them, which is what makes an incident with a photo work in
+ * airplane mode (`FASE1.md`, bloque 7).
+ */
+data class NewIncidentMedia(
+    val localPath: String,
+    val type: String = IMAGE,
+) {
+    companion object {
+        const val IMAGE: String = "image"
+    }
+}
+
+/**
  * A new incident, before it has an id.
  *
  * [studentName] and [reportedByName] are denormalised on purpose: the tutor can
  * read their own incidents but not the school roster, so the name has to travel
  * inside the document (`FASE1.md`, bloque 6).
+ *
+ * [media] is already compressed and stored: the form never hands the write path
+ * a bitmap it still has to process.
  */
 data class NewIncident(
     val groupId: String,
@@ -54,6 +73,28 @@ data class NewIncident(
     val occurredAt: Long,
     val location: IncidentLocation? = null,
     val category: IncidentCategory = IncidentCategory.OTRO,
+    val media: List<NewIncidentMedia> = emptyList(),
+)
+
+/**
+ * Where one evidence file stands in the upload, as the screen needs to show it.
+ *
+ * Mirrors `UploadState` from Room, but the UI cannot import the persistence enum:
+ * a rename in the database must not reach the screen.
+ */
+enum class MediaUploadPhase {
+    PENDING,
+    UPLOADING,
+    UPLOADED,
+    FAILED,
+}
+
+/** One evidence file of an incident, joined back to the file on disk. */
+data class IncidentMediaStatus(
+    val mediaId: String,
+    /** Absolute path while the file is still on this device, `null` after upload. */
+    val localPath: String?,
+    val phase: MediaUploadPhase,
 )
 
 /** Outcome of queueing an incident. */

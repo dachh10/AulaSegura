@@ -2,8 +2,12 @@ package com.example.aulasegura.data.repository
 
 import com.example.aulasegura.data.local.dao.IncidentDao
 import com.example.aulasegura.data.local.entity.IncidentDraftEntity
+import com.example.aulasegura.data.local.entity.IncidentMediaEntity
 import com.example.aulasegura.data.local.entity.SyncState
+import com.example.aulasegura.data.local.entity.UploadState
+import com.example.aulasegura.data.mapper.toMediaUploadPhase
 import com.example.aulasegura.data.mapper.toRollCallSync
+import com.example.aulasegura.domain.model.IncidentMediaStatus
 import com.example.aulasegura.domain.model.IncidentSaveOutcome
 import com.example.aulasegura.domain.model.NewIncident
 import com.example.aulasegura.domain.model.SyncPhase
@@ -36,6 +40,7 @@ class RoomIncidentRepository(
     private val auth: AuthRepository,
     private val clock: () -> Long = System::currentTimeMillis,
     private val newIncidentId: () -> String = { UUID.randomUUID().toString() },
+    private val newMediaId: () -> String = { UUID.randomUUID().toString() },
 ) : IncidentRepository {
 
     override suspend fun create(incident: NewIncident): IncidentSaveOutcome {
@@ -73,7 +78,20 @@ class RoomIncidentRepository(
         )
 
         return try {
-            outbox.enqueueIncident(draft)
+            // The evidence rows are built here and not in the use case: the
+            // incident id they hang from is minted two lines above.
+            val media = incident.media.map { file ->
+                IncidentMediaEntity(
+                    mediaId = newMediaId(),
+                    incidentId = draft.incidentId,
+                    type = file.type,
+                    localPath = file.localPath,
+                    uploadState = UploadState.PENDING,
+                    createdAt = now,
+                    updatedAt = now,
+                )
+            }
+            outbox.enqueueIncident(draft, media)
             IncidentSaveOutcome.Queued(draft.incidentId)
         } catch (failed: Exception) {
             // Room is the local source of truth: if the transaction did not
@@ -86,6 +104,17 @@ class RoomIncidentRepository(
         incidentDao.observeDraft(incidentId)
             .filterNotNull()
             .map { it.syncState.toRollCallSync() }
+
+    override fun observeMedia(incidentId: String): Flow<List<IncidentMediaStatus>> =
+        incidentDao.observeMedia(incidentId).map { files ->
+            files.map { file ->
+                IncidentMediaStatus(
+                    mediaId = file.mediaId,
+                    localPath = file.localPath,
+                    phase = file.uploadState.toMediaUploadPhase(),
+                )
+            }
+        }
 
     private companion object {
         const val STATUS_NEW = "nuevo"

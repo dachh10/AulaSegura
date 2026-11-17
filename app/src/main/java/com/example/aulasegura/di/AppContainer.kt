@@ -9,6 +9,8 @@ import com.example.aulasegura.AulaSeguraApp
 import com.example.aulasegura.BuildConfig
 import com.example.aulasegura.data.local.AulaSeguraDatabase
 import com.example.aulasegura.data.local.DatabaseProvider
+import com.example.aulasegura.data.local.media.FileIncidentMediaStore
+import com.example.aulasegura.data.local.media.IncidentMediaStore
 import com.example.aulasegura.data.remote.cloudinary.CloudinaryConfig
 import com.example.aulasegura.data.remote.cloudinary.CloudinaryUploader
 import com.example.aulasegura.data.remote.cloudinary.ImageCompressor
@@ -44,6 +46,7 @@ import com.example.aulasegura.sync.SyncFailureReporter
 import com.example.aulasegura.sync.SyncHandlerRegistry
 import com.example.aulasegura.sync.SyncOperation
 import com.example.aulasegura.sync.SyncScheduler
+import com.example.aulasegura.sync.UploadIncidentMediaHandler
 import com.example.aulasegura.ui.screens.access.ForgotPasswordViewModel
 import com.example.aulasegura.ui.screens.access.LoginViewModel
 import com.example.aulasegura.ui.screens.access.SessionViewModel
@@ -218,6 +221,10 @@ class AppContainer(context: Context) {
                     incidentDao = database.incidentDao(),
                     firestore = firestore,
                 ),
+                SyncOperation.UPLOAD_INCIDENT_MEDIA to UploadIncidentMediaHandler(
+                    incidentDao = database.incidentDao(),
+                    uploader = cloudinaryUploader,
+                ),
             ),
         )
     }
@@ -250,6 +257,17 @@ class AppContainer(context: Context) {
     }
 
     val imageCompressor: ImageCompressor by lazy { ImageCompressor(appContext) }
+
+    /**
+     * Where a captured photo lives between the form and the upload.
+     *
+     * Exposed from the container so the form and the worker agree on the same
+     * directory: a file the screen wrote and the worker cannot find would be an
+     * evidence photo the incident never carries.
+     */
+    val incidentMediaStore: IncidentMediaStore by lazy {
+        FileIncidentMediaStore(appContext, imageCompressor)
+    }
 
     // ---- Remote Config ------------------------------------------------------
     /**
@@ -321,6 +339,8 @@ class AppViewModelFactory(
                 students = container.studentRepository,
                 createIncident = container.createIncidentUseCase,
                 incidents = container.incidentRepository,
+                mediaStore = container.incidentMediaStore,
+                readMediaLimit = { container.remoteConfigRepository.incidentMediaMax() },
             )
 
         else -> error("No ViewModel registered for ${modelClass.name}")

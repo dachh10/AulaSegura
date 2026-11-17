@@ -4,6 +4,7 @@ import com.example.aulasegura.domain.model.IncidentSaveOutcome
 import com.example.aulasegura.domain.model.IncidentSeverity
 import com.example.aulasegura.domain.model.NewIncident
 import com.example.aulasegura.domain.model.SyncPhase
+import com.example.aulasegura.domain.model.IncidentMediaStatus
 import com.example.aulasegura.domain.repository.IncidentRepository
 import com.example.aulasegura.domain.telemetry.AnalyticsEvent
 import kotlinx.coroutines.flow.Flow
@@ -43,6 +44,8 @@ class CreateIncidentUseCaseTest {
         }
 
         override fun observeSync(incidentId: String): Flow<SyncPhase> = emptyFlow()
+
+    override fun observeMedia(incidentId: String): Flow<List<IncidentMediaStatus>> = emptyFlow()
     }
 
     @Test

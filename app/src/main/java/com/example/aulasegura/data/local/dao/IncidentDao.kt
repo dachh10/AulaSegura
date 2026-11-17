@@ -56,6 +56,13 @@ interface IncidentDao {
     @Query("SELECT * FROM incident_media WHERE uploadState = :state ORDER BY createdAt")
     suspend fun mediaWithState(state: UploadState): List<IncidentMediaEntity>
 
+    /**
+     * The upload handler's entry point: one outbox row carries the media id, so
+     * the row itself is the only thing the handler needs to look up.
+     */
+    @Query("SELECT * FROM incident_media WHERE mediaId = :mediaId LIMIT 1")
+    suspend fun findMedia(mediaId: String): IncidentMediaEntity?
+
     @Upsert
     suspend fun upsertMedia(media: IncidentMediaEntity)
 

@@ -1,12 +1,7 @@
 package com.example.aulasegura.ui.screens.teacher
 
-import android.app.Activity
-import android.content.ClipData
 import android.content.Context
-import android.content.Intent
-import android.graphics.Bitmap
 import android.net.Uri
-import android.provider.MediaStore
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.core.RepeatMode
@@ -50,7 +45,6 @@ import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.ExpandMore
-import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Verified
 import androidx.compose.material.icons.outlined.CalendarToday
 import androidx.compose.material.icons.outlined.CheckCircle
@@ -62,7 +56,6 @@ import androidx.compose.material.icons.outlined.NearMe
 import androidx.compose.material.icons.outlined.PhotoCamera
 import androidx.compose.material.icons.outlined.School
 import androidx.compose.material.icons.outlined.TouchApp
-import androidx.compose.material.icons.outlined.Videocam
 import androidx.compose.material.icons.outlined.Warning
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -160,13 +153,6 @@ private const val MARKER_Y = 0.4556f
 private const val BASE_LAT = 19.292600
 private const val BASE_LON = -99.655700
 
-private sealed interface Evidence {
-    val label: String
-
-    data class Photo(val bitmap: Bitmap?, override val label: String) : Evidence
-    data class Video(override val label: String) : Evidence
-}
-
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun TeacherIncidentNewScreen(
@@ -178,47 +164,40 @@ fun TeacherIncidentNewScreen(
     onSeverityChange: (IncidentSeverity) -> Unit = {},
     onCategoryChange: (IncidentCategory) -> Unit = {},
     onDescriptionChange: (String) -> Unit = {},
+    onPhotoTaken: (File) -> Unit = {},
+    onRemoveEvidence: (String) -> Unit = {},
 ) {
     val context = LocalContext.current
 
     var marker by remember { mutableStateOf(Offset(MARKER_X, MARKER_Y)) }
     var pickerOpen by remember { mutableStateOf(false) }
-    var evidence by remember {
-        mutableStateOf(listOf<Evidence>(Evidence.Photo(bitmap = null, label = "IMG_01")))
-    }
-    var nextIndex by remember { mutableStateOf(2) }
 
-    fun addEvidence(item: Evidence) {
-        if (evidence.size < 3) evidence = evidence + item
-    }
+    // The camera app writes into this file; the ViewModel compresses it and keeps
+    // the result. `TakePicture` and not `TakePicturePreview`: the preview hands
+    // back a thumbnail, and evidence has to be the real photo.
+    var pendingCapture by remember { mutableStateOf<File?>(null) }
 
     val photoLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.TakePicturePreview(),
-    ) { bitmap ->
-        if (bitmap != null) {
-            addEvidence(Evidence.Photo(bitmap, String.format(Locale.US, "IMG_%02d", nextIndex)))
-            nextIndex += 1
+        contract = ActivityResultContracts.TakePicture(),
+    ) { saved ->
+        val captured = pendingCapture
+        pendingCapture = null
+        if (saved && captured != null) {
+            onPhotoTaken(captured)
+        } else {
+            captured?.delete()
         }
     }
 
-    val videoLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.StartActivityForResult(),
-    ) { result ->
-        if (result.resultCode == Activity.RESULT_OK) {
-            addEvidence(Evidence.Video(String.format(Locale.US, "VID_%02d", nextIndex)))
-            nextIndex += 1
-        }
-    }
-
-    fun captureVideo() {
-        val uri = newEvidenceVideoUri(context)
-        val intent = Intent(MediaStore.ACTION_VIDEO_CAPTURE).apply {
-            putExtra(MediaStore.EXTRA_OUTPUT, uri)
-            putExtra(MediaStore.EXTRA_VIDEO_QUALITY, 0)
-            addFlags(Intent.FLAG_GRANT_WRITE_URI_PERMISSION or Intent.FLAG_GRANT_READ_URI_PERMISSION)
-            clipData = ClipData.newRawUri("incidente", uri)
-        }
-        runCatching { videoLauncher.launch(intent) }
+    fun capturePhoto() {
+        val file = newEvidencePhotoFile(context)
+        val uri = FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", file)
+        pendingCapture = file
+        runCatching { photoLauncher.launch(uri) }
+            .onFailure {
+                pendingCapture = null
+                file.delete()
+            }
     }
 
     // The pin is what gets stored; the strings are only what the card prints.
@@ -314,15 +293,14 @@ fun TeacherIncidentNewScreen(
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 SectionLabel(text = "Evidencia")
                 EvidenceGrid(
-                    evidence = evidence,
-                    onTakePhoto = { photoLauncher.launch(null) },
-                    onRecordVideo = { captureVideo() },
-                    onRemove = { item ->
-                        evidence = evidence.filterNot { it === item }
-                    },
+                    evidence = ui.evidence,
+                    limit = ui.mediaLimit,
+                    onTakePhoto = { capturePhoto() },
+                    onRemove = { item -> onRemoveEvidence(item.localPath) },
                 )
                 Text(
-                    text = "${evidence.size} de 3 archivos · máx. 30 s de video",
+                    text = incidentMediaCountLabel(ui.evidence.size, ui.mediaLimit) +
+                        if (ui.preparing) " · preparando…" else "",
                     color = Outline,
                     fontFamily = JetBrainsMono,
                     fontSize = 11.sp,
@@ -1155,22 +1133,20 @@ private fun IncidentTeardrop() {
 // ZONE 5 — Evidence
 private sealed interface EvidenceCell {
     data object AddPhoto : EvidenceCell
-    data object AddVideo : EvidenceCell
-    data class Thumbnail(val item: Evidence) : EvidenceCell
+    data class Thumbnail(val item: IncidentEvidenceUi) : EvidenceCell
 }
 
 @Composable
 private fun EvidenceGrid(
-    evidence: List<Evidence>,
+    evidence: List<IncidentEvidenceUi>,
+    limit: Int,
     onTakePhoto: () -> Unit,
-    onRecordVideo: () -> Unit,
-    onRemove: (Evidence) -> Unit,
+    onRemove: (IncidentEvidenceUi) -> Unit,
 ) {
     val cells = buildList {
-        if (evidence.size < 3) {
-            add(EvidenceCell.AddPhoto)
-            add(EvidenceCell.AddVideo)
-        }
+        // The limit is the one Remote Config delivers (`incident_media_max`), not
+        // a number written here: the school changes it from the console.
+        if (evidence.size < limit) add(EvidenceCell.AddPhoto)
         evidence.forEach { add(EvidenceCell.Thumbnail(it)) }
     }
 
@@ -1186,13 +1162,6 @@ private fun EvidenceGrid(
                             icon = Icons.Outlined.PhotoCamera,
                             label = "Foto",
                             onClick = onTakePhoto,
-                            modifier = Modifier.weight(1f),
-                        )
-
-                        EvidenceCell.AddVideo -> AddEvidenceTile(
-                            icon = Icons.Outlined.Videocam,
-                            label = "Video",
-                            onClick = onRecordVideo,
                             modifier = Modifier.weight(1f),
                         )
 
@@ -1263,7 +1232,7 @@ private fun AddEvidenceTile(
 
 @Composable
 private fun EvidenceThumbnail(
-    item: Evidence,
+    item: IncidentEvidenceUi,
     onRemove: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -1275,81 +1244,64 @@ private fun EvidenceThumbnail(
             .background(Color(0xFFDCE5E1))
             .border(1.dp, OutlineVariant.copy(alpha = 0.40f), TileShape),
     ) {
-        when (item) {
-            is Evidence.Photo -> {
-                val bitmap = item.bitmap
-                if (bitmap != null) {
-                    Image(
-                        bitmap = bitmap.asImageBitmap(),
-                        contentDescription = "Evidencia fotográfica",
-                        contentScale = ContentScale.Crop,
-                        modifier = Modifier.fillMaxSize(),
-                    )
-                } else {
-                    // The mockup shows a real photograph of the courtyard; it is
-                    // imitated with a small vector scene instead of a stock asset.
-                    CourtyardSnapshot(modifier = Modifier.fillMaxSize())
-                }
-            }
+        val bitmap = item.thumbnail
+        if (bitmap != null) {
+            Image(
+                bitmap = bitmap.asImageBitmap(),
+                contentDescription = "Evidencia fotográfica",
+                contentScale = ContentScale.Crop,
+                modifier = Modifier.fillMaxSize(),
+            )
+        } else {
+            // A file the system already reclaimed, or a decode that failed: the
+            // tile still shows where the photo was instead of a blank square.
+            CourtyardSnapshot(modifier = Modifier.fillMaxSize())
+        }
 
-            is Evidence.Video -> {
-                Box(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .background(
-                            Brush.linearGradient(
-                                listOf(Color(0xFF4A4B57), Color(0xFF1F2027)),
-                            ),
-                        ),
-                    contentAlignment = Alignment.Center,
-                ) {
-                    Icon(
-                        imageVector = Icons.Filled.PlayArrow,
-                        contentDescription = "Video de evidencia",
-                        tint = Color.White,
-                        modifier = Modifier.size(24.dp),
-                    )
-                }
+        // Only while the incident is still on this screen: once it is queued the
+        // row belongs to the worker and removing the tile would be a lie.
+        if (item.phase == null) {
+            val (closeInteraction, closePress) = rememberPressScale(0.88f)
+            Box(
+                modifier = Modifier
+                    .align(Alignment.TopEnd)
+                    .padding(4.dp)
+                    .size(20.dp)
+                    .then(closePress)
+                    .clip(CircleShape)
+                    .background(Color.Black.copy(alpha = 0.60f))
+                    .clickable(
+                        interactionSource = closeInteraction,
+                        indication = null,
+                        onClick = onRemove,
+                    ),
+                contentAlignment = Alignment.Center,
+            ) {
+                Icon(
+                    imageVector = Icons.Filled.Close,
+                    contentDescription = "Eliminar archivo",
+                    tint = Color.White,
+                    modifier = Modifier.size(13.dp),
+                )
             }
         }
 
-        val (closeInteraction, closePress) = rememberPressScale(0.88f)
-        Box(
-            modifier = Modifier
-                .align(Alignment.TopEnd)
-                .padding(4.dp)
-                .size(20.dp)
-                .then(closePress)
-                .clip(CircleShape)
-                .background(Color.Black.copy(alpha = 0.60f))
-                .clickable(
-                    interactionSource = closeInteraction,
-                    indication = null,
-                    onClick = onRemove,
-                ),
-            contentAlignment = Alignment.Center,
-        ) {
-            Icon(
-                imageVector = Icons.Filled.Close,
-                contentDescription = "Eliminar archivo",
-                tint = Color.White,
-                modifier = Modifier.size(13.dp),
+        // 7.4: the state of *this* file, or nothing while the incident is unsaved.
+        mediaPhaseLabel(item.phase)?.let { label ->
+            Text(
+                text = label,
+                color = Color.White,
+                fontFamily = JetBrainsMono,
+                fontSize = 9.sp,
+                lineHeight = 11.sp,
+                modifier = Modifier
+                    .align(Alignment.BottomStart)
+                    .padding(start = 6.dp, bottom = 4.dp)
+                    .clip(RoundedCornerShape(2.dp))
+                    .background(Color.Black.copy(alpha = 0.50f))
+                    .padding(horizontal = 4.dp, vertical = 1.dp),
             )
         }
-
-        Text(
-            text = item.label,
-            color = Color.White,
-            fontFamily = JetBrainsMono,
-            fontSize = 9.sp,
-            lineHeight = 11.sp,
-            modifier = Modifier
-                .align(Alignment.BottomStart)
-                .padding(start = 6.dp, bottom = 4.dp)
-                .clip(RoundedCornerShape(2.dp))
-                .background(Color.Black.copy(alpha = 0.50f))
-                .padding(horizontal = 4.dp, vertical = 1.dp),
-        )
     }
 }
 
@@ -1631,10 +1583,9 @@ private fun IncidentFooter(
 
 // Helpers
 
-private fun newEvidenceVideoUri(context: Context): Uri {
+private fun newEvidencePhotoFile(context: Context): File {
     val directory = File(context.cacheDir, "incidentes").apply { mkdirs() }
-    val file = File(directory, "incidente_${System.currentTimeMillis()}.mp4")
-    return FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", file)
+    return File(directory, "incidente_${System.currentTimeMillis()}.jpg")
 }
 
 private fun Modifier.dashedBorder(

@@ -17,7 +17,7 @@
 | **4** — Pase de lista offline | el criterio de la fase, en modo avión | ✅ **hecho** · `118238b` |
 | **5** — Historial | sesiones pasadas del docente | ✅ **hecho** · `cb69681` |
 | **6** — Incidentes | reporte con severidad | ✅ **hecho** · `d08f75f` |
-| **7** — Media del incidente | foto comprimida a Cloudinary | pendiente |
+| **7** — Media del incidente | foto comprimida a Cloudinary | ✅ **hecho** · `assembleDebug` + 154 tests |
 | **8** — Tareas y avisos | publicar con audiencia | pendiente |
 | **9** — Chat | RTDB y presencia | pendiente |
 | **10** — Notificaciones y FCM | push enviado desde la consola | pendiente |
@@ -445,12 +445,71 @@ su severidad, su nombre de alumno y su ubicación.
 
 ## Bloque 7 — Media del incidente (PLAN 1.7)
 
-- [ ] **7.1** Adjuntar hasta `incident_media_max` archivos (Remote Config ya validado, default 3)
-- [ ] **7.2** Imagen: `ImageCompressor` existente antes de subir
-- [ ] **7.3** Subida con el uploader de Cloudinary existente, carpeta `aulasegura/incidents/{schoolId}`
-- [ ] **7.4** Progreso **por archivo** (`uploadState`: `PENDING` → `UPLOADING` → `UPLOADED` / `FAILED`)
-- [ ] **7.5** Reintento individual: un archivo que falla no pierde el incidente ni los otros adjuntos
-- [ ] **7.6** El documento del incidente se escribe **después** de subir, con el array `media` completo
+- [x] **7.1** Adjuntar hasta `incident_media_max` archivos (Remote Config ya validado, default 3)
+- [x] **7.2** Imagen: `ImageCompressor` existente antes de subir
+- [x] **7.3** Subida con el uploader de Cloudinary existente, carpeta `aulasegura/incidents/{incidentId}` (ver nota)
+- [x] **7.4** Progreso **por archivo** (`uploadState`: `PENDING` → `UPLOADING` → `UPLOADED` / `FAILED`)
+- [x] **7.5** Reintento individual: un archivo que falla no pierde el incidente ni los otros adjuntos
+- [x] **7.6** El documento del incidente se escribe **después** de subir, con el array `media` completo
+
+> **7.3 dice `{schoolId}` y se implementó `{incidentId}`.** Manda `CONTEXT.md` §7.1: la carpeta agrupa
+> la evidencia de **un incidente** para que un borrado futuro sea una sola llamada. Con `{schoolId}`
+> todas las fotos de la escuela caen juntas y no hay forma de borrar las de un incidente sin listar y
+> filtrar por prefijo. El ítem del checklist queda corregido aquí; el plan no se reescribe.
+
+**Qué cambió en este bloque**
+
+| Archivo | Cambio |
+|---|---|
+| `domain/model/Incident.kt` | `NewIncidentMedia` (solo `localPath`), `IncidentMediaStatus`, `MediaUploadPhase` y `media` en `NewIncident` |
+| `domain/repository/IncidentRepository.kt` | `observeMedia(incidentId)`: la subida termina antes que el documento, así que se sigue aparte del `syncState` |
+| `data/local/media/IncidentMediaStore.kt` | **nuevo** `FileIncidentMediaStore`: comprime con `ImageCompressor`, guarda en `filesDir/incident-media/` y devuelve el thumbnail del tile |
+| `data/local/dao/IncidentDao.kt` | `findMedia(mediaId)` para el handler y `observeMedia(incidentId)` para la pantalla |
+| `data/mapper/IncidentSyncMapper.kt` | `toFirestoreMap(media)`: array `media` con solo los `UPLOADED`; `toMediaUploadPhase()` |
+| `sync/OutboxRepository.kt` | `enqueueIncident(draft, media)`: filas `UPLOAD_INCIDENT_MEDIA` **antes** de la del incidente, todas con el mismo `createdAt` |
+| `sync/UploadIncidentMediaHandler.kt` | **nuevo**: un outbox por archivo, sube los bytes ya comprimidos y borra el archivo local al quedar `UPLOADED` |
+| `sync/IncidentSyncHandler.kt` | no escribe con archivos en vuelo, publica el array completo y concilia el replay denegado leyendo el documento |
+| `data/repository/RoomIncidentRepository.kt` | crea las filas de media junto al draft y expone `observeMedia` |
+| `ui/screens/teacher/TeacherIncidentUi.kt` | `IncidentEvidenceUi`, `canAddEvidence`, `mediaPhaseLabel()` e `incidentMediaCountLabel()` |
+| `ui/screens/teacher/TeacherIncidentViewModel.kt` | captura real, límite de Remote Config, fase por archivo y limpieza de fotos huérfanas en `onCleared` |
+| `ui/screens/teacher/TeacherIncidentNewScreen.kt` | `TakePicture` real con FileProvider, grid sin video y etiqueta de subida por tile |
+| `di/AppContainer.kt` · `navigation/AulaSeguraNavHost.kt` | store, handler en el registro y callbacks de foto |
+| `test/.../IncidentSyncMapperTest.kt` · `TeacherIncidentUiTest.kt` · `CreateIncidentUseCaseTest.kt` | array `media`, mapeo de fases, límite, etiquetas y espera de compresión |
+
+**Decisiones que importan**
+
+- **La compresión ocurre al capturar, no al subir.** El docente ve la foto aparecer en el grid
+  mientras el formulario sigue abierto, y cada reintento sube los mismos bytes sin volver a pagar el
+  costo de comprimir.
+- **Los archivos viven en `filesDir`, no en `cacheDir`.** Un incidente puede esperar días a que haya
+  señal y el sistema es libre de borrar un archivo de caché mucho antes que eso: la evidencia no puede
+  depender de la política de limpieza de Android.
+- **Un outbox por archivo, no uno por incidente.** Un archivo que falla detiene solo su fila. El orden
+  de inserción (archivos primero, incidente después) es lo que garantiza que el documento se escriba
+  con el array completo; el handler, además, se niega a escribir con algo en vuelo.
+- **Fallo transitorio ≠ fallo permanente.** `NetworkError`/`ServerError` devuelven el archivo a
+  `PENDING` con `Retry` — nada se pierde y la pasada se corta ahí. Archivo borrado, ilegible,
+  `Rejected` o `NotConfigured` lo dejan en `FAILED` y la cola sigue: el incidente se escribe con las
+  fotos que sí subieron, y el tile dice cuál no.
+- **El documento del incidente es de escritura única.** Las reglas desplegadas no tienen cláusula
+  `update` para docente, así que un replay se resuelve leyendo el documento y comprobando que ya está,
+  en vez de agregar un permiso que nadie pidió.
+- **El video sale de la pantalla.** Fase 1 entrega solo imágenes; dejar el tile de video era prometer
+  algo que el worker no iba a subir.
+
+**Pendientes conocidos de este bloque**
+
+1. **`media_count` del evento `incident_created` cuenta archivos adjuntos**, no archivos subidos. Si
+   una foto falla, el evento dice 1 y el documento queda con 0. Contar lo que quedó en el documento
+   obligaría a emitir el evento desde el handler, que es otro cambio de contrato.
+2. **`IncidentMediaStatus.localPath` no se limpia después de subir**: el tile se une a su fila por ese
+   camino y vaciarlo rompería la unión. El comentario de la entidad que dice "null after upload" es
+   inexacto; se corrija cuando se toque esa entidad.
+3. **El `Retry` de `IncidentSyncHandler` por archivos en vuelo no es alcanzable en producción**: las
+   filas de media siempre acompañan a la del incidente en la misma transacción. Queda como red de
+   seguridad, no como camino esperado.
+4. **La verificación en el teléfono la corre el dueño del proyecto** (modo avión → foto → reconectar),
+   con la lista de pasos entregada en el reporte del bloque.
 
 **Criterio:** un incidente con foto hecho en modo avión termina en Firestore con la URL de
 Cloudinary, sin perder la foto ni duplicar el incidente.

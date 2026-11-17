@@ -1,7 +1,10 @@
 package com.example.aulasegura.data.mapper
 
 import com.example.aulasegura.data.local.entity.IncidentDraftEntity
+import com.example.aulasegura.data.local.entity.IncidentMediaEntity
+import com.example.aulasegura.data.local.entity.UploadState
 import com.example.aulasegura.data.local.mapper.toTimestamp
+import com.example.aulasegura.domain.model.MediaUploadPhase
 
 /**
  * Room draft to the Firestore document of `incidents/{incidentId}`.
@@ -13,10 +16,12 @@ import com.example.aulasegura.data.local.mapper.toTimestamp
  *  - `studentName` and `reportedByName` travel **inside** the document because the
  *    tutor can read their own incidents but not the school roster; without the
  *    denormalised name, the tutor's screen would need a read the rules deny.
- *  - `media` is deliberately absent until bloque 7: writing an empty array would
- *    say "this incident has no evidence" while the teacher did attach a photo.
+ *  - `media` carries one map per uploaded file (`CONTEXT.md` §6). [media] is
+ *    required, not defaulted: a forgotten argument would publish "no evidence"
+ *    for an incident that has a photo, which is the one lie this document cannot
+ *    afford.
  */
-fun IncidentDraftEntity.toFirestoreMap(): Map<String, Any> {
+fun IncidentDraftEntity.toFirestoreMap(media: List<IncidentMediaEntity>): Map<String, Any> {
     val data = mutableMapOf<String, Any>(
         "incidentId" to incidentId,
         "schoolId" to schoolId,
@@ -50,5 +55,44 @@ fun IncidentDraftEntity.toFirestoreMap(): Map<String, Any> {
         data["location"] = location
     }
 
+    // Only files that actually reached Cloudinary: a `PENDING` row has no public
+    // id or url yet, so writing it would publish an evidence entry that nobody
+    // can open.
+    data["media"] = media
+        .filter { it.uploadState == UploadState.UPLOADED }
+        .map { it.toFirestoreMap() }
+
     return data
+}
+
+/**
+ * One `media` array entry (`CONTEXT.md` §6).
+ *
+ * `id` is the local media id and not Cloudinary's `publicId`: the array needs a
+ * stable key the client controls, and the upload response is the only place the
+ * public id is authoritative.
+ *
+ * The uploaded file's own bytes/width/height come from Cloudinary's answer, never
+ * from what the phone guessed before uploading: a transformation preset can
+ * change both.
+ */
+private fun IncidentMediaEntity.toFirestoreMap(): Map<String, Any> = buildMap {
+    put("id", mediaId)
+    put("type", type)
+    publicId?.let { put("publicId", it) }
+    url?.let { put("url", it) }
+    thumbnailUrl?.let { put("thumbnailUrl", it) }
+    format?.let { put("format", it) }
+    put("bytes", bytes)
+    put("width", width)
+    put("height", height)
+    durationSec?.let { put("durationSec", it) }
+}
+
+/** Room upload state to the phase the screen prints next to each file. */
+fun UploadState.toMediaUploadPhase(): MediaUploadPhase = when (this) {
+    UploadState.PENDING -> MediaUploadPhase.PENDING
+    UploadState.UPLOADING -> MediaUploadPhase.UPLOADING
+    UploadState.UPLOADED -> MediaUploadPhase.UPLOADED
+    UploadState.FAILED -> MediaUploadPhase.FAILED
 }

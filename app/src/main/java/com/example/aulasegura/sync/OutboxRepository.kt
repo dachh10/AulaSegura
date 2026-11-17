@@ -5,8 +5,10 @@ import com.example.aulasegura.data.local.AulaSeguraDatabase
 import com.example.aulasegura.data.local.entity.AttendanceRecordEntity
 import com.example.aulasegura.data.local.entity.AttendanceSessionEntity
 import com.example.aulasegura.data.local.entity.IncidentDraftEntity
+import com.example.aulasegura.data.local.entity.IncidentMediaEntity
 import com.example.aulasegura.data.local.entity.OutboxEntity
 import com.example.aulasegura.data.local.entity.SyncState
+import com.example.aulasegura.data.local.entity.UploadState
 import com.example.aulasegura.domain.telemetry.AnalyticsEvent
 import com.example.aulasegura.domain.telemetry.AnalyticsLogger
 import com.example.aulasegura.domain.telemetry.NoOpAnalyticsLogger
@@ -60,22 +62,47 @@ class OutboxRepository(
     }
 
     /**
-     * Queues a new incident: the draft and its outbox row in one transaction.
+     * Queues a new incident: the draft, its evidence rows and the outbox rows in
+     * one transaction.
      *
      * Same rule as attendance — a `PENDING` draft is always backed by a row that
      * will be replayed, never a document that only exists on this phone. No
      * Analytics event here: `incident_created` counts incidents the teacher
      * created, and it is the use case that knows a creation actually happened.
+     *
+     * The order of the inserts is the order the worker follows (`peek` walks
+     * `createdAt, id`), and that is why the files go first: a document written
+     * before its uploads would publish an incident whose `media` array is missing
+     * the photo that is still sitting on the phone (`FASE1.md` 7.6).
      */
-    suspend fun enqueueIncident(draft: IncidentDraftEntity) {
+    suspend fun enqueueIncident(
+        draft: IncidentDraftEntity,
+        media: List<IncidentMediaEntity> = emptyList(),
+    ) {
+        val now = System.currentTimeMillis()
+
         database.withTransaction {
-            database.incidentDao().upsertDraft(draft.copy(syncState = SyncState.PENDING))
+            val incidentDao = database.incidentDao()
+            incidentDao.upsertDraft(draft.copy(syncState = SyncState.PENDING))
+
+            media.forEach { file ->
+                incidentDao.upsertMedia(file.copy(uploadState = UploadState.PENDING))
+                database.outboxDao().insert(
+                    OutboxEntity(
+                        opType = SyncOperation.UPLOAD_INCIDENT_MEDIA.name,
+                        entityLocalId = file.mediaId,
+                        payloadJson = "{}",
+                        createdAt = now,
+                    ),
+                )
+            }
+
             database.outboxDao().insert(
                 OutboxEntity(
                     opType = SyncOperation.UPSERT_INCIDENT.name,
                     entityLocalId = draft.incidentId,
                     payloadJson = "{}",
-                    createdAt = System.currentTimeMillis(),
+                    createdAt = now,
                 ),
             )
         }

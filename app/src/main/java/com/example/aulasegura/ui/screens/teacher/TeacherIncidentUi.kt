@@ -1,7 +1,9 @@
 package com.example.aulasegura.ui.screens.teacher
 
+import android.graphics.Bitmap
 import com.example.aulasegura.domain.model.IncidentCategory
 import com.example.aulasegura.domain.model.IncidentSeverity
+import com.example.aulasegura.domain.model.MediaUploadPhase
 import com.example.aulasegura.domain.model.SyncPhase
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -21,6 +23,23 @@ data class IncidentStudentUi(
     val initials: String,
     val groupId: String,
     val groupLabel: String,
+)
+
+/**
+ * One evidence photo the form is carrying, before and after the save.
+ *
+ * [phase] is `null` while the incident is still unsaved: the file is on this
+ * phone and Cloudinary has not been asked about it yet. Once the draft exists the
+ * phase comes from Room, which is the only place that knows whether the upload
+ * actually finished (`FASE1.md` 7.4).
+ *
+ * [thumbnail] is the tile-sized bitmap, not the full photo: the screen never needs
+ * more than the square it paints.
+ */
+data class IncidentEvidenceUi(
+    val localPath: String,
+    val thumbnail: Bitmap? = null,
+    val phase: MediaUploadPhase? = null,
 )
 
 /**
@@ -48,17 +67,47 @@ data class TeacherIncidentUi(
     val saved: Boolean = false,
     val sync: SyncPhase? = null,
     val message: String? = null,
+    val evidence: List<IncidentEvidenceUi> = emptyList(),
+    val mediaLimit: Int = 0,
+    /** A photo is being compressed right now, so there is nothing to save yet. */
+    val preparing: Boolean = false,
 ) {
 
     val selected: IncidentStudentUi?
         get() = students.firstOrNull { it.id == selectedId }
+
+    val canAddEvidence: Boolean
+        get() = !saved && evidence.size < mediaLimit
 
     val canSave: Boolean
         get() = selected != null &&
             severity != null &&
             description.isNotBlank() &&
             !saving &&
-            !saved
+            !saved &&
+            !preparing
+}
+
+/**
+ * `"2 de 3 archivos"` — the counter under the evidence grid.
+ *
+ * The limit is the one Remote Config delivers (`incident_media_max`), never a
+ * number written in the screen.
+ */
+fun incidentMediaCountLabel(count: Int, limit: Int): String = "$count de $limit archivos"
+
+/**
+ * What each tile prints about its upload, or `null` before the incident exists.
+ *
+ * One label per file is the point of the block: "guardado" for the whole incident
+ * while one photo sits half-uploaded would be the same lie as no progress at all.
+ */
+fun mediaPhaseLabel(phase: MediaUploadPhase?): String? = when (phase) {
+    MediaUploadPhase.PENDING -> "En espera"
+    MediaUploadPhase.UPLOADING -> "Subiendo…"
+    MediaUploadPhase.UPLOADED -> "En la nube"
+    MediaUploadPhase.FAILED -> "No se pudo subir"
+    null -> null
 }
 
 /**

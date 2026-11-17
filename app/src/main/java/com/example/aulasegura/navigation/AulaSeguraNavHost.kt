@@ -463,6 +463,8 @@ fun AulaSeguraNavHost(
                 onSeverityChange = incidentViewModel::setSeverity,
                 onCategoryChange = incidentViewModel::setCategory,
                 onDescriptionChange = incidentViewModel::setDescription,
+                onPhotoTaken = incidentViewModel::addPhoto,
+                onRemoveEvidence = incidentViewModel::removeEvidence,
             )
         }
         composable(Routes.TEACHER_TASK_NEW) {

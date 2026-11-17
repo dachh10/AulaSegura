@@ -85,6 +85,7 @@ import com.example.aulasegura.ui.screens.teacher.TeacherIncidentViewModel
 import com.example.aulasegura.ui.screens.teacher.TeacherHomeScreen
 import com.example.aulasegura.ui.screens.teacher.TeacherHomeViewModel
 import com.example.aulasegura.ui.screens.teacher.TeacherLocationVerifyingScreen
+import com.example.aulasegura.ui.screens.teacher.TeacherNoClassScreen
 import com.example.aulasegura.ui.screens.teacher.TeacherNoticeNewScreen
 import com.example.aulasegura.ui.screens.teacher.TeacherNoticeNewViewModel
 import com.example.aulasegura.ui.screens.teacher.TeacherProfileViewModel
@@ -96,6 +97,7 @@ import com.example.aulasegura.ui.screens.teacher.TeacherRollCallMapScreen
 import com.example.aulasegura.ui.screens.teacher.TeacherRollCallOfflineScreen
 import com.example.aulasegura.ui.screens.teacher.TeacherTaskNewScreen
 import com.example.aulasegura.ui.screens.teacher.TeacherTaskNewViewModel
+import com.example.aulasegura.util.SchoolCalendar
 
 /**
  * Navigation graph for the whole app.
@@ -380,6 +382,19 @@ fun AulaSeguraNavHost(
         // GPS-first: entrar a "Pase de lista" dispara la verificación real de
         // ubicación. La lista de alumnos sólo se alcanza dentro del radio.
         composable(Routes.TEACHER_ROLL_CALL) { entry ->
+            // De lunes a viernes. En fin de semana no se abre una sesión nueva:
+            // una lista del domingo sería una asistencia que no corresponde a un
+            // día de clases. Las listas ya guardadas no se tocan.
+            if (!SchoolCalendar.isClassDay(System.currentTimeMillis())) {
+                TeacherNoClassScreen(
+                    onBack = { navController.popBackStack() },
+                    onGoHome = {
+                        navController.popBackStack(Routes.TEACHER_HOME, inclusive = false)
+                    },
+                )
+                return@composable
+            }
+
             val groupId = entry.arguments?.getString("groupId") ?: "3B"
             val school = rememberSchoolSite()
             TeacherLocationVerifyingScreen(
@@ -601,6 +616,7 @@ fun AulaSeguraNavHost(
                 onRetry = historyViewModel::refresh,
                 onToggleSession = historyViewModel::toggleSession,
                 onToggleIncident = historyViewModel::toggleIncident,
+                onMonthChange = historyViewModel::changeMonth,
             )
         }
         composable(Routes.TEACHER_NOTIFICATIONS) {

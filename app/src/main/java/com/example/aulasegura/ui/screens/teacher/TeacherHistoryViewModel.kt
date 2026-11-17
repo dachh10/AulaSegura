@@ -15,6 +15,7 @@ import com.example.aulasegura.domain.repository.NoticeRepository
 import com.example.aulasegura.domain.repository.RosterFailure
 import com.example.aulasegura.domain.repository.TaskRepository
 import com.example.aulasegura.util.AttendanceTimes
+import java.util.TimeZone
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -45,9 +46,14 @@ class TeacherHistoryViewModel(
     private val tasks: TaskRepository,
     private val notices: NoticeRepository,
     private val today: () -> String = { AttendanceTimes.isoDate(System.currentTimeMillis()) },
+    private val now: () -> Long = System::currentTimeMillis,
+    private val zone: TimeZone = TimeZone.getDefault(),
 ) : ViewModel() {
 
     private val refreshing = MutableStateFlow(true)
+
+    /** `0` is the current month; the header arrows move it backwards. */
+    private val monthOffset = MutableStateFlow(0)
     private val notice = MutableStateFlow<String?>(null)
 
     private val expandedId = MutableStateFlow<String?>(null)
@@ -122,29 +128,41 @@ class TeacherHistoryViewModel(
         )
     }
 
-    val state: StateFlow<TeacherHistoryUi> = combine(lists, publications, open) { cached, posts, shown ->
+    val state: StateFlow<TeacherHistoryUi> = combine(lists, publications, open, monthOffset) { cached, posts, shown, offset ->
+        // One month at a time, and the same month for the three segments: the
+        // header is shared, so a list showing October next to incidents from
+        // November would be the screen contradicting itself.
+        val target = monthKeyBefore(now(), offset, zone)
+        val sessions = cached.sessions.filter { monthKeyOfIso(it.date, zone) == target }
+        val incidents = cached.incidents.filter { monthKey(it.occurredAt, zone) == target }
+        val tasks = posts.tasks.filter { monthKey(it.createdAt, zone) == target }
+        val notices = posts.notices.filter { monthKey(it.createdAt, zone) == target }
+
         TeacherHistoryUi(
+            monthOffset = offset,
+            monthLabel = monthLabel(now(), offset, zone),
+            canGoNextMonth = offset < 0,
             sections = historySections(
-                sessions = cached.sessions,
+                sessions = sessions,
                 todayIso = today(),
                 expandedId = shown.sessionId,
                 detail = shown.detail,
                 detailLoading = shown.detailLoading,
             ),
             incidentSections = incidentSections(
-                incidents = cached.incidents,
+                incidents = incidents,
                 todayIso = today(),
                 expandedId = shown.incidentId,
                 evidence = shown.evidence,
             ),
-            publications = publicationRows(tasks = posts.tasks, notices = posts.notices),
+            publications = publicationRows(tasks = tasks, notices = notices),
             refreshing = cached.refreshing,
             notice = cached.notice,
             expandedId = shown.sessionId,
             expandedIncidentId = shown.incidentId,
             detailLoading = shown.detailLoading,
-            totalSessions = cached.sessions.size,
-            totalIncidents = cached.incidents.size,
+            totalSessions = sessions.size,
+            totalIncidents = incidents.size,
         )
     }.stateIn(
         scope = viewModelScope,
@@ -154,6 +172,15 @@ class TeacherHistoryViewModel(
 
     init {
         refresh()
+    }
+
+    /** `-1` goes back a month, `+1` forward; the current month is the ceiling. */
+    fun changeMonth(delta: Int) {
+        monthOffset.value = if (delta > 0) {
+            nextMonthOffset(monthOffset.value)
+        } else {
+            monthOffset.value + delta
+        }
     }
 
     fun refresh() {

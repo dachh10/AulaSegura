@@ -106,6 +106,8 @@ fun TeacherHistoryScreen(
     onRetry: () -> Unit = {},
     onToggleSession: (String) -> Unit = {},
     onToggleIncident: (String) -> Unit = {},
+    /** `-1` previous month, `+1` next; the ViewModel clamps the future. */
+    onMonthChange: (Int) -> Unit = {},
 ) {
     var segment by remember { mutableStateOf(0) }
 
@@ -128,7 +130,14 @@ fun TeacherHistoryScreen(
                     onSelect = { segment = it },
                 )
             }
-            Reveal(120) { MonthSelector() }
+            Reveal(120) {
+                MonthSelector(
+                    label = ui.monthLabel,
+                    canGoNext = ui.canGoNextMonth,
+                    onPrevious = { onMonthChange(-1) },
+                    onNext = { onMonthChange(1) },
+                )
+            }
 
             ui.notice?.let { message ->
                 Reveal(160) {
@@ -143,7 +152,10 @@ fun TeacherHistoryScreen(
             Reveal(200) {
                 when (segment) {
                     0 -> when {
-                        ui.sections.isEmpty() -> HistoryEmptyState(refreshing = ui.refreshing)
+                        ui.sections.isEmpty() -> HistoryEmptyState(
+                            refreshing = ui.refreshing,
+                            offset = ui.monthOffset,
+                        )
                         else -> Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
                             ui.sections.forEach { section ->
                                 HistorySection(
@@ -155,7 +167,10 @@ fun TeacherHistoryScreen(
                     }
 
                     1 -> when {
-                        ui.incidentSections.isEmpty() -> IncidentEmptyState(refreshing = ui.refreshing)
+                        ui.incidentSections.isEmpty() -> IncidentEmptyState(
+                            refreshing = ui.refreshing,
+                            offset = ui.monthOffset,
+                        )
                         else -> Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
                             ui.incidentSections.forEach { section ->
                                 IncidentSection(
@@ -168,7 +183,7 @@ fun TeacherHistoryScreen(
 
                     else -> when {
                         ui.publications.isEmpty() ->
-                            PublicationEmptyState(refreshing = ui.refreshing)
+                            PublicationEmptyState(refreshing = ui.refreshing, offset = ui.monthOffset)
 
                         else -> Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                             ui.publications.forEach { publication ->
@@ -295,7 +310,12 @@ private fun HistorySegment(
 }
 
 @Composable
-private fun MonthSelector() {
+private fun MonthSelector(
+    label: String,
+    canGoNext: Boolean,
+    onPrevious: () -> Unit,
+    onNext: () -> Unit,
+) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -304,9 +324,14 @@ private fun MonthSelector() {
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.SpaceBetween,
     ) {
-        MonthArrow(Icons.AutoMirrored.Filled.KeyboardArrowLeft)
+        MonthArrow(
+            icon = Icons.AutoMirrored.Filled.KeyboardArrowLeft,
+            enabled = true,
+            description = "Mes anterior",
+            onClick = onPrevious,
+        )
         Text(
-            text = "Noviembre 2026",
+            text = label,
             color = PrimaryContainer,
             fontFamily = BricolageGrotesque,
             fontWeight = FontWeight.Bold,
@@ -314,24 +339,40 @@ private fun MonthSelector() {
             lineHeight = 22.sp,
             letterSpacing = (-0.16).sp,
         )
-        MonthArrow(Icons.AutoMirrored.Filled.KeyboardArrowRight)
+        MonthArrow(
+            icon = Icons.AutoMirrored.Filled.KeyboardArrowRight,
+            enabled = canGoNext,
+            description = "Mes siguiente",
+            onClick = onNext,
+        )
     }
 }
 
 @Composable
-private fun MonthArrow(icon: androidx.compose.ui.graphics.vector.ImageVector) {
-    val (interaction, pressModifier) = rememberPressScale(0.9f)
+private fun MonthArrow(
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    enabled: Boolean,
+    description: String,
+    onClick: () -> Unit,
+) {
+    val (interaction, pressModifier) = rememberPressScale(if (enabled) 0.9f else 1f)
     Box(
         modifier = pressModifier
             .size(32.dp)
             .clip(HistoryPillShape)
-            .clickable(interactionSource = interaction, indication = null, onClick = {}),
+            .clickable(
+                enabled = enabled,
+                interactionSource = interaction,
+                indication = null,
+                onClick = onClick,
+            ),
         contentAlignment = Alignment.Center,
     ) {
         Icon(
             imageVector = icon,
-            contentDescription = null,
-            tint = PrimaryContainer,
+            contentDescription = description,
+            // A disabled arrow is invisible, not a button that silently does nothing.
+            tint = if (enabled) PrimaryContainer else OutlineVariant.copy(alpha = 0.6f),
             modifier = Modifier.size(20.dp),
         )
     }
@@ -387,7 +428,7 @@ private fun HistoryNotice(
 }
 
 @Composable
-private fun HistoryEmptyState(refreshing: Boolean) {
+private fun HistoryEmptyState(refreshing: Boolean, offset: Int) {
     Box(
         modifier = Modifier
             .fillMaxWidth()
@@ -399,10 +440,10 @@ private fun HistoryEmptyState(refreshing: Boolean) {
         contentAlignment = Alignment.Center,
     ) {
         Text(
-            text = if (refreshing) {
-                "Cargando tu historial…"
-            } else {
-                "Todavía no hay pases de lista guardados."
+            text = when {
+                refreshing -> "Cargando tu historial…"
+                offset < 0 -> "No hay listas guardadas en este mes."
+                else -> "Todavía no hay pases de lista guardados."
             },
             color = OnSurfaceVariant,
             fontFamily = DmSans,
@@ -599,7 +640,7 @@ private fun PublicationKindChip(label: String, urgent: Boolean) {
 }
 
 @Composable
-private fun PublicationEmptyState(refreshing: Boolean) {
+private fun PublicationEmptyState(refreshing: Boolean, offset: Int) {
     Box(
         modifier = Modifier
             .fillMaxWidth()
@@ -611,10 +652,10 @@ private fun PublicationEmptyState(refreshing: Boolean) {
         contentAlignment = Alignment.Center,
     ) {
         Text(
-            text = if (refreshing) {
-                "Buscando tus publicaciones…"
-            } else {
-                "Aún no has publicado tareas ni avisos. Lo que publiques aparece aquí, " +
+            text = when {
+                refreshing -> "Buscando tus publicaciones…"
+                offset < 0 -> "No publicaste tareas ni avisos en este mes."
+                else -> "Aún no has publicado tareas ni avisos. Lo que publiques aparece aquí, " +
                     "también sin conexión."
             },
             color = OnSurfaceVariant,
@@ -855,7 +896,7 @@ private fun EvidenceRow(evidence: HistoryEvidenceUi) {
 }
 
 @Composable
-private fun IncidentEmptyState(refreshing: Boolean) {
+private fun IncidentEmptyState(refreshing: Boolean, offset: Int) {
     Box(
         modifier = Modifier
             .fillMaxWidth()
@@ -867,10 +908,10 @@ private fun IncidentEmptyState(refreshing: Boolean) {
         contentAlignment = Alignment.Center,
     ) {
         Text(
-            text = if (refreshing) {
-                "Buscando tus incidentes…"
-            } else {
-                "Aún no has registrado incidentes. Los que reportes aparecen aquí, " +
+            text = when {
+                refreshing -> "Buscando tus incidentes…"
+                offset < 0 -> "No registraste incidentes en este mes."
+                else -> "Aún no has registrado incidentes. Los que reportes aparecen aquí, " +
                     "también sin conexión."
             },
             color = OnSurfaceVariant,

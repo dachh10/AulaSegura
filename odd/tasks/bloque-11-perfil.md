@@ -44,3 +44,5 @@ Route: inline en las 6 tareas. Ningún trigger de delegación se cumple: una sol
 **L5** — 17 nov 2026: `assembleDebug` verde y `testDebugUnitTest` con 38 suites / 227 tests / 0 fallos / 0 errores (eran 219 antes del bloque). Dos correcciones durante la implementación: `AlertDialog` no acepta `neutralButton` en este BOM de Material3 (se usa el overload con `content` y `@OptIn(ExperimentalMaterial3Api::class)`), y `teacherGreeting("")` dejaba un espacio final (se filtran los segmentos en blanco).
 
 **L6** — 11.5 verificado por readback: `SessionViewModel.signOut()` y `observeAccountActive().firstOrNull { !it }` siguen intactos; el logout del perfil llama al mismo `sessionViewModel.signOut()` de siempre. La desactivación remota no se probó en dispositivo.
+
+**L7** — 17 nov 2026, corrección visual tras la prueba del dueño: el `AlertDialog` con overload de `content` no dibujaba su contenedor y las opciones quedaban superpuestas sobre la pantalla. Se reemplaza por `Dialog` + `Surface` opaca con dos botones de ancho completo y cancelar; el resto del bloque funcionó en el teléfono. `assembleDebug` y 227 tests siguen verdes.

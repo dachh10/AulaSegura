@@ -33,13 +33,13 @@ import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.filled.PhotoLibrary
 import androidx.compose.material.icons.filled.School
 import androidx.compose.material.icons.filled.Shield
 import androidx.compose.material.icons.filled.Sync
-import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
+import androidx.compose.material3.Surface
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -57,6 +57,7 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.window.Dialog
 import androidx.core.content.FileProvider
 import coil.compose.AsyncImage
 import com.example.aulasegura.ui.components.TeacherBottomBar
@@ -103,7 +104,6 @@ private val GroupCardShape = RoundedCornerShape(20.dp)
 private val IconTileShape = RoundedCornerShape(12.dp)
 private val PillShape = RoundedCornerShape(percent = 50)
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun TeacherProfileScreen(
     ui: TeacherProfileUi,
@@ -193,37 +193,124 @@ fun TeacherProfileScreen(
     }
 
     if (showPhotoOptions) {
-        AlertDialog(onDismissRequest = { showPhotoOptions = false }) {
-            Column(modifier = Modifier.padding(24.dp)) {
-                Text(
-                    text = "Cambiar foto",
-                    color = PrimaryContainer,
-                    fontFamily = BricolageGrotesque,
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 20.sp,
-                )
-                Spacer(Modifier.height(10.dp))
-                Text(
-                    text = "Elige una foto reciente o toma una ahora.",
-                    color = Outline,
-                    fontFamily = DmSans,
-                    fontSize = 14.sp,
-                )
-                Spacer(Modifier.height(14.dp))
-                TextButton(onClick = {
-                    showPhotoOptions = false
-                    capturePhoto()
-                }) {
-                    Text(text = "Tomar foto", fontFamily = DmSans)
-                }
-                TextButton(onClick = {
-                    showPhotoOptions = false
-                    galleryLauncher.launch("image/*")
-                }) {
-                    Text(text = "Elegir de la galería", fontFamily = DmSans)
-                }
-                TextButton(onClick = { showPhotoOptions = false }) {
-                    Text(text = "Cancelar", fontFamily = DmSans)
+        // A Dialog + Surface instead of AlertDialog: the overload that lets us
+        // place three options does not draw Material's dialog container, so the
+        // options ended up floating over the page. Here the card is explicit and
+        // opaque, and each option is a full-width button with its own hit target.
+        Dialog(onDismissRequest = { showPhotoOptions = false }) {
+            Surface(
+                shape = RoundedCornerShape(24.dp),
+                color = SurfaceContainerLowest,
+                tonalElevation = 6.dp,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 24.dp),
+            ) {
+                Column(
+                    modifier = Modifier.padding(24.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp),
+                ) {
+                    Text(
+                        text = "Cambiar foto",
+                        color = PrimaryContainer,
+                        fontFamily = BricolageGrotesque,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 20.sp,
+                    )
+                    Text(
+                        text = "Elige una foto reciente o toma una ahora.",
+                        color = Outline,
+                        fontFamily = DmSans,
+                        fontSize = 14.sp,
+                        lineHeight = 20.sp,
+                    )
+
+                    Spacer(Modifier.height(4.dp))
+
+                    val (cameraOptionInteraction, cameraOptionPress) = rememberPressScale(0.98f)
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(48.dp)
+                            .then(cameraOptionPress)
+                            .clip(RoundedCornerShape(percent = 50))
+                            .background(BrandCoral)
+                            .clickable(
+                                interactionSource = cameraOptionInteraction,
+                                indication = null,
+                                onClick = {
+                                    showPhotoOptions = false
+                                    capturePhoto()
+                                },
+                            )
+                            .padding(horizontal = 16.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.Center,
+                    ) {
+                        Icon(
+                            imageVector = Icons.Filled.CameraAlt,
+                            contentDescription = null,
+                            tint = Color.White,
+                            modifier = Modifier.size(18.dp),
+                        )
+                        Spacer(Modifier.width(10.dp))
+                        Text(
+                            text = "Tomar foto",
+                            color = Color.White,
+                            fontFamily = DmSans,
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 14.sp,
+                        )
+                    }
+
+                    val (galleryOptionInteraction, galleryOptionPress) = rememberPressScale(0.98f)
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(48.dp)
+                            .then(galleryOptionPress)
+                            .clip(RoundedCornerShape(percent = 50))
+                            .border(1.dp, PrimaryContainer, RoundedCornerShape(percent = 50))
+                            .clickable(
+                                interactionSource = galleryOptionInteraction,
+                                indication = null,
+                                onClick = {
+                                    showPhotoOptions = false
+                                    galleryLauncher.launch("image/*")
+                                },
+                            )
+                            .padding(horizontal = 16.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.Center,
+                    ) {
+                        Icon(
+                            imageVector = Icons.Filled.PhotoLibrary,
+                            contentDescription = null,
+                            tint = PrimaryContainer,
+                            modifier = Modifier.size(18.dp),
+                        )
+                        Spacer(Modifier.width(10.dp))
+                        Text(
+                            text = "Elegir de la galería",
+                            color = PrimaryContainer,
+                            fontFamily = DmSans,
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 14.sp,
+                        )
+                    }
+
+                    TextButton(
+                        onClick = { showPhotoOptions = false },
+                        modifier = Modifier.align(Alignment.CenterHorizontally),
+                    ) {
+                        Text(
+                            text = "Cancelar",
+                            color = Outline,
+                            fontFamily = DmSans,
+                            fontWeight = FontWeight.Medium,
+                            fontSize = 14.sp,
+                        )
+                    }
                 }
             }
         }

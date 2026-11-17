@@ -1,6 +1,7 @@
 package com.example.aulasegura.data.mapper
 
 import com.example.aulasegura.data.local.entity.TaskEntity
+import com.example.aulasegura.domain.model.AttachmentSyncState
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
@@ -90,6 +91,25 @@ class TaskAttachmentMapperTest {
             .toPublishedTask(groupNames = listOf("3° B"), pending = false)
 
         assertEquals("hoja-de-ejercicios.pdf", row.attachmentName)
+        assertEquals(AttachmentSyncState.UPLOADED, row.attachmentState)
+    }
+
+    @Test
+    fun `an attachment that failed is reported as such in the history`() {
+        val row = task()
+            .withAttachment(pending().copy(state = StoredTaskAttachment.FAILED, localPath = null))
+            .toPublishedTask(groupNames = listOf("3° B"), pending = false)
+
+        assertEquals(AttachmentSyncState.FAILED, row.attachmentState)
+    }
+
+    @Test
+    fun `an attachment still queued is reported as pending`() {
+        val row = task()
+            .withAttachment(pending())
+            .toPublishedTask(groupNames = listOf("3° B"), pending = true)
+
+        assertEquals(AttachmentSyncState.PENDING, row.attachmentState)
     }
 
     private fun pending() = StoredTaskAttachment(

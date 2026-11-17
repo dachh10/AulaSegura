@@ -20,7 +20,7 @@
 | **7** — Media del incidente | foto comprimida a Cloudinary | ✅ **hecho** · `assembleDebug` + 154 tests |
 | **7B** — Mis incidentes | historial propio cache-first | ✅ **hecho** · `assembleDebug` + 167 tests |
 | **8** — Tareas y avisos | publicar con audiencia | ✅ **hecho** · `assembleDebug` + 179 tests |
-| **8B** — PDF en tareas | un solo PDF (10 MB) subido antes de publicar | ✅ **hecho** · `assembleDebug` + 186 tests |
+| **8B** — PDF en tareas | un solo PDF (10 MB) subido antes de publicar | ✅ **hecho** · `assembleDebug` + 189 tests |
 | **9** — Chat | RTDB y presencia | pendiente |
 | **10** — Notificaciones y FCM | push enviado desde la consola | pendiente |
 | **11** — Perfil | datos reales del docente | pendiente |
@@ -666,8 +666,8 @@ Firestore con la audiencia correcta y se leen sin red después de la primera car
 
 ## Bloque 8B — Un PDF por tarea (agregado al bloque 8)
 
-> **Estado: ✅ HECHO** — 17 nov 2026 · `assembleDebug` verde · **186 tests unitarios, 0 fallos**
-> (+7 de este bloque: `TaskAttachmentMapperTest`).
+> **Estado: ✅ HECHO** — 17 nov 2026 · `assembleDebug` verde · **189 tests unitarios, 0 fallos**
+> (+10 de este bloque: 9 de `TaskAttachmentMapperTest` y el adjunto en la línea de tiempo).
 
 - [x] **8B.1** Un solo PDF por tarea, máximo 10 MB; ni fotos ni Word
 - [x] **8B.2** Selector del sistema filtrado a `application/pdf`, con tope aplicado **mientras se lee**
@@ -689,6 +689,7 @@ Firestore con la audiencia correcta y se leen sin red después de la primera car
 | `sync/UploadTaskAttachmentHandler.kt` | **nuevo**: sube el PDF, marca `UPLOADED` y borra la copia local |
 | `sync/TaskSyncHandler.kt` | no escribe la tarea mientras el PDF esté `PENDING` |
 | `ui/screens/teacher/TeacherTaskNewUi.kt` · `TeacherTaskNewViewModel.kt` | **nuevos** `TASK_ATTACHMENT_MAX_BYTES`, `taskAttachmentSizeLabel`, `attachPdf`/`removeAttachment` y limpieza en `onCleared` |
+| `ui/screens/teacher/TeacherHistoryUi.kt` · `TeacherHistoryScreen.kt` | la tarjeta de Publicaciones muestra el PDF con su estado (`Subido` / `Pendiente` / `No se subió`), para que el docente pueda corroborarlo después |
 | `ui/screens/teacher/TeacherTaskNewScreen.kt` | zona de adjuntos real: selector, chip con nombre y tamaño, cambiar y quitar |
 | `di/AppContainer.kt` · `navigation/AulaSeguraNavHost.kt` | store y handler registrados; callbacks cableados |
 | `test/.../TaskAttachmentMapperTest.kt` | **nuevo**: documento con y sin URL, columna JSON, columna corrupta y nombre en el historial |
@@ -720,12 +721,13 @@ Firestore con la audiencia correcta y se leen sin red después de la primera car
 **Pendientes conocidos**
 
 1. **El tutor todavía no ve el adjunto**: su pantalla es mock hasta su fase. El documento ya lleva la URL.
-2. **Sin reintento manual del archivo.** Si falló, el docente vuelve a adjuntarlo desde el formulario; el
-   historial solo muestra el nombre, no el estado del adjunto.
+2. **Sin reintento manual del archivo.** El historial dice si el PDF subió, quedó pendiente o no se subió,
+   pero no deja reintentarlo: si falló, el docente vuelve a adjuntarlo desde el formulario.
 3. **Sin vista previa dentro de la app**: el PDF se abre con el visor del teléfono.
 
-**Criterio:** en modo avión, adjuntar un PDF y publicar deja la tarea "Pendiente de enviar"; al
-reconectar, `tasks/{id}.attachments` tiene un elemento con `url` de Cloudinary y un solo documento.
+**Criterio:** en modo avión, adjuntar un PDF y publicar deja la tarea "Pendiente de enviar" con el
+adjunto en "Pendiente"; al reconectar, `tasks/{id}.attachments` tiene un elemento con `url` de
+Cloudinary, el historial pasa a "hoja.pdf · Subido" y hay un solo documento.
 
 ---
 

@@ -25,6 +25,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowLeft
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
+import androidx.compose.material.icons.filled.AttachFile
 import androidx.compose.material.icons.filled.CloudDone
 import androidx.compose.material.icons.filled.CloudOff
 import androidx.compose.material.icons.filled.CloudUpload
@@ -48,6 +49,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.aulasegura.domain.model.AttachmentSyncState
 import com.example.aulasegura.domain.model.AttendanceMark
 import com.example.aulasegura.domain.model.MediaUploadPhase
 import com.example.aulasegura.domain.model.RollCallSync
@@ -470,6 +472,42 @@ private fun PublicationCard(publication: HistoryPublicationUi) {
                 maxLines = 2,
                 overflow = TextOverflow.Ellipsis,
             )
+        }
+
+        // The attached PDF and what happened to it. The teacher asked for this
+        // row to be able to confirm, days later, that the file really went up.
+        publication.attachmentLabel?.let { label ->
+            val tint = when (publication.attachmentState) {
+                AttachmentSyncState.UPLOADED -> PresentText
+                AttachmentSyncState.FAILED -> AbsentText
+                else -> PendingText
+            }
+
+            Row(
+                modifier = Modifier
+                    .clip(HistoryPillShape)
+                    .background(SurfaceContainer)
+                    .padding(horizontal = 8.dp, vertical = 4.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
+            ) {
+                Icon(
+                    imageVector = Icons.Filled.AttachFile,
+                    contentDescription = null,
+                    tint = tint,
+                    modifier = Modifier.size(13.dp),
+                )
+                Text(
+                    text = label,
+                    color = tint,
+                    fontFamily = JetBrainsMono,
+                    fontWeight = FontWeight.SemiBold,
+                    fontSize = 10.5.sp,
+                    lineHeight = 14.sp,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
         }
 
         Row(

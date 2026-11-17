@@ -3,6 +3,7 @@ package com.example.aulasegura.data.mapper
 import com.example.aulasegura.data.local.entity.NoticeEntity
 import com.example.aulasegura.data.local.entity.TaskEntity
 import com.example.aulasegura.data.local.mapper.toTimestamp
+import com.example.aulasegura.domain.model.AttachmentSyncState
 import com.example.aulasegura.domain.model.PublishedNotice
 import com.example.aulasegura.domain.model.PublishedTask
 
@@ -18,17 +19,29 @@ import com.example.aulasegura.domain.model.PublishedTask
 internal fun TaskEntity.toPublishedTask(
     groupNames: List<String>,
     pending: Boolean,
-): PublishedTask = PublishedTask(
-    taskId = taskId,
-    title = title,
-    subject = subject,
-    description = description,
-    groupNames = groupNames,
-    dueDate = dueDate,
-    createdAt = createdAt,
-    pending = pending,
-    attachmentName = attachments().firstOrNull()?.fileName,
-)
+): PublishedTask {
+    val attachment = attachments().firstOrNull()
+
+    return PublishedTask(
+        taskId = taskId,
+        title = title,
+        subject = subject,
+        description = description,
+        groupNames = groupNames,
+        dueDate = dueDate,
+        createdAt = createdAt,
+        pending = pending,
+        attachmentName = attachment?.fileName,
+        attachmentState = attachment?.toSyncState(),
+    )
+}
+
+/** The stored state, narrowed to what the history can print and colour. */
+private fun StoredTaskAttachment.toSyncState(): AttachmentSyncState = when {
+    isUploaded -> AttachmentSyncState.UPLOADED
+    state == StoredTaskAttachment.FAILED -> AttachmentSyncState.FAILED
+    else -> AttachmentSyncState.PENDING
+}
 
 /** A cached notice, as the history row shows it. */
 internal fun NoticeEntity.toPublishedNotice(

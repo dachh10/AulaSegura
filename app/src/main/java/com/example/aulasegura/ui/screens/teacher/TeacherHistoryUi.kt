@@ -1,5 +1,6 @@
 package com.example.aulasegura.ui.screens.teacher
 
+import com.example.aulasegura.domain.model.AttachmentSyncState
 import com.example.aulasegura.domain.model.AttendanceMark
 import com.example.aulasegura.domain.model.AttendanceSessionDetail
 import com.example.aulasegura.domain.model.AttendanceSessionRecord
@@ -124,6 +125,9 @@ data class HistoryPublicationUi(
     /** Still in the outbox: Firestore does not have it yet. */
     val pending: Boolean,
     val urgent: Boolean,
+    /** `"hoja.pdf · Subido"`, when the task carries a PDF. */
+    val attachmentLabel: String? = null,
+    val attachmentState: AttachmentSyncState? = null,
     /** Only for ordering; the row prints [postedLabel]. */
     val createdAt: Long,
 )
@@ -243,6 +247,10 @@ fun publicationRows(
             postedLabel = publicationTimestampLabel(task.createdAt, zone),
             pending = task.pending,
             urgent = false,
+            attachmentLabel = task.attachmentName?.let { name ->
+                publicationAttachmentLabel(name, task.attachmentState)
+            },
+            attachmentState = task.attachmentState,
             createdAt = task.createdAt,
         )
     } + notices.map { notice ->
@@ -261,6 +269,20 @@ fun publicationRows(
 
     return rows.sortedByDescending { it.createdAt }
 }
+
+/**
+ * The attachment line of a publication, with the truth about the file.
+ *
+ * It is evidence, not decoration: `Subido` means Cloudinary answered and the URL
+ * is in the document, `Pendiente` means the file is still on this phone, and
+ * `No se subió` means the task went out without it.
+ */
+fun publicationAttachmentLabel(name: String, state: AttachmentSyncState?): String =
+    when (state) {
+        AttachmentSyncState.UPLOADED -> "$name · Subido"
+        AttachmentSyncState.FAILED -> "$name · No se subió"
+        AttachmentSyncState.PENDING, null -> "$name · Pendiente"
+    }
 
 /** `"12 nov · 08:00"` — when the teacher published it, in local time. */
 fun publicationTimestampLabel(

@@ -1,11 +1,13 @@
 package com.example.aulasegura.ui.screens.teacher
 
+import com.example.aulasegura.domain.model.AttachmentSyncState
 import com.example.aulasegura.domain.model.PublishedNotice
 import com.example.aulasegura.domain.model.PublishedTask
 import java.util.Calendar
 import java.util.TimeZone
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -74,6 +76,30 @@ class TeacherPublicationUiTest {
     }
 
     @Test
+    fun `a task with a PDF shows the file and whether it reached Cloudinary`() {
+        val rows = publicationRows(
+            tasks = listOf(
+                task("t-subido", at(10, 8), attachmentName = "hoja.pdf", attachmentState = AttachmentSyncState.UPLOADED),
+                task("t-pendiente", at(11, 8), attachmentName = "guia.pdf", attachmentState = AttachmentSyncState.PENDING),
+                task("t-fallido", at(12, 8), attachmentName = "examen.pdf", attachmentState = AttachmentSyncState.FAILED),
+                task("t-sin-archivo", at(13, 8)),
+            ),
+            notices = emptyList(),
+            zone = utc,
+        ).associateBy { it.id }
+
+        assertEquals("hoja.pdf · Subido", rows.getValue("t-subido").attachmentLabel)
+        assertEquals(AttachmentSyncState.UPLOADED, rows.getValue("t-subido").attachmentState)
+        assertEquals("guia.pdf · Pendiente", rows.getValue("t-pendiente").attachmentLabel)
+        assertEquals(
+            "a task that went out without its file must not look like it has it",
+            "examen.pdf · No se subió",
+            rows.getValue("t-fallido").attachmentLabel,
+        )
+        assertNull(rows.getValue("t-sin-archivo").attachmentLabel)
+    }
+
+    @Test
     fun `nothing published renders no rows at all`() {
         assertTrue(publicationRows(emptyList(), emptyList(), utc).isEmpty())
     }
@@ -115,7 +141,13 @@ class TeacherPublicationUiTest {
         set(2026, Calendar.NOVEMBER, day, hour, 0, 0)
     }.timeInMillis
 
-    private fun task(id: String, createdAt: Long, pending: Boolean = false) = PublishedTask(
+    private fun task(
+        id: String,
+        createdAt: Long,
+        pending: Boolean = false,
+        attachmentName: String? = null,
+        attachmentState: AttachmentSyncState? = null,
+    ) = PublishedTask(
         taskId = id,
         title = "Ecuaciones",
         subject = "Matemáticas",
@@ -124,6 +156,8 @@ class TeacherPublicationUiTest {
         dueDate = createdAt + 86_400_000L,
         createdAt = createdAt,
         pending = pending,
+        attachmentName = attachmentName,
+        attachmentState = attachmentState,
     )
 
     private fun notice(

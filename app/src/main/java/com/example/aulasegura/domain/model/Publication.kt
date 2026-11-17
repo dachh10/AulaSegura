@@ -100,7 +100,22 @@ data class PublishedTask(
     val pending: Boolean,
     /** Name of the attached PDF, when the teacher added one. */
     val attachmentName: String? = null,
+    /** Whether that PDF made it to Cloudinary, failed, or is still queued. */
+    val attachmentState: AttachmentSyncState? = null,
 )
+
+/**
+ * Where the task PDF is in its upload, as the history shows it.
+ *
+ * The document is written only after `UPLOADED`, so a published task showing
+ * `PENDING` is a task whose file is still on this phone and whose document has
+ * not left yet either.
+ */
+enum class AttachmentSyncState {
+    PENDING,
+    UPLOADED,
+    FAILED,
+}
 
 /** A notice this teacher published, with the same resolved shape as [PublishedTask]. */
 data class PublishedNotice(

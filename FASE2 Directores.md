@@ -891,3 +891,41 @@ por el orchestrator en `local.properties` y no se tocó en este cambio):
    ni alta de cuentas, ni push. Las dos cosas son manuales por diseño.
 6. **Los datos del mockup no son los datos reales.** 85/3 del diseño contra 111/4 de la semilla.
    Si una pantalla muestra una cifra redonda "bonita", sospechar que sigue hardcodeada.
+
+---
+
+## Octava continuación — ubicación editable del plantel
+
+Pedido del dueño: la directora debe poder cambiar la ubicación del plantel escribiendo
+latitud/longitud **o** moviendo el pin directamente en el mapa.
+
+- `AdminCampusUi.kt`: `CoordinateValidation` y `validateCoordinates` (rango -90..90 y
+  -180..180, vacío, no numérico, NaN/Inf y rechazo de `0,0`, porque `AdminSchool.hasLocation`
+  lo trata como "sin ubicación"). El decimal con coma se normaliza y todo se formatea con
+  `Locale.US` para que un dispositivo en español no rompa el round-trip. `canSave` incluye la
+  validez de las coordenadas y `buildCampusConfig` es puro, para probarlo sin Firestore.
+- `AdminCampusViewModel.kt`: `setLatitude`, `setLongitude` y `setLocation` alimentan el
+  borrador; `save()` construye el `AdminCampusConfig` con las coordenadas parseadas, nunca con
+  las del documento leído. Tras guardar se conserva el texto exacto tecleado.
+- `CampusMap.kt`: nuevo `EditableCampusMap` aditivo con `GoogleMap`, el `Circle` de la geocerca
+  y un marcador arrastrable. En maps-compose 6.1.2 `Marker` no expone callbacks de arrastre:
+  se observa `MarkerState.position` con `snapshotFlow` mientras `isDragging`, y `onMapClick`
+  también relocaliza el pin. El `CampusMap` del docente no se modificó.
+- `AdminCampusScreen.kt`: `LocationCard` muestra los dos campos con teclado decimal, el error
+  en línea y el mapa editable; se eliminaron el mapa dibujado a mano y `CoordinateBox`, que ya
+  no tenían uso.
+- `AdminCampusUiTest.kt`: 10 tests nuevos (rangos, vacío, NaN/Inf, `0,0`, coma decimal,
+  round-trip con locale español, proveniencia del config y compuerta de `canSave`).
+
+**Integración con `origin/main`:** la rama `feat/admin-fase2` partió de `main` y se mergeó
+`origin/main` (9 commits de la Fase 1 del docente). Hubo 8 conflictos de unión —
+`build.gradle.kts`, `libs.versions.toml`, `AuthRepository`, `AuthRepositoryImpl`, `AppContainer`,
+`PermissionsScreen`, `file_paths.xml` y `AuthViewModelsTest` — resueltos conservando **ambos**
+lados. En particular Coil 2 (`coil.compose`, docente) y Coil 3 (`coil3.compose`, directora)
+coexisten como dependencias separadas, y `PasswordChangeResult` conserva las siete variantes
+del docente más la rama `Failure` que usa la directora.
+
+**Verificación:** `assembleDebug` y `testDebugUnitTest` en verde · **356 tests, 0 fallos**
+(318 antes del merge). Sin cambios en `docs/firestore.rules` ni en índices en este cambio.
+Pendiente la prueba en dispositivo del arrastre dentro del scroll vertical y de la foto del
+perfil del docente con Coil 2.

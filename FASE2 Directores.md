@@ -477,12 +477,10 @@ estado con las reglas desplegadas y apertura de las URLs de Cloudinary.
 - [x] **8.5** Sin solapamiento con Remote Config: `default_radius_meters` sigue siendo solo
       fallback del docente
 
-> **P0.4 resuelto — con consecuencia:** `requireLocation` **no tiene consumidor**. El nombre solo
-> aparece en documentos, en el seed y en la pantalla vieja. El gate real es
-> `location/Geofence.kt:evaluateGeofence(fix, site)`, que lee `SchoolSite` de la caché Room v3
-> (schoolId, nombre, lat, lng, radiusMeters). Hoy el switch se escribe en Firestore pero **no**
-> cambia el comportamiento del docente. Decisión pendiente (toca código de Diego): agregar el
-> consumidor en el gate o sacar el switch. No se disfraza como funcional.
+> **P0.4 original:** `requireLocation` no tenía consumidor: se escribía en Firestore pero no
+> cambiaba el comportamiento del docente. **Resuelto en la novena continuación:** el flag viaja
+> en `SchoolSite` desde Firestore y desde la caché Room v4, y el gate lo respeta. Ver el final
+> del documento.
 
 **Verificación (17 nov 2026):** `assembleDebug` verde · **260 tests, 0 fallos** (eran 253) ·
 `gentle-ai review assess` = `medium`. Test de regresión: el update map no contiene `key`,
@@ -929,3 +927,35 @@ del docente más la rama `Failure` que usa la directora.
 (318 antes del merge). Sin cambios en `docs/firestore.rules` ni en índices en este cambio.
 Pendiente la prueba en dispositivo del arrastre dentro del scroll vertical y de la foto del
 perfil del docente con Coil 2.
+
+---
+
+## Novena continuación — consumidor de `requireLocation`
+
+Decisión del dueño: **agregar el consumidor**, no quitar el switch. Con el interruptor en
+`false`, el docente pasa lista sin esperar el GPS; con `true` (o campo ausente) el gate queda
+igual que hoy.
+
+- `SchoolSite` y `SchoolEntity` incorporan `requireLocation: Boolean = true`. El flag llega al
+  gate por **las dos rutas**: la lectura de Firestore (`schoolEntityFrom`, con `as? Boolean ?: true`
+  para campo faltante o malformado) y la caché Room, así que sobrevive al modo avión.
+- Room sube de **3 a 4** con `MIGRATION_3_4`:
+  `ALTER TABLE schools ADD COLUMN requireLocation INTEGER NOT NULL DEFAULT 1`. Es aditiva y no
+  destructiva; las filas existentes siguen exigiendo GPS. Se exportó `4.json`.
+- `Geofence.shouldRequireGps(site)` falla cerrado (`null` ⇒ exige GPS). `GeofenceResult.honouring(site)`
+  fija `verifiedOverride = false` cuando el flag está apagado: se conservan la distancia,
+  precisión y radio reales, pero se anula la afirmación de "verificado".
+- `TeacherLocationVerifyingScreen` short-circuitea a `onInsideRadius()` antes de mirar el fix,
+  así que nunca espera GPS ni puede caer en la pantalla de bloqueo. El NavHost calcula **un solo**
+  `GeofenceResult` y lo usa tanto para `setLocation(...)` como para el banner: un docente dentro
+  del radio no puede producir una sesión `verified = true` mientras el plantel está optado out.
+  El mapa deja de decir "Estás dentro de la escuela" y muestra "Ubicación no requerida para pasar lista".
+- Tests nuevos en `GeofenceTest` y `SchoolMappersTest`: fail-closed con site nulo, `verified=false`
+  con medición real, no-op cuando el flag está encendido y round-trip del campo con default `true`.
+
+**Verificación:** `assembleDebug` y `testDebugUnitTest` en verde · **362 tests, 0 fallos**
+(eran 356). Verificador independiente: sin blockers. Sin cambios en reglas ni índices.
+
+> Fuera de alcance: `TeacherIncidentNewScreen` calcula el `verified` del **incidente** solo por
+> distancia, sin consultar el flag. Si el dueño quiere que `requireLocation` aplique también a
+> incidentes, es otro cambio.

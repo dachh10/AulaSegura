@@ -49,9 +49,15 @@ data class GeofenceResult(
     val distanceMeters: Double? = null,
     val radiusMeters: Double? = null,
     val accuracyMeters: Double? = null,
+    /**
+     * Set by [honouring] when the school opted out of GPS. The reason stays the
+     * factual one (a fix inside the radius is still inside), but nothing on the
+     * teacher path may call that session verified.
+     */
+    val verifiedOverride: Boolean? = null,
 ) {
 
-    val verified: Boolean get() = reason == GeofenceReason.INSIDE
+    val verified: Boolean get() = verifiedOverride ?: (reason == GeofenceReason.INSIDE)
 
     /**
      * True when the fix is within the radius, even if it could not be trusted.
@@ -135,6 +141,24 @@ fun evaluateGeofence(fix: LocationFix?, site: SchoolSite?): GeofenceResult {
         accuracyMeters = accuracy,
     )
 }
+
+/**
+ * Whether this school still asks for a GPS proof before roll call.
+ *
+ * Fails closed: no cached site (or an old row with no flag) keeps today's
+ * behaviour, so a teacher is never waved through because data is missing.
+ */
+fun shouldRequireGps(site: SchoolSite?): Boolean = site?.requireLocation ?: true
+
+/**
+ * Applies the school's policy to a verdict without inventing a new reason.
+ *
+ * When GPS is not required, no fix — not even one inside the radius — may label
+ * the session verified. Distance, accuracy, radius and reason survive unchanged,
+ * so the banner and the stored reading still describe the real measurement.
+ */
+fun GeofenceResult.honouring(site: SchoolSite?): GeofenceResult =
+    if (shouldRequireGps(site)) this else copy(verifiedOverride = false)
 
 /** Mean earth radius (IUGG), in metres. */
 private const val EARTH_RADIUS_METERS = 6_371_000.0

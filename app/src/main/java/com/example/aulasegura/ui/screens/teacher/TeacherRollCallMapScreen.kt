@@ -46,6 +46,7 @@ import androidx.compose.ui.unit.sp
 import com.example.aulasegura.domain.model.SchoolSite
 import com.example.aulasegura.location.evaluateGeofence
 import com.example.aulasegura.location.rememberCurrentLocation
+import com.example.aulasegura.location.shouldRequireGps
 import com.example.aulasegura.ui.components.CampusGeo
 import com.example.aulasegura.ui.components.CampusMap
 import com.example.aulasegura.ui.components.rememberPressScale
@@ -77,6 +78,9 @@ fun TeacherRollCallMapScreen(
     val fix = location.fix
     val geofence = evaluateGeofence(fix, school)
     val distance = geofence.distanceMeters
+    // With GPS verification off the teacher may be anywhere: the banner must
+    // not claim they are inside the school just because this is the inside route.
+    val gpsRequired = shouldRequireGps(school)
     val campus = school?.let { LatLng(it.latitude, it.longitude) }
 
     Column(
@@ -132,6 +136,7 @@ fun TeacherRollCallMapScreen(
 
                 InsideBanner(
                     distanceMeters = distance,
+                    gpsRequired = gpsRequired,
                     modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
                 )
             }
@@ -278,7 +283,11 @@ fun TeacherRollCallMapScreen(
 }
 
 @Composable
-private fun InsideBanner(distanceMeters: Double?, modifier: Modifier = Modifier) {
+private fun InsideBanner(
+    distanceMeters: Double?,
+    gpsRequired: Boolean = true,
+    modifier: Modifier = Modifier,
+) {
     Row(
         modifier = modifier
             .fillMaxWidth()
@@ -307,7 +316,11 @@ private fun InsideBanner(distanceMeters: Double?, modifier: Modifier = Modifier)
         Spacer(modifier = Modifier.width(10.dp))
 
         Text(
-            text = "Estás dentro de la escuela",
+            text = if (gpsRequired) {
+                "Estás dentro de la escuela"
+            } else {
+                "Ubicación no requerida para pasar lista"
+            },
             color = Color(0xFF1F2937),
             fontFamily = DmSans,
             fontWeight = FontWeight.Bold,

@@ -32,6 +32,7 @@ import androidx.navigation.compose.rememberNavController
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.aulasegura.di.rememberAppContainer
 import com.example.aulasegura.location.evaluateGeofence
+import com.example.aulasegura.location.honouring
 import com.example.aulasegura.location.rememberCurrentLocation
 import com.example.aulasegura.location.rememberSchoolSite
 import com.example.aulasegura.location.toSessionLocation
@@ -438,7 +439,9 @@ fun AulaSeguraNavHost(
             val school = rememberSchoolSite()
             val location = rememberCurrentLocation()
             val geofence = remember(location.fix, school.site) {
-                evaluateGeofence(location.fix, school.site)
+                // When the school opted out of GPS, even a fix inside the radius
+                // must not produce a verified banner or a verified session.
+                evaluateGeofence(location.fix, school.site).honouring(school.site)
             }
             // The verdict is frozen here, from the reading of this moment. The
             // session stores that value and never recomputes it on read: a later

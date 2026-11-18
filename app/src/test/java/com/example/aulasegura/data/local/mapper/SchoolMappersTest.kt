@@ -2,6 +2,7 @@ package com.example.aulasegura.data.local.mapper
 
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
@@ -98,5 +99,37 @@ class SchoolMappersTest {
         )!!.toSchoolSite(fallbackRadiusMeters = 120.0)
 
         assertEquals(120.0, site?.radiusMeters!!, 0.0)
+    }
+
+    @Test
+    fun `the requireLocation flag round-trips from Firestore to the cached site`() {
+        for (flag in listOf(true, false)) {
+            val entity = schoolEntityFrom(
+                id = "sch-benito-juarez",
+                data = mapOf(
+                    "name" to "Escuela",
+                    "location" to mapOf("lat" to 19.2926, "lng" to -99.6557),
+                    "radiusMeters" to 150,
+                    "requireLocation" to flag,
+                ),
+            )!!
+
+            assertEquals(flag, entity.requireLocation)
+            assertEquals(flag, entity.toSchoolSite(fallbackRadiusMeters = 120.0)!!.requireLocation)
+        }
+    }
+
+    @Test
+    fun `a document without a usable flag keeps requiring GPS`() {
+        val base = mapOf(
+            "name" to "Escuela",
+            "location" to mapOf("lat" to 19.2926, "lng" to -99.6557),
+        )
+        val missing = schoolEntityFrom("sch-benito-juarez", base)!!
+        val malformed = schoolEntityFrom("sch-benito-juarez", base + ("requireLocation" to "false"))!!
+
+        assertTrue(missing.requireLocation)
+        assertTrue(missing.toSchoolSite(fallbackRadiusMeters = 120.0)!!.requireLocation)
+        assertTrue(malformed.requireLocation)
     }
 }

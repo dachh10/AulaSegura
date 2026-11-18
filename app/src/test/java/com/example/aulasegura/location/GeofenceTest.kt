@@ -140,4 +140,45 @@ class GeofenceTest {
         // it could not prove it", which is more useful than a null location.
         assertEquals(19.2931, session.latitude, 0.0)
     }
+
+    @Test
+    fun `the school policy defaults to requiring GPS`() {
+        assertTrue(shouldRequireGps(school))
+        assertTrue(shouldRequireGps(school.copy(requireLocation = true)))
+    }
+
+    @Test
+    fun `a school may opt out but a missing school fails closed`() {
+        assertFalse(shouldRequireGps(school.copy(requireLocation = false)))
+        assertTrue(shouldRequireGps(null))
+    }
+
+    @Test
+    fun `an opted-out school cannot produce a verified session even inside the radius`() {
+        val fix = LocationFix(latitude = 19.2931, longitude = -99.6557, accuracyMeters = 30f)
+        val optedOut = school.copy(requireLocation = false)
+        val result = evaluateGeofence(fix, optedOut)
+        assertEquals(GeofenceReason.INSIDE, result.reason)
+
+        val session = fix.toSessionLocation(result.honouring(optedOut))
+
+        assertFalse(result.honouring(optedOut).verified)
+        assertFalse(session.verified)
+        // The real reading is still recorded: not faked, and not thrown away.
+        assertEquals(19.2931, session.latitude, 0.0)
+        assertEquals(-99.6557, session.longitude, 0.0)
+        assertEquals(30.0, session.accuracyMeters!!, 0.0)
+        assertEquals(result.distanceMeters!!, session.distanceMeters!!, 0.0)
+    }
+
+    @Test
+    fun `honouring a school that requires GPS leaves the verdict untouched`() {
+        val fix = LocationFix(latitude = 19.2931, longitude = -99.6557, accuracyMeters = 30f)
+        val result = evaluateGeofence(fix, school)
+
+        val honoured = result.honouring(school)
+
+        assertEquals(result, honoured)
+        assertTrue(fix.toSessionLocation(honoured).verified)
+    }
 }

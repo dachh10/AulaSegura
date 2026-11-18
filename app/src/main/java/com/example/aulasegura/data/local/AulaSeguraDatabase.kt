@@ -48,7 +48,7 @@ import com.example.aulasegura.data.local.entity.TaskEntity
         ProfileEntity::class,
         SchoolEntity::class,
     ],
-    version = 3,
+    version = 4,
     exportSchema = true,
 )
 @TypeConverters(Converters::class)
@@ -116,6 +116,22 @@ abstract class AulaSeguraDatabase : RoomDatabase() {
                         "`radiusMeters` REAL, " +
                         "`updatedAt` INTEGER NOT NULL, " +
                         "PRIMARY KEY(`schoolId`))",
+                )
+            }
+        }
+
+        /**
+         * Adds the directora's GPS opt-out to the school cache.
+         *
+         * `DEFAULT 1` makes every existing row keep requiring GPS, which is the
+         * behaviour those rows were written under. Nothing is dropped and no
+         * other table is touched: the outbox and the teacher's offline
+         * attendance survive the upgrade.
+         */
+        val MIGRATION_3_4: Migration = object : Migration(3, 4) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    "ALTER TABLE `schools` ADD COLUMN `requireLocation` INTEGER NOT NULL DEFAULT 1",
                 )
             }
         }

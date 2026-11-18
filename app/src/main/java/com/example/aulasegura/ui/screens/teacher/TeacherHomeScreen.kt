@@ -24,6 +24,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import coil.compose.AsyncImage
 import androidx.compose.material.icons.automirrored.filled.FactCheck
 import androidx.compose.material.icons.automirrored.outlined.Assignment
 import androidx.compose.material.icons.filled.Campaign
@@ -32,6 +33,7 @@ import androidx.compose.material.icons.filled.CloudQueue
 import androidx.compose.material.icons.filled.Groups
 import androidx.compose.material.icons.filled.LocationOn
 import androidx.compose.material.icons.filled.Notifications
+import androidx.compose.material.icons.filled.Report
 import androidx.compose.material.icons.filled.Shield
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
@@ -40,6 +42,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -82,8 +85,13 @@ private val RowShape = RoundedCornerShape(16.dp)
 
 @Composable
 fun TeacherHomeScreen(
+    ui: TeacherHomeUi = TeacherHomeUi(),
+    fullName: String = "",
+    subjects: List<String> = emptyList(),
+    photoUrl: String? = null,
     onIrAGrupos: () -> Unit = {},
-    onIrAPaseLista: () -> Unit = {},
+    /** The group of the next class, or `null` when the timetable has nothing. */
+    onIrAPaseLista: (String?) -> Unit = {},
     onIrARegistrarIncidente: () -> Unit = {},
     onIrAPublicarTarea: () -> Unit = {},
     onIrAPublicarAviso: () -> Unit = {},
@@ -108,9 +116,23 @@ fun TeacherHomeScreen(
                 .padding(top = 12.dp, bottom = 96.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
-            Reveal(0) { TeacherTopBar(onNotifications = onIrANotificaciones) }
-            Reveal(60) { TeacherHeroCard(onPasarLista = onIrAPaseLista) }
-            Reveal(120) { TeacherTodaySummary() }
+            Reveal(0) {
+                TeacherTopBar(
+                    fullName = fullName,
+                    subjects = subjects,
+                    photoUrl = photoUrl,
+                    unread = ui.unreadNotifications,
+                    onNotifications = onIrANotificaciones,
+                )
+            }
+            Reveal(60) {
+                TeacherHeroCard(
+                    nextClass = ui.nextClass,
+                    notice = ui.scheduleNotice,
+                    onPasarLista = { onIrAPaseLista(ui.nextClass?.groupId) },
+                )
+            }
+            Reveal(120) { TeacherTodaySummary(summary = ui.summary) }
             Reveal(180) {
                 TeacherQuickActions(
                     onRegistrarIncidente = onIrARegistrarIncidente,
@@ -119,7 +141,7 @@ fun TeacherHomeScreen(
                     onMisGrupos = onIrAGrupos,
                 )
             }
-            Reveal(240) { TeacherRecentActivity() }
+            Reveal(240) { TeacherRecentActivity(activity = ui.activity) }
         }
 
         TeacherBottomBar(
@@ -140,36 +162,48 @@ fun TeacherHomeScreen(
 
 // ZONE 1 — Top bar
 @Composable
-private fun TeacherTopBar(onNotifications: () -> Unit) {
+private fun TeacherTopBar(
+    fullName: String,
+    subjects: List<String>,
+    photoUrl: String?,
+    unread: Int,
+    onNotifications: () -> Unit,
+) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
             .padding(horizontal = 16.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        // The mockup uses a portrait photograph; here it is imitated with a
-        // monogram inside the same 44dp ringed circle.
-        Box(
-            modifier = Modifier
-                .size(44.dp)
-                .clip(CircleShape)
-                .background(SurfaceContainerLowest)
-                .border(1.5.dp, Hairline, CircleShape),
-            contentAlignment = Alignment.Center,
-        ) {
-            Text(
-                text = "RS",
-                color = PrimaryContainer,
-                fontFamily = BricolageGrotesque,
-                fontWeight = FontWeight.Bold,
-                fontSize = 15.sp,
-                lineHeight = 15.sp,
+        val avatarModifier = Modifier
+            .size(44.dp)
+            .clip(CircleShape)
+            .background(SurfaceContainerLowest)
+            .border(1.5.dp, Hairline, CircleShape)
+
+        if (photoUrl == null) {
+            Box(modifier = avatarModifier, contentAlignment = Alignment.Center) {
+                Text(
+                    text = profileInitials(fullName),
+                    color = PrimaryContainer,
+                    fontFamily = BricolageGrotesque,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 15.sp,
+                    lineHeight = 15.sp,
+                )
+            }
+        } else {
+            AsyncImage(
+                model = photoUrl,
+                contentDescription = "Foto de perfil",
+                modifier = avatarModifier,
+                contentScale = ContentScale.Crop,
             )
         }
         Spacer(modifier = Modifier.width(12.dp))
         Column(modifier = Modifier.weight(1f)) {
             Text(
-                text = "Hola, profe Ricardo",
+                text = teacherGreeting(fullName),
                 color = OnboardingHeading,
                 fontFamily = BricolageGrotesque,
                 fontWeight = FontWeight.Bold,
@@ -178,7 +212,7 @@ private fun TeacherTopBar(onNotifications: () -> Unit) {
                 letterSpacing = (-0.01).em,
             )
             Text(
-                text = "Docente · Matemáticas",
+                text = profileSubtitle(subjects),
                 color = OnboardingMuted,
                 fontFamily = DmSans,
                 fontWeight = FontWeight.Medium,
@@ -188,7 +222,7 @@ private fun TeacherTopBar(onNotifications: () -> Unit) {
             )
         }
         Spacer(modifier = Modifier.width(8.dp))
-        NotificationBell(unread = 2, onClick = onNotifications)
+        NotificationBell(unread = unread, onClick = onNotifications)
     }
 }
 
@@ -217,30 +251,38 @@ private fun NotificationBell(unread: Int, onClick: () -> Unit) {
                 modifier = Modifier.size(22.dp),
             )
         }
-        Box(
-            modifier = Modifier
-                .offset(x = 2.dp, y = (-2).dp)
-                .size(16.dp)
-                .clip(CircleShape)
-                .background(BrandCoral)
-                .border(2.dp, BrandCream, CircleShape),
-            contentAlignment = Alignment.Center,
-        ) {
-            Text(
-                text = unread.toString(),
-                color = OnPrimary,
-                fontFamily = JetBrainsMono,
-                fontWeight = FontWeight.Bold,
-                fontSize = 10.sp,
-                lineHeight = 10.sp,
-            )
+        // A zero is not a badge: the bell stays clean until there is something to
+        // read, and goes back to clean as soon as the list is opened.
+        if (unread > 0) {
+            Box(
+                modifier = Modifier
+                    .offset(x = 2.dp, y = (-2).dp)
+                    .size(if (unread > 9) 20.dp else 16.dp)
+                    .clip(CircleShape)
+                    .background(BrandCoral)
+                    .border(2.dp, BrandCream, CircleShape),
+                contentAlignment = Alignment.Center,
+            ) {
+                Text(
+                    text = if (unread > 99) "99+" else unread.toString(),
+                    color = OnPrimary,
+                    fontFamily = JetBrainsMono,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 10.sp,
+                    lineHeight = 10.sp,
+                )
+            }
         }
     }
 }
 
 // ZONE 2 — Next class hero card
 @Composable
-private fun TeacherHeroCard(onPasarLista: () -> Unit) {
+private fun TeacherHeroCard(
+    nextClass: NextClassUi?,
+    notice: String?,
+    onPasarLista: () -> Unit,
+) {
     Box(
         modifier = Modifier
             .fillMaxWidth()
@@ -270,7 +312,7 @@ private fun TeacherHeroCard(onPasarLista: () -> Unit) {
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Text(
-                    text = "SIGUIENTE CLASE · 08:00",
+                    text = nextClass?.let { heroLabel(it) } ?: "HORARIO",
                     style = AulaTextStyles.dataMonoSm,
                     color = Color.White.copy(alpha = 0.70f),
                 )
@@ -281,7 +323,7 @@ private fun TeacherHeroCard(onPasarLista: () -> Unit) {
             Spacer(modifier = Modifier.height(12.dp))
 
             Text(
-                text = "Matemáticas · 3° B",
+                text = nextClass?.headline?.ifBlank { "Clase de hoy" } ?: "No hay clases próximas",
                 color = Color.White,
                 fontFamily = BricolageGrotesque,
                 fontWeight = FontWeight.Bold,
@@ -290,7 +332,7 @@ private fun TeacherHeroCard(onPasarLista: () -> Unit) {
                 letterSpacing = (-0.015).em,
             )
             Text(
-                text = "28 alumnos · Aula 12",
+                text = nextClass?.let { "${it.studentCount} alumnos" } ?: notice.orEmpty(),
                 color = Color.White.copy(alpha = 0.75f),
                 fontFamily = DmSans,
                 fontSize = 13.sp,
@@ -302,6 +344,12 @@ private fun TeacherHeroCard(onPasarLista: () -> Unit) {
             PassListButton(onClick = onPasarLista)
         }
     }
+}
+
+/** `SIGUIENTE CLASE · 10:00` or `EN CURSO · 10:00 – 10:45`. */
+private fun heroLabel(nextClass: NextClassUi): String = when (nextClass.status) {
+    ClassStatus.IN_PROGRESS -> "EN CURSO · ${nextClass.timeLabel}"
+    ClassStatus.NEXT -> "SIGUIENTE CLASE · ${nextClass.timeLabel}"
 }
 
 @Composable
@@ -376,7 +424,7 @@ private fun PassListButton(onClick: () -> Unit) {
 
 // ZONE 3 — Today summary
 @Composable
-private fun TeacherTodaySummary() {
+private fun TeacherTodaySummary(summary: TodaySummaryUi) {
     Column(
         modifier = Modifier
             .fillMaxWidth()
@@ -390,21 +438,21 @@ private fun TeacherTodaySummary() {
             horizontalArrangement = Arrangement.spacedBy(10.dp),
         ) {
             TeacherStatCard(
-                value = "2/3",
+                value = "${summary.listsPassed}/${summary.groupsTotal}",
                 label = "Listas pasadas",
                 valueColor = OnboardingHeading,
                 valueSize = 20.sp,
                 modifier = Modifier.weight(1f),
             )
             TeacherStatCard(
-                value = "3",
+                value = summary.absences.toString(),
                 label = "Faltas hoy",
                 valueColor = DangerRed,
                 valueSize = 22.sp,
                 modifier = Modifier.weight(1f),
             )
             TeacherSyncCard(
-                value = "1",
+                value = summary.pendingSync.toString(),
                 label = "Por sincronizar",
                 modifier = Modifier.weight(1f),
             )
@@ -630,7 +678,7 @@ private fun TeacherQuickCard(
 
 // ZONE 5 — Recent activity
 @Composable
-private fun TeacherRecentActivity() {
+private fun TeacherRecentActivity(activity: List<ActivityRowUi>) {
     Column(
         modifier = Modifier
             .fillMaxWidth()
@@ -640,22 +688,47 @@ private fun TeacherRecentActivity() {
     ) {
         SectionTitle("Actividad reciente")
 
+        if (activity.isEmpty()) {
+            Text(
+                text = "Todavía no hay actividad. Lo que hagas hoy aparece aquí.",
+                color = OnboardingMuted,
+                fontFamily = DmSans,
+                fontSize = 12.sp,
+                lineHeight = 18.sp,
+                modifier = Modifier.padding(horizontal = 4.dp, vertical = 6.dp),
+            )
+            return@Column
+        }
+
         Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            TeacherActivityRow(
-                icon = Icons.Filled.CheckCircle,
-                iconColor = SuccessGreen,
-                title = "Lista de 3° A guardada",
-                time = "07:55",
-            )
-            TeacherActivityRow(
-                icon = Icons.AutoMirrored.Outlined.Assignment,
-                iconColor = PrimaryContainer,
-                title = "Tarea 'Fracciones' publicada",
-                time = "Ayer",
-            )
+            activity.forEach { row ->
+                TeacherActivityRow(
+                    icon = row.kind.icon,
+                    iconColor = row.kind.iconColor,
+                    title = row.title,
+                    time = row.timeLabel,
+                )
+            }
         }
     }
 }
+
+/** The mockup's palette, one icon per source of activity. */
+private val ActivityKind.icon: ImageVector
+    get() = when (this) {
+        ActivityKind.ROLL_CALL -> Icons.Filled.CheckCircle
+        ActivityKind.INCIDENT -> Icons.Filled.Report
+        ActivityKind.TASK -> Icons.AutoMirrored.Outlined.Assignment
+        ActivityKind.NOTICE -> Icons.Filled.Campaign
+    }
+
+private val ActivityKind.iconColor: Color
+    get() = when (this) {
+        ActivityKind.ROLL_CALL -> SuccessGreen
+        ActivityKind.INCIDENT -> SyncAmber
+        ActivityKind.TASK -> PrimaryContainer
+        ActivityKind.NOTICE -> PrimaryContainer
+    }
 
 @Composable
 private fun TeacherActivityRow(

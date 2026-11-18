@@ -10,6 +10,8 @@ import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -104,6 +106,8 @@ fun TeacherHistoryScreen(
     onRetry: () -> Unit = {},
     onToggleSession: (String) -> Unit = {},
     onToggleIncident: (String) -> Unit = {},
+    /** `-1` previous month, `+1` next; the ViewModel clamps the future. */
+    onMonthChange: (Int) -> Unit = {},
 ) {
     var segment by remember { mutableStateOf(0) }
 
@@ -126,7 +130,14 @@ fun TeacherHistoryScreen(
                     onSelect = { segment = it },
                 )
             }
-            Reveal(120) { MonthSelector() }
+            Reveal(120) {
+                MonthSelector(
+                    label = ui.monthLabel,
+                    canGoNext = ui.canGoNextMonth,
+                    onPrevious = { onMonthChange(-1) },
+                    onNext = { onMonthChange(1) },
+                )
+            }
 
             ui.notice?.let { message ->
                 Reveal(160) {
@@ -141,7 +152,10 @@ fun TeacherHistoryScreen(
             Reveal(200) {
                 when (segment) {
                     0 -> when {
-                        ui.sections.isEmpty() -> HistoryEmptyState(refreshing = ui.refreshing)
+                        ui.sections.isEmpty() -> HistoryEmptyState(
+                            refreshing = ui.refreshing,
+                            offset = ui.monthOffset,
+                        )
                         else -> Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
                             ui.sections.forEach { section ->
                                 HistorySection(
@@ -153,7 +167,10 @@ fun TeacherHistoryScreen(
                     }
 
                     1 -> when {
-                        ui.incidentSections.isEmpty() -> IncidentEmptyState(refreshing = ui.refreshing)
+                        ui.incidentSections.isEmpty() -> IncidentEmptyState(
+                            refreshing = ui.refreshing,
+                            offset = ui.monthOffset,
+                        )
                         else -> Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
                             ui.incidentSections.forEach { section ->
                                 IncidentSection(
@@ -166,7 +183,7 @@ fun TeacherHistoryScreen(
 
                     else -> when {
                         ui.publications.isEmpty() ->
-                            PublicationEmptyState(refreshing = ui.refreshing)
+                            PublicationEmptyState(refreshing = ui.refreshing, offset = ui.monthOffset)
 
                         else -> Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                             ui.publications.forEach { publication ->
@@ -293,7 +310,12 @@ private fun HistorySegment(
 }
 
 @Composable
-private fun MonthSelector() {
+private fun MonthSelector(
+    label: String,
+    canGoNext: Boolean,
+    onPrevious: () -> Unit,
+    onNext: () -> Unit,
+) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -302,9 +324,14 @@ private fun MonthSelector() {
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.SpaceBetween,
     ) {
-        MonthArrow(Icons.AutoMirrored.Filled.KeyboardArrowLeft)
+        MonthArrow(
+            icon = Icons.AutoMirrored.Filled.KeyboardArrowLeft,
+            enabled = true,
+            description = "Mes anterior",
+            onClick = onPrevious,
+        )
         Text(
-            text = "Noviembre 2026",
+            text = label,
             color = PrimaryContainer,
             fontFamily = BricolageGrotesque,
             fontWeight = FontWeight.Bold,
@@ -312,24 +339,40 @@ private fun MonthSelector() {
             lineHeight = 22.sp,
             letterSpacing = (-0.16).sp,
         )
-        MonthArrow(Icons.AutoMirrored.Filled.KeyboardArrowRight)
+        MonthArrow(
+            icon = Icons.AutoMirrored.Filled.KeyboardArrowRight,
+            enabled = canGoNext,
+            description = "Mes siguiente",
+            onClick = onNext,
+        )
     }
 }
 
 @Composable
-private fun MonthArrow(icon: androidx.compose.ui.graphics.vector.ImageVector) {
-    val (interaction, pressModifier) = rememberPressScale(0.9f)
+private fun MonthArrow(
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    enabled: Boolean,
+    description: String,
+    onClick: () -> Unit,
+) {
+    val (interaction, pressModifier) = rememberPressScale(if (enabled) 0.9f else 1f)
     Box(
         modifier = pressModifier
             .size(32.dp)
             .clip(HistoryPillShape)
-            .clickable(interactionSource = interaction, indication = null, onClick = {}),
+            .clickable(
+                enabled = enabled,
+                interactionSource = interaction,
+                indication = null,
+                onClick = onClick,
+            ),
         contentAlignment = Alignment.Center,
     ) {
         Icon(
             imageVector = icon,
-            contentDescription = null,
-            tint = PrimaryContainer,
+            contentDescription = description,
+            // A disabled arrow is invisible, not a button that silently does nothing.
+            tint = if (enabled) PrimaryContainer else OutlineVariant.copy(alpha = 0.6f),
             modifier = Modifier.size(20.dp),
         )
     }
@@ -385,7 +428,7 @@ private fun HistoryNotice(
 }
 
 @Composable
-private fun HistoryEmptyState(refreshing: Boolean) {
+private fun HistoryEmptyState(refreshing: Boolean, offset: Int) {
     Box(
         modifier = Modifier
             .fillMaxWidth()
@@ -397,10 +440,10 @@ private fun HistoryEmptyState(refreshing: Boolean) {
         contentAlignment = Alignment.Center,
     ) {
         Text(
-            text = if (refreshing) {
-                "Cargando tu historial…"
-            } else {
-                "Todavía no hay pases de lista guardados."
+            text = when {
+                refreshing -> "Cargando tu historial…"
+                offset < 0 -> "No hay listas guardadas en este mes."
+                else -> "Todavía no hay pases de lista guardados."
             },
             color = OnSurfaceVariant,
             fontFamily = DmSans,
@@ -421,6 +464,8 @@ private fun HistoryEmptyState(refreshing: Boolean) {
  */
 @Composable
 private fun PublicationCard(publication: HistoryPublicationUi) {
+    val context = LocalContext.current
+
     Column(
         modifier = Modifier
             .fillMaxWidth()
@@ -474,39 +519,79 @@ private fun PublicationCard(publication: HistoryPublicationUi) {
             )
         }
 
-        // The attached PDF and what happened to it. The teacher asked for this
-        // row to be able to confirm, days later, that the file really went up.
-        publication.attachmentLabel?.let { label ->
+        // The attached PDF: a `PDF` chip instead of its file name, then either
+        // the state or the way in. `attachmentUrl` is set only once Cloudinary has
+        // the file, so the row is tappable exactly when there is something to open.
+        publication.attachmentName?.let { fileName ->
             val tint = when (publication.attachmentState) {
                 AttachmentSyncState.UPLOADED -> PresentText
                 AttachmentSyncState.FAILED -> AbsentText
                 else -> PendingText
             }
+            val url = publication.attachmentUrl
+            val canOpen = url != null && publication.attachmentState == AttachmentSyncState.UPLOADED
+            val stateLabel = attachmentStateLabel(publication.attachmentState)
 
             Row(
                 modifier = Modifier
+                    .fillMaxWidth()
                     .clip(HistoryPillShape)
-                    .background(SurfaceContainer)
-                    .padding(horizontal = 8.dp, vertical = 4.dp),
+                    .clickable(enabled = canOpen) {
+                        runCatching {
+                            context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)))
+                        }
+                    }
+                    .padding(vertical = 2.dp),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(6.dp),
             ) {
-                Icon(
-                    imageVector = Icons.Filled.AttachFile,
-                    contentDescription = null,
-                    tint = tint,
-                    modifier = Modifier.size(13.dp),
-                )
-                Text(
-                    text = label,
-                    color = tint,
-                    fontFamily = JetBrainsMono,
-                    fontWeight = FontWeight.SemiBold,
-                    fontSize = 10.5.sp,
-                    lineHeight = 14.sp,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
+                Row(
+                    modifier = Modifier
+                        .clip(HistoryPillShape)
+                        .background(SurfaceContainer)
+                        .padding(horizontal = 8.dp, vertical = 4.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(5.dp),
+                ) {
+                    Icon(
+                        imageVector = Icons.Filled.AttachFile,
+                        contentDescription = "PDF adjunto: $fileName",
+                        tint = tint,
+                        modifier = Modifier.size(13.dp),
+                    )
+                    Text(
+                        text = "PDF",
+                        color = tint,
+                        fontFamily = JetBrainsMono,
+                        fontWeight = FontWeight.SemiBold,
+                        fontSize = 10.5.sp,
+                        lineHeight = 14.sp,
+                        maxLines = 1,
+                        softWrap = false,
+                    )
+                }
+                if (canOpen) {
+                    Text(
+                        text = "Abrir",
+                        color = PrimaryContainer,
+                        fontFamily = DmSans,
+                        fontWeight = FontWeight.SemiBold,
+                        fontSize = 11.sp,
+                        lineHeight = 15.sp,
+                    )
+                } else {
+                    stateLabel?.let { label ->
+                        Text(
+                            text = label,
+                            color = tint,
+                            fontFamily = DmSans,
+                            fontWeight = FontWeight.Medium,
+                            fontSize = 11.sp,
+                            lineHeight = 15.sp,
+                            maxLines = 1,
+                        )
+                    }
+                }
             }
         }
 
@@ -555,7 +640,7 @@ private fun PublicationKindChip(label: String, urgent: Boolean) {
 }
 
 @Composable
-private fun PublicationEmptyState(refreshing: Boolean) {
+private fun PublicationEmptyState(refreshing: Boolean, offset: Int) {
     Box(
         modifier = Modifier
             .fillMaxWidth()
@@ -567,10 +652,10 @@ private fun PublicationEmptyState(refreshing: Boolean) {
         contentAlignment = Alignment.Center,
     ) {
         Text(
-            text = if (refreshing) {
-                "Buscando tus publicaciones…"
-            } else {
-                "Aún no has publicado tareas ni avisos. Lo que publiques aparece aquí, " +
+            text = when {
+                refreshing -> "Buscando tus publicaciones…"
+                offset < 0 -> "No publicaste tareas ni avisos en este mes."
+                else -> "Aún no has publicado tareas ni avisos. Lo que publiques aparece aquí, " +
                     "también sin conexión."
             },
             color = OnSurfaceVariant,
@@ -631,6 +716,7 @@ private fun IncidentSection(
  * and a teacher should not have to learn a second card to read what they
  * reported.
  */
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun IncidentCard(
     incident: HistoryIncidentUi,
@@ -676,18 +762,14 @@ private fun IncidentCard(
                     overflow = TextOverflow.Ellipsis,
                 )
                 Spacer(Modifier.height(6.dp))
-                Row(
-                    horizontalArrangement = Arrangement.spacedBy(6.dp),
-                    verticalAlignment = Alignment.CenterVertically,
+                FlowRow(
+                    horizontalArrangement = Arrangement.spacedBy(5.dp),
+                    verticalArrangement = Arrangement.spacedBy(4.dp),
                 ) {
                     incident.severity?.let { SeverityChip(label = it) }
                     StatChip(label = incident.status, background = MutedChipBg, contentColor = MutedChipText)
                     if (incident.mediaCount > 0) {
-                        StatChip(
-                            label = if (incident.mediaCount == 1) "1 foto" else "${incident.mediaCount} fotos",
-                            background = MutedChipBg,
-                            contentColor = MutedChipText,
-                        )
+                        MediaChip(count = incident.mediaCount)
                     }
                 }
             }
@@ -814,7 +896,7 @@ private fun EvidenceRow(evidence: HistoryEvidenceUi) {
 }
 
 @Composable
-private fun IncidentEmptyState(refreshing: Boolean) {
+private fun IncidentEmptyState(refreshing: Boolean, offset: Int) {
     Box(
         modifier = Modifier
             .fillMaxWidth()
@@ -826,10 +908,10 @@ private fun IncidentEmptyState(refreshing: Boolean) {
         contentAlignment = Alignment.Center,
     ) {
         Text(
-            text = if (refreshing) {
-                "Buscando tus incidentes…"
-            } else {
-                "Aún no has registrado incidentes. Los que reportes aparecen aquí, " +
+            text = when {
+                refreshing -> "Buscando tus incidentes…"
+                offset < 0 -> "No registraste incidentes en este mes."
+                else -> "Aún no has registrado incidentes. Los que reportes aparecen aquí, " +
                     "también sin conexión."
             },
             color = OnSurfaceVariant,
@@ -883,6 +965,7 @@ private fun HistorySection(
     }
 }
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun SessionCard(
     session: HistorySessionUi,
@@ -930,9 +1013,11 @@ private fun SessionCard(
                     }
                 }
                 Spacer(Modifier.height(6.dp))
-                Row(
-                    horizontalArrangement = Arrangement.spacedBy(6.dp),
-                    verticalAlignment = Alignment.CenterVertically,
+                // Chips flow to a second line as units when the row runs out of
+                // width; they never break inside a pill.
+                FlowRow(
+                    horizontalArrangement = Arrangement.spacedBy(5.dp),
+                    verticalArrangement = Arrangement.spacedBy(4.dp),
                 ) {
                     StatChip("${session.present} P", PresentBg, PresentText)
                     StatChip("${session.absent} F", AbsentBg, AbsentText)
@@ -1090,6 +1175,14 @@ private fun DateBlock(
     }
 }
 
+/**
+ * A small counter pill (`28 P`, `Leve`, `Presente`).
+ *
+ * `softWrap = false` is the whole point: the row shares its width with the date,
+ * the sync pill and the chevron, and a chip that wraps prints one character per
+ * line ("1 foto" used to fall six lines tall). A chip that cannot fit is a
+ * layout bug to fix here, not something to squeeze letter by letter.
+ */
 @Composable
 private fun StatChip(
     label: String,
@@ -1100,7 +1193,7 @@ private fun StatChip(
         modifier = Modifier
             .clip(HistoryPillShape)
             .background(background)
-            .padding(horizontal = 8.dp, vertical = 2.dp),
+            .padding(horizontal = 7.dp, vertical = 3.dp),
         contentAlignment = Alignment.Center,
     ) {
         Text(
@@ -1108,9 +1201,45 @@ private fun StatChip(
             color = contentColor,
             fontFamily = JetBrainsMono,
             fontWeight = FontWeight.SemiBold,
-            fontSize = 11.sp,
-            lineHeight = 14.sp,
-            letterSpacing = (-0.22).sp,
+            fontSize = 10.5.sp,
+            lineHeight = 13.sp,
+            maxLines = 1,
+            softWrap = false,
+        )
+    }
+}
+
+/**
+ * Evidence counter: a camera and the number, never the word "foto".
+ *
+ * The word made the pill as wide as the severity and the status together, right
+ * where the row has the least room. The icon says what the number counts.
+ */
+@Composable
+private fun MediaChip(count: Int) {
+    Row(
+        modifier = Modifier
+            .clip(HistoryPillShape)
+            .background(MutedChipBg)
+            .padding(horizontal = 7.dp, vertical = 3.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Icon(
+            imageVector = Icons.Outlined.PhotoCamera,
+            contentDescription = if (count == 1) "1 archivo adjunto" else "$count archivos adjuntos",
+            tint = MutedChipText,
+            modifier = Modifier.size(12.dp),
+        )
+        Spacer(Modifier.width(3.dp))
+        Text(
+            text = count.toString(),
+            color = MutedChipText,
+            fontFamily = JetBrainsMono,
+            fontWeight = FontWeight.SemiBold,
+            fontSize = 10.5.sp,
+            lineHeight = 13.sp,
+            maxLines = 1,
+            softWrap = false,
         )
     }
 }

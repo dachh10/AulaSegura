@@ -7,6 +7,8 @@ import com.example.aulasegura.domain.repository.AuthRepository
 import com.example.aulasegura.domain.repository.AuthResult
 import com.example.aulasegura.domain.repository.PasswordChangeResult
 import com.example.aulasegura.domain.repository.PasswordResetResult
+import com.example.aulasegura.domain.repository.ProfilePhotoResult
+import com.example.aulasegura.domain.repository.ProfileUpdateResult
 import com.example.aulasegura.domain.repository.PushTokenRepository
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -38,6 +40,15 @@ private class FakeAuthRepository(
     var signInCalls = 0
     var signOutCalls = 0
     var lastEmail: String? = null
+    var lastPhotoUrl: String? = null
+    var lastPhotoPublicId: String? = null
+    var photoResult: ProfilePhotoResult = ProfilePhotoResult.Saved
+    var lastName: String? = null
+    var lastSubjects: List<String> = emptyList()
+    var profileResult: ProfileUpdateResult = ProfileUpdateResult.Saved
+    var currentPassword: String? = null
+    var newPassword: String? = null
+    var passwordResult: PasswordChangeResult = PasswordChangeResult.Changed
 
     override val currentUserId: String? = null
 
@@ -56,10 +67,32 @@ private class FakeAuthRepository(
     override suspend fun sendPasswordReset(email: String): PasswordResetResult =
         PasswordResetResult.Sent
 
+    override suspend fun updateProfilePhoto(
+        photoUrl: String,
+        photoPublicId: String,
+    ): ProfilePhotoResult {
+        lastPhotoUrl = photoUrl
+        lastPhotoPublicId = photoPublicId
+        return photoResult
+    }
+
+    override suspend fun updateProfile(
+        fullName: String,
+        subjects: List<String>,
+    ): ProfileUpdateResult {
+        lastName = fullName
+        lastSubjects = subjects
+        return profileResult
+    }
+
     override suspend fun changePassword(
         currentPassword: String,
         newPassword: String,
-    ): PasswordChangeResult = PasswordChangeResult.Success
+    ): PasswordChangeResult {
+        this.currentPassword = currentPassword
+        this.newPassword = newPassword
+        return passwordResult
+    }
 
     override fun signOut() {
         signOutCalls++

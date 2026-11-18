@@ -85,9 +85,12 @@ import com.example.aulasegura.ui.screens.teacher.TeacherHistoryViewModel
 import com.example.aulasegura.ui.screens.teacher.TeacherIncidentNewScreen
 import com.example.aulasegura.ui.screens.teacher.TeacherIncidentViewModel
 import com.example.aulasegura.ui.screens.teacher.TeacherHomeScreen
+import com.example.aulasegura.ui.screens.teacher.TeacherHomeViewModel
 import com.example.aulasegura.ui.screens.teacher.TeacherLocationVerifyingScreen
+import com.example.aulasegura.ui.screens.teacher.TeacherNoClassScreen
 import com.example.aulasegura.ui.screens.teacher.TeacherNoticeNewScreen
 import com.example.aulasegura.ui.screens.teacher.TeacherNoticeNewViewModel
+import com.example.aulasegura.ui.screens.teacher.TeacherProfileViewModel
 import com.example.aulasegura.ui.screens.teacher.TeacherNotificationsViewModel
 import com.example.aulasegura.ui.screens.teacher.TeacherNotificationsScreen
 import com.example.aulasegura.ui.screens.teacher.TeacherOutsideRadiusScreen
@@ -96,12 +99,14 @@ import com.example.aulasegura.ui.screens.teacher.TeacherRollCallMapScreen
 import com.example.aulasegura.ui.screens.teacher.TeacherRollCallOfflineScreen
 import com.example.aulasegura.ui.screens.teacher.TeacherTaskNewScreen
 import com.example.aulasegura.ui.screens.teacher.TeacherTaskNewViewModel
+import com.example.aulasegura.util.SchoolCalendar
 
 /**
  * Navigation graph for the whole app.
  *
- * Every screen is currently a stub so the full flow is walkable end to end.
- * Each stub is replaced by the real Compose screen as its Stitch design is ported.
+ * Each route resolves the session and wires a ViewModel from the container. The
+ * screens for phases already delivered are real; the ones still pending keep
+ * their visual port until their own block lands.
  */
 @Composable
 fun AulaSeguraNavHost(
@@ -318,9 +323,28 @@ fun AulaSeguraNavHost(
 
         // ---- Teacher ----
         composable(Routes.TEACHER_HOME) {
+            // The session profile is already resolved by Splash; reading it here
+            // keeps the greeting and avatar on the same source as the profile screen.
+            val teacher = rememberAppContainer().authRepository.currentUser
+            val homeViewModel: TeacherHomeViewModel =
+                viewModel(factory = rememberAppContainer().viewModelFactory)
+            val homeState by homeViewModel.state.collectAsState()
+
             TeacherHomeScreen(
+                ui = homeState,
+                fullName = teacher?.fullName.orEmpty(),
+                subjects = teacher?.subjects.orEmpty(),
+                photoUrl = teacher?.photoUrl,
                 onIrAGrupos = { navController.navigate(Routes.TEACHER_GROUPS) },
-                onIrAPaseLista = { navController.navigate(Routes.TEACHER_GROUPS) },
+                // Con horario, "Pasar lista" va directo al grupo de la clase; sin
+                // él no hay grupo que adivinar: se abre la lista de grupos.
+                onIrAPaseLista = { groupId ->
+                    if (groupId != null) {
+                        navController.navigate(Routes.teacherRollCall(groupId))
+                    } else {
+                        navController.navigate(Routes.TEACHER_GROUPS)
+                    }
+                },
                 onIrARegistrarIncidente = { navController.navigate(Routes.TEACHER_INCIDENT_NEW) },
                 onIrAPublicarTarea = { navController.navigate(Routes.TEACHER_TASK_NEW) },
                 onIrAPublicarAviso = { navController.navigate(Routes.TEACHER_NOTICE_NEW) },
@@ -360,6 +384,19 @@ fun AulaSeguraNavHost(
         // GPS-first: entrar a "Pase de lista" dispara la verificación real de
         // ubicación. La lista de alumnos sólo se alcanza dentro del radio.
         composable(Routes.TEACHER_ROLL_CALL) { entry ->
+            // De lunes a viernes. En fin de semana no se abre una sesión nueva:
+            // una lista del domingo sería una asistencia que no corresponde a un
+            // día de clases. Las listas ya guardadas no se tocan.
+            if (!SchoolCalendar.isClassDay(System.currentTimeMillis())) {
+                TeacherNoClassScreen(
+                    onBack = { navController.popBackStack() },
+                    onGoHome = {
+                        navController.popBackStack(Routes.TEACHER_HOME, inclusive = false)
+                    },
+                )
+                return@composable
+            }
+
             val groupId = entry.arguments?.getString("groupId") ?: "3B"
             val school = rememberSchoolSite()
             TeacherLocationVerifyingScreen(
@@ -581,6 +618,7 @@ fun AulaSeguraNavHost(
                 onRetry = historyViewModel::refresh,
                 onToggleSession = historyViewModel::toggleSession,
                 onToggleIncident = historyViewModel::toggleIncident,
+                onMonthChange = historyViewModel::changeMonth,
             )
         }
         composable(Routes.TEACHER_NOTIFICATIONS) {
@@ -605,9 +643,26 @@ fun AulaSeguraNavHost(
             )
         }
         composable(Routes.TEACHER_PROFILE) {
+            val profileViewModel: TeacherProfileViewModel =
+                viewModel(factory = rememberAppContainer().viewModelFactory)
+            val profileUi by profileViewModel.ui.collectAsState()
             TeacherProfileScreen(
+                ui = profileUi,
                 onSelectTab = { navController.openTeacherTab(it) },
                 onLogout = { sessionViewModel.signOut() },
+                onChangePhoto = profileViewModel::changePhoto,
+                onDismissMessage = profileViewModel::clearMessage,
+                onEditProfile = profileViewModel::openEditProfile,
+                onChangePassword = profileViewModel::openChangePassword,
+                onOpenPermissions = { navController.navigate(Routes.PERMISSIONS) },
+                onEditNameChange = profileViewModel::setEditName,
+                onEditSubjectsChange = profileViewModel::setEditSubjects,
+                onSaveProfile = profileViewModel::saveProfile,
+                onCurrentPasswordChange = profileViewModel::setCurrentPassword,
+                onNewPasswordChange = profileViewModel::setNewPassword,
+                onConfirmPasswordChange = profileViewModel::setConfirmPassword,
+                onSavePassword = profileViewModel::savePassword,
+                onCloseDialog = profileViewModel::closeDialog,
             )
         }
 

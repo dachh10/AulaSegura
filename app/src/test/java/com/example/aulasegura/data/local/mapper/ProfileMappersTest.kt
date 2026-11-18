@@ -47,4 +47,19 @@ class ProfileMappersTest {
 
         assertNull(entity.toCachedUser())
     }
+
+    @Test
+    fun `the avatar url survives the offline cache without caching its public id`() {
+        val withPhoto = teacher.copy(
+            photoUrl = "https://res.cloudinary.com/demo/image/upload/aulasegura/profiles/uid-docente.jpg",
+            photoPublicId = "aulasegura/profiles/uid-docente",
+        )
+
+        val cached = withPhoto.toCachedEntity(now = 0L).toCachedUser()
+
+        assertEquals(withPhoto.photoUrl, cached?.photoUrl)
+        // Room has no photoPublicId column: it is only needed to replace the
+        // picture in Cloudinary, and a new upload always mints a new id.
+        assertNull(cached?.photoPublicId)
+    }
 }

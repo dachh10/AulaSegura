@@ -76,7 +76,7 @@ class TeacherPublicationUiTest {
     }
 
     @Test
-    fun `a task with a PDF shows the file and whether it reached Cloudinary`() {
+    fun `a task with a PDF keeps its file name and reports the state in one word`() {
         val rows = publicationRows(
             tasks = listOf(
                 task("t-subido", at(10, 8), attachmentName = "hoja.pdf", attachmentState = AttachmentSyncState.UPLOADED),
@@ -88,15 +88,21 @@ class TeacherPublicationUiTest {
             zone = utc,
         ).associateBy { it.id }
 
-        assertEquals("hoja.pdf · Subido", rows.getValue("t-subido").attachmentLabel)
+        assertEquals("hoja.pdf", rows.getValue("t-subido").attachmentName)
         assertEquals(AttachmentSyncState.UPLOADED, rows.getValue("t-subido").attachmentState)
-        assertEquals("guia.pdf · Pendiente", rows.getValue("t-pendiente").attachmentLabel)
+        assertEquals("guia.pdf", rows.getValue("t-pendiente").attachmentName)
         assertEquals(
             "a task that went out without its file must not look like it has it",
-            "examen.pdf · No se subió",
-            rows.getValue("t-fallido").attachmentLabel,
+            "examen.pdf",
+            rows.getValue("t-fallido").attachmentName,
         )
-        assertNull(rows.getValue("t-sin-archivo").attachmentLabel)
+        assertNull(rows.getValue("t-sin-archivo").attachmentName)
+
+        // The card prints a `PDF` chip, not the name: `Abrir` is the only word an
+        // uploaded file needs, because it only appears when there is a URL.
+        assertNull(attachmentStateLabel(AttachmentSyncState.UPLOADED))
+        assertEquals("Pendiente", attachmentStateLabel(AttachmentSyncState.PENDING))
+        assertEquals("No se subió", attachmentStateLabel(AttachmentSyncState.FAILED))
     }
 
     @Test
@@ -141,12 +147,36 @@ class TeacherPublicationUiTest {
         set(2026, Calendar.NOVEMBER, day, hour, 0, 0)
     }.timeInMillis
 
+    @Test
+    fun `the attachment URL reaches the row that prints it`() {
+        val rows = publicationRows(
+            tasks = listOf(
+                task(
+                    "t-1",
+                    at(10, 8),
+                    attachmentName = "hoja.pdf",
+                    attachmentState = AttachmentSyncState.UPLOADED,
+                    attachmentUrl = "https://res.cloudinary.com/demo/raw/upload/v1/hoja.pdf",
+                ),
+            ),
+            notices = listOf(notice("n-1", at(10, 8))),
+            zone = utc,
+        ).associateBy { it.id }
+
+        assertEquals(
+            "https://res.cloudinary.com/demo/raw/upload/v1/hoja.pdf",
+            rows.getValue("t-1").attachmentUrl,
+        )
+        assertNull("a notice carries no file", rows.getValue("n-1").attachmentUrl)
+    }
+
     private fun task(
         id: String,
         createdAt: Long,
         pending: Boolean = false,
         attachmentName: String? = null,
         attachmentState: AttachmentSyncState? = null,
+        attachmentUrl: String? = null,
     ) = PublishedTask(
         taskId = id,
         title = "Ecuaciones",
@@ -158,6 +188,7 @@ class TeacherPublicationUiTest {
         pending = pending,
         attachmentName = attachmentName,
         attachmentState = attachmentState,
+        attachmentUrl = attachmentUrl,
     )
 
     private fun notice(

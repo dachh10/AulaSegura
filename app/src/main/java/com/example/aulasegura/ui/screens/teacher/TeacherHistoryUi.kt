@@ -14,6 +14,7 @@ import com.example.aulasegura.domain.model.RollCallSync
 import com.example.aulasegura.domain.model.SyncPhase
 import com.example.aulasegura.util.AttendanceTimes
 import java.text.SimpleDateFormat
+import java.util.Calendar
 import java.util.Date
 import java.util.Locale
 import java.util.TimeZone
@@ -27,6 +28,11 @@ import kotlin.math.roundToInt
  * clock, which is the only way to test them at all.
  */
 data class TeacherHistoryUi(
+    /** `0` is the current month, `-1` the previous one; never positive. */
+    val monthOffset: Int = 0,
+    /** `"Noviembre 2026"`, derived from [monthOffset]. */
+    val monthLabel: String = "",
+    val canGoNextMonth: Boolean = false,
     val sections: List<HistorySectionUi> = emptyList(),
     val incidentSections: List<IncidentSectionUi> = emptyList(),
     val publications: List<HistoryPublicationUi> = emptyList(),
@@ -125,9 +131,15 @@ data class HistoryPublicationUi(
     /** Still in the outbox: Firestore does not have it yet. */
     val pending: Boolean,
     val urgent: Boolean,
-    /** `"hoja.pdf · Subido"`, when the task carries a PDF. */
-    val attachmentLabel: String? = null,
+    /**
+     * File name of the task's PDF, when it has one. The row prints a `PDF` chip
+     * instead of the name — a 40-character file name would eat the card — so this
+     * is only here for the icon's accessibility label.
+     */
+    val attachmentName: String? = null,
     val attachmentState: AttachmentSyncState? = null,
+    /** Set only when the PDF reached Cloudinary: then the row can open it. */
+    val attachmentUrl: String? = null,
     /** Only for ordering; the row prints [postedLabel]. */
     val createdAt: Long,
 )
@@ -144,6 +156,47 @@ data class HistoryEvidenceUi(
     val url: String?,
     val phase: MediaUploadPhase,
 )
+
+/*
+ * Months.
+ *
+ * The header used to print a fixed "Noviembre 2026" while the arrows did nothing,
+ * so in December the screen would still claim November. A month is compared as
+ * `year * 12 + month`, an int, which keeps "same month" a single equality in every
+ * list and needs no `java.time`.
+ */
+
+/** `2026-11-17` in [zone] → `2026 * 12 + 10`. `null` when the date is unreadable. */
+fun monthKeyOfIso(iso: String?, zone: TimeZone = TimeZone.getDefault()): Int? {
+    val millis = iso?.let { AttendanceTimes.isoDateToMillis(it, zone) } ?: return null
+    return monthKey(millis, zone)
+}
+
+/** The month of [epochMillis] as a comparable int. */
+fun monthKey(epochMillis: Long, zone: TimeZone = TimeZone.getDefault()): Int {
+    val calendar = Calendar.getInstance(zone).apply { timeInMillis = epochMillis }
+    return calendar.get(Calendar.YEAR) * 12 + calendar.get(Calendar.MONTH)
+}
+
+/** The month [offset] months before [now]; `0` is the current one. */
+fun monthKeyBefore(now: Long, offset: Int, zone: TimeZone = TimeZone.getDefault()): Int =
+    monthKey(now, zone) + offset
+
+/** `"Noviembre 2026"` for [offset] months before [now]. */
+fun monthLabel(now: Long, offset: Int, zone: TimeZone = TimeZone.getDefault()): String {
+    val calendar = Calendar.getInstance(zone).apply {
+        timeInMillis = now
+        add(Calendar.MONTH, offset)
+    }
+    val label = SimpleDateFormat("MMMM yyyy", Locale("es", "MX"))
+        .apply { timeZone = zone }
+        .format(calendar.time)
+
+    return label.replaceFirstChar { it.uppercase(Locale("es", "MX")) }
+}
+
+/** How far forward the arrows may go: never past the current month. */
+fun nextMonthOffset(current: Int): Int = minOf(current + 1, 0)
 
 /**
  * Buckets the sessions by recency, newest first.
@@ -247,10 +300,9 @@ fun publicationRows(
             postedLabel = publicationTimestampLabel(task.createdAt, zone),
             pending = task.pending,
             urgent = false,
-            attachmentLabel = task.attachmentName?.let { name ->
-                publicationAttachmentLabel(name, task.attachmentState)
-            },
+            attachmentName = task.attachmentName,
             attachmentState = task.attachmentState,
+            attachmentUrl = task.attachmentUrl,
             createdAt = task.createdAt,
         )
     } + notices.map { notice ->
@@ -271,18 +323,18 @@ fun publicationRows(
 }
 
 /**
- * The attachment line of a publication, with the truth about the file.
+ * The short state printed next to the `PDF` chip.
  *
- * It is evidence, not decoration: `Subido` means Cloudinary answered and the URL
- * is in the document, `Pendiente` means the file is still on this phone, and
- * `No se subió` means the task went out without it.
+ * It is evidence, not decoration: `Pendiente` means the file is still on this
+ * phone and `No se subió` means the task went out without it. An uploaded file
+ * needs no word: the row already says `Abrir`, which is only there when the URL
+ * exists, so a successful upload is the one case that prints nothing extra.
  */
-fun publicationAttachmentLabel(name: String, state: AttachmentSyncState?): String =
-    when (state) {
-        AttachmentSyncState.UPLOADED -> "$name · Subido"
-        AttachmentSyncState.FAILED -> "$name · No se subió"
-        AttachmentSyncState.PENDING, null -> "$name · Pendiente"
-    }
+fun attachmentStateLabel(state: AttachmentSyncState?): String? = when (state) {
+    AttachmentSyncState.UPLOADED -> null
+    AttachmentSyncState.FAILED -> "No se subió"
+    AttachmentSyncState.PENDING, null -> "Pendiente"
+}
 
 /** `"12 nov · 08:00"` — when the teacher published it, in local time. */
 fun publicationTimestampLabel(

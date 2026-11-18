@@ -1,6 +1,7 @@
 package com.example.aulasegura.ui.screens.access
 
 import android.Manifest
+import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.net.Uri
@@ -59,8 +60,9 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
@@ -74,6 +76,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.core.app.NotificationManagerCompat
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import com.example.aulasegura.ui.components.PillButton
@@ -143,14 +146,27 @@ fun PermissionsScreen(
         notifState = if (granted) PermState.GRANTED else PermState.DENIED
     }
 
-    fun isGranted(permission: String): Boolean =
-        ContextCompat.checkSelfPermission(context, permission) == PackageManager.PERMISSION_GRANTED
+    fun isGranted(permission: String): Boolean {
+        if (ContextCompat.checkSelfPermission(context, permission) ==
+            PackageManager.PERMISSION_GRANTED
+        ) return true
+        // A coarse fix is enough for the school-presence check; accept it as granted
+        // instead of asking the teacher to upgrade an already sufficient grant.
+        return permission == Manifest.permission.ACCESS_FINE_LOCATION &&
+            ContextCompat.checkSelfPermission(
+                context,
+                Manifest.permission.ACCESS_COARSE_LOCATION,
+            ) == PackageManager.PERMISSION_GRANTED
+    }
 
     fun stateOf(permission: String): PermState {
-        // Below Android 13 the runtime notification permission does not exist.
+        // Below Android 13 the runtime notification permission does not exist; the
+        // OS-wide switch is the equivalent source of truth on those versions.
         if (permission == Manifest.permission.POST_NOTIFICATIONS &&
             Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU
-        ) return PermState.GRANTED
+        ) {
+            return if (notificationsGranted(context)) PermState.GRANTED else PermState.DENIED
+        }
         if (isGranted(permission)) return PermState.GRANTED
         if (permission !in asked) return PermState.PENDING
         val canAskAgain = activity?.let {
@@ -178,6 +194,28 @@ fun PermissionsScreen(
             addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
         }
         runCatching { context.startActivity(intent) }
+    }
+
+    // A granted card routes to Settings; a denied one asks, falling back to
+    // Settings when the launcher cannot be used (e.g. no foreground activity).
+    fun onLocationClick() {
+        if (stateOf(Manifest.permission.ACCESS_FINE_LOCATION) == PermState.GRANTED) {
+            openSettings()
+        } else {
+            runCatching { request(Manifest.permission.ACCESS_FINE_LOCATION) }
+                .onFailure { openSettings() }
+        }
+    }
+
+    fun onNotificationsClick() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
+            stateOf(Manifest.permission.POST_NOTIFICATIONS) != PermState.GRANTED
+        ) {
+            runCatching { request(Manifest.permission.POST_NOTIFICATIONS) }
+                .onFailure { openSettings() }
+        } else {
+            openSettings()
+        }
     }
 
     LaunchedEffect(Unit) { refreshStates() }
@@ -229,7 +267,7 @@ fun PermissionsScreen(
 
                 Spacer(Modifier.height(16.dp))
 
-                // Permission cards
+                // Permission cards — state comes from the OS, not from a local flag.
                 Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                     Reveal(delayMillis = 100) {
                         PermissionCard(
@@ -239,7 +277,7 @@ fun PermissionsScreen(
                             title = "Ubicación",
                             description = "Para confirmar que la asistencia se registra dentro de la escuela.",
                             state = locationState,
-                            onGrant = { request(Manifest.permission.ACCESS_FINE_LOCATION) },
+                            onGrant = ::onLocationClick,
                             onOpenSettings = ::openSettings,
                         )
                     }
@@ -263,9 +301,12 @@ fun PermissionsScreen(
                             title = "Notificaciones",
                             description = "Para avisarte de faltas, tareas y mensajes nuevos.",
                             state = notifState,
-                            onGrant = { request(Manifest.permission.POST_NOTIFICATIONS) },
+                            onGrant = ::onNotificationsClick,
                             onOpenSettings = ::openSettings,
                         )
+                    }
+                    Reveal(delayMillis = 200) {
+                        PermissionNote()
                     }
                 }
 
@@ -402,6 +443,67 @@ private fun PermHeader() {
             fontFamily = DmSans,
             fontSize = 14.sp,
             lineHeight = 20.sp,
+            color = OnSurfaceVariant,
+        )
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Real permission state
+// ---------------------------------------------------------------------------
+
+private fun permState(granted: Boolean): PermState =
+    if (granted) PermState.GRANTED else PermState.PENDING
+
+private fun locationGranted(context: Context): Boolean =
+    ContextCompat.checkSelfPermission(
+        context,
+        Manifest.permission.ACCESS_FINE_LOCATION,
+    ) == PackageManager.PERMISSION_GRANTED ||
+        ContextCompat.checkSelfPermission(
+            context,
+            Manifest.permission.ACCESS_COARSE_LOCATION,
+        ) == PackageManager.PERMISSION_GRANTED
+
+private fun notificationsGranted(context: Context): Boolean =
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+        ContextCompat.checkSelfPermission(
+            context,
+            Manifest.permission.POST_NOTIFICATIONS,
+        ) == PackageManager.PERMISSION_GRANTED
+    } else {
+        NotificationManagerCompat.from(context).areNotificationsEnabled()
+    }
+
+/**
+ * The mockup had a third "Cámara" card, but the app has no CAMERA permission:
+ * photos go through the system camera app or the gallery picker. Saying so is
+ * more useful than a button that would open a setting that does not exist.
+ */
+@Composable
+private fun PermissionNote() {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(16.dp))
+            .background(SurfaceContainerLow.copy(alpha = 0.8f))
+            .border(1.dp, OutlineVariant.copy(alpha = 0.4f), RoundedCornerShape(16.dp))
+            .padding(12.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(10.dp),
+    ) {
+        Icon(
+            imageVector = Icons.Outlined.VerifiedUser,
+            contentDescription = null,
+            tint = PrimaryContainer,
+            modifier = Modifier.size(18.dp),
+        )
+        Text(
+            text = "Las fotos se toman con la cámara del teléfono o se eligen de la galería; " +
+                "no piden permiso adicional.",
+            fontFamily = DmSans,
+            fontSize = 11.sp,
+            lineHeight = 15.sp,
             color = OnSurfaceVariant,
         )
     }

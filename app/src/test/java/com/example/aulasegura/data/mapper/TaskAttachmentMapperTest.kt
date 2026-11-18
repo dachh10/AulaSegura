@@ -104,6 +104,25 @@ class TaskAttachmentMapperTest {
     }
 
     @Test
+    fun `the URL travels only when the PDF reached Cloudinary`() {
+        val uploadedRow = task()
+            .withAttachment(uploaded())
+            .toPublishedTask(groupNames = listOf("3° B"), pending = false)
+        val queuedRow = task()
+            .withAttachment(pending())
+            .toPublishedTask(groupNames = listOf("3° B"), pending = true)
+
+        assertEquals(
+            "https://res.cloudinary.com/demo/raw/upload/v1/aulasegura/tasks/tsk-1/hoja.pdf",
+            uploadedRow.attachmentUrl,
+        )
+        assertNull(
+            "a file that is still on the phone has nothing to open yet",
+            queuedRow.attachmentUrl,
+        )
+    }
+
+    @Test
     fun `an attachment still queued is reported as pending`() {
         val row = task()
             .withAttachment(pending())

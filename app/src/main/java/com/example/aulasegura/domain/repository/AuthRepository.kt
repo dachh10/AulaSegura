@@ -49,6 +49,31 @@ interface AuthRepository {
     suspend fun sendPasswordReset(email: String): PasswordResetResult
 
     /**
+     * Stores the avatar coordinates in `users/{uid}` and refreshes the cached
+     * profile, so the new picture survives a restart without another network read.
+     *
+     * No network call belongs here: compression and the Cloudinary upload happen
+     * in the caller. This method only writes the two fields the profile owns.
+     */
+    suspend fun updateProfilePhoto(
+        photoUrl: String,
+        photoPublicId: String,
+    ): ProfilePhotoResult
+
+    /**
+     * Edits the identity fields this app owns: name and subjects.
+     *
+     * Email, role, school and active are written by the director's flows and
+     * rejected by the rules from a teacher device. As with the avatar, the
+     * in-memory profile and its Room cache are refreshed here so the greeting
+     * changes without a reload.
+     */
+    suspend fun updateProfile(
+        fullName: String,
+        subjects: List<String>,
+    ): ProfileUpdateResult
+
+    /**
      * Reauthenticates the open session with its current password, then sets a new
      * one. Reauthentication is what Firebase requires for a sensitive change; the
      * implementation never signs the user out, so the principal keeps their session.
@@ -61,9 +86,63 @@ interface AuthRepository {
     fun signOut()
 }
 
+/** Outcome of an identity edit. */
+sealed interface ProfileUpdateResult {
+
+    /** Firestore accepted it, and memory and cache were refreshed. */
+    data object Saved : ProfileUpdateResult
+
+    data object SignedOut : ProfileUpdateResult
+
+    /** The rules refused it — e.g. the account was deactivated meanwhile. */
+    data object Rejected : ProfileUpdateResult
+
+    data object Failed : ProfileUpdateResult
+}
+
+/**
+ * Password-change outcome, shared by the director's and the teacher's screens.
+ *
+ * Seven variants model what actually happened, which is what the teacher UI maps
+ * to a message. [Failure] is the director's typed view of the same rejections:
+ * every error variant carries the corresponding [PasswordChangeError] reason, so
+ * an `is Failure` branch can read `reason` without losing the finer variant.
+ * [Success] is the director's success marker and is simply the [Changed] value.
+ */
 sealed interface PasswordChangeResult {
-    data object Success : PasswordChangeResult
-    data class Failure(val reason: PasswordChangeError) : PasswordChangeResult
+
+    // Every variant carries Failure so `is Failure` is exhaustive for the
+    // director's when; on the success path its reason is never read because the
+    // Success branch is evaluated first.
+    data object Changed :
+        Failure(PasswordChangeError.UNKNOWN), PasswordChangeResult
+
+    data object WrongPassword :
+        Failure(PasswordChangeError.WRONG_PASSWORD), PasswordChangeResult
+
+    data object WeakPassword :
+        Failure(PasswordChangeError.WEAK_PASSWORD), PasswordChangeResult
+
+    data object RequiresRecentLogin :
+        Failure(PasswordChangeError.REQUIRES_RECENT_LOGIN), PasswordChangeResult
+
+    data object SignedOut :
+        Failure(PasswordChangeError.NO_SESSION), PasswordChangeResult
+
+    data object NetworkError :
+        Failure(PasswordChangeError.NETWORK), PasswordChangeResult
+
+    data object Failed :
+        Failure(PasswordChangeError.UNKNOWN), PasswordChangeResult
+
+    /** Typed cause behind a rejection, as consumed by the director's profile screen. */
+    open class Failure(val reason: PasswordChangeError)
+
+    companion object {
+
+        /** Success alias for callers that only need to know the write succeeded. */
+        val Success: PasswordChangeResult = Changed
+    }
 }
 
 enum class PasswordChangeError {
@@ -88,6 +167,22 @@ fun passwordChangeErrorFromCode(code: String?): PasswordChangeError = when (code
     "ERROR_REQUIRES_RECENT_LOGIN" -> PasswordChangeError.REQUIRES_RECENT_LOGIN
     "ERROR_NETWORK_REQUEST_FAILED" -> PasswordChangeError.NETWORK
     else -> PasswordChangeError.UNKNOWN
+}
+
+/** Outcome of an avatar write, kept typed so the UI can explain a rejection. */
+sealed interface ProfilePhotoResult {
+
+    /** Firestore accepted it and the in-memory and cached profiles were updated. */
+    data object Saved : ProfilePhotoResult
+
+    /** The session ended while the picture was being uploaded. */
+    data object SignedOut : ProfilePhotoResult
+
+    /** The rules refused the write — e.g. the account was deactivated meanwhile. */
+    data object Rejected : ProfilePhotoResult
+
+    /** Transport failure; the picture is in Cloudinary but the profile still points to the old one. */
+    data object Failed : ProfilePhotoResult
 }
 
 sealed interface PasswordResetResult {

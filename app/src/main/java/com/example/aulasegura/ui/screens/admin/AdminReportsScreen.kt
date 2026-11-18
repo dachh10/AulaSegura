@@ -1,11 +1,11 @@
 package com.example.aulasegura.ui.screens.admin
 
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
-import androidx.compose.animation.core.RepeatMode
-import androidx.compose.animation.core.animateFloat
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -34,6 +34,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -53,6 +54,11 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.lifecycle.viewmodel.compose.viewModel
+import com.example.aulasegura.di.rememberAppContainer
+import com.example.aulasegura.domain.model.AdminGroupBreakdown
+import com.example.aulasegura.domain.model.AdminReportRangeSummary
+import com.example.aulasegura.domain.model.AdminTopAbsenceDay
 import com.example.aulasegura.ui.components.AdminBottomBar
 import com.example.aulasegura.ui.components.AdminTab
 import com.example.aulasegura.ui.screens.access.Reveal
@@ -70,8 +76,9 @@ import com.example.aulasegura.ui.theme.Outline
 import com.example.aulasegura.ui.theme.PrimaryContainer
 import com.example.aulasegura.ui.theme.SurfaceContainer
 import com.example.aulasegura.ui.theme.SurfaceContainerLowest
+import com.example.aulasegura.util.AttendanceTimes
 
-/** 4.6 — Reportes de Asistencia. Ported 1:1 from the Stitch markup of the attendance report. */
+/** 4.6 — Reportes de Asistencia. Stitch layout kept; every value comes from Firestore. */
 
 private val Hairline = Color(0xFFE6E1D8)
 private val Amber = Color(0xFFF59E0B)
@@ -80,49 +87,88 @@ private val StudentCoralBg = Color(0xFFFFE5E1)
 private val StudentCoralBorder = Color(0xFFFFDAD4)
 private val CardShape = RoundedCornerShape(24.dp)
 
-private data class WeeklyPoint(val label: String, val percent: Int, val fraction: Float, val highlight: Boolean)
-
-private val weekly = listOf(
-    WeeklyPoint("Sem 1", 92, 0.82f, false),
-    WeeklyPoint("Sem 2", 94, 0.94f, true),
-    WeeklyPoint("Sem 3", 91, 0.78f, false),
-    WeeklyPoint("Sem 4", 93, 0.86f, false),
+/** One bar of the status chart, built from a real count in the range summary. */
+private data class WeeklyPoint(
+    val label: String,
+    val value: Int,
+    val fraction: Float,
+    val highlight: Boolean,
 )
 
+private fun statusPoints(values: ReportChartValues): List<WeeklyPoint> {
+    val rows = listOf(
+        "Presentes" to values.present,
+        "Faltas" to values.absent,
+        "Retardos" to values.late,
+        "Justificadas" to values.justified,
+    )
+    val max = rows.maxOf { it.second }.coerceAtLeast(1)
+    return rows.map { (label, value) ->
+        WeeklyPoint(
+            label = label,
+            value = value,
+            fraction = value.toFloat() / max.toFloat(),
+            highlight = label == "Faltas" && value > 0,
+        )
+    }
+}
+
+/** One bar of the per-group card, built from a group's summed sessions. */
 private data class GroupShare(val name: String, val percent: Int)
 
-private val groupShares = listOf(
-    GroupShare("3° B", 94),
-    GroupShare("3° A", 91),
-    GroupShare("2° C", 96),
-)
+private fun groupShares(breakdowns: List<AdminGroupBreakdown>): List<GroupShare> =
+    breakdowns.map { GroupShare(name = it.groupLabel, percent = it.attendancePercentage) }
 
+/** One row of the "most absences" list: a real calendar day, never a mock student. */
 private data class AbsenceRow(
-    val initials: String,
-    val name: String,
-    val group: String,
-    val shift: String,
+    val dayNumber: String,
+    val dateLabel: String,
+    val sessionsLabel: String,
     val absences: Int,
     val coral: Boolean,
 )
 
-private val absences = listOf(
-    AbsenceRow("CD", "Camila Domínguez", "3° B", "Matutino", 5, true),
-    AbsenceRow("MR", "Mateo Ríos", "2° C", "Matutino", 4, false),
-)
+private fun absenceRows(days: List<AdminTopAbsenceDay>): List<AbsenceRow> =
+    days.mapIndexed { index, day ->
+        val dateLabel = formatIsoDate(day.date)
+        AbsenceRow(
+            dayNumber = day.date.takeLast(2).ifBlank { "—" },
+            dateLabel = dateLabel,
+            sessionsLabel = if (day.sessionCount == 1) "1 sesión" else "${day.sessionCount} sesiones",
+            absences = day.absentCount,
+            coral = index == 0,
+        )
+    }
 
 @Composable
 fun AdminReportsScreen(
-    onDescargar: () -> Unit = {},
+    onDescargar: (AdminReportsUiState) -> Unit = {},
     onPanel: () -> Unit = {},
     onUsuarios: () -> Unit = {},
     onGrupos: () -> Unit = {},
     onMas: () -> Unit = {},
 ) {
+    val viewModel: AdminReportsViewModel = viewModel(
+        factory = rememberAppContainer().viewModelFactory,
+    )
+    val uiState by viewModel.state.collectAsState()
+
     var animated by remember { mutableStateOf(false) }
-    LaunchedEffect(Unit) { animated = true }
+    val todayIso = remember { AttendanceTimes.isoDate(System.currentTimeMillis()) }
+    var rangeMode by remember { mutableStateOf(0) }
+
+    LaunchedEffect(uiState.summary, uiState.fromDate, uiState.toDate) {
+        animated = false
+        if (uiState.hasData) animated = true
+    }
+
+    val summary = uiState.summary
     val ringProgress by animateFloatAsState(
-        targetValue = if (animated) 0.93f else 0f,
+        targetValue = if (animated && summary != null) {
+            summary.attendancePercentage / 100f
+        } else {
+            0f
+        },
         animationSpec = tween(durationMillis = 700),
         label = "reportRing",
     )
@@ -140,12 +186,50 @@ fun AdminReportsScreen(
                 .padding(start = 16.dp, end = 16.dp, top = 4.dp, bottom = 120.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
-            Reveal(0) { ReportsHeader(onDescargar = onDescargar) }
-            Reveal(60) { FilterChipsRow() }
-            Reveal(120) { AttendanceSummary(ringProgress = ringProgress) }
-            Reveal(180) { WeeklyChart(animated = animated) }
-            Reveal(240) { PerGroupCard(animated = animated) }
-            Reveal(300) { AbsencesCard() }
+            Reveal(0) { ReportsHeader(onDescargar = { onDescargar(uiState) }) }
+            Reveal(60) {
+                FilterChipsRow(
+                    rangeLabel = rangeLabel(uiState.fromDate, uiState.toDate),
+                    sessionsLabel = sessionsChipLabel(summary),
+                    attendanceLabel = attendanceChipLabel(summary),
+                    onRangeClick = {
+                        rangeMode = (rangeMode + 1) % 2
+                        val (from, to) = if (rangeMode == 0) {
+                            monthRange(todayIso)
+                        } else {
+                            lastDaysRange(todayIso, 7)
+                        }
+                        viewModel.setRange(from, to)
+                    },
+                )
+            }
+
+            when {
+                uiState.loading -> Reveal(120) { ReportsLoadingCard() }
+                uiState.error != null -> Reveal(120) {
+                    ReportsErrorCard(message = uiState.error.orEmpty(), onRetry = viewModel::refresh)
+                }
+
+                uiState.empty -> Reveal(120) {
+                    ReportsEmptyCard(range = rangeLabel(uiState.fromDate, uiState.toDate))
+                }
+
+                summary != null -> {
+                    Reveal(120) { AttendanceSummary(summary = summary, ringProgress = ringProgress) }
+                    Reveal(180) {
+                        WeeklyChart(animated = animated, values = chartValues(summary))
+                    }
+                    Reveal(240) {
+                        PerGroupCard(
+                            animated = animated,
+                            shares = groupShares(sortedGroups(uiState.groups)),
+                        )
+                    }
+                    Reveal(300) {
+                        AbsencesCard(rows = absenceRows(sortedTopDays(uiState.topDays).take(5)))
+                    }
+                }
+            }
         }
 
         AdminBottomBar(
@@ -163,6 +247,12 @@ fun AdminReportsScreen(
         )
     }
 }
+
+private fun sessionsChipLabel(summary: AdminReportRangeSummary?): String =
+    if (summary == null) "Sesiones · …" else "${summary.sessionCount} sesiones"
+
+private fun attendanceChipLabel(summary: AdminReportRangeSummary?): String =
+    if (summary == null) "Asistencia · …" else "${summary.presentCount} presentes"
 
 @Composable
 private fun ReportsHeader(onDescargar: () -> Unit) {
@@ -215,23 +305,29 @@ private fun ReportsHeader(onDescargar: () -> Unit) {
 }
 
 @Composable
-private fun FilterChipsRow() {
+private fun FilterChipsRow(
+    rangeLabel: String,
+    sessionsLabel: String,
+    attendanceLabel: String,
+    onRangeClick: () -> Unit,
+) {
     Row(
         modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.spacedBy(8.dp),
     ) {
         FilterChipValue(
-            value = "Noviembre 2026",
+            value = rangeLabel,
             mono = true,
+            onClick = onRangeClick,
             modifier = Modifier.weight(1f),
         )
         FilterChipValue(
-            value = "Todos los grupos",
+            value = sessionsLabel,
             mono = false,
             modifier = Modifier.weight(1f),
         )
         FilterChipValue(
-            value = "Todos",
+            value = attendanceLabel,
             mono = false,
             modifier = Modifier.weight(1f),
         )
@@ -243,6 +339,7 @@ private fun FilterChipValue(
     value: String,
     mono: Boolean,
     modifier: Modifier = Modifier,
+    onClick: (() -> Unit)? = null,
 ) {
     Row(
         modifier = modifier
@@ -250,7 +347,7 @@ private fun FilterChipValue(
             .clip(RoundedCornerShape(percent = 50))
             .background(SurfaceContainerLowest)
             .border(1.dp, Hairline, RoundedCornerShape(percent = 50))
-            .clickable { }
+            .then(if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier)
             .padding(start = 10.dp, end = 6.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
@@ -264,18 +361,85 @@ private fun FilterChipValue(
             overflow = TextOverflow.Ellipsis,
             modifier = Modifier.weight(1f, fill = false),
         )
-        Spacer(modifier = Modifier.width(2.dp))
-        Icon(
-            imageVector = Icons.Filled.ExpandMore,
-            contentDescription = null,
-            tint = Outline,
-            modifier = Modifier.size(16.dp),
+        if (onClick != null) {
+            Spacer(modifier = Modifier.width(2.dp))
+            Icon(
+                imageVector = Icons.Filled.ExpandMore,
+                contentDescription = null,
+                tint = Outline,
+                modifier = Modifier.size(16.dp),
+            )
+        }
+    }
+}
+
+@Composable
+private fun ReportsLoadingCard() {
+    ReportsStatusCard(text = "Cargando reportes de asistencia…")
+}
+
+@Composable
+private fun ReportsEmptyCard(range: String) {
+    ReportsStatusCard(
+        text = "No hay sesiones de asistencia entre $range. " +
+            "Cuando se registre una lista, el resumen aparecerá aquí.",
+    )
+}
+
+@Composable
+private fun ReportsErrorCard(message: String, onRetry: () -> Unit) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(CardShape)
+            .background(ErrorContainer)
+            .border(1.dp, Hairline, CardShape)
+            .padding(16.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        Text(
+            text = message,
+            color = Error,
+            fontFamily = DmSans,
+            fontWeight = FontWeight.Medium,
+            fontSize = 14.sp,
+        )
+        Text(
+            text = "Reintentar",
+            color = PrimaryContainer,
+            fontFamily = DmSans,
+            fontWeight = FontWeight.SemiBold,
+            fontSize = 13.sp,
+            modifier = Modifier.clickable(onClick = onRetry),
         )
     }
 }
 
 @Composable
-private fun AttendanceSummary(ringProgress: Float) {
+private fun ReportsStatusCard(text: String) {
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(CardShape)
+            .background(SurfaceContainerLowest)
+            .border(1.dp, Hairline, CardShape)
+            .padding(20.dp),
+        contentAlignment = Alignment.Center,
+    ) {
+        Text(
+            text = text,
+            color = Outline,
+            fontFamily = DmSans,
+            fontWeight = FontWeight.Medium,
+            fontSize = 13.sp,
+            lineHeight = 18.sp,
+            textAlign = TextAlign.Center,
+        )
+    }
+}
+
+@Composable
+private fun AttendanceSummary(summary: AdminReportRangeSummary, ringProgress: Float) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -314,7 +478,7 @@ private fun AttendanceSummary(ringProgress: Float) {
             }
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
                 Text(
-                    text = "93%",
+                    text = formatAttendancePercent(summary.presentCount, summary.totalMarks),
                     color = PrimaryContainer,
                     fontFamily = JetBrainsMono,
                     fontWeight = FontWeight.Bold,
@@ -337,7 +501,7 @@ private fun AttendanceSummary(ringProgress: Float) {
         Box(
             modifier = Modifier
                 .padding(start = 8.dp)
-                .height(96.dp)
+                .height(112.dp)
                 .width(1.dp)
                 .background(SurfaceContainer),
         )
@@ -346,11 +510,32 @@ private fun AttendanceSummary(ringProgress: Float) {
             modifier = Modifier
                 .weight(1f)
                 .padding(start = 14.dp),
-            verticalArrangement = Arrangement.spacedBy(10.dp),
+            verticalArrangement = Arrangement.spacedBy(6.dp),
         ) {
-            SummaryRow(dotColor = BrandMint, label = "Presentes", value = "1,420", valueColor = PrimaryContainer)
-            SummaryRow(dotColor = BrandCoral, label = "Faltas", value = "74", valueColor = BrandCoral)
-            SummaryRow(dotColor = Amber, label = "Retardos", value = "31", valueColor = OnSurface)
+            SummaryRow(
+                dotColor = BrandMint,
+                label = "Presentes",
+                value = summary.presentCount.toString(),
+                valueColor = PrimaryContainer,
+            )
+            SummaryRow(
+                dotColor = BrandCoral,
+                label = "Faltas",
+                value = summary.absentCount.toString(),
+                valueColor = BrandCoral,
+            )
+            SummaryRow(
+                dotColor = Amber,
+                label = "Retardos",
+                value = summary.lateCount.toString(),
+                valueColor = OnSurface,
+            )
+            SummaryRow(
+                dotColor = TrackIndigo,
+                label = "Justificadas",
+                value = summary.justifiedCount.toString(),
+                valueColor = OnSurface,
+            )
         }
     }
 }
@@ -404,7 +589,7 @@ private fun SummaryRow(
 }
 
 @Composable
-private fun WeeklyChart(animated: Boolean) {
+private fun WeeklyChart(animated: Boolean, values: ReportChartValues) {
     Column(
         modifier = Modifier
             .fillMaxWidth()
@@ -419,7 +604,7 @@ private fun WeeklyChart(animated: Boolean) {
             verticalAlignment = Alignment.Bottom,
         ) {
             Text(
-                text = "Asistencia por semana",
+                text = "Desglose de asistencia",
                 color = PrimaryContainer,
                 fontFamily = BricolageGrotesque,
                 fontWeight = FontWeight.Bold,
@@ -428,7 +613,7 @@ private fun WeeklyChart(animated: Boolean) {
                 letterSpacing = (-0.18).sp,
             )
             Text(
-                text = "Promedio: 92.5%",
+                text = "Total: ${values.total} registros",
                 color = Outline,
                 fontFamily = JetBrainsMono,
                 fontWeight = FontWeight.Medium,
@@ -459,10 +644,10 @@ private fun WeeklyChart(animated: Boolean) {
 
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(16.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
                 verticalAlignment = Alignment.Bottom,
             ) {
-                weekly.forEach { point ->
+                statusPoints(values).forEach { point ->
                     WeeklyBar(point = point, animated = animated, modifier = Modifier.weight(1f))
                 }
             }
@@ -504,7 +689,7 @@ private fun WeeklyBar(point: WeeklyPoint, animated: Boolean, modifier: Modifier 
                 )
             }
             Text(
-                text = "${point.percent}%",
+                text = point.value.toString(),
                 color = if (point.highlight) BrandCoral else PrimaryContainer,
                 fontFamily = JetBrainsMono,
                 fontWeight = if (point.highlight) FontWeight.Bold else FontWeight.SemiBold,
@@ -517,7 +702,7 @@ private fun WeeklyBar(point: WeeklyPoint, animated: Boolean, modifier: Modifier 
 
         Box(
             modifier = Modifier
-                .width(32.dp)
+                .width(28.dp)
                 .height((96 * barHeight).dp)
                 .clip(RoundedCornerShape(topStart = 16.dp, topEnd = 16.dp))
                 .background(if (point.highlight) BrandCoral else PrimaryContainer),
@@ -528,16 +713,18 @@ private fun WeeklyBar(point: WeeklyPoint, animated: Boolean, modifier: Modifier 
         Text(
             text = point.label,
             color = if (point.highlight) PrimaryContainer else OnSurfaceVariant,
-            fontFamily = JetBrainsMono,
+            fontFamily = DmSans,
             fontWeight = if (point.highlight) FontWeight.SemiBold else FontWeight.Normal,
-            fontSize = 11.sp,
+            fontSize = 10.sp,
             lineHeight = 14.sp,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
         )
     }
 }
 
 @Composable
-private fun PerGroupCard(animated: Boolean) {
+private fun PerGroupCard(animated: Boolean, shares: List<GroupShare>) {
     Column(
         modifier = Modifier
             .fillMaxWidth()
@@ -561,24 +748,18 @@ private fun PerGroupCard(animated: Boolean) {
                 letterSpacing = (-0.18).sp,
             )
             Text(
-                text = "Ver desglose",
-                color = PrimaryContainer,
-                fontFamily = DmSans,
-                fontWeight = FontWeight.SemiBold,
+                text = "${shares.size} grupos",
+                color = Outline,
+                fontFamily = JetBrainsMono,
+                fontWeight = FontWeight.Medium,
                 fontSize = 11.sp,
-                lineHeight = 14.sp,
-                letterSpacing = 0.33.sp,
-                modifier = Modifier
-                    .clip(RoundedCornerShape(percent = 50))
-                    .clickable { }
-                    .padding(horizontal = 6.dp, vertical = 2.dp),
             )
         }
 
         Spacer(modifier = Modifier.height(12.dp))
 
         Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            groupShares.forEach { share ->
+            shares.forEach { share ->
                 val progress by animateFloatAsState(
                     targetValue = if (animated) share.percent / 100f else 0f,
                     animationSpec = tween(durationMillis = 700),
@@ -597,6 +778,9 @@ private fun PerGroupCard(animated: Boolean) {
                             fontWeight = FontWeight.SemiBold,
                             fontSize = 16.sp,
                             lineHeight = 22.sp,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                            modifier = Modifier.weight(1f, fill = false),
                         )
                         Text(
                             text = "${share.percent}%",
@@ -630,7 +814,7 @@ private fun PerGroupCard(animated: Boolean) {
 }
 
 @Composable
-private fun AbsencesCard() {
+private fun AbsencesCard(rows: List<AbsenceRow>) {
     Column {
         Row(
             modifier = Modifier
@@ -640,7 +824,7 @@ private fun AbsencesCard() {
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Text(
-                text = "Alumnos con más faltas",
+                text = "Días con más faltas",
                 color = PrimaryContainer,
                 fontFamily = BricolageGrotesque,
                 fontWeight = FontWeight.Bold,
@@ -666,7 +850,7 @@ private fun AbsencesCard() {
                 .border(1.dp, Hairline, CardShape)
                 .padding(horizontal = 12.dp, vertical = 8.dp),
         ) {
-            absences.forEachIndexed { index, row ->
+            rows.forEachIndexed { index, row ->
                 if (index > 0) {
                     Box(
                         modifier = Modifier
@@ -707,7 +891,7 @@ private fun AbsenceRowItem(row: AbsenceRow) {
                 contentAlignment = Alignment.Center,
             ) {
                 Text(
-                    text = row.initials,
+                    text = row.dayNumber,
                     color = if (row.coral) Color(0xFFAE3123) else PrimaryContainer,
                     fontFamily = BricolageGrotesque,
                     fontWeight = FontWeight.Bold,
@@ -717,7 +901,7 @@ private fun AbsenceRowItem(row: AbsenceRow) {
             Spacer(modifier = Modifier.width(12.dp))
             Column {
                 Text(
-                    text = row.name,
+                    text = row.dateLabel,
                     color = OnSurface,
                     fontFamily = DmSans,
                     fontWeight = FontWeight.SemiBold,
@@ -728,7 +912,7 @@ private fun AbsenceRowItem(row: AbsenceRow) {
                 )
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text(
-                        text = "Grupo ${row.group}",
+                        text = row.sessionsLabel,
                         color = OnSurfaceVariant,
                         fontFamily = DmSans,
                         fontWeight = FontWeight.Medium,
@@ -744,7 +928,7 @@ private fun AbsenceRowItem(row: AbsenceRow) {
                             .background(Outline),
                     )
                     Text(
-                        text = row.shift,
+                        text = "Faltas del día",
                         color = OnSurfaceVariant,
                         fontFamily = DmSans,
                         fontWeight = FontWeight.Medium,

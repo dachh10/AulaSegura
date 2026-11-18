@@ -48,7 +48,46 @@ interface AuthRepository {
      */
     suspend fun sendPasswordReset(email: String): PasswordResetResult
 
+    /**
+     * Reauthenticates the open session with its current password, then sets a new
+     * one. Reauthentication is what Firebase requires for a sensitive change; the
+     * implementation never signs the user out, so the principal keeps their session.
+     */
+    suspend fun changePassword(
+        currentPassword: String,
+        newPassword: String,
+    ): PasswordChangeResult
+
     fun signOut()
+}
+
+sealed interface PasswordChangeResult {
+    data object Success : PasswordChangeResult
+    data class Failure(val reason: PasswordChangeError) : PasswordChangeResult
+}
+
+enum class PasswordChangeError {
+    NO_SESSION,
+    WRONG_PASSWORD,
+    WEAK_PASSWORD,
+    REQUIRES_RECENT_LOGIN,
+    NETWORK,
+    UNKNOWN,
+}
+
+/**
+ * Pure mapping from a Firebase Auth error code to the typed password-change error.
+ * Keeping it here makes the classification testable without an Auth instance.
+ */
+fun passwordChangeErrorFromCode(code: String?): PasswordChangeError = when (code) {
+    "ERROR_WRONG_PASSWORD",
+    "ERROR_INVALID_CREDENTIAL",
+    -> PasswordChangeError.WRONG_PASSWORD
+
+    "ERROR_WEAK_PASSWORD" -> PasswordChangeError.WEAK_PASSWORD
+    "ERROR_REQUIRES_RECENT_LOGIN" -> PasswordChangeError.REQUIRES_RECENT_LOGIN
+    "ERROR_NETWORK_REQUEST_FAILED" -> PasswordChangeError.NETWORK
+    else -> PasswordChangeError.UNKNOWN
 }
 
 sealed interface PasswordResetResult {

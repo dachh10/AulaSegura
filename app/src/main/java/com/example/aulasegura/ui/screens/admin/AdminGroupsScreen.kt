@@ -27,9 +27,17 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -44,6 +52,8 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.lifecycle.viewmodel.compose.viewModel
+import com.example.aulasegura.di.rememberAppContainer
 import com.example.aulasegura.ui.components.AdminBottomBar
 import com.example.aulasegura.ui.components.AdminTab
 import com.example.aulasegura.ui.screens.access.revealOnEnter
@@ -59,56 +69,45 @@ import com.example.aulasegura.ui.theme.OutlineVariant
 import com.example.aulasegura.ui.theme.Primary
 import com.example.aulasegura.ui.theme.PrimaryContainer
 import com.example.aulasegura.ui.theme.PrimaryFixed
-import com.example.aulasegura.ui.theme.Secondary
 import com.example.aulasegura.ui.theme.SurfaceContainer
 import com.example.aulasegura.ui.theme.SurfaceContainerHigh
 import com.example.aulasegura.ui.theme.SurfaceContainerLowest
 import com.example.aulasegura.ui.theme.SurfaceVariant
 
-/** 4.4 — Grupos (Administración). Ported 1:1 from the Stitch markup of the groups list. */
+/** 4.4 — Grupos (Administración). Real groups from Firestore; sample data removed. */
 
 private val CardShape = RoundedCornerShape(24.dp)
 private val BadgeShape = RoundedCornerShape(16.dp)
 private val CardShadow = Color(0x141B1D3A)
-
-private enum class GradeFilter(val label: String, val grade: String?) {
-    Todos("Todos", null),
-    Primero("1°", "1"),
-    Segundo("2°", "2"),
-    Tercero("3°", "3"),
-}
-
-private data class AdminGroup(
-    val name: String,
-    val grade: String,
-    val titular: String,
-    val students: Int,
-    val attendance: Int,
-    val teachers: Int,
-    val incidents: Int,
-)
-
-private val adminGroups = listOf(
-    AdminGroup("3° B", "3", "Prof. Ricardo Salinas", 28, 94, 5, 1),
-    AdminGroup("3° A", "3", "Profa. Laura Mendoza", 30, 91, 5, 0),
-    AdminGroup("2° C", "2", "Prof. Héctor Vega", 27, 96, 4, 1),
-    AdminGroup("1° A", "1", "Profa. Elena Soto", 25, 89, 4, 0),
-)
 
 @Composable
 fun AdminGroupsScreen(
     onBack: () -> Unit = {},
     onAgregarGrupo: () -> Unit = {},
     onGrupo: (String) -> Unit = {},
+    onAddStudent: (String) -> Unit = {},
     onPanel: () -> Unit = {},
     onUsuarios: () -> Unit = {},
     onReportes: () -> Unit = {},
     onMas: () -> Unit = {},
 ) {
-    var filter by rememberSaveable { mutableStateOf(GradeFilter.Todos) }
+    val viewModel: AdminGroupsViewModel = viewModel(
+        factory = rememberAppContainer().viewModelFactory,
+    )
+    val uiState by viewModel.state.collectAsState()
 
-    val visible = remember(filter) {
-        adminGroups.filter { filter.grade == null || it.grade == filter.grade }
+    var filter by rememberSaveable { mutableStateOf(AdminGroupGradeFilter.Todos) }
+    var showCreate by remember { mutableStateOf(false) }
+    var form by remember { mutableStateOf(AdminGroupForm()) }
+
+    val visible = filterGroupsByGrade(uiState.groups, filter.grade).map { it.toRow() }
+
+    // Close the dialog once the creation has been acknowledged by the repository.
+    LaunchedEffect(uiState.message) {
+        if (uiState.message != null) {
+            showCreate = false
+            form = AdminGroupForm()
+        }
     }
 
     Box(
@@ -155,7 +154,12 @@ fun AdminGroupsScreen(
                     }
                 }
 
-                AddCircleButton(onClick = onAgregarGrupo)
+                AddCircleButton(
+                    onClick = {
+                        form = AdminGroupForm()
+                        showCreate = true
+                    },
+                )
             }
 
             Row(
@@ -165,7 +169,7 @@ fun AdminGroupsScreen(
                     .padding(top = 8.dp, bottom = 16.dp),
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
             ) {
-                GradeFilter.entries.forEach { option ->
+                AdminGroupGradeFilter.entries.forEach { option ->
                     GradeChip(
                         label = option.label,
                         selected = option == filter,
@@ -174,12 +178,70 @@ fun AdminGroupsScreen(
                 }
             }
 
+            uiState.message?.let { message ->
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(bottom = 8.dp)
+                        .clip(RoundedCornerShape(12.dp))
+                        .background(PrimaryFixed)
+                        .padding(horizontal = 12.dp, vertical = 8.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Text(
+                        text = message,
+                        color = PrimaryContainer,
+                        fontFamily = DmSans,
+                        fontSize = 13.sp,
+                    )
+                    TextButton(onClick = { viewModel.messageShown() }) {
+                        Text(text = "Aceptar", color = PrimaryContainer, fontFamily = DmSans)
+                    }
+                }
+            }
+
             Column(
                 modifier = Modifier.revealOnEnter(120),
                 verticalArrangement = Arrangement.spacedBy(12.dp),
             ) {
-                visible.forEach { group ->
-                    GroupCard(group = group, onClick = { onGrupo(group.name) })
+                when {
+                    uiState.loading -> Text(
+                        text = "Cargando grupos…",
+                        color = OnSurfaceVariant,
+                        fontFamily = DmSans,
+                        fontSize = 14.sp,
+                        modifier = Modifier.padding(vertical = 24.dp),
+                    )
+
+                    uiState.error != null -> Column {
+                        Text(
+                            text = uiState.error.orEmpty(),
+                            color = MaterialTheme.colorScheme.error,
+                            fontFamily = DmSans,
+                            fontSize = 14.sp,
+                        )
+                        TextButton(onClick = { viewModel.refresh() }) {
+                            Text(text = "Reintentar", fontFamily = DmSans)
+                        }
+                    }
+
+                    visible.isEmpty() -> Text(
+                        text = if (filter.grade == null) "Todavía no hay grupos registrados."
+                        else "No hay grupos de ${filter.label}.",
+                        color = OnSurfaceVariant,
+                        fontFamily = DmSans,
+                        fontSize = 14.sp,
+                        modifier = Modifier.padding(vertical = 24.dp),
+                    )
+
+                    else -> visible.forEach { group ->
+                        GroupCard(
+                            group = group,
+                            onClick = { onGrupo(group.id) },
+                            onAddStudent = onAddStudent,
+                        )
+                    }
                 }
             }
         }
@@ -196,6 +258,18 @@ fun AdminGroupsScreen(
                 }
             },
             modifier = Modifier.align(Alignment.BottomCenter),
+        )
+    }
+
+    if (showCreate) {
+        CreateGroupDialog(
+            form = form,
+            validationError = validationError(form),
+            serverError = uiState.error,
+            saving = uiState.loading,
+            onFormChange = { form = it },
+            onDismiss = { showCreate = false },
+            onCreate = { viewModel.createGroup(form) },
         )
     }
 }
@@ -294,7 +368,12 @@ private fun GradeChip(
 }
 
 @Composable
-private fun GroupCard(group: AdminGroup, onClick: () -> Unit) {
+private fun GroupCard(
+    group: AdminGroupRowUi,
+    onClick: () -> Unit,
+    onAddStudent: (String) -> Unit,
+) {
+    var menuExpanded by remember { mutableStateOf(false) }
     val source = remember { MutableInteractionSource() }
     val pressed by source.collectIsPressedAsState()
     val scale by animateFloatAsState(
@@ -335,55 +414,78 @@ private fun GroupCard(group: AdminGroup, onClick: () -> Unit) {
                         color = PrimaryContainer,
                         fontFamily = BricolageGrotesque,
                         fontWeight = FontWeight.Bold,
-                        fontSize = 20.sp,
-                        lineHeight = 26.sp,
+                        fontSize = 18.sp,
+                        lineHeight = 24.sp,
                     )
                 }
                 Spacer(modifier = Modifier.width(12.dp))
                 Column {
-                    Row {
-                        Text(
-                            text = "Titular:",
-                            color = Outline,
-                            fontFamily = DmSans,
-                            fontWeight = FontWeight.Medium,
-                            fontSize = 14.sp,
-                            lineHeight = 18.sp,
-                        )
-                        Text(
-                            text = " ${group.titular}",
-                            color = OnSurface,
-                            fontFamily = DmSans,
-                            fontWeight = FontWeight.Medium,
-                            fontSize = 14.sp,
-                            lineHeight = 18.sp,
-                        )
-                    }
+                    Text(
+                        text = group.subtitle,
+                        color = OnSurface,
+                        fontFamily = DmSans,
+                        fontWeight = FontWeight.Medium,
+                        fontSize = 13.sp,
+                        lineHeight = 18.sp,
+                    )
                     Spacer(modifier = Modifier.height(4.dp))
                     Text(
-                        text = "${group.students} alumnos",
+                        text = "Toca para ver docentes y horario",
                         color = Outline,
-                        fontFamily = JetBrainsMono,
-                        fontWeight = FontWeight.Normal,
+                        fontFamily = DmSans,
                         fontSize = 11.sp,
                         lineHeight = 14.sp,
                     )
                 }
             }
 
-            Box(
-                modifier = Modifier
-                    .size(32.dp)
-                    .clip(CircleShape)
-                    .clickable { },
-                contentAlignment = Alignment.Center,
-            ) {
-                Icon(
-                    imageVector = Icons.Filled.MoreVert,
-                    contentDescription = "Opciones del grupo ${group.name}",
-                    tint = Outline,
-                    modifier = Modifier.size(22.dp),
-                )
+            Box {
+                Box(
+                    modifier = Modifier
+                        .size(32.dp)
+                        .clip(CircleShape)
+                        .clickable { menuExpanded = true },
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Icon(
+                        imageVector = Icons.Filled.MoreVert,
+                        contentDescription = "Opciones del grupo ${group.name}",
+                        tint = Outline,
+                        modifier = Modifier.size(22.dp),
+                    )
+                }
+                DropdownMenu(
+                    expanded = menuExpanded,
+                    onDismissRequest = { menuExpanded = false },
+                    modifier = Modifier.background(SurfaceContainerLowest),
+                ) {
+                    DropdownMenuItem(
+                        text = {
+                            Text(
+                                text = "Ver detalle",
+                                fontFamily = DmSans,
+                                fontSize = 14.sp,
+                            )
+                        },
+                        onClick = {
+                            menuExpanded = false
+                            onClick()
+                        },
+                    )
+                    DropdownMenuItem(
+                        text = {
+                            Text(
+                                text = "Agregar alumno",
+                                fontFamily = DmSans,
+                                fontSize = 14.sp,
+                            )
+                        },
+                        onClick = {
+                            menuExpanded = false
+                            onAddStudent(group.id)
+                        },
+                    )
+                }
             }
         }
 
@@ -398,24 +500,17 @@ private fun GroupCard(group: AdminGroup, onClick: () -> Unit) {
 
         Row(modifier = Modifier.fillMaxWidth()) {
             GroupStat(
-                value = "${group.attendance}%",
-                label = "Asistencia",
+                value = group.studentCount.toString(),
+                label = "Alumnos",
                 valueColor = PrimaryContainer,
                 modifier = Modifier.weight(1f),
             )
             GroupStat(
-                value = group.teachers.toString(),
+                value = group.teacherCount.toString(),
                 label = "Docentes",
                 valueColor = OnSurface,
                 modifier = Modifier.weight(1f),
                 dividerStart = true,
-                dividerEnd = true,
-            )
-            GroupStat(
-                value = group.incidents.toString(),
-                label = "Incidentes",
-                valueColor = if (group.incidents > 0) Secondary else OnSurfaceVariant,
-                modifier = Modifier.weight(1f),
             )
         }
     }
@@ -472,4 +567,84 @@ private fun GroupStat(
             )
         }
     }
+}
+
+@Composable
+private fun CreateGroupDialog(
+    form: AdminGroupForm,
+    validationError: String?,
+    serverError: String?,
+    saving: Boolean,
+    onFormChange: (AdminGroupForm) -> Unit,
+    onDismiss: () -> Unit,
+    onCreate: () -> Unit,
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = {
+            Text(
+                text = "Crear grupo",
+                color = PrimaryContainer,
+                fontFamily = BricolageGrotesque,
+                fontWeight = FontWeight.Bold,
+            )
+        },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                OutlinedTextField(
+                    value = form.name,
+                    onValueChange = { onFormChange(form.copy(name = it)) },
+                    label = { Text("Nombre (ej. 3° B)", fontFamily = DmSans) },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                OutlinedTextField(
+                    value = form.grade,
+                    onValueChange = { onFormChange(form.copy(grade = it)) },
+                    label = { Text("Grado (1 a 6)", fontFamily = DmSans) },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                OutlinedTextField(
+                    value = form.section,
+                    onValueChange = { onFormChange(form.copy(section = it)) },
+                    label = { Text("Sección (A, B, C…)", fontFamily = DmSans) },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                validationError?.let {
+                    Text(
+                        text = it,
+                        color = MaterialTheme.colorScheme.error,
+                        fontFamily = DmSans,
+                        fontSize = 12.sp,
+                    )
+                }
+                serverError?.let {
+                    Text(
+                        text = it,
+                        color = MaterialTheme.colorScheme.error,
+                        fontFamily = DmSans,
+                        fontSize = 12.sp,
+                    )
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(
+                onClick = onCreate,
+                enabled = validationError == null && !saving,
+            ) {
+                Text(
+                    text = if (saving) "Creando…" else "Crear",
+                    fontFamily = DmSans,
+                )
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text(text = "Cancelar", fontFamily = DmSans)
+            }
+        },
+    )
 }

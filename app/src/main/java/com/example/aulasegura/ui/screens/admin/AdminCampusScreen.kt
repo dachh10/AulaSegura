@@ -7,7 +7,6 @@ import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
-import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -32,52 +31,53 @@ import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AlarmOn
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.HelpOutline
-import androidx.compose.material.icons.filled.MyLocation
 import androidx.compose.material.icons.filled.Save
-import androidx.compose.material.icons.filled.School
 import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.material.icons.filled.Sync
 import androidx.compose.material.icons.filled.TouchApp
 import androidx.compose.material.icons.filled.VerifiedUser
 import androidx.compose.material3.Icon
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
-import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.Path
-import androidx.compose.ui.graphics.PathEffect
+import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.lifecycle.viewmodel.compose.viewModel
+import com.example.aulasegura.di.rememberAppContainer
+import com.example.aulasegura.ui.components.EditableCampusMap
 import com.example.aulasegura.ui.screens.access.Reveal
 import com.example.aulasegura.ui.screens.access.revealOnEnter
 import com.example.aulasegura.ui.theme.BrandCream
-import com.example.aulasegura.ui.theme.BrandMint
 import com.example.aulasegura.ui.theme.BricolageGrotesque
 import com.example.aulasegura.ui.theme.DmSans
+import com.example.aulasegura.ui.theme.Error
 import com.example.aulasegura.ui.theme.JetBrainsMono
 import com.example.aulasegura.ui.theme.OnSurfaceVariant
 import com.example.aulasegura.ui.theme.Outline
@@ -86,20 +86,16 @@ import com.example.aulasegura.ui.theme.PrimaryContainer
 import com.example.aulasegura.ui.theme.SurfaceContainerHigh
 import com.example.aulasegura.ui.theme.SurfaceContainerLow
 import com.example.aulasegura.ui.theme.SurfaceContainerLowest
+import com.google.android.gms.maps.model.LatLng
 import kotlin.math.roundToInt
 
-/** 4.7 — Configuración del plantel. Ported 1:1 from the Stitch markup. */
+/** 4.7 — Configuración del plantel. Stitch layout kept; every value comes from Firestore. */
 
 private val Hairline = Color(0xFFE6E1D8)
 private val SchoolBadgeBg = Color(0xFFE8E9F7)
 private val GpsPillBg = Color(0xFFEAF6F0)
 private val GpsPillText = Color(0xFF1B7A50)
 private val GpsDot = Color(0xFF2E9E6B)
-private val MapBase = Color(0xFFF4F1EA)
-private val MapGreen = Color(0xFFD5F3EA)
-private val MapGreenSoft = Color(0xFFE2F6EF)
-private val MapBuilding = Color(0xFFE8E4DA)
-private val MapRoadLine = Color(0xFFEAE6DC)
 private val SaveCoral = Color(0xFFFF6B57)
 private val SaveShadow = Color(0x4DFF6B57)
 private val CardShape = RoundedCornerShape(24.dp)
@@ -108,12 +104,15 @@ private val CardShape = RoundedCornerShape(24.dp)
 fun AdminCampusScreen(
     onBack: () -> Unit = {},
     onAyuda: () -> Unit = {},
-    onGuardar: () -> Unit = {},
 ) {
-    var radius by rememberSaveable { mutableFloatStateOf(150f) }
-    var exigirUbicacion by rememberSaveable { mutableStateOf(true) }
-    var animatedIn by remember { mutableStateOf(false) }
-    androidx.compose.runtime.LaunchedEffect(Unit) { animatedIn = true }
+    val viewModel: AdminCampusViewModel = viewModel(
+        factory = rememberAppContainer().viewModelFactory,
+    )
+    val uiState by viewModel.state.collectAsState()
+
+    val onPinMove: (LatLng) -> Unit = remember(viewModel) { { latLng ->
+        viewModel.setLocation(latLng.latitude, latLng.longitude)
+    } }
 
     Column(
         modifier = Modifier
@@ -133,12 +132,43 @@ fun AdminCampusScreen(
                 .padding(top = 12.dp, bottom = 24.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
-            SchoolIdentityCard()
-            LocationCard(animatedIn = animatedIn)
-            RadiusCard(radius = radius, onRadiusChange = { radius = it })
+            SchoolIdentityCard(
+                name = uiState.school?.name.orEmpty(),
+                key = uiState.school?.key.orEmpty(),
+                cycle = uiState.school?.cycle.orEmpty(),
+            )
+            LocationCard(
+                latitudeText = uiState.latitudeText,
+                longitudeText = uiState.longitudeText,
+                storedLatitude = uiState.school?.latitude,
+                storedLongitude = uiState.school?.longitude,
+                radiusMeters = uiState.radiusMeters.toFloat(),
+                coordinateError = uiState.coordinateError,
+                onLatitudeChange = viewModel::setLatitude,
+                onLongitudeChange = viewModel::setLongitude,
+                onLocationChange = onPinMove,
+            )
+            RadiusCard(
+                radius = uiState.radiusMeters,
+                onRadiusChange = viewModel::setRadius,
+                error = uiState.radiusError,
+            )
             ScheduleCard(
-                exigirUbicacion = exigirUbicacion,
-                onExigirUbicacionChange = { exigirUbicacion = it },
+                entryTime = uiState.entryTime,
+                exitTime = uiState.exitTime,
+                exigirUbicacion = uiState.requireLocation,
+                onEntryTimeChange = viewModel::setEntryTime,
+                onExitTimeChange = viewModel::setExitTime,
+                onExigirUbicacionChange = viewModel::setRequireLocation,
+                error = uiState.scheduleError,
+            )
+            CampusStatusSection(
+                loading = uiState.loading,
+                error = uiState.error,
+                saveError = uiState.saveError,
+                saved = uiState.saved,
+                lastSaved = uiState.lastSaved,
+                onRetry = viewModel::refresh,
             )
         }
 
@@ -160,7 +190,11 @@ fun AdminCampusScreen(
                     .padding(horizontal = 16.dp, vertical = 12.dp),
                 horizontalAlignment = Alignment.CenterHorizontally,
             ) {
-                SaveConfigurationButton(onClick = onGuardar)
+                SaveConfigurationButton(
+                    onClick = viewModel::save,
+                    enabled = uiState.canSave,
+                    saving = uiState.saving,
+                )
             }
         }
     }
@@ -227,7 +261,7 @@ private fun CampusTopBar(onBack: () -> Unit, onAyuda: () -> Unit) {
 }
 
 @Composable
-private fun SchoolIdentityCard() {
+private fun SchoolIdentityCard(name: String, key: String, cycle: String) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -264,7 +298,7 @@ private fun SchoolIdentityCard() {
             )
             Spacer(modifier = Modifier.height(4.dp))
             Text(
-                text = "Escuela Primaria Benito Juárez",
+                text = name.ifBlank { "Plantel sin nombre" },
                 color = PrimaryContainer,
                 fontFamily = BricolageGrotesque,
                 fontWeight = FontWeight.Bold,
@@ -283,7 +317,7 @@ private fun SchoolIdentityCard() {
                 )
                 Spacer(modifier = Modifier.width(6.dp))
                 Text(
-                    text = "15EPR0123X",
+                    text = key.ifBlank { "—" },
                     color = PrimaryContainer,
                     fontFamily = JetBrainsMono,
                     fontWeight = FontWeight.Bold,
@@ -292,12 +326,37 @@ private fun SchoolIdentityCard() {
                     letterSpacing = 0.65.sp,
                 )
             }
+            if (cycle.isNotBlank()) {
+                Spacer(modifier = Modifier.height(4.dp))
+                Text(
+                    text = "Ciclo $cycle",
+                    color = OnSurfaceVariant,
+                    fontFamily = DmSans,
+                    fontWeight = FontWeight.Medium,
+                    fontSize = 11.sp,
+                    letterSpacing = 0.33.sp,
+                )
+            }
         }
     }
 }
 
 @Composable
-private fun LocationCard(animatedIn: Boolean) {
+private fun LocationCard(
+    latitudeText: String,
+    longitudeText: String,
+    storedLatitude: Double?,
+    storedLongitude: Double?,
+    radiusMeters: Float,
+    coordinateError: String?,
+    onLatitudeChange: (String) -> Unit,
+    onLongitudeChange: (String) -> Unit,
+    onLocationChange: (LatLng) -> Unit,
+) {
+    val draft = validateCoordinates(latitudeText, longitudeText)
+    val draftLatitude = (draft as? CoordinateValidation.Valid)?.latitude
+    val draftLongitude = (draft as? CoordinateValidation.Valid)?.longitude
+
     Column(
         modifier = Modifier
             .fillMaxWidth()
@@ -323,7 +382,18 @@ private fun LocationCard(animatedIn: Boolean) {
             GpsActivePill()
         }
 
-        StylizedCampusMap(animatedIn = animatedIn)
+        EditableCampusMap(
+            latitude = draftLatitude,
+            longitude = draftLongitude,
+            fallbackLatitude = storedLatitude,
+            fallbackLongitude = storedLongitude,
+            radiusMeters = radiusMeters,
+            onLocationChange = onLocationChange,
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(200.dp)
+                .clip(RoundedCornerShape(20.dp)),
+        )
 
         Row(
             modifier = Modifier.padding(horizontal = 2.dp),
@@ -337,7 +407,8 @@ private fun LocationCard(animatedIn: Boolean) {
             )
             Spacer(modifier = Modifier.width(6.dp))
             Text(
-                text = "Toca el mapa para fijar el punto de la escuela",
+                text = "Arrastra el marcador o toca el mapa para mover el plantel. " +
+                    "El radio se mide desde este punto.",
                 color = OnSurfaceVariant,
                 fontFamily = DmSans,
                 fontWeight = FontWeight.Medium,
@@ -348,8 +419,32 @@ private fun LocationCard(animatedIn: Boolean) {
         }
 
         Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            CoordinateBox(label = "Latitud", value = "19.292600", modifier = Modifier.weight(1f))
-            CoordinateBox(label = "Longitud", value = "-99.655700", modifier = Modifier.weight(1f))
+            CoordinateField(
+                label = "Latitud",
+                value = latitudeText,
+                placeholder = formatCoordinate(19.2826),
+                onValueChange = onLatitudeChange,
+                isError = coordinateError != null,
+                modifier = Modifier.weight(1f),
+            )
+            CoordinateField(
+                label = "Longitud",
+                value = longitudeText,
+                placeholder = formatCoordinate(-99.6557),
+                onValueChange = onLongitudeChange,
+                isError = coordinateError != null,
+                modifier = Modifier.weight(1f),
+            )
+        }
+
+        coordinateError?.let {
+            Text(
+                text = it,
+                color = Error,
+                fontFamily = DmSans,
+                fontWeight = FontWeight.Medium,
+                fontSize = 12.sp,
+            )
         }
     }
 }
@@ -382,7 +477,7 @@ private fun GpsActivePill() {
         )
         Spacer(modifier = Modifier.width(4.dp))
         Text(
-            text = "GPS Activo",
+            text = "Centro guardado",
             color = GpsPillText,
             fontFamily = DmSans,
             fontWeight = FontWeight.SemiBold,
@@ -393,231 +488,32 @@ private fun GpsActivePill() {
 }
 
 @Composable
-private fun StylizedCampusMap(animatedIn: Boolean) {
-    val transition = rememberInfiniteTransition(label = "radiusPulse")
-    val radiusAlpha by transition.animateFloat(
-        initialValue = 0.55f,
-        targetValue = 1f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(durationMillis = 1400),
-            repeatMode = RepeatMode.Reverse,
-        ),
-        label = "radiusAlpha",
-    )
-    val pinDrop by animateFloatAsState(
-        targetValue = if (animatedIn) 1f else 0.6f,
-        animationSpec = tween(durationMillis = 400),
-        label = "pinDrop",
-    )
-
-    Box(
-        modifier = Modifier
-            .fillMaxWidth()
-            .height(200.dp)
-            .clip(RoundedCornerShape(20.dp))
-            .background(MapBase)
-            .border(1.dp, OutlineVariant.copy(alpha = 0.50f), RoundedCornerShape(20.dp)),
-    ) {
-        Canvas(modifier = Modifier.fillMaxSize()) {
-            val w = size.width
-            val h = size.height
-
-            // Campus green zone
-            val campus = Path().apply {
-                moveTo(w * 0.21f, h * 0.20f)
-                cubicTo(w * 0.27f, h * 0.08f, w * 0.49f, h * 0.14f, w * 0.64f, h * 0.25f)
-                cubicTo(w * 0.73f, h * 0.31f, w * 0.79f, h * 0.55f, w * 0.73f, h * 0.70f)
-                cubicTo(w * 0.67f, h * 0.85f, w * 0.46f, h * 0.85f, w * 0.33f, h * 0.80f)
-                cubicTo(w * 0.24f, h * 0.75f, w * 0.18f, h * 0.60f, w * 0.18f, h * 0.40f)
-                close()
-            }
-            drawPath(campus, color = MapGreen, alpha = 0.85f)
-
-            val corner = Path().apply {
-                moveTo(0f, h * 0.65f)
-                cubicTo(w * 0.12f, h * 0.68f, w * 0.21f, h * 0.85f, w * 0.20f, h)
-                lineTo(0f, h)
-                close()
-            }
-            drawPath(corner, color = MapGreenSoft, alpha = 0.6f)
-
-            // Roads
-            drawLine(Color.White, Offset(-10f, h * 0.225f), Offset(w + 10f, h * 0.225f), 8.dp.toPx())
-            drawLine(Color.White, Offset(-10f, h * 0.80f), Offset(w + 10f, h * 0.80f), 10.dp.toPx())
-            drawLine(Color.White, Offset(w * 0.23f, -10f), Offset(w * 0.23f, h + 10f), 8.dp.toPx())
-            drawLine(Color.White, Offset(w * 0.75f, -10f), Offset(w * 0.75f, h + 10f), 8.dp.toPx())
-
-            // Diagonal avenue
-            drawLine(Color.White, Offset(-10f, h * 0.95f), Offset(w + 10f, h * 0.10f), 12.dp.toPx())
-            drawLine(
-                color = MapRoadLine,
-                start = Offset(-10f, h * 0.95f),
-                end = Offset(w + 10f, h * 0.10f),
-                strokeWidth = 1.dp.toPx(),
-                pathEffect = PathEffect.dashPathEffect(floatArrayOf(4.dp.toPx(), 4.dp.toPx()), 0f),
-            )
-
-            // Building footprints
-            fun footprint(left: Float, top: Float, width: Float, height: Float) {
-                drawRoundRect(
-                    color = MapBuilding,
-                    topLeft = Offset(left, top),
-                    size = Size(width, height),
-                    cornerRadius = androidx.compose.ui.geometry.CornerRadius(4.dp.toPx()),
-                    alpha = 0.8f,
-                )
-            }
-            footprint(w * 0.26f, h * 0.33f, w * 0.105f, 24.dp.toPx())
-            footprint(w * 0.40f, h * 0.30f, w * 0.14f, 30.dp.toPx())
-            footprint(w * 0.30f, h * 0.52f, w * 0.17f, 28.dp.toPx())
-            footprint(w * 0.50f, h * 0.53f, w * 0.12f, 22.dp.toPx())
-        }
-
-        // Allowed radius ring
-        Box(
-            modifier = Modifier
-                .align(Alignment.Center)
-                .size(130.dp)
-                .graphicsLayer { alpha = radiusAlpha },
-            contentAlignment = Alignment.Center,
-        ) {
-            Canvas(modifier = Modifier.fillMaxSize()) {
-                val stroke = 2.dp.toPx()
-                val r = size.minDimension / 2f - stroke / 2f
-                drawCircle(color = BrandMint.copy(alpha = 0.25f), radius = r)
-                drawCircle(
-                    color = BrandMint,
-                    radius = r,
-                    style = Stroke(
-                        width = stroke,
-                        pathEffect = PathEffect.dashPathEffect(
-                            floatArrayOf(6.dp.toPx(), 5.dp.toPx()),
-                            0f,
-                        ),
-                    ),
-                )
-                drawCircle(color = BrandMint.copy(alpha = 0.20f), radius = 38.dp.toPx())
-            }
-        }
-
-        // Campus pin
-        Column(
-            modifier = Modifier
-                .align(Alignment.Center)
-                .offset(y = (-36).dp)
-                .graphicsLayer {
-                    alpha = pinDrop
-                    translationY = (1f - pinDrop) * -12.dp.toPx()
-                },
-            horizontalAlignment = Alignment.CenterHorizontally,
-        ) {
-            Box(
-                modifier = Modifier
-                    .size(36.dp)
-                    .shadow(6.dp, CircleShape)
-                    .clip(CircleShape)
-                    .background(PrimaryContainer)
-                    .border(2.dp, Color.White, CircleShape),
-                contentAlignment = Alignment.Center,
-            ) {
-                Icon(
-                    imageVector = Icons.Filled.School,
-                    contentDescription = null,
-                    tint = Color.White,
-                    modifier = Modifier.size(20.dp),
-                )
-            }
-            Canvas(
-                modifier = Modifier
-                    .size(width = 10.dp, height = 7.dp)
-                    .offset(y = (-1).dp),
-            ) {
-                val pointer = Path().apply {
-                    moveTo(0f, 0f)
-                    lineTo(size.width, 0f)
-                    lineTo(size.width / 2f, size.height)
-                    close()
-                }
-                drawPath(pointer, PrimaryContainer)
-            }
-            Box(
-                modifier = Modifier
-                    .size(width = 10.dp, height = 4.dp)
-                    .clip(RoundedCornerShape(percent = 50))
-                    .background(PrimaryContainer.copy(alpha = 0.30f)),
-            )
-        }
-
-        Box(
-            modifier = Modifier
-                .align(Alignment.Center)
-                .offset(y = 24.dp),
-        ) {
-            Text(
-                text = "CAMPUS CENTRAL",
-                color = Outline,
-                fontFamily = DmSans,
-                fontWeight = FontWeight.SemiBold,
-                fontSize = 8.sp,
-                letterSpacing = 0.32.sp,
-            )
-        }
-
-        Box(
-            modifier = Modifier
-                .align(Alignment.BottomEnd)
-                .padding(10.dp)
-                .size(40.dp)
-                .shadow(4.dp, CircleShape)
-                .clip(CircleShape)
-                .background(SurfaceContainerLowest)
-                .border(1.dp, OutlineVariant.copy(alpha = 0.30f), CircleShape)
-                .clickable { },
-            contentAlignment = Alignment.Center,
-        ) {
-            Icon(
-                imageVector = Icons.Filled.MyLocation,
-                contentDescription = "Mi ubicación",
-                tint = PrimaryContainer,
-                modifier = Modifier.size(20.dp),
-            )
-        }
-    }
-}
-
-@Composable
-private fun CoordinateBox(label: String, value: String, modifier: Modifier = Modifier) {
-    Column(
-        modifier = modifier
-            .clip(RoundedCornerShape(14.dp))
-            .background(SurfaceContainerLow.copy(alpha = 0.70f))
-            .border(1.dp, OutlineVariant.copy(alpha = 0.30f), RoundedCornerShape(14.dp))
-            .padding(horizontal = 12.dp, vertical = 10.dp),
-    ) {
-        Text(
-            text = label,
-            color = OnSurfaceVariant,
-            fontFamily = DmSans,
-            fontWeight = FontWeight.Medium,
-            fontSize = 11.sp,
-            lineHeight = 14.sp,
-            letterSpacing = 0.33.sp,
-        )
-        Spacer(modifier = Modifier.height(2.dp))
-        Text(
-            text = value,
-            color = PrimaryContainer,
+private fun CoordinateField(
+    label: String,
+    value: String,
+    placeholder: String,
+    onValueChange: (String) -> Unit,
+    isError: Boolean,
+    modifier: Modifier = Modifier,
+) {
+    OutlinedTextField(
+        value = value,
+        onValueChange = onValueChange,
+        label = { Text(label, fontFamily = DmSans) },
+        placeholder = { Text(placeholder, fontFamily = JetBrainsMono) },
+        singleLine = true,
+        isError = isError,
+        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+        textStyle = TextStyle(
             fontFamily = JetBrainsMono,
             fontWeight = FontWeight.Bold,
-            fontSize = 13.5.sp,
-            lineHeight = 18.sp,
-            letterSpacing = (-0.27).sp,
-        )
-    }
+            fontSize = 14.sp,
+        ),
+        modifier = modifier,
+    )
 }
-
 @Composable
-private fun RadiusCard(radius: Float, onRadiusChange: (Float) -> Unit) {
+private fun RadiusCard(radius: Int, onRadiusChange: (Int) -> Unit, error: String?) {
     Column(
         modifier = Modifier
             .fillMaxWidth()
@@ -641,7 +537,7 @@ private fun RadiusCard(radius: Float, onRadiusChange: (Float) -> Unit) {
                 lineHeight = 22.sp,
             )
             Text(
-                text = "${radius.roundToInt()} m",
+                text = "$radius m",
                 color = PrimaryContainer,
                 fontFamily = JetBrainsMono,
                 fontWeight = FontWeight.Bold,
@@ -651,6 +547,16 @@ private fun RadiusCard(radius: Float, onRadiusChange: (Float) -> Unit) {
         }
 
         RadiusSlider(radius = radius, onRadiusChange = onRadiusChange)
+
+        error?.let {
+            Text(
+                text = it,
+                color = Error,
+                fontFamily = DmSans,
+                fontWeight = FontWeight.Medium,
+                fontSize = 12.sp,
+            )
+        }
 
         Column(modifier = Modifier.padding(top = 4.dp)) {
             Box(
@@ -671,7 +577,7 @@ private fun RadiusCard(radius: Float, onRadiusChange: (Float) -> Unit) {
                 )
                 Spacer(modifier = Modifier.width(8.dp))
                 Text(
-                    text = "Se actualiza en los celulares sin publicar una nueva versión.",
+                    text = TEACHER_REFRESH_HINT,
                     color = OnSurfaceVariant,
                     fontFamily = DmSans,
                     fontWeight = FontWeight.Medium,
@@ -685,15 +591,14 @@ private fun RadiusCard(radius: Float, onRadiusChange: (Float) -> Unit) {
 }
 
 @Composable
-private fun RadiusSlider(radius: Float, onRadiusChange: (Float) -> Unit) {
+private fun RadiusSlider(radius: Int, onRadiusChange: (Int) -> Unit) {
     var trackWidth by remember { mutableStateOf(0) }
-    val fraction = ((radius - 50f) / 450f).coerceIn(0f, 1f)
+    val fraction = fractionFromRadius(radius)
     val knobRadiusPx = with(LocalDensity.current) { 10.dp.toPx() }
 
     fun update(x: Float) {
         if (trackWidth > 0) {
-            val f = (x / trackWidth).coerceIn(0f, 1f)
-            onRadiusChange(((50f + f * 450f) / 5f).roundToInt() * 5f)
+            onRadiusChange(radiusFromFraction(x / trackWidth))
         }
     }
 
@@ -748,14 +653,14 @@ private fun RadiusSlider(radius: Float, onRadiusChange: (Float) -> Unit) {
             horizontalArrangement = Arrangement.SpaceBetween,
         ) {
             Text(
-                text = "50 m",
+                text = "$MIN_RADIUS_METERS m",
                 color = OnSurfaceVariant,
                 fontFamily = JetBrainsMono,
                 fontWeight = FontWeight.Normal,
                 fontSize = 11.sp,
             )
             Text(
-                text = "500 m",
+                text = "$MAX_RADIUS_METERS m",
                 color = OnSurfaceVariant,
                 fontFamily = JetBrainsMono,
                 fontWeight = FontWeight.Normal,
@@ -767,8 +672,13 @@ private fun RadiusSlider(radius: Float, onRadiusChange: (Float) -> Unit) {
 
 @Composable
 private fun ScheduleCard(
+    entryTime: String,
+    exitTime: String,
     exigirUbicacion: Boolean,
+    onEntryTimeChange: (String) -> Unit,
+    onExitTimeChange: (String) -> Unit,
     onExigirUbicacionChange: (Boolean) -> Unit,
+    error: String?,
 ) {
     Column(
         modifier = Modifier
@@ -791,15 +701,27 @@ private fun ScheduleCard(
         Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             TimeBox(
                 label = "Desde",
-                value = "07:30",
+                value = entryTime,
+                onValueChange = onEntryTimeChange,
                 icon = { Icon(Icons.Filled.Schedule, null, tint = PrimaryContainer, modifier = Modifier.size(20.dp)) },
                 modifier = Modifier.weight(1f),
             )
             TimeBox(
                 label = "Hasta",
-                value = "09:00",
+                value = exitTime,
+                onValueChange = onExitTimeChange,
                 icon = { Icon(Icons.Filled.AlarmOn, null, tint = PrimaryContainer, modifier = Modifier.size(20.dp)) },
                 modifier = Modifier.weight(1f),
+            )
+        }
+
+        error?.let {
+            Text(
+                text = it,
+                color = Error,
+                fontFamily = DmSans,
+                fontWeight = FontWeight.Medium,
+                fontSize = 12.sp,
             )
         }
 
@@ -831,7 +753,13 @@ private fun ScheduleCard(
 }
 
 @Composable
-private fun TimeBox(label: String, value: String, icon: @Composable () -> Unit, modifier: Modifier = Modifier) {
+private fun TimeBox(
+    label: String,
+    value: String,
+    onValueChange: (String) -> Unit,
+    icon: @Composable () -> Unit,
+    modifier: Modifier = Modifier,
+) {
     Row(
         modifier = modifier
             .clip(RoundedCornerShape(16.dp))
@@ -852,14 +780,97 @@ private fun TimeBox(label: String, value: String, icon: @Composable () -> Unit, 
                 lineHeight = 14.sp,
                 letterSpacing = 0.30.sp,
             )
-            Text(
-                text = value,
-                color = PrimaryContainer,
-                fontFamily = JetBrainsMono,
-                fontWeight = FontWeight.Bold,
-                fontSize = 15.sp,
-                lineHeight = 20.sp,
+            BasicTextField(
+                value = value,
+                onValueChange = onValueChange,
+                singleLine = true,
+                textStyle = TextStyle(
+                    color = PrimaryContainer,
+                    fontFamily = JetBrainsMono,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 15.sp,
+                    lineHeight = 20.sp,
+                ),
+                cursorBrush = SolidColor(PrimaryContainer),
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Text),
+                modifier = Modifier.width(72.dp),
             )
+        }
+    }
+}
+
+@Composable
+private fun CampusStatusSection(
+    loading: Boolean,
+    error: String?,
+    saveError: String?,
+    saved: Boolean,
+    lastSaved: String,
+    onRetry: () -> Unit,
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(16.dp))
+            .background(SurfaceContainerLow.copy(alpha = 0.70f))
+            .border(1.dp, OutlineVariant.copy(alpha = 0.30f), RoundedCornerShape(16.dp))
+            .padding(horizontal = 14.dp, vertical = 12.dp),
+        verticalArrangement = Arrangement.spacedBy(4.dp),
+    ) {
+        when {
+            loading -> Text(
+                text = "Cargando configuración del plantel…",
+                color = OnSurfaceVariant,
+                fontFamily = DmSans,
+                fontWeight = FontWeight.Medium,
+                fontSize = 12.sp,
+            )
+
+            error != null -> {
+                Text(
+                    text = error,
+                    color = Error,
+                    fontFamily = DmSans,
+                    fontWeight = FontWeight.Medium,
+                    fontSize = 12.sp,
+                )
+                Text(
+                    text = "Reintentar",
+                    color = PrimaryContainer,
+                    fontFamily = DmSans,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 12.sp,
+                    modifier = Modifier.clickable { onRetry() },
+                )
+            }
+
+            else -> {
+                if (saved) {
+                    Text(
+                        text = "Configuración guardada.",
+                        color = GpsPillText,
+                        fontFamily = DmSans,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 12.sp,
+                    )
+                }
+                saveError?.let {
+                    Text(
+                        text = it,
+                        color = Error,
+                        fontFamily = DmSans,
+                        fontWeight = FontWeight.Medium,
+                        fontSize = 12.sp,
+                    )
+                }
+                Text(
+                    text = lastSaved,
+                    color = OnSurfaceVariant,
+                    fontFamily = DmSans,
+                    fontWeight = FontWeight.Medium,
+                    fontSize = 12.sp,
+                )
+            }
         }
     }
 }
@@ -893,7 +904,11 @@ private fun AulaSwitch(checked: Boolean, onCheckedChange: (Boolean) -> Unit) {
 }
 
 @Composable
-private fun SaveConfigurationButton(onClick: () -> Unit) {
+private fun SaveConfigurationButton(
+    onClick: () -> Unit,
+    enabled: Boolean,
+    saving: Boolean,
+) {
     val source = remember { MutableInteractionSource() }
     val pressed by source.collectIsPressedAsState()
     val scale by animateFloatAsState(
@@ -912,8 +927,8 @@ private fun SaveConfigurationButton(onClick: () -> Unit) {
             }
             .shadow(12.dp, RoundedCornerShape(percent = 50), ambientColor = SaveShadow, spotColor = SaveShadow)
             .clip(RoundedCornerShape(percent = 50))
-            .background(SaveCoral)
-            .clickable(interactionSource = source, indication = null, onClick = onClick),
+            .background(if (enabled) SaveCoral else OutlineVariant)
+            .clickable(enabled = enabled, interactionSource = source, indication = null, onClick = onClick),
         horizontalArrangement = Arrangement.Center,
         verticalAlignment = Alignment.CenterVertically,
     ) {
@@ -925,7 +940,7 @@ private fun SaveConfigurationButton(onClick: () -> Unit) {
         )
         Spacer(modifier = Modifier.width(8.dp))
         Text(
-            text = "Guardar configuración",
+            text = if (saving) "Guardando…" else "Guardar configuración",
             color = Color.White,
             fontFamily = DmSans,
             fontWeight = FontWeight.Bold,

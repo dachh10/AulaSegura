@@ -26,6 +26,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.CloudDone
+import androidx.compose.material.icons.filled.ChatBubble
 import androidx.compose.material.icons.filled.Description
 import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.PersonAdd
@@ -38,12 +39,10 @@ import androidx.compose.material.icons.filled.WarningAmber
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableLongStateOf
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.saveable.rememberSaveable
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -52,9 +51,14 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.lifecycle.viewmodel.compose.viewModel
+import com.example.aulasegura.di.rememberAppContainer
+import com.example.aulasegura.domain.model.NotificationType
+import com.example.aulasegura.navigation.resolveDeepLink
 import com.example.aulasegura.ui.screens.access.Reveal
 import com.example.aulasegura.ui.theme.BrandCream
 import com.example.aulasegura.ui.theme.BricolageGrotesque
@@ -85,141 +89,42 @@ private val PurpleInk = Color(0xFF6D3FA8)
 private val RedTone = Color(0xFFFFE2E0)
 private val RedInk = Color(0xFFC2412F)
 
-private enum class NotificationCategory(val label: String) {
-    Todas("Todas"),
-    Incidentes("Incidentes"),
-    Asistencia("Asistencia"),
-    Sistema("Sistema"),
+/** The mockup's icon and tints, chosen by `type` instead of by a hard-coded row. */
+private data class CardStyle(val icon: ImageVector, val tone: Color, val ink: Color)
+
+private fun NotificationType.cardStyle(): CardStyle = when (this) {
+    NotificationType.INCIDENTE -> CardStyle(Icons.Filled.Warning, RedTone, RedInk)
+    NotificationType.ASISTENCIA -> CardStyle(Icons.Filled.Schedule, AmberTone, AmberInk)
+    NotificationType.MENSAJE -> CardStyle(Icons.Filled.ChatBubble, CircleTone, PrimaryContainer)
+    NotificationType.AVISO -> CardStyle(Icons.Filled.PersonAdd, CoralTone, SecondaryContainer)
+    NotificationType.TAREA -> CardStyle(Icons.Filled.Description, PurpleTone, PurpleInk)
+    NotificationType.SISTEMA -> CardStyle(Icons.Filled.CloudDone, GreenTone, GreenInk)
+    NotificationType.OTRO -> CardStyle(Icons.Filled.WarningAmber, CircleTone, MetaMuted)
 }
 
-private enum class DayGroup(val label: String) {
-    Hoy("HOY"),
-    Anteriores("ANTERIORES"),
-}
-
-private data class AdminNotification(
-    val id: Int,
-    val category: NotificationCategory,
-    val day: DayGroup,
-    val icon: ImageVector,
-    val iconTone: Color,
-    val iconInk: Color,
-    val title: String,
-    val body: String,
-    val time: String,
-    val actionLabel: String? = null,
-    val initiallyUnread: Boolean = false,
-)
-
-private val notifications = listOf(
-    AdminNotification(
-        id = 0,
-        category = NotificationCategory.Incidentes,
-        day = DayGroup.Hoy,
-        icon = Icons.Filled.Warning,
-        iconTone = RedTone,
-        iconInk = RedInk,
-        title = "Incidente grave registrado",
-        body = "Daño al mobiliario en 2° C, registrado por el Prof. Vega. Ubicación editada.",
-        time = "10:48",
-        actionLabel = "Revisar",
-        initiallyUnread = true,
-    ),
-    AdminNotification(
-        id = 1,
-        category = NotificationCategory.Asistencia,
-        day = DayGroup.Hoy,
-        icon = Icons.Filled.Schedule,
-        iconTone = AmberTone,
-        iconInk = AmberInk,
-        title = "Lista pendiente",
-        body = "El Prof. Vega aún no pasa lista en 2° C.",
-        time = "09:30",
-        initiallyUnread = true,
-    ),
-    AdminNotification(
-        id = 2,
-        category = NotificationCategory.Sistema,
-        day = DayGroup.Hoy,
-        icon = Icons.Filled.PersonAdd,
-        iconTone = CircleTone,
-        iconInk = PrimaryContainer,
-        title = "Nueva familia vinculada",
-        body = "Carlos Gómez se registró y se vinculó con Mariana Gómez Ruiz · 3° B.",
-        time = "08:55",
-        initiallyUnread = true,
-    ),
-    AdminNotification(
-        id = 3,
-        category = NotificationCategory.Incidentes,
-        day = DayGroup.Hoy,
-        icon = Icons.Filled.Shield,
-        iconTone = CoralTone,
-        iconInk = SecondaryContainer,
-        title = "Nuevo incidente",
-        body = "Caída en el recreo en 3° B, registrado por el Prof. Salinas.",
-        time = "08:40",
-        initiallyUnread = true,
-    ),
-    AdminNotification(
-        id = 4,
-        category = NotificationCategory.Sistema,
-        day = DayGroup.Hoy,
-        icon = Icons.Filled.CloudDone,
-        iconTone = GreenTone,
-        iconInk = GreenInk,
-        title = "Sincronización completada",
-        body = "Se enviaron 3 registros guardados sin conexión.",
-        time = "07:58",
-    ),
-    AdminNotification(
-        id = 5,
-        category = NotificationCategory.Asistencia,
-        day = DayGroup.Anteriores,
-        icon = Icons.Filled.Description,
-        iconTone = PurpleTone,
-        iconInk = PurpleInk,
-        title = "Justificante recibido",
-        body = "Laura Ríos envió un comprobante de Bruno Castillo.",
-        time = "Ayer",
-    ),
-    AdminNotification(
-        id = 6,
-        category = NotificationCategory.Asistencia,
-        day = DayGroup.Anteriores,
-        icon = Icons.Filled.WarningAmber,
-        iconTone = AmberTone,
-        iconInk = AmberInk,
-        title = "Alumno con 3 faltas",
-        body = "Camila Domínguez · 3° B llegó a 5 faltas este mes.",
-        time = "Lun",
-    ),
-)
-
+/**
+ * The rows come from `notifications` through [AdminNotificationsViewModel]: the
+ * tray is read-only except for the `read` flag, the chips map to a `type`, and a
+ * tap marks the document read and follows its whitelisted `deepLink`.
+ */
 @Composable
 fun AdminNotificationsScreen(
     onBack: () -> Unit = {},
     onFilter: () -> Unit = {},
-    onRevisar: () -> Unit = {},
+    onDeepLink: (String) -> Unit = {},
 ) {
-    var filter by rememberSaveable { mutableStateOf(NotificationCategory.Todas) }
-    // Bitmask of notifications marked as read during this visit.
-    var readFlags by rememberSaveable { mutableLongStateOf(0L) }
+    val viewModel: AdminNotificationsViewModel =
+        viewModel(factory = rememberAppContainer().viewModelFactory)
+    val ui by viewModel.state.collectAsState()
+    val pendingDeepLink by viewModel.pendingDeepLink.collectAsState()
 
-    fun isRead(notification: AdminNotification): Boolean =
-        !notification.initiallyUnread || (readFlags shr notification.id) and 1L == 1L
-
-    val visible = notifications.filter { notification ->
-        filter == NotificationCategory.Todas || notification.category == filter
-    }
-    val unreadCount = notifications.count { !isRead(it) }
-
-    fun markAllRead() {
-        var flags = readFlags
-        notifications.forEach { notification ->
-            flags = flags or (1L shl notification.id)
+    // The document's deepLink is untrusted: only whitelisted routes may open, and
+    // the value is consumed once so a rotation does not reopen the same screen.
+    LaunchedEffect(pendingDeepLink) {
+        if (pendingDeepLink != null) {
+            resolveDeepLink(pendingDeepLink)?.let(onDeepLink)
+            viewModel.deepLinkHandled()
         }
-        readFlags = flags
     }
 
     Box(
@@ -234,18 +139,25 @@ fun AdminNotificationsScreen(
                 .statusBarsPadding()
                 .padding(start = 16.dp, end = 16.dp, top = 4.dp, bottom = 32.dp),
         ) {
-            Reveal(0) { NotificationsTopBar(onBack = onBack, onMarkAllRead = ::markAllRead) }
+            Reveal(0) { NotificationsTopBar(onBack = onBack, onMarkAllRead = viewModel::markAllRead) }
 
             Spacer(modifier = Modifier.height(10.dp))
 
-            Reveal(60) { NotificationsSummary(unreadCount = unreadCount, onFilter = onFilter) }
+            Reveal(60) {
+                NotificationsSummary(
+                    unreadCount = ui.unread,
+                    lastTime = ui.lastNotificationTime,
+                    onFilter = onFilter,
+                )
+            }
 
             Spacer(modifier = Modifier.height(16.dp))
 
             Reveal(120) {
                 NotificationFilters(
-                    selected = filter,
-                    onSelect = { filter = it },
+                    filters = ui.filters,
+                    activeFilter = ui.activeFilter,
+                    onSelect = viewModel::setFilter,
                 )
             }
 
@@ -253,27 +165,45 @@ fun AdminNotificationsScreen(
 
             Reveal(180) {
                 Column {
-                    var renderedAny = false
-                    DayGroup.entries.forEach { day ->
-                        val items = visible.filter { it.day == day }
-                        if (items.isNotEmpty()) {
-                            if (renderedAny) Spacer(modifier = Modifier.height(14.dp))
-                            DaySection(
-                                day = day,
-                                items = items,
-                                isRead = ::isRead,
-                                onOpen = { notification ->
-                                    readFlags = readFlags or (1L shl notification.id)
-                                },
-                                onRevisar = onRevisar,
-                            )
-                            renderedAny = true
-                        }
+                    ui.groups.forEachIndexed { index, group ->
+                        if (index > 0) Spacer(modifier = Modifier.height(14.dp))
+                        DaySection(group = group, onOpen = viewModel::open)
+                    }
+
+                    if (!ui.notice.isNullOrBlank()) {
+                        if (ui.groups.isNotEmpty()) Spacer(modifier = Modifier.height(10.dp))
+                        Text(
+                            text = ui.notice.orEmpty(),
+                            color = RedInk,
+                            fontFamily = DmSans,
+                            fontSize = 12.sp,
+                            modifier = Modifier.fillMaxWidth(),
+                        )
+                    }
+
+                    if (ui.loading) {
+                        Placeholder(text = "Cargando notificaciones…")
+                    } else if (ui.groups.isEmpty() && ui.notice.isNullOrBlank()) {
+                        Placeholder(text = "No tienes notificaciones todavía.")
                     }
                 }
             }
         }
     }
+}
+
+@Composable
+private fun Placeholder(text: String) {
+    Text(
+        text = text,
+        color = MetaMuted,
+        fontFamily = DmSans,
+        fontSize = 13.sp,
+        textAlign = TextAlign.Center,
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 24.dp, vertical = 24.dp),
+    )
 }
 
 @Composable
@@ -331,7 +261,7 @@ private fun NotificationsTopBar(onBack: () -> Unit, onMarkAllRead: () -> Unit) {
 }
 
 @Composable
-private fun NotificationsSummary(unreadCount: Int, onFilter: () -> Unit) {
+private fun NotificationsSummary(unreadCount: Int, lastTime: String?, onFilter: () -> Unit) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -370,7 +300,11 @@ private fun NotificationsSummary(unreadCount: Int, onFilter: () -> Unit) {
                     letterSpacing = (-0.2).sp,
                 )
                 Text(
-                    text = if (unreadCount == 0) "Sin pendientes" else "Última: hace 6 min",
+                    text = if (unreadCount == 0) {
+                        "Sin pendientes"
+                    } else {
+                        lastTime?.let { "Última: $it" }.orEmpty()
+                    },
                     color = Color.White.copy(alpha = 0.70f),
                     fontFamily = JetBrainsMono,
                     fontWeight = FontWeight.Medium,
@@ -400,17 +334,18 @@ private fun NotificationsSummary(unreadCount: Int, onFilter: () -> Unit) {
 
 @Composable
 private fun NotificationFilters(
-    selected: NotificationCategory,
-    onSelect: (NotificationCategory) -> Unit,
+    filters: List<String>,
+    activeFilter: String,
+    onSelect: (String) -> Unit,
 ) {
     Row(
         modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.spacedBy(8.dp),
     ) {
-        NotificationCategory.entries.forEach { option ->
+        filters.forEach { option ->
             FilterPill(
-                label = option.label,
-                selected = option == selected,
+                label = option,
+                selected = option == activeFilter,
                 onClick = { onSelect(option) },
             )
         }
@@ -458,11 +393,8 @@ private fun FilterPill(label: String, selected: Boolean, onClick: () -> Unit) {
 
 @Composable
 private fun DaySection(
-    day: DayGroup,
-    items: List<AdminNotification>,
-    isRead: (AdminNotification) -> Boolean,
-    onOpen: (AdminNotification) -> Unit,
-    onRevisar: () -> Unit,
+    group: AdminNotificationGroupUi,
+    onOpen: (AdminNotificationRowUi) -> Unit,
 ) {
     Column {
         Row(
@@ -473,7 +405,7 @@ private fun DaySection(
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Text(
-                text = day.label,
+                text = group.label,
                 color = MetaMuted,
                 fontFamily = JetBrainsMono,
                 fontWeight = FontWeight.Bold,
@@ -481,9 +413,9 @@ private fun DaySection(
                 lineHeight = 14.sp,
                 letterSpacing = 0.88.sp,
             )
-            if (day == DayGroup.Hoy) {
+            if (group.label == ADMIN_NOTIFICATIONS_TODAY_LABEL) {
                 Text(
-                    text = "${items.size} avisos",
+                    text = "${group.rows.size} avisos",
                     color = MetaMuted.copy(alpha = 0.70f),
                     fontFamily = JetBrainsMono,
                     fontWeight = FontWeight.Normal,
@@ -496,12 +428,10 @@ private fun DaySection(
         Spacer(modifier = Modifier.height(10.dp))
 
         Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            items.forEach { notification ->
+            group.rows.forEach { row ->
                 NotificationCard(
-                    notification = notification,
-                    read = isRead(notification),
-                    onClick = { onOpen(notification) },
-                    onRevisar = onRevisar,
+                    notification = row,
+                    onClick = { onOpen(row) },
                 )
             }
         }
@@ -510,11 +440,12 @@ private fun DaySection(
 
 @Composable
 private fun NotificationCard(
-    notification: AdminNotification,
-    read: Boolean,
+    notification: AdminNotificationRowUi,
     onClick: () -> Unit,
-    onRevisar: () -> Unit,
 ) {
+    val style = notification.type.cardStyle()
+    val read = notification.read
+
     Column(
         modifier = Modifier
             .fillMaxWidth()
@@ -529,13 +460,13 @@ private fun NotificationCard(
                 modifier = Modifier
                     .size(44.dp)
                     .clip(CircleShape)
-                    .background(notification.iconTone),
+                    .background(style.tone),
                 contentAlignment = Alignment.Center,
             ) {
                 Icon(
-                    imageVector = notification.icon,
+                    imageVector = style.icon,
                     contentDescription = null,
-                    tint = notification.iconInk,
+                    tint = style.ink,
                     modifier = Modifier.size(22.dp),
                 )
             }
@@ -593,13 +524,13 @@ private fun NotificationCard(
                     lineHeight = 19.sp,
                 )
 
-                if (notification.actionLabel != null) {
+                if (notification.deepLink != null) {
                     Spacer(modifier = Modifier.height(8.dp))
                     Row(
                         modifier = Modifier
                             .clip(RoundedCornerShape(percent = 50))
                             .background(RedTone)
-                            .clickable(onClick = onRevisar)
+                            .clickable(onClick = onClick)
                             .padding(horizontal = 10.dp, vertical = 4.dp),
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
@@ -611,7 +542,7 @@ private fun NotificationCard(
                         )
                         Spacer(modifier = Modifier.width(4.dp))
                         Text(
-                            text = notification.actionLabel,
+                            text = "Revisar",
                             color = RedInk,
                             fontFamily = DmSans,
                             fontWeight = FontWeight.SemiBold,

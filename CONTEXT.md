@@ -425,11 +425,14 @@ El id del documento es el del aviso, así el "marcar leído" es idempotente.
 |---|---|
 | `students` | `groupId` + `active` |
 | `students` | `tutorIds` (array-contains) + `active` |
+| `students` | `schoolId` + `groupId` + `active` |
 | `incidents` | `schoolId` + `createdAt` desc |
 | `incidents` | `groupId` + `createdAt` desc |
 | `incidents` | `studentId` + `createdAt` desc |
 | `attendanceSessions` | `groupId` + `date` desc |
 | `attendanceSessions` | `teacherId` + `date` desc |
+| `attendanceSessions` | `schoolId` + `date` desc |
+| `attendanceSessions` | `schoolId` + `date` asc — consultas por rango sin `orderBy` |
 | `tasks` | `groupIds` (array-contains) + `dueDate` asc |
 | `notices` | `audience.groupIds` (array-contains) + `createdAt` desc |
 | `notifications` | `userId` + `createdAt` desc |

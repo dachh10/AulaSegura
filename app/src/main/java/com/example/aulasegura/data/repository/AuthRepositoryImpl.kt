@@ -8,7 +8,10 @@ import com.example.aulasegura.domain.model.UserRole
 import com.example.aulasegura.domain.repository.AuthFailure
 import com.example.aulasegura.domain.repository.AuthRepository
 import com.example.aulasegura.domain.repository.AuthResult
+import com.example.aulasegura.domain.repository.PasswordChangeError
+import com.example.aulasegura.domain.repository.PasswordChangeResult
 import com.example.aulasegura.domain.repository.PasswordResetResult
+import com.example.aulasegura.domain.repository.passwordChangeErrorFromCode
 import com.example.aulasegura.domain.telemetry.AnalyticsEvent
 import com.example.aulasegura.domain.telemetry.AnalyticsLogger
 import com.example.aulasegura.domain.telemetry.NoOpAnalyticsLogger
@@ -16,6 +19,8 @@ import com.google.firebase.FirebaseNetworkException
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.auth.FirebaseAuthInvalidCredentialsException
 import com.google.firebase.auth.FirebaseAuthInvalidUserException
+import com.google.firebase.auth.FirebaseAuthException
+import com.google.firebase.auth.EmailAuthProvider
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.FirebaseFirestoreException
 import kotlinx.coroutines.channels.awaitClose
@@ -97,6 +102,33 @@ class AuthRepositoryImpl(
         } catch (e: Exception) {
             PasswordResetResult.Unknown
         }
+
+    /**
+     * Reauthenticate first, then update: Firebase rejects `updatePassword` without a
+     * recent login. The pure code mapper keeps the classification testable and the
+     * original session is left open on both success and failure.
+     */
+    override suspend fun changePassword(
+        currentPassword: String,
+        newPassword: String,
+    ): PasswordChangeResult {
+        val user = auth.currentUser
+        val email = user?.email
+        if (user == null || email.isNullOrBlank()) {
+            return PasswordChangeResult.Failure(PasswordChangeError.NO_SESSION)
+        }
+
+        return try {
+            val credential = EmailAuthProvider.getCredential(email.trim(), currentPassword)
+            user.reauthenticate(credential).await()
+            user.updatePassword(newPassword).await()
+            PasswordChangeResult.Success
+        } catch (e: FirebaseAuthException) {
+            PasswordChangeResult.Failure(passwordChangeErrorFromCode(e.errorCode))
+        } catch (e: Exception) {
+            PasswordChangeResult.Failure(PasswordChangeError.UNKNOWN)
+        }
+    }
 
     override fun observeAccountActive(): Flow<Boolean> = callbackFlow {
         val uid = auth.currentUser?.uid

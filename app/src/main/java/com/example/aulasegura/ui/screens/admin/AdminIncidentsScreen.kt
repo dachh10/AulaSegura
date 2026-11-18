@@ -1,5 +1,7 @@
 package com.example.aulasegura.ui.screens.admin
 
+import android.content.Intent
+import android.net.Uri
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
@@ -30,10 +32,10 @@ import androidx.compose.material.icons.filled.Image
 import androidx.compose.material.icons.filled.LocationOn
 import androidx.compose.material.icons.filled.PhotoCamera
 import androidx.compose.material.icons.filled.PlayArrow
-import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -45,10 +47,17 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.lifecycle.viewmodel.compose.viewModel
+import com.example.aulasegura.di.rememberAppContainer
+import com.example.aulasegura.domain.model.AdminIncident
+import com.example.aulasegura.domain.model.IncidentSeverity
+import com.example.aulasegura.domain.model.IncidentStatus
 import com.example.aulasegura.ui.components.AdminBottomBar
 import com.example.aulasegura.ui.components.AdminTab
 import com.example.aulasegura.ui.screens.access.Reveal
@@ -72,7 +81,7 @@ import com.example.aulasegura.ui.theme.SecondaryFixed
 import com.example.aulasegura.ui.theme.SurfaceContainerLow
 import com.example.aulasegura.ui.theme.SurfaceContainerLowest
 
-/** 4.5 — Gestión de Incidentes. Ported 1:1 from the Stitch markup of the incident hub. */
+/** 4.5 — Bandeja de incidentes. Stitch layout restored; every value comes from Firestore. */
 
 private val LeveBg = Color(0xFFFEF3C7)
 private val LeveText = Color(0xFF92400E)
@@ -84,85 +93,24 @@ private val TileShape = RoundedCornerShape(20.dp)
 private val CardShape = RoundedCornerShape(24.dp)
 private val ThumbShape = RoundedCornerShape(20.dp)
 
-private enum class Severity { Leve, Moderado, Grave }
-
-private enum class IncidentFilter(val label: String) {
-    Todos("Todos"),
-    Nuevos("Nuevos"),
-    Moderados("Moderados"),
-    Graves("Graves"),
-}
-
-private enum class MediaKind { Photo, Video, None }
-
-private data class AdminIncident(
-    val severity: Severity,
-    val nuevo: Boolean,
-    val media: MediaKind,
-    val mediaBadge: String?,
-    val time: String,
-    val title: String,
-    val student: String,
-    val group: String,
-    val registeredBy: String,
-    val locationVerified: Boolean,
+/** Chips are filters: null means "Todos" and applies no clause. */
+private val severityOptions = listOf(
+    null to "Todos",
+    IncidentSeverity.LEVE to "Leve",
+    IncidentSeverity.MODERADO to "Moderado",
+    IncidentSeverity.GRAVE to "Grave",
 )
 
-private val incidents = listOf(
-    AdminIncident(
-        severity = Severity.Moderado,
-        nuevo = false,
-        media = MediaKind.Photo,
-        mediaBadge = null,
-        time = "Mar 21 oct · 13:05",
-        title = "Discusión con compañero",
-        student = "Mariana Gómez",
-        group = "3° B",
-        registeredBy = "Prof. Salinas",
-        locationVerified = true,
-    ),
-    AdminIncident(
-        severity = Severity.Leve,
-        nuevo = true,
-        media = MediaKind.Video,
-        mediaBadge = "0:24",
-        time = "Jue 30 oct · 11:20",
-        title = "Caída en el recreo",
-        student = "Mariana Gómez",
-        group = "3° B",
-        registeredBy = "Prof. Salinas",
-        locationVerified = true,
-    ),
-    AdminIncident(
-        severity = Severity.Grave,
-        nuevo = true,
-        media = MediaKind.Photo,
-        mediaBadge = null,
-        time = "Lun 27 oct · 12:10",
-        title = "Daño al mobiliario",
-        student = "Mateo Ríos",
-        group = "2° C",
-        registeredBy = "Prof. Salinas",
-        locationVerified = false,
-    ),
-    AdminIncident(
-        severity = Severity.Leve,
-        nuevo = false,
-        media = MediaKind.None,
-        mediaBadge = null,
-        time = "Vie 24 oct · 09:45",
-        title = "Desacato de normas",
-        student = "Sebastián Vargas",
-        group = "1° A",
-        registeredBy = "Prof. Salinas",
-        locationVerified = false,
-    ),
+private val statusOptions = listOf(
+    null to "Todos",
+    IncidentStatus.NUEVO to "Nuevos",
+    IncidentStatus.REVISADO to "Revisados",
+    IncidentStatus.CERRADO to "Cerrados",
 )
 
 @Composable
 fun AdminIncidentsScreen(
     onBack: () -> Unit = {},
-    onFiltrar: () -> Unit = {},
     onIncidente: (Int) -> Unit = {},
     onPanel: () -> Unit = {},
     onUsuarios: () -> Unit = {},
@@ -170,16 +118,13 @@ fun AdminIncidentsScreen(
     onReportes: () -> Unit = {},
     onMas: () -> Unit = {},
 ) {
-    var filter by rememberSaveable { mutableStateOf(IncidentFilter.Todos) }
+    val viewModel: AdminIncidentsViewModel = viewModel(
+        factory = rememberAppContainer().viewModelFactory,
+    )
+    val uiState by viewModel.state.collectAsState()
+    var expandedId by rememberSaveable { mutableStateOf<String?>(null) }
 
-    val visible = incidents.filter { incident ->
-        when (filter) {
-            IncidentFilter.Todos -> true
-            IncidentFilter.Nuevos -> incident.nuevo
-            IncidentFilter.Moderados -> incident.severity == Severity.Moderado
-            IncidentFilter.Graves -> incident.severity == Severity.Grave
-        }
-    }
+    val stats = incidentStats(uiState.incidents)
 
     Box(
         modifier = Modifier
@@ -193,7 +138,7 @@ fun AdminIncidentsScreen(
                 .statusBarsPadding()
                 .padding(start = 16.dp, end = 16.dp, top = 4.dp, bottom = 120.dp),
         ) {
-            Reveal(0) { IncidentsHeader(onBack = onBack, onFiltrar = onFiltrar) }
+            Reveal(0) { IncidentsHeader(onBack = onBack) }
 
             Row(
                 modifier = Modifier
@@ -202,36 +147,103 @@ fun AdminIncidentsScreen(
                     .padding(bottom = 14.dp),
                 horizontalArrangement = Arrangement.spacedBy(10.dp),
             ) {
-                IncidentStat(value = "9", label = "Este mes", valueColor = PrimaryContainer, modifier = Modifier.weight(1f))
-                IncidentStat(value = "2", label = "Nuevos", valueColor = Color(0xFFFC6955), modifier = Modifier.weight(1f))
-                IncidentStat(value = "1", label = "Graves", valueColor = Error, modifier = Modifier.weight(1f))
+                IncidentStat(
+                    value = stats.total.toString(),
+                    label = "Este mes",
+                    valueColor = PrimaryContainer,
+                    modifier = Modifier.weight(1f),
+                )
+                IncidentStat(
+                    value = stats.news.toString(),
+                    label = "Nuevos",
+                    valueColor = Color(0xFFFC6955),
+                    modifier = Modifier.weight(1f),
+                )
+                IncidentStat(
+                    value = stats.grave.toString(),
+                    label = "Graves",
+                    valueColor = Error,
+                    modifier = Modifier.weight(1f),
+                )
             }
 
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
                     .revealOnEnter(120)
-                    .padding(bottom = 12.dp),
+                    .padding(bottom = 8.dp),
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
             ) {
-                IncidentFilter.entries.forEach { option ->
+                severityOptions.forEach { (severity, label) ->
                     IncidentFilterChip(
-                        label = option.label,
-                        selected = option == filter,
-                        onClick = { filter = option },
+                        label = label,
+                        selected = uiState.severityFilter == severity,
+                        onClick = { viewModel.setSeverityFilter(severity) },
                     )
                 }
             }
 
-            Column(
-                modifier = Modifier.revealOnEnter(180),
-                verticalArrangement = Arrangement.spacedBy(12.dp),
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .revealOnEnter(140)
+                    .padding(bottom = 12.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
             ) {
-                visible.forEachIndexed { index, incident ->
-                    IncidentCard(
-                        incident = incident,
-                        onClick = { onIncidente(index) },
+                statusOptions.forEach { (status, label) ->
+                    IncidentFilterChip(
+                        label = label,
+                        selected = uiState.statusFilter == status,
+                        onClick = { viewModel.setStatusFilter(status) },
                     )
+                }
+            }
+
+            if (uiState.actionError != null) {
+                Reveal(160) {
+                    IncidentsErrorCard(
+                        message = uiState.actionError.orEmpty(),
+                        onRetry = viewModel::clearActionError,
+                        retryLabel = "Entendido",
+                    )
+                }
+            }
+
+            when {
+                uiState.loading -> Reveal(180) { IncidentsStatusCard("Cargando incidentes…") }
+                uiState.error != null -> Reveal(180) {
+                    IncidentsErrorCard(
+                        message = uiState.error.orEmpty(),
+                        onRetry = viewModel::refresh,
+                    )
+                }
+
+                uiState.empty -> Reveal(180) {
+                    IncidentsStatusCard(
+                        "No hay incidentes registrados para este plantel. " +
+                            "Cuando un docente reporte uno, aparecerá aquí.",
+                    )
+                }
+
+                uiState.visibleIncidents.isEmpty() -> Reveal(180) {
+                    IncidentsStatusCard("Ningún incidente coincide con los filtros elegidos.")
+                }
+
+                else -> Column(
+                    modifier = Modifier.revealOnEnter(180),
+                    verticalArrangement = Arrangement.spacedBy(12.dp),
+                ) {
+                    uiState.visibleIncidents.forEach { incident ->
+                        IncidentCard(
+                            incident = incident,
+                            expanded = expandedId == incident.id,
+                            updating = uiState.updating,
+                            onToggle = {
+                                expandedId = if (expandedId == incident.id) null else incident.id
+                            },
+                            onStatusChange = { status -> viewModel.setStatus(incident.id, status) },
+                        )
+                    }
                 }
             }
         }
@@ -253,7 +265,7 @@ fun AdminIncidentsScreen(
 }
 
 @Composable
-private fun IncidentsHeader(onBack: () -> Unit, onFiltrar: () -> Unit) {
+private fun IncidentsHeader(onBack: () -> Unit) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -296,23 +308,6 @@ private fun IncidentsHeader(onBack: () -> Unit, onFiltrar: () -> Unit) {
             )
         }
 
-        Box(
-            modifier = Modifier
-                .size(44.dp)
-                .shadow(2.dp, CircleShape)
-                .clip(CircleShape)
-                .background(SurfaceContainerLowest)
-                .border(1.dp, OutlineVariant.copy(alpha = 0.40f), CircleShape)
-                .clickable(onClick = onFiltrar),
-            contentAlignment = Alignment.Center,
-        ) {
-            Icon(
-                imageVector = Icons.Filled.Tune,
-                contentDescription = "Filtrar",
-                tint = PrimaryContainer,
-                modifier = Modifier.size(22.dp),
-            )
-        }
     }
 }
 
@@ -398,7 +393,69 @@ private fun IncidentFilterChip(
 }
 
 @Composable
-private fun IncidentCard(incident: AdminIncident, onClick: () -> Unit) {
+private fun IncidentsStatusCard(text: String) {
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(CardShape)
+            .background(SurfaceContainerLowest)
+            .border(1.dp, OutlineVariant.copy(alpha = 0.30f), CardShape)
+            .padding(20.dp),
+        contentAlignment = Alignment.Center,
+    ) {
+        Text(
+            text = text,
+            color = Outline,
+            fontFamily = DmSans,
+            fontWeight = FontWeight.Medium,
+            fontSize = 13.sp,
+            lineHeight = 18.sp,
+            textAlign = TextAlign.Center,
+        )
+    }
+}
+
+@Composable
+private fun IncidentsErrorCard(
+    message: String,
+    onRetry: () -> Unit,
+    retryLabel: String = "Reintentar",
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(CardShape)
+            .background(ErrorContainer)
+            .border(1.dp, OutlineVariant.copy(alpha = 0.30f), CardShape)
+            .padding(16.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        Text(
+            text = message,
+            color = Error,
+            fontFamily = DmSans,
+            fontWeight = FontWeight.Medium,
+            fontSize = 14.sp,
+        )
+        Text(
+            text = retryLabel,
+            color = PrimaryContainer,
+            fontFamily = DmSans,
+            fontWeight = FontWeight.SemiBold,
+            fontSize = 13.sp,
+            modifier = Modifier.clickable(onClick = onRetry),
+        )
+    }
+}
+
+@Composable
+private fun IncidentCard(
+    incident: AdminIncident,
+    expanded: Boolean,
+    updating: Boolean,
+    onToggle: () -> Unit,
+    onStatusChange: (IncidentStatus) -> Unit,
+) {
     val source = remember { MutableInteractionSource() }
     val pressed by source.collectIsPressedAsState()
     val scale by animateFloatAsState(
@@ -418,7 +475,7 @@ private fun IncidentCard(incident: AdminIncident, onClick: () -> Unit) {
             .clip(CardShape)
             .background(SurfaceContainerLowest)
             .border(1.dp, OutlineVariant.copy(alpha = 0.30f), CardShape)
-            .clickable(interactionSource = source, indication = null, onClick = onClick)
+            .clickable(interactionSource = source, indication = null, onClick = onToggle)
             .padding(14.dp),
     ) {
         Row {
@@ -438,7 +495,7 @@ private fun IncidentCard(incident: AdminIncident, onClick: () -> Unit) {
                     SeverityChip(severity = incident.severity)
                     Spacer(modifier = Modifier.width(4.dp))
                     Text(
-                        text = incident.time,
+                        text = formatIncidentDate(incident.occurredAt),
                         color = Outline,
                         fontFamily = JetBrainsMono,
                         fontWeight = FontWeight.Normal,
@@ -448,7 +505,7 @@ private fun IncidentCard(incident: AdminIncident, onClick: () -> Unit) {
                     )
                 }
                 Text(
-                    text = incident.title,
+                    text = incident.title.ifBlank { "Incidente sin título" },
                     color = OnSurface,
                     fontFamily = BricolageGrotesque,
                     fontWeight = FontWeight.Bold,
@@ -459,7 +516,7 @@ private fun IncidentCard(incident: AdminIncident, onClick: () -> Unit) {
                 )
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text(
-                        text = incident.student,
+                        text = incident.studentName.ifBlank { "Sin nombre" },
                         color = Outline,
                         fontFamily = DmSans,
                         fontWeight = FontWeight.Medium,
@@ -475,7 +532,7 @@ private fun IncidentCard(incident: AdminIncident, onClick: () -> Unit) {
                         fontSize = 13.sp,
                     )
                     Text(
-                        text = incident.group,
+                        text = incident.groupId,
                         color = OnSurfaceVariant,
                         fontFamily = DmSans,
                         fontWeight = FontWeight.SemiBold,
@@ -510,7 +567,7 @@ private fun IncidentCard(incident: AdminIncident, onClick: () -> Unit) {
                     lineHeight = 16.sp,
                 )
                 Text(
-                    text = incident.registeredBy,
+                    text = incident.reportedByName.ifBlank { "—" },
                     color = OnSurfaceVariant,
                     fontFamily = DmSans,
                     fontWeight = FontWeight.Medium,
@@ -520,20 +577,17 @@ private fun IncidentCard(incident: AdminIncident, onClick: () -> Unit) {
             }
 
             Row(verticalAlignment = Alignment.CenterVertically) {
+                val verified = incident.location?.verified == true
                 Icon(
-                    imageVector = if (incident.locationVerified) {
-                        Icons.Filled.LocationOn
-                    } else {
-                        Icons.Filled.EditLocationAlt
-                    },
+                    imageVector = if (verified) Icons.Filled.LocationOn else Icons.Filled.EditLocationAlt,
                     contentDescription = null,
-                    tint = if (incident.locationVerified) VerifiedGreen else EditedAmber,
+                    tint = if (verified) VerifiedGreen else EditedAmber,
                     modifier = Modifier.size(14.dp),
                 )
                 Spacer(modifier = Modifier.width(3.dp))
                 Text(
-                    text = if (incident.locationVerified) "Ubicación verificada" else "Ubicación editada",
-                    color = if (incident.locationVerified) VerifiedGreen else EditedAmber,
+                    text = if (verified) "Ubicación verificada" else "Ubicación editada",
+                    color = if (verified) VerifiedGreen else EditedAmber,
                     fontFamily = DmSans,
                     fontWeight = FontWeight.Medium,
                     fontSize = 11.sp,
@@ -542,23 +596,108 @@ private fun IncidentCard(incident: AdminIncident, onClick: () -> Unit) {
                 )
             }
         }
+
+        if (expanded) {
+            Spacer(modifier = Modifier.height(12.dp))
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(1.dp)
+                    .background(OutlineVariant.copy(alpha = 0.30f)),
+            )
+            Spacer(modifier = Modifier.height(10.dp))
+
+            Text(
+                text = "Estado: ${incident.statusLabel} · ${incident.severityLabel}",
+                color = PrimaryContainer,
+                fontFamily = DmSans,
+                fontWeight = FontWeight.SemiBold,
+                fontSize = 13.sp,
+            )
+            Spacer(modifier = Modifier.height(6.dp))
+            DetailRows(rows = incidentDetailRows(incident))
+
+            if (incident.status != IncidentStatus.CERRADO) {
+                val next = if (incident.status == IncidentStatus.NUEVO) {
+                    IncidentStatus.REVISADO
+                } else {
+                    IncidentStatus.CERRADO
+                }
+                Spacer(modifier = Modifier.height(12.dp))
+                Text(
+                    text = statusChangeLabel(incident.status, next),
+                    color = PrimaryContainer,
+                    fontFamily = DmSans,
+                    fontWeight = FontWeight.SemiBold,
+                    fontSize = 13.sp,
+                    modifier = Modifier.clickable(enabled = !updating) { onStatusChange(next) },
+                )
+            }
+        }
     }
 }
 
 @Composable
-private fun SeverityChip(severity: Severity) {
+private fun DetailRows(rows: List<IncidentDetailRow>) {
+    val context = LocalContext.current
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        rows.forEach { row ->
+            Column(modifier = Modifier.fillMaxWidth()) {
+                Text(
+                    text = row.label,
+                    color = Outline,
+                    fontFamily = DmSans,
+                    fontWeight = FontWeight.SemiBold,
+                    fontSize = 11.sp,
+                    lineHeight = 14.sp,
+                )
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        text = row.value,
+                        color = OnSurface,
+                        fontFamily = DmSans,
+                        fontWeight = FontWeight.Normal,
+                        fontSize = 13.sp,
+                        lineHeight = 18.sp,
+                        modifier = Modifier.weight(1f, fill = false),
+                    )
+                    if (row.isMedia) {
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            text = "Abrir",
+                            color = PrimaryContainer,
+                            fontFamily = DmSans,
+                            fontWeight = FontWeight.SemiBold,
+                            fontSize = 12.sp,
+                            modifier = Modifier.clickable {
+                                runCatching {
+                                    context.startActivity(
+                                        Intent(Intent.ACTION_VIEW, Uri.parse(row.mediaUrl)),
+                                    )
+                                }
+                            },
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun SeverityChip(severity: IncidentSeverity) {
     val background: Color
     val content: Color
     when (severity) {
-        Severity.Leve -> {
+        IncidentSeverity.LEVE -> {
             background = LeveBg
             content = LeveText
         }
-        Severity.Moderado -> {
+        IncidentSeverity.MODERADO -> {
             background = SecondaryFixed
             content = OnSecondaryFixedVariant
         }
-        Severity.Grave -> {
+        IncidentSeverity.GRAVE -> {
             background = ErrorContainer
             content = OnErrorContainer
         }
@@ -571,7 +710,7 @@ private fun SeverityChip(severity: Severity) {
             .padding(horizontal = 8.dp, vertical = 2.dp),
     ) {
         Text(
-            text = severity.name,
+            text = severity.label,
             color = content,
             fontFamily = DmSans,
             fontWeight = FontWeight.SemiBold,
@@ -583,6 +722,8 @@ private fun SeverityChip(severity: Severity) {
 
 @Composable
 private fun IncidentThumbnail(incident: AdminIncident) {
+    val hasVideo = incident.media.any { it.type.equals("video", ignoreCase = true) }
+
     Box(
         modifier = Modifier
             .size(80.dp)
@@ -590,17 +731,17 @@ private fun IncidentThumbnail(incident: AdminIncident) {
             .background(SurfaceContainerLow)
             .border(1.dp, OutlineVariant.copy(alpha = 0.20f), ThumbShape),
     ) {
-        // Sin Coil en el proyecto: la foto del mockup se representa con un placeholder
-        // del design system (mismo encuadre y misma capa de badge).
+        // No Coil in the project: the evidence is opened in the browser from the
+        // detail row. The tile only signals the kind and how many files there are.
         Box(
             modifier = Modifier.fillMaxSize(),
             contentAlignment = Alignment.Center,
         ) {
             Icon(
-                imageVector = when (incident.media) {
-                    MediaKind.Video -> Icons.Filled.PlayArrow
-                    MediaKind.Photo -> Icons.Filled.PhotoCamera
-                    MediaKind.None -> Icons.Filled.Image
+                imageVector = when {
+                    hasVideo -> Icons.Filled.PlayArrow
+                    incident.hasMedia -> Icons.Filled.PhotoCamera
+                    else -> Icons.Filled.Image
                 },
                 contentDescription = null,
                 tint = OutlineVariant,
@@ -608,7 +749,7 @@ private fun IncidentThumbnail(incident: AdminIncident) {
             )
         }
 
-        if (incident.media == MediaKind.Video) {
+        if (hasVideo) {
             Box(
                 modifier = Modifier
                     .fillMaxSize()
@@ -633,39 +774,22 @@ private fun IncidentThumbnail(incident: AdminIncident) {
             }
         }
 
-        if (incident.mediaBadge != null) {
-            Box(
-                modifier = Modifier
-                    .align(Alignment.BottomEnd)
-                    .padding(4.dp)
-                    .clip(RoundedCornerShape(percent = 50))
-                    .background(Color(0xFF31302D).copy(alpha = 0.80f))
-                    .padding(horizontal = 6.dp, vertical = 2.dp),
-            ) {
-                Text(
-                    text = incident.mediaBadge,
-                    color = Color.White,
-                    fontFamily = JetBrainsMono,
-                    fontWeight = FontWeight.Medium,
-                    fontSize = 10.sp,
-                    lineHeight = 10.sp,
-                )
-            }
-        } else if (incident.media == MediaKind.Photo) {
+        if (incident.photoCount > 0) {
             Box(
                 modifier = Modifier
                     .align(Alignment.BottomEnd)
                     .padding(4.dp)
                     .clip(RoundedCornerShape(percent = 50))
                     .background(PrimaryContainer.copy(alpha = 0.80f))
-                    .padding(2.dp),
-                contentAlignment = Alignment.Center,
+                    .padding(horizontal = 6.dp, vertical = 2.dp),
             ) {
-                Icon(
-                    imageVector = Icons.Filled.PhotoCamera,
-                    contentDescription = null,
-                    tint = Color.White,
-                    modifier = Modifier.size(12.dp),
+                Text(
+                    text = incident.photoCount.toString(),
+                    color = Color.White,
+                    fontFamily = JetBrainsMono,
+                    fontWeight = FontWeight.Medium,
+                    fontSize = 10.sp,
+                    lineHeight = 10.sp,
                 )
             }
         }

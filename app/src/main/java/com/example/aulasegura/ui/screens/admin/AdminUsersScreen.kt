@@ -27,11 +27,21 @@ import androidx.compose.material.icons.filled.PersonAdd
 import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Tune
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -43,6 +53,10 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.lifecycle.viewmodel.compose.viewModel
+import com.example.aulasegura.di.rememberAppContainer
+import com.example.aulasegura.domain.model.AdminStudent
+import com.example.aulasegura.domain.repository.AccountRole
 import com.example.aulasegura.ui.components.AdminBottomBar
 import com.example.aulasegura.ui.components.AdminTab
 import com.example.aulasegura.ui.screens.access.Reveal
@@ -81,27 +95,6 @@ private val HintText = Color(0xFF004031)
 private val ListShape = RoundedCornerShape(24.dp)
 private val InputShape = RoundedCornerShape(16.dp)
 
-private enum class UsersTab(val label: String, val count: Int, val searchHint: String, val hint: String) {
-    Docentes(
-        label = "Docentes",
-        count = 4,
-        searchHint = "Buscar docente",
-        hint = "Los docentes reciben su acceso por correo cuando los das de alta.",
-    ),
-    Padres(
-        label = "Padres",
-        count = 62,
-        searchHint = "Buscar padre",
-        hint = "Las familias reciben su invitación cuando registras al alumno.",
-    ),
-    Alumnos(
-        label = "Alumnos",
-        count = 85,
-        searchHint = "Buscar alumno",
-        hint = "Los alumnos quedan vinculados al registrarse con su tutor.",
-    ),
-}
-
 private enum class AvatarStyle {
     Indigo,
     DeepIndigo,
@@ -109,7 +102,9 @@ private enum class AvatarStyle {
     Coral,
 }
 
+/** Display-only row; the domain row is mapped to this in [AdminUserRowUi.toDisplayRow]. */
 private data class UserRow(
+    val uid: String,
     val initials: String,
     val name: String,
     val subtitle: String,
@@ -117,44 +112,71 @@ private data class UserRow(
     val avatar: AvatarStyle,
 )
 
-private val docentes = listOf(
-    UserRow("RS", "Ricardo Salinas Ortega", "Matemáticas · 3° B, 3° A, 2° C", true, AvatarStyle.Indigo),
-    UserRow("LM", "Laura Mendoza Ríos", "Español · 3° A", true, AvatarStyle.DeepIndigo),
-    UserRow("HV", "Héctor Vega Luna", "Ciencias · 2° C", true, AvatarStyle.Neutral),
-    UserRow("SP", "Sofía Pineda Cruz", "Historia · 3° B", false, AvatarStyle.Coral),
-    UserRow("MA", "Manuel Alarcón Cruz", "Educación Física · 1° A, 2° B", true, AvatarStyle.Indigo),
-)
-
-private val padres = listOf(
-    UserRow("CG", "Carlos Gómez Pérez", "Tutor de Mariana 3° B y Diego 1° A", true, AvatarStyle.Indigo),
-    UserRow("AR", "Ana Ruiz Sánchez", "Tutora de Sofía 3° B", true, AvatarStyle.Coral),
-    UserRow("LP", "Luis Pineda Mora", "Tutor de Diego 2° C", true, AvatarStyle.DeepIndigo),
-    UserRow("RC", "Rocío Cruz Nava", "Tutora de Manuel 1° A", false, AvatarStyle.Neutral),
-)
-
-private val alumnos = listOf(
-    UserRow("MG", "Mariana Gómez Ruiz", "3° B · Matrícula 3B-014", true, AvatarStyle.Indigo),
-    UserRow("DG", "Diego Gómez Ruiz", "1° A · Matrícula 1A-007", true, AvatarStyle.Coral),
-    UserRow("XT", "Ximena Torres Díaz", "3° B · Matrícula 3B-021", true, AvatarStyle.Neutral),
-    UserRow("EC", "Emiliano Castro Rivas", "2° C · Matrícula 2C-009", false, AvatarStyle.DeepIndigo),
-)
-
 @Composable
 fun AdminUsersScreen(
-    onAgregarUsuario: () -> Unit = {},
     onPanel: () -> Unit = {},
     onGrupos: () -> Unit = {},
     onReportes: () -> Unit = {},
     onMas: () -> Unit = {},
+    onAddStudent: () -> Unit = {},
 ) {
-    var selectedTab by rememberSaveable { mutableStateOf(UsersTab.Docentes) }
-    var query by rememberSaveable { mutableStateOf("") }
+    val viewModel: AdminUsersViewModel = viewModel(
+        factory = rememberAppContainer().viewModelFactory,
+    )
+    val uiState by viewModel.state.collectAsState()
 
-    val rows = when (selectedTab) {
-        UsersTab.Docentes -> docentes
-        UsersTab.Padres -> padres
-        UsersTab.Alumnos -> alumnos
-    }.filter { it.name.contains(query.trim(), ignoreCase = true) }
+    var selectedTab by rememberSaveable { mutableStateOf(AdminUsersTab.DOCENTES) }
+    var query by rememberSaveable { mutableStateOf("") }
+    var selectedGroup by rememberSaveable { mutableStateOf<String?>(null) }
+    var editing by remember { mutableStateOf<AdminUserForm?>(null) }
+    var showCreate by remember { mutableStateOf(false) }
+    var createForm by remember { mutableStateOf(CreateAccountForm()) }
+
+    // The tab is the only source of the new account's role. Alumnos never opens
+    // this dialog, so a directivo can never be created from the app.
+    val createRole = accountRoleFromTab(selectedTab)
+
+    // The form is derived from the loaded users, so a tap never needs a second read.
+    val forms = uiState.users.associate { it.uid to formFrom(it) }
+    // Real group names first; students with a group outside the loaded map still
+    // contribute their id so the filter never hides a row.
+    val studentGroups = (uiState.groupNames.keys + uiState.students.map { it.groupId })
+        .filter { it.isNotBlank() }
+        .distinct()
+        .sorted()
+    val rows = if (selectedTab == AdminUsersTab.ALUMNOS) {
+        filterStudents(uiState.students, selectedGroup, query, uiState.groupNames)
+            .map { it.toDisplayRow() }
+    } else {
+        filterUsers(uiState.users, selectedTab, query).map { it.toDisplayRow() }
+    }
+    val selectedStudent = uiState.students.firstOrNull { it.id == uiState.selectedStudentId }
+    val selectedStudentGroup = selectedStudent?.let {
+        uiState.groupNames[it.groupId]?.takeIf { name -> name.isNotBlank() }
+            ?: groupLabel(it.groupId)
+    }.orEmpty()
+    // Students load from their own collection: a failure there must not replace
+    // the Docentes/Padres loading and error states.
+    val tabLoading = if (selectedTab == AdminUsersTab.ALUMNOS) {
+        uiState.studentsLoading
+    } else {
+        uiState.loading
+    }
+    val tabError = if (selectedTab == AdminUsersTab.ALUMNOS) {
+        uiState.studentsError
+    } else {
+        uiState.error
+    }
+    val counts = mapOf(
+        AdminUsersTab.DOCENTES to filterUsers(uiState.users, AdminUsersTab.DOCENTES, "").size,
+        AdminUsersTab.PADRES to filterUsers(uiState.users, AdminUsersTab.PADRES, "").size,
+        AdminUsersTab.ALUMNOS to uiState.students.size,
+    )
+
+    // Close the dialog once the save has been acknowledged by the repository.
+    LaunchedEffect(uiState.message) {
+        if (uiState.message != null) editing = null
+    }
 
     Box(
         modifier = Modifier
@@ -190,12 +212,24 @@ fun AdminUsersScreen(
                         .size(44.dp)
                         .clip(CircleShape)
                         .background(PrimaryContainer)
-                        .clickable(onClick = onAgregarUsuario),
+                        .clickable(onClick = {
+                            if (selectedTab == AdminUsersTab.ALUMNOS) {
+                                onAddStudent()
+                            } else {
+                                createForm = CreateAccountForm()
+                                viewModel.createErrorShown()
+                                showCreate = true
+                            }
+                        }),
                     contentAlignment = Alignment.Center,
                 ) {
                     Icon(
                         imageVector = Icons.Filled.PersonAdd,
-                        contentDescription = "Agregar usuario",
+                        contentDescription = if (selectedTab == AdminUsersTab.ALUMNOS) {
+                            "Agregar alumno"
+                        } else {
+                            "Agregar usuario"
+                        },
                         tint = OnPrimary,
                         modifier = Modifier.size(22.dp),
                     )
@@ -205,10 +239,12 @@ fun AdminUsersScreen(
             Reveal(60) {
                 UsersTabs(
                     selected = selectedTab,
+                    counts = counts,
                     onSelect = {
                         if (it != selectedTab) {
                             selectedTab = it
                             query = ""
+                            if (it != AdminUsersTab.ALUMNOS) selectedGroup = null
                         }
                     },
                 )
@@ -219,20 +255,76 @@ fun AdminUsersScreen(
                     query = query,
                     onQueryChange = { query = it },
                     placeholder = selectedTab.searchHint,
+                    showGroupFilter = selectedTab == AdminUsersTab.ALUMNOS,
+                    groupFilter = selectedGroup,
+                    groupOptions = studentGroups,
+                    groupNames = uiState.groupNames,
+                    onGroupFilterChange = { selectedGroup = it },
                 )
             }
 
+            uiState.message?.let { message ->
+                Reveal(160) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp, vertical = 4.dp)
+                            .clip(RoundedCornerShape(12.dp))
+                            .background(ActivePillBg)
+                            .padding(horizontal = 12.dp, vertical = 6.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Text(
+                            text = message,
+                            color = HintIcon,
+                            fontFamily = DmSans,
+                            fontSize = 13.sp,
+                        )
+                        TextButton(onClick = { viewModel.messageShown() }) {
+                            Text(text = "Aceptar", color = HintIcon, fontFamily = DmSans)
+                        }
+                    }
+                }
+            }
+
             Reveal(180) {
-                if (rows.isEmpty()) {
-                    Text(
+                when {
+                    tabLoading -> Text(
+                        text = if (selectedTab == AdminUsersTab.ALUMNOS) {
+                            "Cargando alumnos…"
+                        } else {
+                            "Cargando usuarios…"
+                        },
+                        color = OnSurfaceVariant,
+                        fontFamily = DmSans,
+                        fontSize = 14.sp,
+                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 24.dp),
+                    )
+
+                    tabError != null -> Column(
+                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 16.dp),
+                    ) {
+                        Text(
+                            text = tabError.orEmpty(),
+                            color = MaterialTheme.colorScheme.error,
+                            fontFamily = DmSans,
+                            fontSize = 14.sp,
+                        )
+                        TextButton(onClick = { viewModel.refresh() }) {
+                            Text(text = "Reintentar", fontFamily = DmSans)
+                        }
+                    }
+
+                    rows.isEmpty() -> Text(
                         text = "Sin resultados para \"${query.trim()}\"",
                         color = OnSurfaceVariant,
                         fontFamily = DmSans,
                         fontSize = 14.sp,
                         modifier = Modifier.padding(horizontal = 16.dp, vertical = 24.dp),
                     )
-                } else {
-                    Column(
+
+                    else -> Column(
                         modifier = Modifier
                             .padding(start = 16.dp, end = 16.dp, top = 8.dp)
                             .fillMaxWidth()
@@ -249,7 +341,18 @@ fun AdminUsersScreen(
                                         .background(OutlineVariant.copy(alpha = 0.3f)),
                                 )
                             }
-                            UserRowItem(row)
+                            UserRowItem(
+                                row = row,
+                                onClick = {
+                                    if (selectedTab == AdminUsersTab.ALUMNOS) {
+                                        // Students have no editable profile: the row
+                                        // opens their detail and baja dialog instead.
+                                        viewModel.selectStudent(row.uid)
+                                    } else {
+                                        forms[row.uid]?.let { editing = it }
+                                    }
+                                },
+                            )
                         }
                     }
                 }
@@ -272,10 +375,141 @@ fun AdminUsersScreen(
             modifier = Modifier.align(Alignment.BottomCenter),
         )
     }
+
+    editing?.let { form ->
+        EditUserDialog(
+            form = form,
+            error = uiState.error,
+            saving = uiState.loading,
+            onFormChange = { editing = it },
+            onDismiss = { editing = null },
+            onSave = { viewModel.save(form) },
+        )
+    }
+
+    selectedStudent?.let { student ->
+        StudentDetailDialog(
+            student = student,
+            groupName = selectedStudentGroup,
+            linkingCode = uiState.linkingCode,
+            loading = uiState.detailLoading,
+            saving = uiState.detailSaving,
+            error = uiState.detailError,
+            onDeactivate = { viewModel.deactivateStudent() },
+            onDismiss = { viewModel.dismissStudent() },
+        )
+    }
+
+    createRole?.let { role ->
+        if (showCreate) {
+            CreateUserDialog(
+                form = createForm,
+                role = role,
+                validationError = createAccountValidationError(createForm),
+                serverError = uiState.createError,
+                success = uiState.createSuccess,
+                saving = uiState.createLoading,
+                onFormChange = { createForm = it },
+                onDismiss = {
+                    showCreate = false
+                    viewModel.createMessageShown()
+                },
+                onCreate = { viewModel.createAccount(createForm, role) },
+            )
+        }
+    }
+}
+
+/** Real in-app account creation. The role is fixed by the tab, never by a dropdown. */
+@Composable
+private fun CreateUserDialog(
+    form: CreateAccountForm,
+    role: AccountRole,
+    validationError: String?,
+    serverError: String?,
+    success: String?,
+    saving: Boolean,
+    onFormChange: (CreateAccountForm) -> Unit,
+    onDismiss: () -> Unit,
+    onCreate: () -> Unit,
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = {
+            Text(
+                text = if (role == AccountRole.DOCENTE) "Nuevo docente" else "Nuevo tutor",
+                color = Primary,
+                fontFamily = BricolageGrotesque,
+                fontWeight = FontWeight.Bold,
+            )
+        },
+        text = {
+            Column(
+                modifier = Modifier.verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                FormField("Correo electrónico", form.email) { onFormChange(form.copy(email = it)) }
+                FormField("Contraseña temporal", form.password) {
+                    onFormChange(form.copy(password = it))
+                }
+                FormField("Nombre", form.firstName) { onFormChange(form.copy(firstName = it)) }
+                FormField("Apellido", form.lastName) { onFormChange(form.copy(lastName = it)) }
+                FormField("Teléfono (opcional)", form.phone) { onFormChange(form.copy(phone = it)) }
+                if (role == AccountRole.DOCENTE) {
+                    FormField("Materias (separadas por coma)", form.subjects) {
+                        onFormChange(form.copy(subjects = it))
+                    }
+                }
+                FormField("Grupos, IDs separados por coma (opcional)", form.groupIds) {
+                    onFormChange(form.copy(groupIds = it))
+                }
+                Text(
+                    text = "La contraseña es temporal. Compártela con la persona indicada " +
+                        "por un canal privado y pídele cambiarla al iniciar sesión.",
+                    color = OnSurfaceVariant,
+                    fontFamily = DmSans,
+                    fontSize = 12.sp,
+                )
+                validationError?.let {
+                    Text(it, color = MaterialTheme.colorScheme.error, fontFamily = DmSans, fontSize = 12.sp)
+                }
+                serverError?.let {
+                    Text(it, color = MaterialTheme.colorScheme.error, fontFamily = DmSans, fontSize = 12.sp)
+                }
+                success?.let {
+                    Text(it, color = HintIcon, fontFamily = DmSans, fontSize = 12.sp)
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(
+                onClick = if (success != null) onDismiss else onCreate,
+                enabled = success != null || (validationError == null && !saving),
+            ) {
+                Text(
+                    text = when {
+                        success != null -> "Cerrar"
+                        saving -> "Creando…"
+                        else -> "Crear cuenta"
+                    },
+                    fontFamily = DmSans,
+                )
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text(text = "Cancelar", fontFamily = DmSans)
+            }
+        },
+    )
 }
 
 @Composable
-private fun UsersTabs(selected: UsersTab, onSelect: (UsersTab) -> Unit) {
+private fun UsersTabs(
+    selected: AdminUsersTab,
+    counts: Map<AdminUsersTab, Int>,
+    onSelect: (AdminUsersTab) -> Unit,
+) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -286,7 +520,7 @@ private fun UsersTabs(selected: UsersTab, onSelect: (UsersTab) -> Unit) {
             .padding(4.dp),
         horizontalArrangement = Arrangement.spacedBy(2.dp),
     ) {
-        UsersTab.entries.forEach { tab ->
+        AdminUsersTab.entries.forEach { tab ->
             val active = tab == selected
             Row(
                 modifier = Modifier
@@ -315,7 +549,7 @@ private fun UsersTabs(selected: UsersTab, onSelect: (UsersTab) -> Unit) {
                         .padding(horizontal = 6.dp, vertical = 2.dp),
                 ) {
                     Text(
-                        text = tab.count.toString(),
+                        text = (counts[tab] ?: 0).toString(),
                         color = if (active) OnPrimary else OnSurfaceVariant,
                         fontFamily = JetBrainsMono,
                         fontWeight = FontWeight.SemiBold,
@@ -332,7 +566,14 @@ private fun SearchRow(
     query: String,
     onQueryChange: (String) -> Unit,
     placeholder: String,
+    showGroupFilter: Boolean = false,
+    groupFilter: String? = null,
+    groupOptions: List<String> = emptyList(),
+    groupNames: Map<String, String> = emptyMap(),
+    onGroupFilterChange: (String?) -> Unit = {},
 ) {
+    var filterExpanded by remember { mutableStateOf(false) }
+
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -381,31 +622,72 @@ private fun SearchRow(
             }
         }
 
-        Box(
-            modifier = Modifier
-                .size(44.dp)
-                .clip(InputShape)
-                .background(SurfaceContainerLowest)
-                .border(1.dp, OutlineVariant.copy(alpha = 0.5f), InputShape),
-            contentAlignment = Alignment.Center,
-        ) {
-            Icon(
-                imageVector = Icons.Filled.Tune,
-                contentDescription = "Filtrar",
-                tint = Primary,
-                modifier = Modifier.size(20.dp),
-            )
+        Box {
+            Box(
+                modifier = Modifier
+                    .size(44.dp)
+                    .clip(InputShape)
+                    .background(SurfaceContainerLowest)
+                    .border(1.dp, OutlineVariant.copy(alpha = 0.5f), InputShape)
+                    .clickable(enabled = showGroupFilter) { filterExpanded = true },
+                contentAlignment = Alignment.Center,
+            ) {
+                Icon(
+                    imageVector = Icons.Filled.Tune,
+                    contentDescription = "Filtrar por grupo",
+                    tint = Primary,
+                    modifier = Modifier.size(20.dp),
+                )
+            }
+            DropdownMenu(
+                expanded = filterExpanded,
+                onDismissRequest = { filterExpanded = false },
+                modifier = Modifier.background(SurfaceContainerLowest),
+            ) {
+                DropdownMenuItem(
+                    text = {
+                        Text(
+                            text = "Todos los grupos",
+                            color = OnSurface,
+                            fontFamily = DmSans,
+                            fontWeight = if (groupFilter == null) FontWeight.SemiBold else FontWeight.Normal,
+                            fontSize = 14.sp,
+                        )
+                    },
+                    onClick = {
+                        onGroupFilterChange(null)
+                        filterExpanded = false
+                    },
+                )
+                groupOptions.forEach { option ->
+                    DropdownMenuItem(
+                        text = {
+                            Text(
+                                text = groupLabel(option, groupNames),
+                                color = OnSurface,
+                                fontFamily = DmSans,
+                                fontWeight = if (option == groupFilter) FontWeight.SemiBold else FontWeight.Normal,
+                                fontSize = 14.sp,
+                            )
+                        },
+                        onClick = {
+                            onGroupFilterChange(option)
+                            filterExpanded = false
+                        },
+                    )
+                }
+            }
         }
     }
 }
 
 @Composable
-private fun UserRowItem(row: UserRow) {
+private fun UserRowItem(row: UserRow, onClick: () -> Unit) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
             .height(72.dp)
-            .clickable { }
+            .clickable(onClick = onClick)
             .padding(horizontal = 14.dp),
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically,
@@ -524,6 +806,197 @@ private fun UserRowItem(row: UserRow) {
     }
 }
 
+/** Full student record plus the live linking code and the logical baja action. */
+@Composable
+private fun StudentDetailDialog(
+    student: AdminStudent,
+    groupName: String,
+    linkingCode: String?,
+    loading: Boolean,
+    saving: Boolean,
+    error: String?,
+    onDeactivate: () -> Unit,
+    onDismiss: () -> Unit,
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = {
+            Text(
+                text = "Detalle del alumno",
+                color = Primary,
+                fontFamily = BricolageGrotesque,
+                fontWeight = FontWeight.Bold,
+            )
+        },
+        text = {
+            Column(
+                modifier = Modifier.verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(10.dp),
+            ) {
+                DetailLine("Nombre", student.displayName)
+                DetailLine("CURP", student.curp.ifBlank { "sin CURP" })
+                DetailLine("Número de lista", student.listNumber.toString())
+                DetailLine("Grupo", groupName.ifBlank { "sin grupo" })
+                DetailLine("Estado", if (student.active) "Activo" else "Inactivo")
+                DetailLine("Tutores vinculados", student.tutorIds.size.toString())
+                DetailLine(
+                    label = "Código de vinculación",
+                    value = when {
+                        loading -> "Buscando código…"
+                        linkingCode.isNullOrBlank() -> "sin código vigente"
+                        else -> linkingCode
+                    },
+                    mono = true,
+                )
+                error?.let {
+                    Text(
+                        text = it,
+                        color = MaterialTheme.colorScheme.error,
+                        fontFamily = DmSans,
+                        fontSize = 12.sp,
+                    )
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(
+                onClick = onDeactivate,
+                enabled = student.active && !saving && !loading,
+            ) {
+                Text(
+                    text = if (saving) "Dando de baja…" else "Dar de baja",
+                    fontFamily = DmSans,
+                )
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text(text = "Cerrar", fontFamily = DmSans)
+            }
+        },
+    )
+}
+
+@Composable
+private fun DetailLine(label: String, value: String, mono: Boolean = false) {
+    Column(modifier = Modifier.fillMaxWidth()) {
+        Text(
+            text = label,
+            color = OnSurfaceVariant,
+            fontFamily = DmSans,
+            fontSize = 12.sp,
+        )
+        Text(
+            text = value,
+            color = OnSurface,
+            fontFamily = if (mono) JetBrainsMono else DmSans,
+            fontWeight = if (mono) FontWeight.SemiBold else FontWeight.Normal,
+            fontSize = 14.sp,
+        )
+    }
+}
+
+@Composable
+private fun EditUserDialog(
+    form: AdminUserForm,
+    error: String?,
+    saving: Boolean,
+    onFormChange: (AdminUserForm) -> Unit,
+    onDismiss: () -> Unit,
+    onSave: () -> Unit,
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = {
+            Text(
+                text = "Editar usuario",
+                color = Primary,
+                fontFamily = BricolageGrotesque,
+                fontWeight = FontWeight.Bold,
+            )
+        },
+        text = {
+            Column(
+                modifier = Modifier.verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                FormField("Nombre", form.firstName) { onFormChange(form.copy(firstName = it)) }
+                FormField("Apellido", form.lastName) { onFormChange(form.copy(lastName = it)) }
+                FormField("Teléfono", form.phone) { onFormChange(form.copy(phone = it)) }
+                FormField("Materias (separadas por coma)", form.subjects) {
+                    onFormChange(form.copy(subjects = it))
+                }
+                ReadOnlyInfo("Grupos asignados", form.groupIds, "Sin grupos asignados")
+                ReadOnlyInfo("Alumnos asignados", form.studentIds, "Sin alumnos asignados")
+                Text(
+                    text = "La asignación de grupos y alumnos se gestiona desde Grupos.",
+                    color = OnSurfaceVariant,
+                    fontFamily = DmSans,
+                    fontSize = 12.sp,
+                )
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Switch(
+                        checked = form.active,
+                        onCheckedChange = { onFormChange(form.copy(active = it)) },
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(text = "Cuenta activa", fontFamily = DmSans, fontSize = 14.sp)
+                }
+                validationError(form)?.let {
+                    Text(text = it, color = MaterialTheme.colorScheme.error, fontFamily = DmSans, fontSize = 12.sp)
+                }
+                error?.let {
+                    Text(text = it, color = MaterialTheme.colorScheme.error, fontFamily = DmSans, fontSize = 12.sp)
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = onSave, enabled = isValid(form) && !saving) {
+                Text(text = if (saving) "Guardando…" else "Guardar", fontFamily = DmSans)
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text(text = "Cancelar", fontFamily = DmSans)
+            }
+        },
+    )
+}
+
+@Composable
+private fun FormField(label: String, value: String, onChange: (String) -> Unit) {
+    OutlinedTextField(
+        value = value,
+        onValueChange = onChange,
+        label = { Text(text = label, fontFamily = DmSans) },
+        singleLine = true,
+        textStyle = androidx.compose.ui.text.TextStyle(
+            fontFamily = DmSans,
+            fontSize = 14.sp,
+        ),
+        modifier = Modifier.fillMaxWidth(),
+    )
+}
+
+/** Denormalized links are shown for context only; assignment is a Bloque 3 flow. */
+@Composable
+private fun ReadOnlyInfo(label: String, value: String, emptyText: String) {
+    Column(modifier = Modifier.fillMaxWidth()) {
+        Text(
+            text = label,
+            color = OnSurfaceVariant,
+            fontFamily = DmSans,
+            fontSize = 12.sp,
+        )
+        Text(
+            text = value.ifBlank { emptyText },
+            color = OnSurface,
+            fontFamily = DmSans,
+            fontSize = 14.sp,
+        )
+    }
+}
+
 @Composable
 private fun HintCard(text: String) {
     Row(
@@ -553,6 +1026,30 @@ private fun HintCard(text: String) {
             lineHeight = 18.sp,
         )
     }
+}
+
+private fun AdminUserRowUi.toDisplayRow(): UserRow = displayRow(uid, name, subtitle, active)
+
+private fun AdminStudentRowUi.toDisplayRow(): UserRow = displayRow(
+    uid = id,
+    name = name,
+    subtitle = "$group · No. de lista $listNumber",
+    active = active,
+)
+
+/** Shared visual mapping: the avatar is derived from the id, never stored. */
+private fun displayRow(uid: String, name: String, subtitle: String, active: Boolean): UserRow {
+    val initials = name.split(Regex("\\s+"))
+        .filter { it.isNotBlank() }
+        .take(2)
+        .joinToString("") { it.first().uppercase() }
+    val avatar = when (uid.hashCode() and 3) {
+        0 -> AvatarStyle.Indigo
+        1 -> AvatarStyle.DeepIndigo
+        2 -> AvatarStyle.Neutral
+        else -> AvatarStyle.Coral
+    }
+    return UserRow(uid, initials, name, subtitle, active, avatar)
 }
 
 private fun AvatarStyle.background(): Color = when (this) {

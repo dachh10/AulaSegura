@@ -5,6 +5,7 @@ import com.example.aulasegura.domain.model.UserRole
 import com.example.aulasegura.domain.repository.AuthFailure
 import com.example.aulasegura.domain.repository.AuthRepository
 import com.example.aulasegura.domain.repository.AuthResult
+import com.example.aulasegura.domain.repository.PasswordChangeResult
 import com.example.aulasegura.domain.repository.PasswordResetResult
 import com.example.aulasegura.domain.repository.PushTokenRepository
 import kotlinx.coroutines.Dispatchers
@@ -54,6 +55,11 @@ private class FakeAuthRepository(
 
     override suspend fun sendPasswordReset(email: String): PasswordResetResult =
         PasswordResetResult.Sent
+
+    override suspend fun changePassword(
+        currentPassword: String,
+        newPassword: String,
+    ): PasswordChangeResult = PasswordChangeResult.Success
 
     override fun signOut() {
         signOutCalls++

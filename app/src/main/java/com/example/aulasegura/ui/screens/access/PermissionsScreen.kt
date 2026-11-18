@@ -1,5 +1,14 @@
 package com.example.aulasegura.ui.screens.access
 
+import android.Manifest
+import android.content.Intent
+import android.content.pm.PackageManager
+import android.net.Uri
+import android.os.Build
+import android.provider.Settings
+import androidx.activity.ComponentActivity
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.RepeatMode
@@ -30,6 +39,8 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.core.app.ActivityCompat
+import androidx.core.content.ContextCompat
 import androidx.compose.material.icons.outlined.ArrowBack
 import androidx.compose.material.icons.outlined.CameraAlt
 import androidx.compose.material.icons.outlined.Check
@@ -40,12 +51,15 @@ import androidx.compose.material.icons.outlined.VerifiedUser
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
@@ -60,6 +74,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
 import com.example.aulasegura.ui.components.PillButton
 import com.example.aulasegura.ui.components.ShieldPattern
 import com.example.aulasegura.ui.theme.BrandCream
@@ -92,7 +108,8 @@ private enum class PermState { PENDING, GRANTED, DENIED }
  *  - Sticky TopAppBar ("Antes de empezar" + back + "Saltar")
  *  - "ÚLTIMO PASO" badge (pulsing coral dot)
  *  - Headline + subtitle
- *  - 3 permission cards: Ubicación (pre-granted), Cámara (pending), Notificaciones (pending)
+ *  - 3 permission cards: Ubicación y Notificaciones read the real runtime state;
+ *    Cámara needs no permission because the app uses the system camera app
  *  - Trust assurance box
  *  - Fixed bottom: "Continuar" coral pill + "Configurar más tarde" text + lock note
  */
@@ -102,10 +119,78 @@ fun PermissionsScreen(
     onSkip: () -> Unit,
     onBack: () -> Unit,
 ) {
-    // UI-only permission states (no real runtime permission calls)
-    var locationState by remember { mutableStateOf(PermState.GRANTED) }
-    var cameraState by remember { mutableStateOf(PermState.PENDING) }
+    val context = LocalContext.current
+    val activity = context as? ComponentActivity
+    val asked = remember { mutableSetOf<String>() }
+
+    // CAMERA is deliberately absent: the manifest does not declare it and the app
+    // uses the system camera app through TakePicture + FileProvider, which needs no
+    // runtime permission. Only declared permissions are requested here.
+    var cameraState by remember { mutableStateOf(PermState.GRANTED) }
+    var locationState by remember { mutableStateOf(PermState.PENDING) }
     var notifState by remember { mutableStateOf(PermState.PENDING) }
+
+    val locationLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestPermission(),
+    ) { granted ->
+        asked += Manifest.permission.ACCESS_FINE_LOCATION
+        locationState = if (granted) PermState.GRANTED else PermState.DENIED
+    }
+    val notifLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestPermission(),
+    ) { granted ->
+        asked += Manifest.permission.POST_NOTIFICATIONS
+        notifState = if (granted) PermState.GRANTED else PermState.DENIED
+    }
+
+    fun isGranted(permission: String): Boolean =
+        ContextCompat.checkSelfPermission(context, permission) == PackageManager.PERMISSION_GRANTED
+
+    fun stateOf(permission: String): PermState {
+        // Below Android 13 the runtime notification permission does not exist.
+        if (permission == Manifest.permission.POST_NOTIFICATIONS &&
+            Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU
+        ) return PermState.GRANTED
+        if (isGranted(permission)) return PermState.GRANTED
+        if (permission !in asked) return PermState.PENDING
+        val canAskAgain = activity?.let {
+            ActivityCompat.shouldShowRequestPermissionRationale(it, permission)
+        } == true
+        return if (canAskAgain) PermState.PENDING else PermState.DENIED
+    }
+
+    fun refreshStates() {
+        locationState = stateOf(Manifest.permission.ACCESS_FINE_LOCATION)
+        notifState = stateOf(Manifest.permission.POST_NOTIFICATIONS)
+    }
+
+    fun request(permission: String) {
+        asked += permission
+        when (permission) {
+            Manifest.permission.ACCESS_FINE_LOCATION -> locationLauncher.launch(permission)
+            Manifest.permission.POST_NOTIFICATIONS -> notifLauncher.launch(permission)
+        }
+    }
+
+    fun openSettings() {
+        val intent = Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
+            data = Uri.fromParts("package", context.packageName, null)
+            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        }
+        runCatching { context.startActivity(intent) }
+    }
+
+    LaunchedEffect(Unit) { refreshStates() }
+
+    // Coming back from Settings must refresh the cards instead of showing a stale badge.
+    DisposableEffect(activity) {
+        if (activity == null) return@DisposableEffect onDispose { }
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_RESUME) refreshStates()
+        }
+        activity.lifecycle.addObserver(observer)
+        onDispose { activity.lifecycle.removeObserver(observer) }
+    }
 
     Box(
         modifier = Modifier
@@ -154,7 +239,8 @@ fun PermissionsScreen(
                             title = "Ubicación",
                             description = "Para confirmar que la asistencia se registra dentro de la escuela.",
                             state = locationState,
-                            onGrant = { locationState = PermState.GRANTED },
+                            onGrant = { request(Manifest.permission.ACCESS_FINE_LOCATION) },
+                            onOpenSettings = ::openSettings,
                         )
                     }
                     Reveal(delayMillis = 150) {
@@ -165,7 +251,8 @@ fun PermissionsScreen(
                             title = "Cámara",
                             description = "Para tomar fotos o videos de incidentes y comprobantes.",
                             state = cameraState,
-                            onGrant = { cameraState = PermState.GRANTED },
+                            onGrant = {},
+                            onOpenSettings = ::openSettings,
                         )
                     }
                     Reveal(delayMillis = 200) {
@@ -176,7 +263,8 @@ fun PermissionsScreen(
                             title = "Notificaciones",
                             description = "Para avisarte de faltas, tareas y mensajes nuevos.",
                             state = notifState,
-                            onGrant = { notifState = PermState.GRANTED },
+                            onGrant = { request(Manifest.permission.POST_NOTIFICATIONS) },
+                            onOpenSettings = ::openSettings,
                         )
                     }
                 }
@@ -332,6 +420,7 @@ private fun PermissionCard(
     description: String,
     state: PermState,
     onGrant: () -> Unit,
+    onOpenSettings: () -> Unit,
 ) {
     val borderColor by animateColorAsState(
         targetValue = when (state) {
@@ -397,7 +486,7 @@ private fun PermissionCard(
         // Trailing: badge or button
         when (state) {
             PermState.GRANTED -> GrantedBadge()
-            PermState.DENIED -> DeniedBadge()
+            PermState.DENIED -> DeniedBadge(onClick = onOpenSettings)
             PermState.PENDING -> PermitButton(onClick = onGrant)
         }
     }
@@ -432,18 +521,19 @@ private fun GrantedBadge() {
 }
 
 @Composable
-private fun DeniedBadge() {
+private fun DeniedBadge(onClick: () -> Unit) {
     Row(
         modifier = Modifier
             .clip(CircleShape)
             .background(Color(0xFFFFDAD6).copy(alpha = 0.6f))
             .border(1.dp, Color(0xFFBA1A1A).copy(alpha = 0.3f), CircleShape)
+            .clickable(onClick = onClick)
             .padding(horizontal = 10.dp, vertical = 6.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(4.dp),
     ) {
         Text(
-            text = "Denegado",
+            text = "Abrir ajustes",
             fontFamily = DmSans,
             fontWeight = FontWeight.SemiBold,
             fontSize = 12.sp,

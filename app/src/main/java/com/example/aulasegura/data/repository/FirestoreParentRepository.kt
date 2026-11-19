@@ -67,25 +67,7 @@ class FirestoreParentRepository(
         }
 
         val rows = snapshot.documents.mapNotNull { document ->
-            val data = document.data ?: return@mapNotNull null
-            if (data[FIELD_ACTIVE] == false) return@mapNotNull null
-
-            val fullName = (data[FIELD_FULL_NAME] as? String)
-                ?: listOfNotNull(
-                    data[FIELD_FIRST_NAME] as? String,
-                    data[FIELD_LAST_NAME] as? String,
-                ).joinToString(" ").takeIf { it.isNotBlank() }
-                ?: return@mapNotNull null
-
-            ParentChild(
-                studentId = document.id,
-                fullName = fullName,
-                firstName = (data[FIELD_FIRST_NAME] as? String)
-                    ?: fullName.substringBefore(' '),
-                listNumber = (data[FIELD_LIST_NUMBER] as? Number)?.toInt() ?: 0,
-                groupId = data[FIELD_GROUP_ID] as? String ?: return@mapNotNull null,
-                groupLabel = "",
-            )
+            document.data?.let { parentChildFrom(document.id, it) }
         }
 
         val labels = rows.map { it.groupId }.distinct().associateWith { groupLabel(it) }
@@ -350,24 +332,6 @@ class FirestoreParentRepository(
         const val RECORDS = "records"
         const val TASKS = "tasks"
 
-        const val FIELD_TUTOR_IDS = "tutorIds"
-        const val FIELD_FULL_NAME = "fullName"
-        const val FIELD_FIRST_NAME = "firstName"
-        const val FIELD_LAST_NAME = "lastName"
-        const val FIELD_LIST_NUMBER = "listNumber"
-        const val FIELD_GROUP_ID = "groupId"
-        const val FIELD_GROUP_IDS = "groupIds"
-        const val FIELD_ACTIVE = "active"
-        const val FIELD_NAME = "name"
-        const val FIELD_DATE = "date"
-        const val FIELD_SUBJECT = "subject"
-        const val FIELD_STARTED_AT = "startedAt"
-        const val FIELD_STATUS = "status"
-        const val FIELD_TIME = "time"
-        const val FIELD_NOTE = "note"
-        const val FIELD_TITLE = "title"
-        const val FIELD_DUE_DATE = "dueDate"
-
         /** One cycle of one group, with room to spare. */
         const val SESSION_LIMIT = 200L
 
@@ -380,3 +344,52 @@ class FirestoreParentRepository(
         const val READ_TIMEOUT_MILLIS = 12_000L
     }
 }
+
+/**
+ * `students/{id}` as the tutor's list needs it, or `null` when the document does
+ * not carry enough to render a child.
+ *
+ * `active` is deliberately **not** read. The link in `tutorIds` is what makes the
+ * child theirs; a student deactivated in the school's roster (`active = false`,
+ * logical baja) would otherwise vanish from the family screen and read as "no
+ * child linked", which is the opposite of the truth. The teacher's roster keeps
+ * filtering by `active` because there it means "enrolled today".
+ */
+internal fun parentChildFrom(id: String, data: Map<String, Any?>): ParentChild? {
+    val groupId = data[FIELD_GROUP_ID] as? String ?: return null
+
+    val fullName = (data[FIELD_FULL_NAME] as? String)?.takeIf { it.isNotBlank() }
+        ?: listOfNotNull(
+            data[FIELD_FIRST_NAME] as? String,
+            data[FIELD_LAST_NAME] as? String,
+        ).joinToString(" ").takeIf { it.isNotBlank() }
+        ?: return null
+
+    return ParentChild(
+        studentId = id,
+        fullName = fullName,
+        firstName = (data[FIELD_FIRST_NAME] as? String)?.takeIf { it.isNotBlank() }
+            ?: fullName.substringBefore(' '),
+        listNumber = (data[FIELD_LIST_NUMBER] as? Number)?.toInt() ?: 0,
+        groupId = groupId,
+        groupLabel = "",
+    )
+}
+
+private const val FIELD_TUTOR_IDS = "tutorIds"
+private const val FIELD_FULL_NAME = "fullName"
+private const val FIELD_FIRST_NAME = "firstName"
+private const val FIELD_LAST_NAME = "lastName"
+private const val FIELD_LIST_NUMBER = "listNumber"
+private const val FIELD_GROUP_ID = "groupId"
+private const val FIELD_GROUP_IDS = "groupIds"
+private const val FIELD_ACTIVE = "active"
+private const val FIELD_NAME = "name"
+private const val FIELD_DATE = "date"
+private const val FIELD_SUBJECT = "subject"
+private const val FIELD_STARTED_AT = "startedAt"
+private const val FIELD_STATUS = "status"
+private const val FIELD_TIME = "time"
+private const val FIELD_NOTE = "note"
+private const val FIELD_TITLE = "title"
+private const val FIELD_DUE_DATE = "dueDate"

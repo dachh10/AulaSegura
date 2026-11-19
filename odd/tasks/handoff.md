@@ -1,73 +1,102 @@
-# Handoff — dónde nos quedamos y qué falta
+# Handoff — dónde vamos y qué sigue
 
-Actualizado: 18 nov 2026. Este archivo existe para retomar el trabajo en otra superficie (CLI) sin releer todo el historial. Si contradice a `FASE1.md` o a los logbooks de `odd/tasks/`, gana el logbook del bloque.
+Actualizado: 19 nov 2026. Este archivo existe para retomar el trabajo en otra superficie (CLI) sin releer todo el historial. Si contradice a `FASE3.md`, a `FASE1.md` o a un logbook de `odd/tasks/`, **gana el logbook del bloque**.
 
-## Estado del repo
+## 1. Qué estamos haciendo
 
-- Rama de trabajo: `main` en `06e606a`, **alineada con `origin/main`** (divergencia `0 0`). La Fase 2 de Evelyn se integró con el merge `06e606a` y se subió con autorización explícita del dueño.
-- Últimos commits: `06e606a` merge Fase 2 · `6e83f0b` `requireLocation` en el gate · `5db16ce` docs Fase 2 · `1a12dba` merge de la Fase 1 · `5abbb22` Fase 2 directiva.
-- Trabajo sin commitear: nada, salvo `.atl/` (sin trackear, preexistente).
-- Backup del `main` anterior al merge: `backup/main-pre-admin-merge` (`8322862`).
+Cerrar el **flujo completo de la app** para la demo:
 
-## Verificación obligatoria
+> La directora da de alta docentes y alumnos → el docente pasa lista, reporta incidentes y publica tareas/avisos → el padre se registra con el código de su hijo y entra a las pantallas del tutor, donde ve **todo lo de su propio hijo**.
+
+Estamos en la **Fase 3 (tutor/familias)**, bloque por bloque, en este orden acordado:
+`3.4 ✅ → 3.6 → 3.5 → 3.10 → 3.9 → 3.7 → 3.8`.
+
+Regla de trabajo: cada bloque termina con `assembleDebug` + `testDebugUnitTest` en verde, su logbook en `odd/tasks/` y un commit. **El dueño prueba en el teléfono al cerrar cada bloque**; sin dispositivo conectado, el agente no puede validar UI.
+
+## 2. Estado del repo
+
+- `main` en `32c7d9f` (`feat(tutor): justificar faltas reales con comprobante en Cloudinary`), alineado con `origin/main`.
+- Nada sin commitear salvo `.atl/` (caché de una herramienta, no del proyecto; no se versiona).
+- Fase 1 (docente) y Fase 2 (directivo) ya integradas en `main`.
+
+Verificación obligatoria (Windows, Git Bash):
 
 ```bash
-./gradlew :app:assembleDebug :app:testDebugUnitTest --console=plain
+export JAVA_HOME="/c/Program Files/Android/Android Studio/jbr"
+./gradlew.bat :app:cleanTestDebugUnitTest :app:testDebugUnitTest :app:assembleDebug --console=plain --offline
 ```
 
-Estado tras integrar la Fase 2: **BUILD SUCCESSFUL · 379 tests · 0 fallos** (52 suites). Un bloque no se cierra con build rojo ni con tests en rojo. El dueño conectó su teléfono por USB con depuración, pero las pruebas en dispositivo siguen siendo suyas: el agente no opera ese dispositivo y hay que decirlo en el cierre.
+Estado último: **BUILD SUCCESSFUL · 59 suites · 436 tests · 0 fallos**.
 
-Conteo de tests, si hace falta:
+El `java` del PATH es JDK 20 y rompe Gradle: siempre fijar `JAVA_HOME` al JBR de Android Studio.
+
+## 3. Dónde vamos (Fase 3)
+
+| # | Bloque | Estado |
+|---|---|---|
+| **3.1** | Registro **solo del tutor** con código de 6 caracteres + vinculación atómica | ✅ hecho. Reglas publicadas en `aulasegu` |
+| **3.2** | Inicio del tutor con resumen real de los hijos | ✅ hecho (`3362f3e`) |
+| **3.3** | Asistencia: calendario desde `attendanceSessions` + `records` | ✅ hecho |
+| **3.4** | Justificar falta con adjunto en Cloudinary | ✅ **cerrado hoy** (`32c7d9f`) · falta probarlo en teléfono |
+| **3.6** | Incidentes de sus hijos + marcar visto | ⏭️ **siguiente** (sigue con `sampleIncidents()`) |
+| **3.5** | Tareas y avisos reales, con marca de leído | pendiente (`sampleTasks()`, `sampleNotices()`) |
+| **3.10** | Perfil del tutor y foto | pendiente (copiar el patrón de `TeacherProfileViewModel`) |
+| **3.9** | Notificaciones del tutor (bandeja real) | pendiente (`sampleNotifications()`) |
+| **3.7** | Chat con el docente del grupo (RTDB) | pendiente (`sampleConversations()`) |
+| **3.8** | Asistente IA (AI Logic, Gemini Developer API) | pendiente |
+
+Importante: la lista de hijos ya es real (`ParentRepository.loadChildren`), pero **todo lo demás del tutor sigue con datos inventados**, incluidas tareas, avisos, incidentes y notificaciones que no son de su hijo. Ese es el hueco que queda para la demo.
+
+## 4. Lo que ya está resuelto del lado directivo (no tocar)
+
+- **Alta de docentes desde la app**: `AdminUserRepository.createAccount` crea el usuario en Auth con una **FirebaseApp secundaria** (no desloguea a la directora) y luego el documento `users/{uid}`; si falla, limpia el usuario de Auth y reporta `orphaned`.
+- **Alta de alumnos**: CURP, número de lista automático, grupo y `linkingCodes/{code}` de 6 caracteres con vencimiento.
+- **Vinculación**: el código lleva el `groupId` del alumno (`8eebd68`) y el alta del tutor crea la cuenta, actualiza `students.tutorIds` y quema el código en un `WriteBatch`.
+- Reglas, índices y RTDB publicados con `firebase deploy`.
+
+## 5. Decisiones del tutor que no se reabren sin motivo
+
+- **Sin `studentIds` en `AppUser`**: los hijos se resuelven con `students.whereArrayContains("tutorIds", uid)`. No hubo migración de Room.
+- **El tutor ve a sus hijos aunque estén `active: false`**: `active` significa "inscripto hoy" para el roster del docente, no "es mi hijo".
+- **Asistencia**: `attendanceSessions` se lee por `groupId` y el mes se filtra en cliente (no hay índice nuevo). Porcentaje = `(presentes + retardos) / total`; una justificada sigue siendo inasistencia.
+- **Datos que la escuela no produjo no se inventan**: día sin sesión = celda gris; mes sin registros = `—`; tareas vacías = "Sin tareas próximas"; sin falta que justificar = **Enviar** deshabilitado.
+- **3.4 — qué falta se justifica**: la que el tutor toca en el detalle de Asistencia; desde Inicio, la más reciente del mes y, si no hay, la del mes anterior. La fecha del documento es la del día que marcó la escuela, nunca `now()`.
+- **3.4 — adjunto**: se copia a `filesDir` (`justification-attachments/`), se comprime si es imagen y se encola en la outbox (`UPSERT_JUSTIFICATION`). `JustificationSyncHandler` **sube primero a Cloudinary**, guarda la URL en el `payloadJson` y solo entonces hace `set()` del documento. Si el archivo ya no está, el justificante se registra sin evidencia. No hay entidad Room nueva (base en `version = 4`).
+- **3.4 — motivos**: el schema manda `enfermedad | cita | viaje | otro`; "Asunto familiar" se guarda como `otro`, se distingue por la descripción. Límite conocido.
+- **Sin Cloud Functions (Spark)**: no hay push automático ni triggers; los push se mandan desde la consola o `scripts/notify`.
+- **Idioma**: UI en español neutro mexicano (tú), código e identificadores en inglés.
+
+## 6. Pendiente de humano
+
+1. **Probar el 3.4 en el teléfono**: falta marcada por el docente → padre toca el día → justifica con foto o PDF → revisar `justifications/{uuid}` en la consola (`status: "pendiente"`, `dateFrom` = día de la falta, `attachment.url` de Cloudinary). Repetir en modo avión.
+2. Comprobar la cuenta real de la directora (hay una discrepancia sin resolver entre `directora@escuela.mx` y `directora@gmail.com` en la documentación).
+3. Probar el flujo completo de la demo con las tres cuentas.
+
+## 7. Datos de prueba
+
+- Docente: `docente@aulasegura.com` / `123456`. Proyecto Firestore: `aulasegu`.
+- Grupos demo: `grp-3b`, `grp-3a`, `grp-2c`, `grp-1a`.
+- Horario: `groups/{grp-3b}/schedule/slot-1` con `weekday` (1 = lunes … 7 = domingo), `startTime "08:00"`, `endTime "08:45"`, `subject`, `teacherId`.
+- Geocerca: `schools/{id}.location` con coordenadas reales y `radiusMeters` 20..5000 (usar 500–1000 para probar). `evaluateGeofence` exige además `accuracy <= radius`.
+- Mapa de incidentes: necesita `MAPS_API_KEY` en `local.properties` (la misma del pase de lista).
+
+## 8. Trampas conocidas
+
+- `java.time` **no** está disponible (`minSdk` 24, sin desugaring).
+- `google-services.json` está versionado a propósito, aunque figure en `.gitignore`.
+- `scripts/notify/service-account*.json`, la llave de la service account y las credenciales de Cloudinary **no** van al repo.
+- `notifications` es de solo lectura desde el cliente salvo el campo `read`; el `create` es del Admin SDK. Un push de la consola no crea documento en la bandeja.
+- Firestore **no filtra** con las reglas: toda consulta de lista lleva el filtro exacto que exige la regla (`schoolId`, `groupId` + `active`, `userId`), o devuelve `PERMISSION_DENIED`.
+- El repo no tiene `AGENTS.md`; las convenciones viven en `CONTEXT.md`, `FASE1.md`, `FASE3.md` y los logbooks de `odd/tasks/`.
+
+## 9. Cómo seguir en el CLI
 
 ```bash
-grep -h -o 'tests="[0-9]*" skipped="[0-9]*" failures="[0-9]*" errors="[0-9]*"' app/build/test-results/testDebugUnitTest/TEST-*.xml | awk -F'"' '{t+=$2;s+=$4;f+=$6;e+=$8} END {print "TESTS="t" FAILURES="f" ERRORS="e}'
+cd C:/Users/diego/AndroidStudioProjects/AulaSegura
+git pull
+freebuff
 ```
 
-## Cerrado
+Primer mensaje sugerido:
 
-**Fase 1 (bloques 0–11)** según `FASE1.md`: acceso y sesión, grupos y roster, pase de lista con geocerca, incidentes, tareas y avisos, historial, chat, notificaciones y FCM, perfil del docente.
-
-**Correcciones posteriores** (logbooks en `odd/tasks/`):
-
-- `bloque-13-detalle-grupo.md` — `teacher/groups/{groupId}` es una pantalla real con tres pestañas: Alumnos (roster con búsqueda), Asistencia (calendario del mes con el porcentaje real de cada día + últimas listas con chips P/F/R/J y sincronización) e Incidentes (tarjetas expandibles del grupo). El hero dice si la lista de hoy está pendiente, hecha o si hoy no hay clases. `IncidentSummary` ganó `groupId`.
-- `bloque-14-mapa-real-incidente.md` — el registro de incidente usa `CampusMap` (Google Maps) con pin real: se siembra con el GPS y, si no hay, con el centro del plantel; tocar el mapa lo mueve y "Usar mi ubicación actual" usa el fix. Se guardan coordenadas reales en `IncidentLocation` (`accuracy` solo si el pin vino del GPS) y el chip dice el veredicto real: dentro, fuera con distancia o sin geocerca.
-- `bloque-16-chips-historial.md` — chips de una línea (`maxLines`/`softWrap`), `FlowRow`, evidencia con icono, PDF de una tarea abre con `ACTION_VIEW` y su fila muestra chip `PDF` en vez del nombre.
-- `bloque-12-inicio-real.md` — inicio con datos reales: siguiente clase desde `groups/{groupId}/schedule`, resumen de hoy (listas/grupos, faltas, outbox), actividad reciente (asistencia + incidentes + tareas + avisos), campanita con no leídas reales y badge oculto en 0.
-- `bloque-15-radio-calendario.md` — pase de lista bloqueado sábado y domingo ("Hoy no hay clases"), mes real en el historial con flechas y filtro por mes en las tres pestañas.
-- `bloque-17-perfil-stitch.md` — los diálogos de editar perfil y cambiar contraseña se reemplazan por pantallas completas inspiradas en Stitch, con solo los campos reales y un checklist de contraseña que coincide con la validación.
-
-## Lo que falta
-
-No queda código del docente pendiente. Lo que sigue es verificación en dispositivo (`C1`, `C2`, `C5` de `FASE1.md`, a cargo del dueño) y la Fase 3 (tutor).
-
-La Fase 2 (directivo) de Evelyn ya está integrada en `main` (`06e606a`). Reglas de Firestore, índices y reglas de RTDB publicados con `firebase deploy`. Al tocar esos archivos, revisar que sigan pasando los flujos del docente (bandeja, `fcmTokens`, `attendanceSessions`).
-
-## Decisiones que no hay que reabrir sin motivo
-
-- **Fin de semana:** el pase de lista se rechaza antes de verificar ubicación; lo ya guardado no se toca. Sin feriados: no existe colección y crearla depende del directivo. `util/SchoolCalendar.kt` es el único lugar a tocar cuando exista.
-- **Horario:** se lee en vivo, sin caché Room. Los documentos los escribe el rol directivo (ya implementado en la Fase 2). Las reglas autorizan `schedule` con `get()` del grupo padre, por eso se lee grupo por grupo y no con `collectionGroup`.
-- **Clase en curso gana a la siguiente** en la card del inicio.
-- **Aula 12 no existe** en el esquema: la card muestra materia · grupo y "N alumnos", nada de salón inventado.
-- **Historial:** el mes se compara como `año * 12 + mes` (sin `java.time`: `minSdk` 24 sin desugaring); el filtro aplica a las tres pestañas porque el encabezado es uno.
-- **Chips:** `softWrap = false` + `FlowRow`. Un chip que no cabe baja de línea entero; nunca se parte letra por letra. El "0 R" se conserva en gris a propósito.
-- **PDF de tarea:** `attachmentUrl` solo existe cuando el archivo está en Cloudinary (`isUploaded`); si está en cola o falló, la fila no es tocable y dice "Pendiente" / "No se subió".
-- **Mapa del incidente:** el pin es la coordenada que se guarda, no una decoración. Se siembra con el GPS, luego con `schools.location`, y si no hay ninguna de las dos **no se inventa**: la tarjeta explica y deja el botón de ubicación. Se mueve tocando el mapa (no arrastrando: el formulario tiene scroll y `scrollGesturesEnabled = false` dentro de la tarjeta). `accuracyMeters` solo viaja con lecturas del GPS.
-- **Detalle de grupo:** una sola pantalla con tres pestañas, no tres rutas. Las métricas muestran `—` cuando no hay dato (sin lista hoy no hay faltas; sin listas no hay porcentaje) y el calendario solo pinta lunes a viernes. No se porta lo que el proyecto no tiene: salón ("Aula 12"), chat por alumno, porcentaje por alumno ni el resumen de AulaBot.
-- **Notificaciones:** `notifications` es de solo lectura salvo `read`; el `create` es del Admin SDK. Un push de la consola **no** crea documento en la bandeja.
-- **Push:** en Spark no hay Cloud Functions; el envío es manual con `scripts/notify` o `messaging.sendEachForMulticast`.
-- **Saludo/idioma:** UI en español neutro/mexicano, código e identificadores en inglés.
-
-## Datos para probar a mano
-
-- `groups/{grp-3b|grp-3a|grp-2c|grp-1a}/schedule/slot-1` con `weekday` (1 = lunes … 7 = domingo), `startTime` `"08:00"`, `endTime` `"08:45"`, `subject`, `teacherId`. Sin esto el inicio muestra "Aún no hay horario programado".
-- `schools/{schoolId}`: `location` con las coordenadas reales del lugar de prueba y `radiusMeters` entre 20 y 5000 (sugerido 500–1000 para probar). Solo lo edita un directivo; en la consola se puede. `evaluateGeofence` exige además `accuracy <= radius`.
-- **Mapa del incidente:** necesita permiso de ubicación y la `MAPS_API_KEY` de `local.properties` (la misma del pase de lista). Sin GPS ni plantel cacheado no hay pin y el incidente se guarda con `location = null`, que el esquema acepta; con la ubicación apagada la tarjeta lo avisa y ofrece activarla.
-- Docente demo: `docente@aulasegura.com` / `123456`. Proyecto Firestore: `aulasegu`.
-
-## Trampas conocidas
-
-- `java.time` no está disponible en runtime (`minSdk` 24, sin desugaring).
-- `google-services.json` se ignora en `.gitignore` pero está versionado a propósito.
-- `scripts/notify/service-account*.json` y las claves de Cloudinary no van al repo.
-- No crear documentos en `notifications` desde el cliente: las reglas lo rechazan.
-- El repo no tiene `AGENTS.md`; las convenciones viven en `FASE1.md`, `CONTEXT.md` y los logbooks.
+> Lee `odd/tasks/handoff.md` y `FASE3.md`. Continúa con el bloque **3.6 (incidentes del hijo)**: lista, detalle y mapa reales con `ParentRepository`, sin datos de ejemplo. Al cerrarlo, `assembleDebug` + `testDebugUnitTest` en verde, logbook en `odd/tasks/` y commit; no hagas push sin pedirlo.

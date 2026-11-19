@@ -15,7 +15,7 @@ Regla de trabajo: cada bloque termina con `assembleDebug` + `testDebugUnitTest` 
 
 ## 2. Estado del repo
 
-- `main` en `9298941` (`feat(tutor): tareas y avisos reales con marca de leído`), un commit **sin push** encima de `32c7d9f`.
+- Bloque 3.5 en `d24798a` (`feat(tutor): tareas y avisos reales con marca de leído`), **sin push**, encima de `32c7d9f`.
 - **`docs/firestore.rules` cambió** (rama del tutor en `notices`) pero **no está publicado**: falta `firebase deploy --only firestore:rules --project aulasegu`. Mientras no se publique, la bandeja de avisos del tutor falla en el teléfono; tareas y su detalle funcionan igual.
 - Nada sin commitear salvo `.atl/` (caché de una herramienta, no del proyecto; no se versiona).
 - Fase 1 (docente) y Fase 2 (directivo) ya integradas en `main`.

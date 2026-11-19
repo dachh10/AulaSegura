@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
@@ -30,6 +31,7 @@ import androidx.compose.material.icons.outlined.ChevronRight
 import androidx.compose.material.icons.outlined.Description
 import androidx.compose.material.icons.outlined.Schedule
 import androidx.compose.material.icons.outlined.Timer
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
@@ -48,6 +50,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.aulasegura.domain.model.AttendanceMark
+import com.example.aulasegura.domain.model.ParentAttendanceCounts
 import com.example.aulasegura.ui.components.ParentBottomBar
 import com.example.aulasegura.ui.components.ParentTab
 import com.example.aulasegura.ui.components.ProgressRing
@@ -88,13 +92,23 @@ private val PurpleDot = Color(0xFFC084FC)
 private val PurplePillText = Color(0xFF6B21A8)
 private val PurplePillBorder = Color(0xFFE9D5FF)
 
-private enum class DayState { Present, Current, Absent, Late, Holiday, Justified }
+private enum class DayState { Present, Absent, Late, NoRecord, Justified }
 
-private data class DayCell(val day: Int, val state: DayState)
+private fun stateOf(cell: ParentCalendarDay): DayState = when (cell.mark) {
+    AttendanceMark.PRESENT -> DayState.Present
+    AttendanceMark.LATE -> DayState.Late
+    AttendanceMark.ABSENT -> DayState.Absent
+    AttendanceMark.JUSTIFIED -> DayState.Justified
+    null -> DayState.NoRecord
+}
 
 @Composable
 fun ParentAttendanceScreen(
+    ui: ParentAttendanceUiState,
     onJustificar: () -> Unit,
+    onPreviousMonth: () -> Unit,
+    onNextMonth: () -> Unit,
+    onCycleChild: () -> Unit,
     onSelectTab: (ParentTab) -> Unit,
 ) {
     Box(
@@ -111,20 +125,44 @@ fun ParentAttendanceScreen(
                 .statusBarsPadding()
                 .padding(bottom = 104.dp),
         ) {
-            Reveal(0) { AttendanceTopBar() }
-            Reveal(60) {
-                Box(Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
-                    MonthSummaryCard()
+            when (ui) {
+                is ParentAttendanceUiState.Loaded -> {
+                    Reveal(0) {
+                        AttendanceTopBar(
+                            childName = ui.childName,
+                            groupLabel = ui.groupLabel,
+                            childCount = ui.childCount,
+                            onCycleChild = onCycleChild,
+                        )
+                    }
+                    Reveal(60) {
+                        Box(Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
+                            MonthSummaryCard(
+                                ui = ui,
+                                onPreviousMonth = onPreviousMonth,
+                                onNextMonth = onNextMonth,
+                            )
+                        }
+                    }
+                    Reveal(120) {
+                        Box(Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
+                            CalendarCard(weeks = ui.weeks)
+                        }
+                    }
+                    Reveal(180) {
+                        Column(Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
+                            RecentDetail(records = ui.recent, onJustificar = onJustificar)
+                        }
+                    }
                 }
-            }
-            Reveal(120) {
-                Box(Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
-                    CalendarCard()
-                }
-            }
-            Reveal(180) {
-                Column(Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
-                    RecentDetail(onJustificar = onJustificar)
+
+                else -> {
+                    Reveal(0) { AttendanceTopBar() }
+                    Reveal(60) {
+                        Box(Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
+                            AttendancePlaceholder(ui)
+                        }
+                    }
                 }
             }
         }
@@ -137,8 +175,80 @@ fun ParentAttendanceScreen(
     }
 }
 
+/**
+ * Loading, no linked child, or a failed read.
+ *
+ * A month without sessions is not an error and is rendered by the calendar
+ * itself; this card only covers what stops the month from existing at all.
+ */
 @Composable
-private fun AttendanceTopBar() {
+private fun AttendancePlaceholder(ui: ParentAttendanceUiState) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(24.dp))
+            .background(SurfaceContainerLowest)
+            .border(1.dp, OutlineVariant.copy(alpha = 0.5f), RoundedCornerShape(24.dp))
+            .padding(20.dp),
+    ) {
+        when (ui) {
+            ParentAttendanceUiState.Loading -> Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(vertical = 32.dp),
+                contentAlignment = Alignment.Center,
+            ) {
+                CircularProgressIndicator(color = PrimaryContainer)
+            }
+
+            ParentAttendanceUiState.NoChildren -> {
+                Text(
+                    text = "Aún no hay hijos vinculados",
+                    color = PrimaryContainer,
+                    fontFamily = BricolageGrotesque,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 18.sp,
+                )
+                Spacer(Modifier.height(6.dp))
+                Text(
+                    text = "Pide a la escuela el código del alumno y regístrate de nuevo para ver su asistencia.",
+                    color = OnSurfaceVariant,
+                    fontFamily = DmSans,
+                    fontSize = 13.sp,
+                    lineHeight = 18.sp,
+                )
+            }
+
+            is ParentAttendanceUiState.Failed -> {
+                Text(
+                    text = "No se pudo cargar",
+                    color = PrimaryContainer,
+                    fontFamily = BricolageGrotesque,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 18.sp,
+                )
+                Spacer(Modifier.height(6.dp))
+                Text(
+                    text = ui.message,
+                    color = OnSurfaceVariant,
+                    fontFamily = DmSans,
+                    fontSize = 13.sp,
+                    lineHeight = 18.sp,
+                )
+            }
+
+            is ParentAttendanceUiState.Loaded -> Unit
+        }
+    }
+}
+
+@Composable
+private fun AttendanceTopBar(
+    childName: String? = null,
+    groupLabel: String = "",
+    childCount: Int = 0,
+    onCycleChild: () -> Unit = {},
+) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -165,12 +275,24 @@ private fun AttendanceTopBar() {
                 lineHeight = 16.sp,
             )
         }
-        StudentPill(name = "Mariana", grade = "3° B")
+        if (childName != null) {
+            StudentPill(
+                name = childName,
+                grade = groupLabel,
+                // One child means there is nothing to switch to; the pill keeps
+                // its look but stops pretending to be a selector.
+                onClick = if (childCount > 1) onCycleChild else ({}),
+            )
+        }
     }
 }
 
 @Composable
-private fun MonthSummaryCard() {
+private fun MonthSummaryCard(
+    ui: ParentAttendanceUiState.Loaded,
+    onPreviousMonth: () -> Unit,
+    onNextMonth: () -> Unit,
+) {
     Column(
         modifier = Modifier
             .fillMaxWidth()
@@ -185,26 +307,33 @@ private fun MonthSummaryCard() {
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                MonthChevron(icon = Icons.Outlined.ChevronLeft)
+                MonthChevron(
+                    icon = Icons.Outlined.ChevronLeft,
+                    onClick = onPreviousMonth,
+                )
                 Text(
-                    text = "Noviembre 2026",
+                    text = ui.monthLabel,
                     color = PrimaryContainer,
                     fontFamily = BricolageGrotesque,
                     fontWeight = FontWeight.SemiBold,
                     fontSize = 16.sp,
                     modifier = Modifier.padding(horizontal = 4.dp),
                 )
-                MonthChevron(icon = Icons.Outlined.ChevronRight)
+                MonthChevron(
+                    icon = Icons.Outlined.ChevronRight,
+                    enabled = ui.canGoNext,
+                    onClick = onNextMonth,
+                )
             }
             ProgressRing(
-                progress = 0.94f,
+                progress = (ui.percent ?: 0) / 100f,
                 trackColor = Color(0xFFE6E1D8),
                 progressColor = PrimaryContainer,
                 size = 48.dp,
                 strokeWidth = 3.5.dp,
             ) {
                 Text(
-                    text = "94%",
+                    text = ui.percent?.let { "$it%" } ?: "—",
                     color = Primary,
                     fontFamily = JetBrainsMono,
                     fontWeight = FontWeight.Bold,
@@ -220,7 +349,7 @@ private fun MonthSummaryCard() {
         Row(verticalAlignment = Alignment.CenterVertically) {
             StatBlock(
                 modifier = Modifier.weight(1f),
-                value = "18",
+                value = ui.counts.present.toString(),
                 valueColor = TertiaryContainer,
                 label = "Presentes",
                 dotColor = TertiaryFixedDim,
@@ -233,7 +362,7 @@ private fun MonthSummaryCard() {
             )
             StatBlock(
                 modifier = Modifier.weight(1f),
-                value = "1",
+                value = ui.counts.absent.toString(),
                 valueColor = Secondary,
                 label = "Falta",
                 dotColor = SecondaryContainer,
@@ -246,7 +375,7 @@ private fun MonthSummaryCard() {
             )
             StatBlock(
                 modifier = Modifier.weight(1f),
-                value = "1",
+                value = ui.counts.late.toString(),
                 valueColor = AmberDark,
                 label = "Retardo",
                 dotColor = AmberDot,
@@ -254,20 +383,20 @@ private fun MonthSummaryCard() {
         }
 
         Spacer(Modifier.height(14.dp))
-        SegmentedAttendanceBar()
+        SegmentedAttendanceBar(counts = ui.counts)
         Spacer(Modifier.height(6.dp))
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween,
         ) {
             Text(
-                text = "20 días hábiles",
+                text = "${ui.classDays} días hábiles",
                 color = OnSurfaceVariant,
                 fontFamily = JetBrainsMono,
                 fontSize = 10.sp,
             )
             Text(
-                text = "Objetivo mensual: 95%",
+                text = "${ui.counts.total} registros",
                 color = OnSurfaceVariant,
                 fontFamily = JetBrainsMono,
                 fontSize = 10.sp,
@@ -277,19 +406,28 @@ private fun MonthSummaryCard() {
 }
 
 @Composable
-private fun MonthChevron(icon: ImageVector) {
+private fun MonthChevron(
+    icon: ImageVector,
+    enabled: Boolean = true,
+    onClick: () -> Unit,
+) {
     val (interaction, pressModifier) = rememberPressScale(0.9f)
     Box(
         modifier = pressModifier
             .size(32.dp)
             .clip(CircleShape)
-            .clickable(interactionSource = interaction, indication = null) {},
+            .clickable(
+                enabled = enabled,
+                interactionSource = interaction,
+                indication = null,
+                onClick = onClick,
+            ),
         contentAlignment = Alignment.Center,
     ) {
         Icon(
             imageVector = icon,
             contentDescription = null,
-            tint = Primary,
+            tint = if (enabled) Primary else Outline.copy(alpha = 0.4f),
             modifier = Modifier.size(20.dp),
         )
     }
@@ -335,7 +473,7 @@ private fun StatBlock(
 }
 
 @Composable
-private fun SegmentedAttendanceBar() {
+private fun SegmentedAttendanceBar(counts: ParentAttendanceCounts) {
     Box(
         modifier = Modifier
             .fillMaxWidth()
@@ -348,64 +486,41 @@ private fun SegmentedAttendanceBar() {
             modifier = Modifier.fillMaxSize(),
             horizontalArrangement = Arrangement.spacedBy(2.dp),
         ) {
-            Box(
-                modifier = Modifier
-                    .weight(90f)
-                    .fillMaxHeight()
-                    .clip(CircleShape)
-                    .background(TertiaryContainer),
-            )
-            Box(
-                modifier = Modifier
-                    .weight(5f)
-                    .fillMaxHeight()
-                    .clip(CircleShape)
-                    .background(SecondaryContainer),
-            )
-            Box(
-                modifier = Modifier
-                    .weight(5f)
-                    .fillMaxHeight()
-                    .clip(CircleShape)
-                    .background(AmberDot),
-            )
+            if (counts.total == 0) {
+                // No records yet: one neutral track instead of a bar that would
+                // read as a perfect month.
+                Box(
+                    modifier = Modifier
+                        .weight(1f)
+                        .fillMaxHeight()
+                        .clip(CircleShape)
+                        .background(SurfaceContainer),
+                )
+            } else {
+                Segment(counts.present, counts.total, TertiaryContainer)
+                Segment(counts.late, counts.total, AmberDot)
+                Segment(counts.absent, counts.total, SecondaryContainer)
+                Segment(counts.justified, counts.total, PurpleDot)
+            }
         }
     }
 }
 
 @Composable
-private fun CalendarCard() {
-    val weeks = listOf(
-        listOf(
-            DayCell(2, DayState.Present),
-            DayCell(3, DayState.Current),
-            DayCell(4, DayState.Present),
-            DayCell(5, DayState.Present),
-            DayCell(6, DayState.Present),
-        ),
-        listOf(
-            DayCell(9, DayState.Present),
-            DayCell(10, DayState.Present),
-            DayCell(11, DayState.Absent),
-            DayCell(12, DayState.Present),
-            DayCell(13, DayState.Late),
-        ),
-        listOf(
-            DayCell(16, DayState.Holiday),
-            DayCell(17, DayState.Present),
-            DayCell(18, DayState.Justified),
-            DayCell(19, DayState.Present),
-            DayCell(20, DayState.Present),
-        ),
-        listOf(
-            DayCell(23, DayState.Present),
-            DayCell(24, DayState.Present),
-            DayCell(25, DayState.Present),
-            DayCell(26, DayState.Present),
-            DayCell(27, DayState.Present),
-        ),
-    )
+private fun RowScope.Segment(value: Int, total: Int, color: Color) {
+    if (value <= 0) return
 
+    Box(
+        modifier = Modifier
+            .weight(value.toFloat())
+            .fillMaxHeight()
+            .clip(CircleShape)
+            .background(color),
+    )
+}
+
+@Composable
+private fun CalendarCard(weeks: List<List<ParentCalendarDay?>>) {
     Column(
         modifier = Modifier
             .fillMaxWidth()
@@ -431,11 +546,31 @@ private fun CalendarCard() {
         HorizontalDivider(thickness = 1.dp, color = SurfaceContainer)
         Spacer(Modifier.height(10.dp))
 
+        if (weeks.isEmpty()) {
+            Text(
+                text = "Sin días de clase este mes",
+                color = OnSurfaceVariant,
+                fontFamily = DmSans,
+                fontSize = 13.sp,
+                modifier = Modifier.padding(vertical = 8.dp),
+            )
+        }
+
         weeks.forEachIndexed { index, week ->
             Row(Modifier.fillMaxWidth()) {
                 week.forEach { cell ->
                     Box(Modifier.weight(1f), contentAlignment = Alignment.Center) {
-                        DayBubble(day = cell.day, state = cell.state)
+                        if (cell == null) {
+                            // Leading and trailing blanks keep the columns aligned
+                            // with the real weekday of the month.
+                            Spacer(Modifier.size(32.dp))
+                        } else {
+                            DayBubble(
+                                day = cell.day,
+                                state = stateOf(cell),
+                                isCurrent = cell.isCurrent,
+                            )
+                        }
                     }
                 }
             }
@@ -461,9 +596,9 @@ private fun CalendarCard() {
 }
 
 @Composable
-private fun DayBubble(day: Int, state: DayState) {
+private fun DayBubble(day: Int, state: DayState, isCurrent: Boolean) {
     Box(Modifier.size(32.dp), contentAlignment = Alignment.Center) {
-        if (state == DayState.Current) {
+        if (isCurrent) {
             Box(
                 modifier = Modifier
                     .fillMaxSize()
@@ -471,7 +606,7 @@ private fun DayBubble(day: Int, state: DayState) {
                     .padding(3.dp),
                 contentAlignment = Alignment.Center,
             ) {
-                DayCircle(day = day, state = DayState.Present)
+                DayCircle(day = day, state = state)
             }
         } else {
             DayCircle(day = day, state = state)
@@ -485,7 +620,7 @@ private fun DayCircle(day: Int, state: DayState) {
     val foreground: Color
     val weight: FontWeight
     when (state) {
-        DayState.Present, DayState.Current -> {
+        DayState.Present -> {
             background = TertiaryFixed.copy(alpha = 0.35f)
             foreground = TertiaryContainer
             weight = FontWeight.SemiBold
@@ -500,7 +635,7 @@ private fun DayCircle(day: Int, state: DayState) {
             foreground = AmberText
             weight = FontWeight.Bold
         }
-        DayState.Holiday -> {
+        DayState.NoRecord -> {
             background = SurfaceContainer
             foreground = Outline
             weight = FontWeight.Normal
@@ -548,7 +683,10 @@ private fun LegendItem(label: String, dotColor: Color) {
 }
 
 @Composable
-private fun RecentDetail(onJustificar: () -> Unit) {
+private fun RecentDetail(
+    records: List<ParentAttendanceRecordUi>,
+    onJustificar: () -> Unit,
+) {
     Column(Modifier.fillMaxWidth()) {
         Row(
             modifier = Modifier.fillMaxWidth(),
@@ -571,73 +709,101 @@ private fun RecentDetail(onJustificar: () -> Unit) {
         }
         Spacer(Modifier.height(12.dp))
 
-        RecentRecord(
-            weekday = "Lun",
-            day = "03",
-            title = "Día completo",
-            subtitle = "Entrada 07:52",
-            subtitleIcon = Icons.Outlined.Schedule,
-            subtitleColor = TertiaryContainer,
-            dayColor = Primary,
-            pillText = "Presente · 07:52",
-            pillIcon = Icons.Filled.CheckCircle,
-            pillBackground = TertiaryFixed.copy(alpha = 0.3f),
-            pillForeground = TertiaryContainer,
-            pillBorder = TertiaryFixed.copy(alpha = 0.5f),
-        )
-        Spacer(Modifier.height(10.dp))
-
-        AbsentRecord(onJustificar = onJustificar)
-        Spacer(Modifier.height(10.dp))
-
-        RecentRecord(
-            weekday = "Jue",
-            day = "30",
-            title = "Día completo",
-            subtitle = "Tolerancia máx: 08:00",
-            subtitleIcon = Icons.Outlined.Schedule,
-            subtitleColor = AmberDark,
-            dayColor = AmberText,
-            pillText = "Retardo · 08:21",
-            pillIcon = Icons.Outlined.Timer,
-            pillBackground = AmberBg,
-            pillForeground = AmberPillText,
-            pillBorder = AmberPillBorder,
-        )
-        Spacer(Modifier.height(10.dp))
-
-        RecentRecord(
-            weekday = "Mié",
-            day = "29",
-            title = "Día completo",
-            subtitle = "Aprobado por Dirección",
-            subtitleIcon = Icons.Filled.Verified,
-            subtitleColor = PurpleText,
-            dayColor = PurpleText,
-            pillText = "Justificada",
-            pillIcon = Icons.Filled.Verified,
-            pillBackground = PurpleBg,
-            pillForeground = PurplePillText,
-            pillBorder = PurplePillBorder,
-        )
+        if (records.isEmpty()) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(20.dp))
+                    .background(SurfaceContainerLowest)
+                    .border(1.dp, OutlineVariant.copy(alpha = 0.5f), RoundedCornerShape(20.dp))
+                    .padding(16.dp),
+            ) {
+                Text(
+                    text = "Sin sesiones registradas este mes",
+                    color = OnSurfaceVariant,
+                    fontFamily = DmSans,
+                    fontSize = 13.sp,
+                )
+            }
+        } else {
+            // Only the newest absence offers the justify action: a row of buttons
+            // that do not say which class they target would be worse than none.
+            val justifyIndex = records.indexOfFirst { it.mark == AttendanceMark.ABSENT }
+            records.forEachIndexed { index, record ->
+                if (index > 0) Spacer(Modifier.height(10.dp))
+                if (index == justifyIndex) {
+                    AbsentRecord(record = record, onJustificar = onJustificar)
+                } else {
+                    RecentRecord(record = record)
+                }
+            }
+        }
     }
 }
 
+/** Colours and icons the pill and the subtitle pick for one mark. */
+private data class RecordStyle(
+    val subtitleIcon: ImageVector,
+    val subtitleColor: Color,
+    val dayColor: Color,
+    val pillIcon: ImageVector,
+    val pillBackground: Color,
+    val pillForeground: Color,
+    val pillBorder: Color,
+)
+
+private fun styleFor(record: ParentAttendanceRecordUi): RecordStyle = when (record.mark) {
+    AttendanceMark.PRESENT -> RecordStyle(
+        subtitleIcon = Icons.Outlined.Schedule,
+        subtitleColor = TertiaryContainer,
+        dayColor = Primary,
+        pillIcon = Icons.Filled.CheckCircle,
+        pillBackground = TertiaryFixed.copy(alpha = 0.3f),
+        pillForeground = TertiaryContainer,
+        pillBorder = TertiaryFixed.copy(alpha = 0.5f),
+    )
+    AttendanceMark.LATE -> RecordStyle(
+        subtitleIcon = Icons.Outlined.Schedule,
+        subtitleColor = AmberDark,
+        dayColor = AmberText,
+        pillIcon = Icons.Outlined.Timer,
+        pillBackground = AmberBg,
+        pillForeground = AmberPillText,
+        pillBorder = AmberPillBorder,
+    )
+    AttendanceMark.ABSENT -> RecordStyle(
+        subtitleIcon = Icons.Filled.Cancel,
+        subtitleColor = Secondary,
+        dayColor = Secondary,
+        pillIcon = Icons.Filled.Cancel,
+        pillBackground = SecondaryFixed,
+        pillForeground = Secondary,
+        pillBorder = Color(0xFFFFB4A8),
+    )
+    AttendanceMark.JUSTIFIED -> RecordStyle(
+        subtitleIcon = Icons.Filled.Verified,
+        subtitleColor = PurpleText,
+        dayColor = PurpleText,
+        pillIcon = Icons.Filled.Verified,
+        pillBackground = PurpleBg,
+        pillForeground = PurplePillText,
+        pillBorder = PurplePillBorder,
+    )
+    null -> RecordStyle(
+        subtitleIcon = Icons.Outlined.Schedule,
+        subtitleColor = OnSurfaceVariant,
+        dayColor = OnSurfaceVariant,
+        pillIcon = Icons.Outlined.Schedule,
+        pillBackground = SurfaceContainer,
+        pillForeground = OnSurfaceVariant,
+        pillBorder = OutlineVariant,
+    )
+}
+
 @Composable
-private fun RecentRecord(
-    weekday: String,
-    day: String,
-    title: String,
-    subtitle: String,
-    subtitleIcon: ImageVector,
-    subtitleColor: Color,
-    dayColor: Color,
-    pillText: String,
-    pillIcon: ImageVector,
-    pillBackground: Color,
-    pillForeground: Color,
-    pillBorder: Color,
-) {
+private fun RecentRecord(record: ParentAttendanceRecordUi) {
+    val style = styleFor(record)
+
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -647,11 +813,11 @@ private fun RecentRecord(
             .padding(14.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        DateBadge(weekday = weekday, day = day, dayColor = dayColor)
+        DateBadge(weekday = record.weekday, day = record.day, dayColor = style.dayColor)
         Spacer(Modifier.width(12.dp))
         Column(Modifier.weight(1f)) {
             Text(
-                text = title,
+                text = record.title,
                 color = OnSurface,
                 fontFamily = DmSans,
                 fontWeight = FontWeight.SemiBold,
@@ -660,14 +826,14 @@ private fun RecentRecord(
             Spacer(Modifier.height(2.dp))
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Icon(
-                    imageVector = subtitleIcon,
+                    imageVector = style.subtitleIcon,
                     contentDescription = null,
-                    tint = subtitleColor,
+                    tint = style.subtitleColor,
                     modifier = Modifier.size(13.dp),
                 )
                 Spacer(Modifier.width(4.dp))
                 Text(
-                    text = subtitle,
+                    text = record.subtitle,
                     color = OnSurfaceVariant,
                     fontFamily = DmSans,
                     fontSize = 11.sp,
@@ -678,17 +844,17 @@ private fun RecentRecord(
         }
         Spacer(Modifier.width(8.dp))
         StatusPill(
-            text = pillText,
-            icon = pillIcon,
-            background = pillBackground,
-            foreground = pillForeground,
-            border = pillBorder,
+            text = record.pillText,
+            icon = style.pillIcon,
+            background = style.pillBackground,
+            foreground = style.pillForeground,
+            border = style.pillBorder,
         )
     }
 }
 
 @Composable
-private fun AbsentRecord(onJustificar: () -> Unit) {
+private fun AbsentRecord(record: ParentAttendanceRecordUi, onJustificar: () -> Unit) {
     Column(
         modifier = Modifier
             .fillMaxWidth()
@@ -698,11 +864,11 @@ private fun AbsentRecord(onJustificar: () -> Unit) {
             .padding(14.dp),
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            DateBadge(weekday = "Vie", day = "31", dayColor = Secondary)
+            DateBadge(weekday = record.weekday, day = record.day, dayColor = Secondary)
             Spacer(Modifier.width(12.dp))
             Column(Modifier.weight(1f)) {
                 Text(
-                    text = "Día completo",
+                    text = record.title,
                     color = OnSurface,
                     fontFamily = DmSans,
                     fontWeight = FontWeight.SemiBold,
@@ -710,10 +876,12 @@ private fun AbsentRecord(onJustificar: () -> Unit) {
                 )
                 Spacer(Modifier.height(2.dp))
                 Text(
-                    text = "31 de octubre",
+                    text = record.subtitle,
                     color = OnSurfaceVariant,
                     fontFamily = DmSans,
                     fontSize = 11.sp,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
                 )
             }
             Spacer(Modifier.width(8.dp))

@@ -39,6 +39,7 @@ import com.example.aulasegura.data.repository.RoomAttendanceRepository
 import com.example.aulasegura.data.repository.RoomIncidentRepository
 import com.example.aulasegura.data.repository.FirestoreChatRepository
 import com.example.aulasegura.data.repository.FirestoreNotificationRepository
+import com.example.aulasegura.data.repository.FirestoreParentRepository
 import com.example.aulasegura.data.repository.FirestorePushTokenRepository
 import com.example.aulasegura.data.repository.RoomNoticeRepository
 import com.example.aulasegura.data.repository.RoomTaskRepository
@@ -56,6 +57,7 @@ import com.example.aulasegura.domain.repository.AttendanceRepository
 import com.example.aulasegura.domain.repository.AuthRepository
 import com.example.aulasegura.domain.repository.ChatRepository
 import com.example.aulasegura.domain.repository.NotificationRepository
+import com.example.aulasegura.domain.repository.ParentRepository
 import com.example.aulasegura.domain.repository.PushTokenRepository
 import com.example.aulasegura.domain.repository.GroupRepository
 import com.example.aulasegura.domain.repository.IncidentRepository
@@ -96,6 +98,8 @@ import com.example.aulasegura.ui.screens.admin.AdminNotificationsViewModel
 import com.example.aulasegura.ui.screens.admin.AdminProfileViewModel
 import com.example.aulasegura.ui.screens.admin.AdminReportsViewModel
 import com.example.aulasegura.ui.screens.admin.AdminUsersViewModel
+import com.example.aulasegura.ui.screens.parent.ParentAttendanceViewModel
+import com.example.aulasegura.ui.screens.parent.ParentHomeViewModel
 import com.example.aulasegura.ui.screens.teacher.TeacherGroupDetailViewModel
 import com.example.aulasegura.ui.screens.teacher.TeacherGroupsViewModel
 import com.example.aulasegura.ui.screens.teacher.TeacherHistoryViewModel
@@ -266,6 +270,20 @@ class AppContainer(context: Context) {
         FirestoreIncidentHistoryRepository(
             firestore = firestore,
             incidentDao = database.incidentDao(),
+            auth = authRepository,
+        )
+    }
+
+    /**
+     * The tutor's read path: the children linked to `students.tutorIds` and what
+     * the school already published for them.
+     *
+     * Online-first on purpose. There is no Room mirror: a family opens the app a
+     * few times a day, and a cached empty month would read as a lost month.
+     */
+    val parentRepository: ParentRepository by lazy {
+        FirestoreParentRepository(
+            firestore = firestore,
             auth = authRepository,
         )
     }
@@ -671,6 +689,12 @@ class AppViewModelFactory(
                 auth = container.authRepository,
                 notices = container.noticeRepository,
             )
+
+        modelClass.isAssignableFrom(ParentHomeViewModel::class.java) ->
+            ParentHomeViewModel(parents = container.parentRepository)
+
+        modelClass.isAssignableFrom(ParentAttendanceViewModel::class.java) ->
+            ParentAttendanceViewModel(parents = container.parentRepository)
 
         modelClass.isAssignableFrom(AdminDashboardViewModel::class.java) ->
             AdminDashboardViewModel(

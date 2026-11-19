@@ -24,4 +24,24 @@ object SchoolCalendar {
 
         return day != Calendar.SATURDAY && day != Calendar.SUNDAY
     }
+
+    /**
+     * Monday-to-Friday days of [month], for the "N días hábiles" label.
+     *
+     * Same limit as [isClassDay]: holidays are not modelled yet, so this is the
+     * number of weekdays, not the number of days with class.
+     */
+    fun classDaysInMonth(year: Int, month: Int, zone: TimeZone = TimeZone.getDefault()): Int {
+        val calendar = Calendar.getInstance(zone).apply {
+            clear()
+            set(year, month - 1, 1)
+        }
+        val lastDay = calendar.getActualMaximum(Calendar.DAY_OF_MONTH)
+
+        return (1..lastDay).count { day ->
+            calendar.set(year, month - 1, day)
+            val weekday = calendar.get(Calendar.DAY_OF_WEEK)
+            weekday != Calendar.SATURDAY && weekday != Calendar.SUNDAY
+        }
+    }
 }

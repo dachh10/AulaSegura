@@ -23,19 +23,18 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Cancel
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.outlined.AutoAwesome
 import androidx.compose.material.icons.outlined.Campaign
 import androidx.compose.material.icons.outlined.DocumentScanner
 import androidx.compose.material.icons.outlined.Notifications
 import androidx.compose.material.icons.outlined.Shield
+import androidx.compose.material.icons.outlined.Timer
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableIntStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -47,6 +46,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.aulasegura.domain.model.AttendanceMark
 import com.example.aulasegura.ui.components.ParentBottomBar
 import com.example.aulasegura.ui.components.ParentTab
 import com.example.aulasegura.ui.components.ProgressRing
@@ -67,6 +67,7 @@ import com.example.aulasegura.ui.theme.PrimaryContainer
 import com.example.aulasegura.ui.theme.PrimaryFixed
 import com.example.aulasegura.ui.theme.Secondary
 import com.example.aulasegura.ui.theme.SecondaryContainer
+import com.example.aulasegura.ui.theme.SecondaryFixed
 import com.example.aulasegura.ui.theme.Surface
 import com.example.aulasegura.ui.theme.SurfaceContainer
 import com.example.aulasegura.ui.theme.SurfaceContainerLowest
@@ -77,34 +78,19 @@ import com.example.aulasegura.ui.theme.TertiaryFixed
 private val AmberBg = Color(0xFFFEF3C7)
 private val AmberText = Color(0xFFB45309)
 
-private data class Child(
-    val name: String,
-    val grade: String,
-    val initials: String,
-    val percent: Int,
-    val headline: String,
-    val status: String,
-)
-
 @Composable
 fun ParentHomeScreen(
+    ui: ParentHomeUiState,
+    fullName: String,
     onNotifications: () -> Unit,
     onQuickAvisos: () -> Unit,
     onQuickIncidentes: () -> Unit,
     onQuickJustificar: () -> Unit,
     onQuickAsistente: () -> Unit,
     onVerTareas: () -> Unit,
+    onSelectChild: (Int) -> Unit,
     onSelectTab: (ParentTab) -> Unit,
 ) {
-    val children = remember {
-        listOf(
-            Child("Mariana", "3° B", "M", 94, "Mariana asistió a clase", "Presente · 07:52"),
-            Child("Diego", "1° A", "D", 97, "Diego asistió a clase", "Presente · 07:48"),
-        )
-    }
-    var selected by remember { mutableIntStateOf(0) }
-    val child = children[selected]
-
     Box(
         modifier = Modifier
             .fillMaxSize()
@@ -117,24 +103,34 @@ fun ParentHomeScreen(
                 .statusBarsPadding()
                 .padding(bottom = 104.dp),
         ) {
-            Reveal(0) { HomeTopBar(onNotifications = onNotifications) }
-            Reveal(60) {
-                ChildSelector(
-                    children = children,
-                    selected = selected,
-                    onSelect = { selected = it },
-                )
+            Reveal(0) { HomeTopBar(fullName = fullName, onNotifications = onNotifications) }
+            when (ui) {
+                is ParentHomeUiState.Loaded -> {
+                    Reveal(60) {
+                        ChildSelector(
+                            children = ui.children,
+                            selected = ui.selected,
+                            onSelect = onSelectChild,
+                        )
+                    }
+                    Reveal(120) {
+                        TodaySummary(child = ui.child, todayLabel = ui.todayLabel)
+                    }
+                    Reveal(180) {
+                        QuickAccess(
+                            onAvisos = onQuickAvisos,
+                            onIncidentes = onQuickIncidentes,
+                            onJustificar = onQuickJustificar,
+                            onAsistente = onQuickAsistente,
+                        )
+                    }
+                    Reveal(240) {
+                        UpcomingTasks(tasks = ui.tasks, onVerTareas = onVerTareas)
+                    }
+                }
+
+                else -> Reveal(60) { HomePlaceholder(ui) }
             }
-            Reveal(120) { TodaySummary(child = child) }
-            Reveal(180) {
-                QuickAccess(
-                    onAvisos = onQuickAvisos,
-                    onIncidentes = onQuickIncidentes,
-                    onJustificar = onQuickJustificar,
-                    onAsistente = onQuickAsistente,
-                )
-            }
-            Reveal(240) { UpcomingTasks(onVerTareas = onVerTareas) }
         }
 
         ParentBottomBar(
@@ -145,8 +141,76 @@ fun ParentHomeScreen(
     }
 }
 
+/**
+ * Loading, no linked child, or a failed read.
+ *
+ * A tutor who just redeemed a code and has no child is not an error: the screen
+ * says what to do instead of showing an empty selector.
+ */
 @Composable
-private fun HomeTopBar(onNotifications: () -> Unit) {
+private fun HomePlaceholder(ui: ParentHomeUiState) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 8.dp),
+    ) {
+        when (ui) {
+            ParentHomeUiState.Loading -> Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(vertical = 48.dp),
+                contentAlignment = Alignment.Center,
+            ) {
+                CircularProgressIndicator(color = PrimaryContainer)
+            }
+
+            ParentHomeUiState.NoChildren -> HomeMessage(
+                title = "Aún no hay hijos vinculados",
+                body = "Pide a la escuela el código del alumno y regístrate de nuevo para ver su información.",
+            )
+
+            is ParentHomeUiState.Failed -> HomeMessage(
+                title = "No se pudo cargar",
+                body = ui.message,
+            )
+
+            is ParentHomeUiState.Loaded -> Unit
+        }
+    }
+}
+
+@Composable
+private fun HomeMessage(title: String, body: String) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(24.dp))
+            .background(SurfaceContainerLowest)
+            .border(1.dp, OutlineVariant.copy(alpha = 0.6f), RoundedCornerShape(24.dp))
+            .padding(20.dp),
+    ) {
+        Text(
+            text = title,
+            color = Primary,
+            fontFamily = BricolageGrotesque,
+            fontWeight = FontWeight.Bold,
+            fontSize = 18.sp,
+        )
+        Spacer(Modifier.height(6.dp))
+        Text(
+            text = body,
+            color = OnSurfaceVariant,
+            fontFamily = DmSans,
+            fontSize = 13.sp,
+            lineHeight = 18.sp,
+        )
+    }
+}
+
+@Composable
+private fun HomeTopBar(fullName: String, onNotifications: () -> Unit) {
+    val firstName = fullName.trim().substringBefore(' ')
+
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -162,7 +226,7 @@ private fun HomeTopBar(onNotifications: () -> Unit) {
             contentAlignment = Alignment.Center,
         ) {
             Text(
-                text = "CG",
+                text = initialsOf(fullName),
                 color = OnPrimary,
                 fontFamily = BricolageGrotesque,
                 fontWeight = FontWeight.Bold,
@@ -172,7 +236,7 @@ private fun HomeTopBar(onNotifications: () -> Unit) {
         Spacer(Modifier.width(12.dp))
         Column(Modifier.weight(1f)) {
             Text(
-                text = "Hola, Carlos",
+                text = if (firstName.isBlank()) "Hola" else "Hola, $firstName",
                 color = Primary,
                 fontFamily = BricolageGrotesque,
                 fontWeight = FontWeight.Bold,
@@ -233,7 +297,7 @@ private fun NotificationBell(onClick: () -> Unit) {
 
 @Composable
 private fun ChildSelector(
-    children: List<Child>,
+    children: List<ParentChildUi>,
     selected: Int,
     onSelect: (Int) -> Unit,
 ) {
@@ -289,7 +353,23 @@ private fun ChildSelector(
 }
 
 @Composable
-private fun TodaySummary(child: Child) {
+private fun TodaySummary(child: ParentChildUi, todayLabel: String) {
+    val pillBackground = when (child.mark) {
+        AttendanceMark.ABSENT -> SecondaryFixed
+        AttendanceMark.LATE -> AmberBg
+        else -> TertiaryFixed
+    }
+    val pillForeground = when (child.mark) {
+        AttendanceMark.ABSENT -> Secondary
+        AttendanceMark.LATE -> AmberText
+        else -> OnTertiaryFixed
+    }
+    val pillIcon = when (child.mark) {
+        AttendanceMark.ABSENT -> Icons.Filled.Cancel
+        AttendanceMark.LATE -> Icons.Outlined.Timer
+        else -> Icons.Filled.Check
+    }
+
     Box(
         modifier = Modifier
             .fillMaxWidth()
@@ -311,7 +391,7 @@ private fun TodaySummary(child: Child) {
                     .padding(end = 8.dp),
             ) {
                 Text(
-                    text = "HOY · MARTES 3 DE NOVIEMBRE",
+                    text = todayLabel,
                     color = OnPrimary.copy(alpha = 0.7f),
                     fontFamily = JetBrainsMono,
                     fontSize = 11.sp,
@@ -330,20 +410,20 @@ private fun TodaySummary(child: Child) {
                 Row(
                     modifier = Modifier
                         .clip(CircleShape)
-                        .background(TertiaryFixed)
+                        .background(pillBackground)
                         .padding(horizontal = 12.dp, vertical = 4.dp),
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(6.dp),
                 ) {
                     Icon(
-                        imageVector = Icons.Filled.Check,
+                        imageVector = pillIcon,
                         contentDescription = null,
-                        tint = OnTertiaryFixed,
+                        tint = pillForeground,
                         modifier = Modifier.size(16.dp),
                     )
                     Text(
                         text = child.status,
-                        color = OnTertiaryFixed,
+                        color = pillForeground,
                         fontFamily = JetBrainsMono,
                         fontWeight = FontWeight.SemiBold,
                         fontSize = 11.sp,
@@ -352,14 +432,14 @@ private fun TodaySummary(child: Child) {
             }
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
                 ProgressRing(
-                    progress = child.percent / 100f,
+                    progress = (child.percent ?: 0) / 100f,
                     trackColor = Color.White.copy(alpha = 0.15f),
                     progressColor = BrandMint,
                     size = 64.dp,
                     strokeWidth = 5.dp,
                 ) {
                     Text(
-                        text = "${child.percent}%",
+                        text = child.percent?.let { "$it%" } ?: "—",
                         color = OnPrimary,
                         fontFamily = JetBrainsMono,
                         fontWeight = FontWeight.Bold,
@@ -529,7 +609,7 @@ private fun QuickCard(
 }
 
 @Composable
-private fun UpcomingTasks(onVerTareas: () -> Unit) {
+private fun UpcomingTasks(tasks: List<ParentTaskUi>, onVerTareas: () -> Unit) {
     Column(
         modifier = Modifier
             .fillMaxWidth()
@@ -560,21 +640,38 @@ private fun UpcomingTasks(onVerTareas: () -> Unit) {
             )
         }
         Spacer(Modifier.height(12.dp))
-        TaskRow(
-            dotColor = SecondaryContainer,
-            title = "Matemáticas · Fracciones, ejercicios 1-10",
-            pill = "Mañana",
-            pillBackground = AmberBg,
-            pillForeground = AmberText,
-        )
-        Spacer(Modifier.height(10.dp))
-        TaskRow(
-            dotColor = Primary,
-            title = "Español · Resumen del cuento",
-            pill = "Vie 7 nov",
-            pillBackground = PrimaryFixed,
-            pillForeground = Primary,
-        )
+        if (tasks.isEmpty()) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(16.dp))
+                    .background(SurfaceContainerLowest)
+                    .border(1.dp, OutlineVariant.copy(alpha = 0.6f), RoundedCornerShape(16.dp))
+                    .padding(14.dp),
+            ) {
+                Text(
+                    text = "Sin tareas próximas",
+                    color = OnSurfaceVariant,
+                    fontFamily = DmSans,
+                    fontSize = 14.sp,
+                )
+            }
+        } else {
+            tasks.forEachIndexed { index, task ->
+                if (index > 0) Spacer(Modifier.height(10.dp))
+                TaskRow(
+                    dotColor = if (index % 2 == 0) SecondaryContainer else Primary,
+                    title = if (task.subject.isBlank()) {
+                        task.title
+                    } else {
+                        "${task.subject} · ${task.title}"
+                    },
+                    pill = task.dueLabel,
+                    pillBackground = if (task.dueSoon) AmberBg else PrimaryFixed,
+                    pillForeground = if (task.dueSoon) AmberText else Primary,
+                )
+            }
+        }
     }
 }
 

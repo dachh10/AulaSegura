@@ -49,8 +49,8 @@ Los IDs siguen la numeración de `PLAN.md` (3.1-3.10). El orden de ejecución se
 | # | Tarea | Pantalla(s) | Servicios | Estado |
 |---|---|---|---|---|
 | **3.1** | Registro **solo del tutor** con código obligatorio y vinculación atómica al alumno | `RegisterScreen` (Stitch `4ed8ecd6...`) | Auth + Firestore `linkingCodes`, `users`, `students` | ✅ **hecho** (código y tests; reglas pendientes de publicar) |
-| **3.2** | Inicio: resumen real de los hijos (asistencia, tareas, incidentes) | `ParentHomeScreen` | Firestore | pendiente |
-| **3.3** | Asistencia: calendario desde `attendanceSessions` y `records` | `ParentAttendanceScreen` | Firestore | pendiente |
+| **3.2** | Inicio: resumen real de los hijos (asistencia, tareas, incidentes) | `ParentHomeScreen` | Firestore | ✅ **hecho** (código y tests) |
+| **3.3** | Asistencia: calendario desde `attendanceSessions` y `records` | `ParentAttendanceScreen` | Firestore | ✅ **hecho** (código y tests) |
 | **3.4** | Justificar falta con adjunto en Cloudinary | `ParentJustifyScreen` | Firestore + Cloudinary | pendiente |
 | **3.5** | Tareas y avisos reales, con marca de leído | `ParentTasksScreen`, `ParentTaskDetailScreen`, `ParentNoticesScreen` | Firestore `noticeReads` | pendiente |
 | **3.6** | Incidentes de sus hijos + marcar visto | `ParentIncidentsScreen`, `ParentIncidentDetailScreen`, `ParentIncidentMapScreen` | Firestore | pendiente |
@@ -59,7 +59,15 @@ Los IDs siguen la numeración de `PLAN.md` (3.1-3.10). El orden de ejecución se
 | **3.9** | Notificaciones + deep links + push desde consola | `ParentNotificationsScreen` | Firestore + FCM | pendiente |
 | **3.10** | Perfil del tutor y foto, con los ajustes reales que ya tiene el docente | `ParentProfileScreen` | Auth + Cloudinary | pendiente |
 
-Las 14 pantallas del Bloque 2 de `PLAN.md` están implementadas visualmente, pero **no tienen ViewModel ni repositorio propio** (no hay `ui/screens/parent/*ViewModel.kt`). La Fase 3 las conecta a datos reales una por una; no se rediseñan.
+Las 14 pantallas del Bloque 2 de `PLAN.md` están implementadas visualmente. La Fase 3 las conecta a datos reales una por una; no se rediseñan. Desde el bloque 3.2 + 3.3 las dos primeras ya tienen ViewModel, repositorio y tests propios (`ui/screens/parent/*Ui.kt`, `*ViewModel.kt`, `FirestoreParentRepository`); las doce restantes siguen sin ellos.
+
+**Notas de entrega 3.2 + 3.3:**
+
+- `students.whereArrayContains("tutorIds", uid)` resuelve los hijos: `AppUser` no lleva `studentIds`/`groupIds`, así que no hubo migración de Room.
+- `attendanceSessions` se lee por `groupId` y el mes se filtra en cliente, para no declarar un índice compuesto que hoy solo existe en la consola.
+- El porcentaje es `(presentes + retardos) / total`; una falta justificada sigue siendo inasistencia y se muestra aparte.
+- Los datos que la escuela no produjo no se inventan: día sin sesión = celda gris, mes sin registros = porcentaje `—`, tareas vacías = "Sin tareas próximas", hijo sin vínculo = tarjeta explicativa.
+- `ParentAttendanceScreen` cambió de hijo con el pill del top bar (cicla entre hijos); no se agregó un selector nuevo que el diseño no tiene.
 
 ---
 
@@ -133,9 +141,9 @@ $env:JAVA_HOME = "C:\Program Files\Android\Android Studio\jbr"
 .\gradlew.bat cleanTestDebugUnitTest testDebugUnitTest assembleDebug --offline --no-daemon --no-configuration-cache
 ```
 
-Conteo de suites/tests desde `app/build/test-results/testDebugUnitTest/*.xml`. La línea base al iniciar la fase es **52 suites / 381 tests / 0 fallos**.
+Conteo de suites/tests desde `app/build/test-results/testDebugUnitTest/*.xml`. La línea base al iniciar la fase es **52 suites / 381 tests / 0 fallos**; al cerrar 3.2 + 3.3 es **56 suites / 410 tests / 0 fallos**.
 
-**Dispositivo:** el teléfono `65d5dd78` está conectado por USB. Se puede usar `adb` completo desde `%LOCALAPPDATA%\Android\Sdk\platform-tools\adb.exe` para instalar el APK y correr `connectedDebugAndroidTest` cuando el bloque lo amerite. Las pruebas que dependen de la cuenta real (directora, docente, tutor) las ejecuta el equipo con los tres roles.
+**Dispositivo:** no hay teléfono conectado. Las pruebas funcionales con las cuentas reales (directora, docente, tutor) las ejecuta el equipo; los pasos se entregan en el reporte de cada bloque.
 
 **Checklist de cierre de la fase:**
 

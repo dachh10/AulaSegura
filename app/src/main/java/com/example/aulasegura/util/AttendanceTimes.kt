@@ -1,6 +1,7 @@
 package com.example.aulasegura.util
 
 import java.text.SimpleDateFormat
+import java.util.Calendar
 import java.util.Date
 import java.util.Locale
 import java.util.TimeZone
@@ -24,6 +25,7 @@ object AttendanceTimes {
     private const val CLOCK_TIME = "HH:mm"
     private const val DAY_LABEL = "EEE d MMM"
     private const val WEEKDAY = "EEE"
+    private const val MONTH_LABEL = "MMMM yyyy"
 
     /** `"2026-11-14"` — the value stored in `attendance_sessions.date`. */
     fun isoDate(epochMillis: Long, zone: TimeZone = TimeZone.getDefault()): String =
@@ -39,11 +41,28 @@ object AttendanceTimes {
         return label.replaceFirstChar { it.uppercase(Locale.getDefault()) }
     }
 
-    /** `"SÁB"` — the weekday printed in the history date block. */
+    /** `"SÁB"` - the weekday printed in the history date block. */
     fun weekdayLabel(iso: String, zone: TimeZone = TimeZone.getDefault()): String =
         format(isoDateToMillis(iso, zone) ?: 0L, WEEKDAY, Locale("es", "MX"), zone)
             .replace(".", "")
             .uppercase(Locale("es", "MX"))
+
+    /**
+     * `"Noviembre 2026"` - the header of the tutor's attendance month.
+     *
+     * [month] is 1-based; `Calendar` is 0-based, so the conversion happens here
+     * and nowhere else.
+     */
+    fun monthLabel(year: Int, month: Int, zone: TimeZone = TimeZone.getDefault()): String {
+        val calendar = Calendar.getInstance(zone).apply {
+            clear()
+            set(year, month - 1, 1)
+        }
+        val label = SimpleDateFormat(MONTH_LABEL, Locale("es", "MX"))
+            .apply { timeZone = zone }
+            .format(calendar.time)
+        return label.replaceFirstChar { it.uppercase(Locale.getDefault()) }
+    }
 
     /**
      * Parses an ISO date back to millis at local midnight, or `null` if it is not

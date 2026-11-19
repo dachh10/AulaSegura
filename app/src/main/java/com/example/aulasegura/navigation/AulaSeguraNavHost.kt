@@ -62,9 +62,11 @@ import com.example.aulasegura.ui.screens.admin.ReportPdfExporter
 import com.example.aulasegura.ui.screens.admin.AdminUsersScreen
 import com.example.aulasegura.ui.screens.parent.ParentAIScreen
 import com.example.aulasegura.ui.screens.parent.ParentAttendanceScreen
+import com.example.aulasegura.ui.screens.parent.ParentAttendanceViewModel
 import com.example.aulasegura.ui.screens.parent.ParentChatScreen
 import com.example.aulasegura.ui.screens.parent.ParentConversationScreen
 import com.example.aulasegura.ui.screens.parent.ParentHomeScreen
+import com.example.aulasegura.ui.screens.parent.ParentHomeViewModel
 import com.example.aulasegura.ui.screens.parent.ParentIncidentDetailScreen
 import com.example.aulasegura.ui.screens.parent.ParentIncidentMapScreen
 import com.example.aulasegura.ui.screens.parent.ParentIncidentsScreen
@@ -284,19 +286,37 @@ fun AulaSeguraNavHost(
 
         // ---- Parent / tutor ----
         composable(Routes.PARENT_HOME) {
+            // Same source as the teacher's home: the session profile Splash
+            // already resolved, so the greeting cannot drift from the profile.
+            val parent = rememberAppContainer().authRepository.currentUser
+            val homeViewModel: ParentHomeViewModel =
+                viewModel(factory = rememberAppContainer().viewModelFactory)
+            val homeState by homeViewModel.state.collectAsState()
+
             ParentHomeScreen(
+                ui = homeState,
+                fullName = parent?.fullName.orEmpty(),
                 onNotifications = { navController.navigate(Routes.PARENT_NOTIFICATIONS) },
                 onQuickAvisos = { navController.navigate(Routes.PARENT_NOTICES) },
                 onQuickIncidentes = { navController.navigate(Routes.PARENT_INCIDENTS) },
                 onQuickJustificar = { navController.navigate(Routes.PARENT_JUSTIFY) },
                 onQuickAsistente = { navController.navigate(Routes.PARENT_AI) },
                 onVerTareas = { navController.navigate(Routes.PARENT_TASKS) },
+                onSelectChild = homeViewModel::select,
                 onSelectTab = { navController.openParentTab(it) },
             )
         }
         composable(Routes.PARENT_ATTENDANCE) {
+            val attendanceViewModel: ParentAttendanceViewModel =
+                viewModel(factory = rememberAppContainer().viewModelFactory)
+            val attendanceState by attendanceViewModel.state.collectAsState()
+
             ParentAttendanceScreen(
+                ui = attendanceState,
                 onJustificar = { navController.navigate(Routes.PARENT_JUSTIFY) },
+                onPreviousMonth = attendanceViewModel::previousMonth,
+                onNextMonth = attendanceViewModel::nextMonth,
+                onCycleChild = attendanceViewModel::cycleChild,
                 onSelectTab = { navController.openParentTab(it) },
             )
         }

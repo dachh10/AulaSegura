@@ -105,6 +105,8 @@ import com.example.aulasegura.ui.screens.admin.AdminReportsViewModel
 import com.example.aulasegura.ui.screens.admin.AdminUsersViewModel
 import com.example.aulasegura.ui.screens.parent.ParentAttendanceViewModel
 import com.example.aulasegura.ui.screens.parent.ParentHomeViewModel
+import com.example.aulasegura.ui.screens.parent.ParentIncidentDetailViewModel
+import com.example.aulasegura.ui.screens.parent.ParentIncidentsViewModel
 import com.example.aulasegura.ui.screens.parent.ParentJustifyViewModel
 import com.example.aulasegura.ui.screens.parent.ParentNoticesViewModel
 import com.example.aulasegura.ui.screens.parent.ParentTaskDetailViewModel
@@ -659,6 +661,16 @@ class AppViewModelFactory(
             taskId = taskId,
         )
 
+    /**
+     * The incident detail and its map share this factory: both routes carry the
+     * incident id and read the same document.
+     */
+    fun parentIncidentDetailViewModel(incidentId: String): ParentIncidentDetailViewModel =
+        ParentIncidentDetailViewModel(
+            parents = container.parentRepository,
+            incidentId = incidentId,
+        )
+
     @Suppress("UNCHECKED_CAST")
     override fun <T : ViewModel> create(modelClass: Class<T>): T = when {
         modelClass.isAssignableFrom(LoginViewModel::class.java) ->
@@ -764,6 +776,9 @@ class AppViewModelFactory(
 
         modelClass.isAssignableFrom(ParentNoticesViewModel::class.java) ->
             ParentNoticesViewModel(parents = container.parentRepository)
+
+        modelClass.isAssignableFrom(ParentIncidentsViewModel::class.java) ->
+            ParentIncidentsViewModel(parents = container.parentRepository)
 
         modelClass.isAssignableFrom(AdminDashboardViewModel::class.java) ->
             AdminDashboardViewModel(

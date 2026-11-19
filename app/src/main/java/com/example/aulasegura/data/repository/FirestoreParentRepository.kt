@@ -3,6 +3,9 @@ package com.example.aulasegura.data.repository
 import com.example.aulasegura.domain.model.AttendanceMark
 import com.example.aulasegura.domain.model.ParentAttachment
 import com.example.aulasegura.domain.model.ParentAttendanceCounts
+import com.example.aulasegura.domain.model.ParentIncident
+import com.example.aulasegura.domain.model.ParentIncidentLocation
+import com.example.aulasegura.domain.model.ParentIncidentMedia
 import com.example.aulasegura.domain.model.ParentChild
 import com.example.aulasegura.domain.model.ParentChildOverview
 import com.example.aulasegura.domain.model.ParentDayAttendance
@@ -11,9 +14,12 @@ import com.example.aulasegura.domain.model.ParentNoticeItem
 import com.example.aulasegura.domain.model.ParentTaskBrief
 import com.example.aulasegura.domain.model.ParentTaskItem
 import com.example.aulasegura.domain.repository.AuthRepository
+import com.example.aulasegura.domain.repository.IncidentSeenResult
 import com.example.aulasegura.domain.repository.NoticeReadResult
 import com.example.aulasegura.domain.repository.ParentChildrenResult
 import com.example.aulasegura.domain.repository.ParentHomeResult
+import com.example.aulasegura.domain.repository.ParentIncidentResult
+import com.example.aulasegura.domain.repository.ParentIncidentsResult
 import com.example.aulasegura.domain.repository.ParentMonthResult
 import com.example.aulasegura.domain.repository.ParentNoticesResult
 import com.example.aulasegura.domain.repository.ParentRepository
@@ -45,6 +51,8 @@ import kotlinx.coroutines.withTimeout
  *    `resource.data.groupId in myGroups()`.
  *  - `tasks.whereArrayContains("groupIds", g)` is the query form of
  *    `resource.data.groupIds.hasAny(myGroups())`.
+ *  - `incidents.whereEqualTo("studentId", s)` is the query form of
+ *    `resource.data.studentId in myStudents()`.
  *  - `notices.whereArrayContains("audience.groupIds", g)` is the query form of
  *    `resource.data.audience.groupIds.hasAny(myGroups())`. The tutor branch of
  *    the notice rule deliberately does not check `audience.roles`: Firestore
@@ -325,6 +333,90 @@ class FirestoreParentRepository(
         }
     }
 
+    override suspend fun loadIncidents(): ParentIncidentsResult {
+        val user = auth.currentUser ?: return ParentIncidentsResult.SignedOut
+
+        val children = when (val result = loadChildren()) {
+            is ParentChildrenResult.Loaded -> result.children
+            ParentChildrenResult.SignedOut -> return ParentIncidentsResult.SignedOut
+            is ParentChildrenResult.Failed -> return ParentIncidentsResult.Failed(result.reason)
+        }
+        if (children.isEmpty()) return ParentIncidentsResult.Loaded(emptyList())
+
+        // One equality query per child: `incidents` is filtered by `studentId`,
+        // which is the filter the tutor rule checks. A single `in` with the whole
+        // list would also work, but per-child keeps the shape identical to the
+        // attendance reads and a failure maps to one child, not the screen.
+        val byStudent = coroutineScope {
+            children.map { it.studentId }.distinct().map { studentId ->
+                async(Dispatchers.IO) { incidentsOf(studentId, user.uid) }
+            }.awaitAll()
+        }
+        if (byStudent.any { it == null }) {
+            return ParentIncidentsResult.Failed(RosterFailure.UNKNOWN)
+        }
+
+        return ParentIncidentsResult.Loaded(
+            byStudent.filterNotNull().flatten()
+                .distinctBy { it.incidentId }
+                .sortedWith(
+                    compareByDescending<ParentIncident> { it.occurredAtMillis }.thenBy { it.title },
+                ),
+        )
+    }
+
+    override suspend fun loadIncident(incidentId: String): ParentIncidentResult {
+        val user = auth.currentUser ?: return ParentIncidentResult.SignedOut
+
+        val document = try {
+            withTimeout(READ_TIMEOUT_MILLIS) {
+                firestore.collection(INCIDENTS)
+                    .document(incidentId)
+                    .get(Source.SERVER)
+                    .await()
+            }
+        } catch (error: Exception) {
+            return ParentIncidentResult.Failed(error.toRosterFailure())
+        }
+
+        if (!document.exists()) return ParentIncidentResult.NotFound
+        val incident = document.data?.let { parentIncidentFrom(document.id, it, user.uid) }
+            ?: return ParentIncidentResult.NotFound
+        return ParentIncidentResult.Loaded(incident)
+    }
+
+    override suspend fun markIncidentSeen(incidentId: String): IncidentSeenResult {
+        val user = auth.currentUser ?: return IncidentSeenResult.SignedOut
+
+        return try {
+            withTimeout(READ_TIMEOUT_MILLIS) {
+                firestore.collection(INCIDENTS)
+                    .document(incidentId)
+                    .update(FIELD_SEEN_BY_TUTOR_IDS, FieldValue.arrayUnion(user.uid))
+                    .await()
+            }
+            IncidentSeenResult.Marked
+        } catch (error: Exception) {
+            IncidentSeenResult.Failed(error.toRosterFailure())
+        }
+    }
+
+    /** `null` when the child's incidents could not be read at all. */
+    private suspend fun incidentsOf(studentId: String, uid: String): List<ParentIncident>? = try {
+        val snapshot = withTimeout(READ_TIMEOUT_MILLIS) {
+            firestore.collection(INCIDENTS)
+                .whereEqualTo(FIELD_STUDENT_ID, studentId)
+                .limit(INCIDENT_LIMIT)
+                .get(Source.SERVER)
+                .await()
+        }
+        snapshot.documents.mapNotNull { document ->
+            document.data?.let { parentIncidentFrom(document.id, it, uid) }
+        }
+    } catch (_: Exception) {
+        null
+    }
+
     /**
      * The ids the tutor already opened, or an empty set when they cannot be read.
      *
@@ -483,6 +575,7 @@ class FirestoreParentRepository(
         const val RECORDS = "records"
         const val TASKS = "tasks"
         const val NOTICES = "notices"
+        const val INCIDENTS = "incidents"
         const val USERS = "users"
         const val NOTICE_READS = "noticeReads"
 
@@ -493,6 +586,9 @@ class FirestoreParentRepository(
 
         /** One group publishes a handful of notices a month; a cycle fits twice. */
         const val NOTICE_LIMIT = 50L
+
+        /** A cycle of incidents for one child; the tutor reads the newest first. */
+        const val INCIDENT_LIMIT = 100L
 
         /** The home card shows two; a third is downloaded so a due task cannot hide. */
         const val TASKS_ON_HOME = 2
@@ -512,6 +608,68 @@ class FirestoreParentRepository(
  * child linked", which is the opposite of the truth. The teacher's roster keeps
  * filtering by `active` because there it means "enrolled today".
  */
+internal fun parentIncidentFrom(
+    id: String,
+    data: Map<String, Any?>,
+    uid: String,
+): ParentIncident? {
+    val title = (data[FIELD_TITLE] as? String)?.takeIf { it.isNotBlank() } ?: return null
+
+    return ParentIncident(
+        incidentId = id,
+        studentId = data[FIELD_STUDENT_ID] as? String,
+        studentName = data[FIELD_STUDENT_NAME] as? String ?: "",
+        groupId = data[FIELD_GROUP_ID] as? String ?: "",
+        title = title,
+        description = data[FIELD_DESCRIPTION] as? String ?: "",
+        severity = data[FIELD_SEVERITY] as? String ?: "",
+        category = data[FIELD_CATEGORY] as? String ?: "",
+        reportedByName = data[FIELD_REPORTED_BY_NAME] as? String ?: "",
+        occurredAtMillis = parentEpochMillis(data[FIELD_OCCURRED_AT]),
+        status = data[FIELD_STATUS] as? String ?: "",
+        location = parentIncidentLocationFrom(data[FIELD_LOCATION]),
+        media = parentIncidentMediaFrom(data[FIELD_MEDIA]),
+        seenByMe = uid in parentStringList(data[FIELD_SEEN_BY_TUTOR_IDS]),
+    )
+}
+
+/**
+ * The reported place, or `null` when the document carries no usable coordinate.
+ *
+ * A location without both numbers is dropped instead of defaulted to the school:
+ * a pin on the wrong building is worse than no pin.
+ */
+internal fun parentIncidentLocationFrom(value: Any?): ParentIncidentLocation? {
+    val map = value as? Map<*, *> ?: return null
+    val latitude = (map[FIELD_LAT] as? Number)?.toDouble() ?: return null
+    val longitude = (map[FIELD_LNG] as? Number)?.toDouble() ?: return null
+
+    return ParentIncidentLocation(
+        latitude = latitude,
+        longitude = longitude,
+        accuracyMeters = (map[FIELD_ACCURACY] as? Number)?.toDouble(),
+        distanceMeters = (map[FIELD_DISTANCE] as? Number)?.toDouble(),
+        verified = map[FIELD_VERIFIED] == true,
+    )
+}
+
+/** Evidence in the order the teacher uploaded it; a row without a URL is dropped. */
+internal fun parentIncidentMediaFrom(value: Any?): List<ParentIncidentMedia> =
+    (value as? List<*>)
+        ?.mapNotNull { row ->
+            val map = row as? Map<*, *> ?: return@mapNotNull null
+            val url = (map[FIELD_MEDIA_URL] as? String)?.takeIf { it.isNotBlank() }
+                ?: return@mapNotNull null
+            ParentIncidentMedia(
+                mediaId = map[FIELD_MEDIA_ID] as? String,
+                type = map[FIELD_MEDIA_TYPE] as? String ?: "",
+                url = url,
+                thumbnailUrl = (map[FIELD_MEDIA_THUMBNAIL] as? String)?.takeIf { it.isNotBlank() },
+                durationSec = (map[FIELD_MEDIA_DURATION] as? Number)?.toDouble(),
+            )
+        }
+        ?: emptyList()
+
 internal fun parentTaskFrom(id: String, data: Map<String, Any?>): ParentTaskItem? {
     val title = (data[FIELD_TITLE] as? String)?.takeIf { it.isNotBlank() } ?: return null
 
@@ -647,4 +805,22 @@ private const val FIELD_CATEGORY = "category"
 private const val FIELD_URGENT = "urgent"
 private const val FIELD_EXPIRES_AT = "expiresAt"
 private const val FIELD_READ_AT = "readAt"
+private const val FIELD_STUDENT_ID = "studentId"
+private const val FIELD_STUDENT_NAME = "studentName"
+private const val FIELD_SEVERITY = "severity"
+private const val FIELD_REPORTED_BY_NAME = "reportedByName"
+private const val FIELD_OCCURRED_AT = "occurredAt"
+private const val FIELD_SEEN_BY_TUTOR_IDS = "seenByTutorIds"
+private const val FIELD_LOCATION = "location"
+private const val FIELD_LAT = "lat"
+private const val FIELD_LNG = "lng"
+private const val FIELD_ACCURACY = "accuracy"
+private const val FIELD_DISTANCE = "distanceMeters"
+private const val FIELD_VERIFIED = "verified"
+private const val FIELD_MEDIA = "media"
+private const val FIELD_MEDIA_ID = "id"
+private const val FIELD_MEDIA_TYPE = "type"
+private const val FIELD_MEDIA_URL = "url"
+private const val FIELD_MEDIA_THUMBNAIL = "thumbnailUrl"
+private const val FIELD_MEDIA_DURATION = "durationSec"
 private const val ROLE_TUTOR = "tutor"

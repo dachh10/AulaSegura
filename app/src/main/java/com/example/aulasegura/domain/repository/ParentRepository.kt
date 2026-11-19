@@ -2,6 +2,7 @@ package com.example.aulasegura.domain.repository
 
 import com.example.aulasegura.domain.model.ParentChild
 import com.example.aulasegura.domain.model.ParentChildOverview
+import com.example.aulasegura.domain.model.ParentIncident
 import com.example.aulasegura.domain.model.ParentMonthAttendance
 import com.example.aulasegura.domain.model.ParentNoticeItem
 import com.example.aulasegura.domain.model.ParentTaskItem
@@ -54,6 +55,24 @@ interface ParentRepository {
      * one `noticeReads` document.
      */
     suspend fun markNoticeRead(noticeId: String): NoticeReadResult
+
+    /**
+     * Every incident the school registered about the tutor's children, newest
+     * first. The tutor's own read mark travels in each row.
+     */
+    suspend fun loadIncidents(): ParentIncidentsResult
+
+    /** One incident by document id, for the detail and the map. */
+    suspend fun loadIncident(incidentId: String): ParentIncidentResult
+
+    /**
+     * Adds the signed-in tutor to `seenByTutorIds`.
+     *
+     * The rules allow this and only this write, and they cannot undo it: a tutor
+     * acknowledges an incident once. That is why the mark is never optimistic on
+     * the detail screen — it appears when the cloud accepted it.
+     */
+    suspend fun markIncidentSeen(incidentId: String): IncidentSeenResult
 }
 
 sealed interface ParentChildrenResult {
@@ -121,4 +140,33 @@ sealed interface NoticeReadResult {
     data object SignedOut : NoticeReadResult
 
     data class Failed(val reason: RosterFailure) : NoticeReadResult
+}
+
+sealed interface ParentIncidentsResult {
+
+    data class Loaded(val incidents: List<ParentIncident>) : ParentIncidentsResult
+
+    data object SignedOut : ParentIncidentsResult
+
+    data class Failed(val reason: RosterFailure) : ParentIncidentsResult
+}
+
+sealed interface ParentIncidentResult {
+
+    data class Loaded(val incident: ParentIncident) : ParentIncidentResult
+
+    data object NotFound : ParentIncidentResult
+
+    data object SignedOut : ParentIncidentResult
+
+    data class Failed(val reason: RosterFailure) : ParentIncidentResult
+}
+
+sealed interface IncidentSeenResult {
+
+    data object Marked : IncidentSeenResult
+
+    data object SignedOut : IncidentSeenResult
+
+    data class Failed(val reason: RosterFailure) : IncidentSeenResult
 }

@@ -74,8 +74,10 @@ import com.example.aulasegura.ui.screens.parent.ParentHomeScreen
 import com.example.aulasegura.ui.screens.parent.ParentHomeUiState
 import com.example.aulasegura.ui.screens.parent.ParentHomeViewModel
 import com.example.aulasegura.ui.screens.parent.ParentIncidentDetailScreen
+import com.example.aulasegura.ui.screens.parent.ParentIncidentDetailViewModel
 import com.example.aulasegura.ui.screens.parent.ParentIncidentMapScreen
 import com.example.aulasegura.ui.screens.parent.ParentIncidentsScreen
+import com.example.aulasegura.ui.screens.parent.ParentIncidentsViewModel
 import com.example.aulasegura.ui.screens.parent.ParentJustifyScreen
 import com.example.aulasegura.ui.screens.parent.ParentJustifyViewModel
 import com.example.aulasegura.ui.screens.parent.ParentNoticesScreen
@@ -392,22 +394,63 @@ fun AulaSeguraNavHost(
             )
         }
         composable(Routes.PARENT_INCIDENTS) {
+            val incidentsViewModel: ParentIncidentsViewModel =
+                viewModel(factory = rememberAppContainer().viewModelFactory)
+            val incidentsState by incidentsViewModel.state.collectAsState()
+
             ParentIncidentsScreen(
+                ui = incidentsState,
                 onBack = { navController.popBackStack() },
-                onOpenIncident = { navController.navigate(Routes.parentIncidentDetail("1")) },
+                onOpenIncident = { incidentId ->
+                    navController.navigate(Routes.parentIncidentDetail(incidentId))
+                },
+                onCycleChild = incidentsViewModel::cycleChild,
+                onRetry = incidentsViewModel::refresh,
             )
         }
-        composable(Routes.PARENT_INCIDENT_DETAIL) {
+        composable(Routes.PARENT_INCIDENT_DETAIL) { entry ->
+            val incidentId = entry.arguments?.getString("incidentId").orEmpty()
+            val container = rememberAppContainer()
+            val factory = remember(incidentId) {
+                object : ViewModelProvider.Factory {
+                    @Suppress("UNCHECKED_CAST")
+                    override fun <T : ViewModel> create(modelClass: Class<T>): T =
+                        container.viewModelFactory.parentIncidentDetailViewModel(incidentId) as T
+                }
+            }
+            val incidentViewModel: ParentIncidentDetailViewModel = viewModel(factory = factory)
+            val incidentState by incidentViewModel.state.collectAsState()
+
             ParentIncidentDetailScreen(
+                ui = incidentState,
                 onBack = { navController.popBackStack() },
+                onOpenMap = {
+                    navController.navigate(Routes.parentIncidentMap(incidentId))
+                },
                 onTalkToTeacher = { navController.navigate(Routes.parentConversation("1")) },
-                onOpenMap = { navController.navigate(Routes.parentIncidentMap("1")) },
+                onAcknowledge = incidentViewModel::acknowledge,
+                onRetry = incidentViewModel::refresh,
             )
         }
-        composable(Routes.PARENT_INCIDENT_MAP) {
+        composable(Routes.PARENT_INCIDENT_MAP) { entry ->
+            val incidentId = entry.arguments?.getString("incidentId").orEmpty()
+            val container = rememberAppContainer()
+            val factory = remember(incidentId) {
+                object : ViewModelProvider.Factory {
+                    @Suppress("UNCHECKED_CAST")
+                    override fun <T : ViewModel> create(modelClass: Class<T>): T =
+                        container.viewModelFactory.parentIncidentDetailViewModel(incidentId) as T
+                }
+            }
+            val incidentViewModel: ParentIncidentDetailViewModel = viewModel(factory = factory)
+            val incidentState by incidentViewModel.state.collectAsState()
+
             ParentIncidentMapScreen(
+                ui = incidentState,
                 onBack = { navController.popBackStack() },
                 onTalkToTeacher = { navController.navigate(Routes.parentConversation("1")) },
+                onAcknowledge = incidentViewModel::acknowledge,
+                onRetry = incidentViewModel::refresh,
             )
         }
         // Optional query arguments, so the plain route (the notification deep link)

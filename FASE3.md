@@ -53,7 +53,7 @@ Los IDs siguen la numeración de `PLAN.md` (3.1-3.10). El orden de ejecución se
 | **3.3** | Asistencia: calendario desde `attendanceSessions` y `records` | `ParentAttendanceScreen` | Firestore | ✅ **hecho** (código y tests) |
 | **3.4** | Justificar falta con adjunto en Cloudinary | `ParentJustifyScreen` | Firestore + Cloudinary | ✅ **hecho** (código y tests; falta probar en dispositivo) |
 | **3.5** | Tareas y avisos reales, con marca de leído | `ParentTasksScreen`, `ParentTaskDetailScreen`, `ParentNoticesScreen` | Firestore `noticeReads` | ✅ **hecho** (código y tests; regla de avisos pendiente de publicar) |
-| **3.6** | Incidentes de sus hijos + marcar visto | `ParentIncidentsScreen`, `ParentIncidentDetailScreen`, `ParentIncidentMapScreen` | Firestore | pendiente |
+| **3.6** | Incidentes de sus hijos + marcar visto | `ParentIncidentsScreen`, `ParentIncidentDetailScreen`, `ParentIncidentMapScreen` | Firestore `seenByTutorIds` | ✅ **hecho** (código y tests; sin incidentes en los datos demo al validar la lectura) |
 | **3.7** | Chat con el docente asignado al grupo | `ParentChatScreen`, `ParentConversationScreen` | RTDB | pendiente |
 | **3.8** | Asistente con Firebase AI Logic (Gemini Developer API, free tier, App Check) | `ParentAIScreen` | AI Logic | pendiente |
 | **3.9** | Notificaciones + deep links + push desde consola | `ParentNotificationsScreen` | Firestore + FCM | pendiente |
@@ -78,6 +78,15 @@ Las 14 pantallas del Bloque 2 de `PLAN.md` están implementadas visualmente. La 
 - **Avisos:** `notices.whereArrayContains("audience.groupIds", g)` por grupo + `users/{uid}/noticeReads/{noticeId}` para el leído (idempotente, optimista y con reversión si falla). El aviso no se escribe nunca desde el tutor.
 - **Regla de avisos ajustada:** Firestore sólo permite un `array-contains` por consulta, así que la rama del tutor ya no exige `audience.roles` en la regla (lo exige el cliente, `parentNoticeFrom`); el alcance por grupo se conserva. **Requiere `firebase deploy --only firestore:rules`.**
 - **Sin Room, colecciones ni índices nuevos.** La base sigue en `version = 4`.
+
+**Notas de entrega 3.6** (detalle en `odd/tasks/bloque-3.6-incidentes.md`):
+
+- **Lista:** `incidents.whereEqualTo("studentId", id)` por hijo (hasta 100, `Source.SERVER`), orden por `occurredAt` desc; los contadores (`Registrados`, `Nuevo`, `Graves`) son del hijo que muestra el pill, no de la familia. Cambiar de hijo filtra en memoria, sin volver a leer.
+- **Detalle y mapa** comparten ViewModel y leen `incidents/{incidentId}` por id. El mapa dibuja el pin de `location`; sin coordenada completa no hay mapa (nada de centro inventado).
+- **“Enterado” no es optimista:** escribe `seenByTutorIds` con `arrayUnion` y el estado sólo cambia cuando la nube acepta, porque las reglas no permiten quitarse de la lista. Se fue el botón muerto “Más opciones”.
+- **Sin cambios de reglas, colecciones, índices ni Room** (`version = 4`). La rama del tutor en `incidents` ya soportaba la lectura por `studentId` y el update de sólo `seenByTutorIds`.
+- **Verificado por REST con la sesión real:** consulta por cada hijo → 200 (hoy 0 incidentes en los datos demo), alumno ajeno y consulta sin filtro → 403.
+- **Límite conocido:** la regla de lectura valida contra `users.studentIds` (no contra `students.tutorIds`); con el registro por código coinciden. Un vínculo hecho sólo en `students.tutorIds` daría `PERMISSION_DENIED` al leer incidentes.
 
 ---
 
@@ -151,7 +160,7 @@ $env:JAVA_HOME = "C:\Program Files\Android\Android Studio\jbr"
 .\gradlew.bat cleanTestDebugUnitTest testDebugUnitTest assembleDebug --offline --no-daemon --no-configuration-cache
 ```
 
-Conteo de suites/tests desde `app/build/test-results/testDebugUnitTest/*.xml`. La línea base al iniciar la fase es **52 suites / 381 tests / 0 fallos**; al cerrar 3.2 + 3.3 es **56 suites / 410 tests / 0 fallos**; al cerrar 3.4 es **59 suites / 436 tests / 0 fallos**; al cerrar 3.5 es **63 suites / 469 tests / 0 fallos**.
+Conteo de suites/tests desde `app/build/test-results/testDebugUnitTest/*.xml`. La línea base al iniciar la fase es **52 suites / 381 tests / 0 fallos**; al cerrar 3.2 + 3.3 es **56 suites / 410 tests / 0 fallos**; al cerrar 3.4 es **59 suites / 436 tests / 0 fallos**; al cerrar 3.5 es **63 suites / 469 tests / 0 fallos**; al cerrar 3.6 es **67 suites / 496 tests / 0 fallos**.
 
 **Dispositivo:** no hay teléfono conectado. Las pruebas funcionales con las cuentas reales (directora, docente, tutor) las ejecuta el equipo; los pasos se entregan en el reporte de cada bloque.
 

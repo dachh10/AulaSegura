@@ -4,9 +4,12 @@ import com.example.aulasegura.domain.model.ParentAttendanceCounts
 import com.example.aulasegura.domain.model.ParentChild
 import com.example.aulasegura.domain.model.ParentMonthAttendance
 import com.example.aulasegura.domain.model.ParentNoticeItem
+import com.example.aulasegura.domain.repository.IncidentSeenResult
 import com.example.aulasegura.domain.repository.NoticeReadResult
 import com.example.aulasegura.domain.repository.ParentChildrenResult
 import com.example.aulasegura.domain.repository.ParentHomeResult
+import com.example.aulasegura.domain.repository.ParentIncidentResult
+import com.example.aulasegura.domain.repository.ParentIncidentsResult
 import com.example.aulasegura.domain.repository.ParentMonthResult
 import com.example.aulasegura.domain.repository.ParentNoticesResult
 import com.example.aulasegura.domain.repository.ParentRepository
@@ -237,4 +240,13 @@ private class FakeNotices(
         readMarks += noticeId
         return readResult
     }
+
+    override suspend fun loadIncidents(): ParentIncidentsResult =
+        ParentIncidentsResult.Loaded(emptyList())
+
+    override suspend fun loadIncident(incidentId: String): ParentIncidentResult =
+        ParentIncidentResult.NotFound
+
+    override suspend fun markIncidentSeen(incidentId: String): IncidentSeenResult =
+        IncidentSeenResult.Marked
 }

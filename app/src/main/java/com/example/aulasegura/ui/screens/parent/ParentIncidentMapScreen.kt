@@ -1,7 +1,5 @@
 package com.example.aulasegura.ui.screens.parent
 
-import androidx.compose.animation.animateColorAsState
-import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -15,7 +13,6 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
-import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
@@ -26,37 +23,29 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.ArrowBack
-import androidx.compose.material.icons.automirrored.outlined.Chat
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.CheckCircle
-import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material.icons.outlined.CalendarToday
 import androidx.compose.material.icons.outlined.LocationOn
-import androidx.compose.material.icons.outlined.MoreVert
 import androidx.compose.material.icons.outlined.School
-import androidx.compose.material.icons.outlined.Videocam
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.example.aulasegura.ui.components.IncidentMap
+import com.example.aulasegura.ui.components.CampusMap
 import com.example.aulasegura.ui.components.rememberPressScale
 import com.example.aulasegura.ui.screens.access.Reveal
 import com.example.aulasegura.ui.theme.BricolageGrotesque
@@ -68,22 +57,35 @@ import com.example.aulasegura.ui.theme.OnSurfaceVariant
 import com.example.aulasegura.ui.theme.Primary
 import com.example.aulasegura.ui.theme.PrimaryContainer
 import com.example.aulasegura.ui.theme.Secondary
-import com.example.aulasegura.ui.theme.SecondaryContainer
 import com.example.aulasegura.ui.theme.SecondaryFixed
 import com.example.aulasegura.ui.theme.SurfaceContainer
-import com.example.aulasegura.ui.theme.SurfaceContainerLow
 import com.example.aulasegura.ui.theme.TertiaryFixedDim
+import com.google.android.gms.maps.model.LatLng
 
 /**
  * 2.8 — Detalle del incidente con mapa.
  * Ported from Stitch screen `65e5f2a843054caa8acc844ef4d74681`.
+ *
+ * The map draws the coordinate the teacher's phone recorded
+ * (`incidents.location`), not a decorative neighbourhood: [CampusMap] centres on
+ * the pin when there is no campus to show, and no pin means no map at all.
  */
 @Composable
 fun ParentIncidentMapScreen(
+    ui: ParentIncidentDetailUiState,
     onBack: () -> Unit,
     onTalkToTeacher: () -> Unit,
+    onAcknowledge: () -> Unit,
+    onRetry: () -> Unit,
 ) {
-    var acknowledged by remember { mutableStateOf(false) }
+    val loaded = ui as? ParentIncidentDetailUiState.Loaded
+    val pin = loaded?.let { item ->
+        if (item.latitude != null && item.longitude != null) {
+            LatLng(item.latitude, item.longitude)
+        } else {
+            null
+        }
+    }
 
     Column(
         modifier = Modifier
@@ -101,18 +103,61 @@ fun ParentIncidentMapScreen(
                 .padding(top = 14.dp, bottom = 24.dp),
             verticalArrangement = Arrangement.spacedBy(18.dp),
         ) {
-            Reveal(0) { MapEvidence() }
-            Reveal(60) { IncidentHeading() }
-            Reveal(120) { LocationSection() }
-            Reveal(180) { DateCard() }
-            Reveal(240) { RegistrarCard() }
+            when (ui) {
+                is ParentIncidentDetailUiState.Loaded -> {
+                    Reveal(0) {
+                        IncidentEvidence(
+                            media = ui.media,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .aspectRatio(16f / 9f),
+                        )
+                    }
+                    Reveal(60) { IncidentHeading(ui) }
+                    Reveal(120) { LocationSection(ui = ui, pin = pin) }
+                    Reveal(180) { DateCard(ui) }
+                    Reveal(240) { RegistrarCard(ui) }
+                    ui.error?.let { message ->
+                        Reveal(280) { MapError(message) }
+                    }
+                }
+
+                ParentIncidentDetailUiState.Loading -> Reveal(0) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 48.dp),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        CircularProgressIndicator(color = PrimaryContainer)
+                    }
+                }
+
+                ParentIncidentDetailUiState.NotFound -> Reveal(0) {
+                    MapMessage(
+                        title = "Este incidente ya no está disponible",
+                        message = "La escuela lo retiró o el enlace está incompleto.",
+                    )
+                }
+
+                is ParentIncidentDetailUiState.Failed -> Reveal(0) {
+                    MapMessage(
+                        title = "No se pudo cargar el incidente",
+                        message = ui.message,
+                        onRetry = onRetry,
+                    )
+                }
+            }
         }
 
-        MapFooter(
-            acknowledged = acknowledged,
-            onTalkToTeacher = onTalkToTeacher,
-            onAcknowledge = { acknowledged = !acknowledged },
-        )
+        if (loaded != null) {
+            IncidentAcknowledgeFooter(
+                seen = loaded.seen,
+                marking = loaded.marking,
+                onTalkToTeacher = onTalkToTeacher,
+                onAcknowledge = onAcknowledge,
+            )
+        }
     }
 }
 
@@ -151,131 +196,12 @@ private fun MapTopBar(onBack: () -> Unit) {
             textAlign = TextAlign.Center,
         )
 
-        val (moreInteraction, morePress) = rememberPressScale(0.9f)
-        Box(
-            modifier = morePress
-                .size(40.dp)
-                .clip(CircleShape)
-                .clickable(interactionSource = moreInteraction, indication = null, onClick = {}),
-            contentAlignment = Alignment.Center,
-        ) {
-            Icon(
-                imageVector = Icons.Outlined.MoreVert,
-                contentDescription = "Más opciones",
-                tint = Primary,
-                modifier = Modifier.size(22.dp),
-            )
-        }
+        Spacer(Modifier.size(40.dp))
     }
 }
 
 @Composable
-private fun MapEvidence() {
-    Column {
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .aspectRatio(16f / 9f)
-                .clip(RoundedCornerShape(24.dp)),
-            contentAlignment = Alignment.Center,
-        ) {
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .background(
-                        Brush.linearGradient(
-                            listOf(Color(0xFFDCE5E1), Color(0xFFB8C7C2)),
-                        ),
-                    ),
-            )
-            Icon(
-                imageVector = Icons.Outlined.School,
-                contentDescription = null,
-                tint = PrimaryContainer.copy(alpha = 0.18f),
-                modifier = Modifier.size(72.dp),
-            )
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .background(
-                        Brush.verticalGradient(
-                            listOf(Color.Transparent, PrimaryContainer.copy(alpha = 0.5f)),
-                        ),
-                    ),
-            )
-
-            Row(
-                modifier = Modifier
-                    .align(Alignment.TopStart)
-                    .padding(12.dp)
-                    .clip(CircleShape)
-                    .background(Color.White.copy(alpha = 0.94f))
-                    .padding(horizontal = 9.dp, vertical = 4.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Icon(
-                    imageVector = Icons.Outlined.Videocam,
-                    contentDescription = null,
-                    tint = SecondaryContainer,
-                    modifier = Modifier.size(14.dp),
-                )
-                Spacer(Modifier.width(5.dp))
-                Text(
-                    text = "00:18",
-                    color = OnSurface,
-                    fontFamily = JetBrainsMono,
-                    fontWeight = FontWeight.Medium,
-                    fontSize = 11.sp,
-                )
-            }
-
-            val (playInteraction, playPress) = rememberPressScale(0.92f)
-            Box(
-                modifier = playPress
-                    .size(56.dp)
-                    .clip(CircleShape)
-                    .background(Color.White.copy(alpha = 0.3f))
-                    .border(1.5.dp, Color.White.copy(alpha = 0.6f), CircleShape)
-                    .clickable(interactionSource = playInteraction, indication = null, onClick = {}),
-                contentAlignment = Alignment.Center,
-            ) {
-                Icon(
-                    imageVector = Icons.Filled.PlayArrow,
-                    contentDescription = "Reproducir evidencia",
-                    tint = Color.White,
-                    modifier = Modifier
-                        .offset(x = 2.dp)
-                        .size(30.dp),
-                )
-            }
-        }
-
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(top = 12.dp),
-            horizontalArrangement = Arrangement.Center,
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Box(
-                modifier = Modifier
-                    .size(width = 20.dp, height = 6.dp)
-                    .clip(CircleShape)
-                    .background(SecondaryContainer),
-            )
-            Spacer(Modifier.width(6.dp))
-            Box(
-                modifier = Modifier
-                    .size(6.dp)
-                    .clip(CircleShape)
-                    .background(Color(0xFFC7C5D2)),
-            )
-        }
-    }
-}
-
-@Composable
-private fun IncidentHeading() {
+private fun IncidentHeading(ui: ParentIncidentDetailUiState.Loaded) {
     Column {
         Row(
             modifier = Modifier.fillMaxWidth(),
@@ -296,7 +222,7 @@ private fun IncidentHeading() {
                 )
                 Spacer(Modifier.width(4.dp))
                 Text(
-                    text = "Moderado",
+                    text = ui.severity.label,
                     color = Secondary,
                     fontFamily = DmSans,
                     fontWeight = FontWeight.Medium,
@@ -305,8 +231,8 @@ private fun IncidentHeading() {
             }
             Spacer(Modifier.weight(1f))
             Text(
-                text = "FOLIO #INC-4829",
-                color = Color(0xFF8A8EA8),
+                text = incidentFolio(ui.incidentId),
+                color = OnSurfaceVariant,
                 fontFamily = JetBrainsMono,
                 fontSize = 10.sp,
                 letterSpacing = 0.3.sp,
@@ -314,7 +240,7 @@ private fun IncidentHeading() {
         }
         Spacer(Modifier.height(8.dp))
         Text(
-            text = "Discusión con compañero",
+            text = ui.title,
             color = PrimaryContainer,
             fontFamily = BricolageGrotesque,
             fontWeight = FontWeight.Bold,
@@ -326,7 +252,7 @@ private fun IncidentHeading() {
 }
 
 @Composable
-private fun LocationSection() {
+private fun LocationSection(ui: ParentIncidentDetailUiState.Loaded, pin: LatLng?) {
     Column {
         Row(
             modifier = Modifier
@@ -342,19 +268,21 @@ private fun LocationSection() {
                 fontSize = 16.sp,
             )
             Spacer(Modifier.weight(1f))
-            Box(
-                modifier = Modifier
-                    .size(6.dp)
-                    .clip(CircleShape)
-                    .background(TertiaryFixedDim),
-            )
-            Spacer(Modifier.width(5.dp))
-            Text(
-                text = "Georreferencia activa",
-                color = Color(0xFF8A8EA8),
-                fontFamily = DmSans,
-                fontSize = 11.sp,
-            )
+            if (ui.locationVerified) {
+                Box(
+                    modifier = Modifier
+                        .size(6.dp)
+                        .clip(CircleShape)
+                        .background(TertiaryFixedDim),
+                )
+                Spacer(Modifier.width(5.dp))
+                Text(
+                    text = "Georreferencia verificada",
+                    color = OnSurfaceVariant,
+                    fontFamily = DmSans,
+                    fontSize = 11.sp,
+                )
+            }
         }
 
         Spacer(Modifier.height(10.dp))
@@ -368,11 +296,46 @@ private fun LocationSection() {
                 .border(1.dp, Color(0xFFE6E1D8), RoundedCornerShape(24.dp))
                 .padding(6.dp),
         ) {
-            IncidentMap(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(196.dp),
-            )
+            if (pin != null) {
+                CampusMap(
+                    teacherFix = null,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(196.dp),
+                    // No campus circle: the tutor's screen does not load the
+                    // school profile, and a geofence drawn on a guessed centre
+                    // would be a false claim about where the building is.
+                    campus = null,
+                    pin = pin,
+                    pinTitle = ui.title,
+                    scrollGesturesEnabled = false,
+                )
+            } else {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(150.dp)
+                        .clip(RoundedCornerShape(20.dp))
+                        .background(SurfaceContainer),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Icon(
+                            imageVector = Icons.Outlined.School,
+                            contentDescription = null,
+                            tint = OnSurfaceVariant,
+                            modifier = Modifier.size(28.dp),
+                        )
+                        Spacer(Modifier.height(6.dp))
+                        Text(
+                            text = "La escuela no registró la ubicación",
+                            color = OnSurfaceVariant,
+                            fontFamily = DmSans,
+                            fontSize = 12.sp,
+                        )
+                    }
+                }
+            }
 
             Row(
                 modifier = Modifier
@@ -383,14 +346,14 @@ private fun LocationSection() {
                 Icon(
                     imageVector = Icons.Outlined.LocationOn,
                     contentDescription = null,
-                    tint = Color(0xFF6B6E8F),
+                    tint = OnSurfaceVariant,
                     modifier = Modifier
                         .padding(top = 2.dp)
                         .size(16.dp),
                 )
                 Spacer(Modifier.width(7.dp))
                 Text(
-                    text = "Pasillo 2° piso · Dentro del plantel",
+                    text = ui.locationLabel,
                     modifier = Modifier.weight(1f),
                     color = OnSurface,
                     fontFamily = DmSans,
@@ -399,34 +362,37 @@ private fun LocationSection() {
                     lineHeight = 16.sp,
                 )
                 Spacer(Modifier.width(6.dp))
-                Row(
-                    modifier = Modifier
-                        .clip(CircleShape)
-                        .background(Color(0xFFE6FAF4))
-                        .padding(horizontal = 7.dp, vertical = 3.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Icon(
-                        imageVector = Icons.Filled.CheckCircle,
-                        contentDescription = null,
-                        tint = Color(0xFF16866F),
-                        modifier = Modifier.size(12.dp),
-                    )
-                    Spacer(Modifier.width(4.dp))
-                    Text(
-                        text = "Verificada",
-                        color = Color(0xFF16866F),
-                        fontFamily = DmSans,
-                        fontWeight = FontWeight.Medium,
-                        fontSize = 10.sp,
-                    )
+                if (ui.locationVerified) {
+                    Row(
+                        modifier = Modifier
+                            .clip(CircleShape)
+                            .background(Color(0xFFE6FAF4))
+                            .padding(horizontal = 7.dp, vertical = 3.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Icon(
+                            imageVector = Icons.Filled.CheckCircle,
+                            contentDescription = null,
+                            tint = Color(0xFF16866F),
+                            modifier = Modifier.size(12.dp),
+                        )
+                        Spacer(Modifier.width(4.dp))
+                        Text(
+                            text = "Verificada",
+                            color = Color(0xFF16866F),
+                            fontFamily = DmSans,
+                            fontWeight = FontWeight.Medium,
+                            fontSize = 10.sp,
+                        )
+                    }
                 }
             }
 
             Text(
-                text = "19.2926, -99.6557",
+                text = listOfNotNull(ui.coordinatesLabel, ui.locationDetail)
+                    .joinToString(" · "),
                 modifier = Modifier.padding(start = 33.dp, top = 3.dp, bottom = 8.dp),
-                color = Color(0xFF8A8EA8),
+                color = OnSurfaceVariant,
                 fontFamily = JetBrainsMono,
                 fontSize = 10.5.sp,
             )
@@ -435,7 +401,7 @@ private fun LocationSection() {
 }
 
 @Composable
-private fun DateCard() {
+private fun DateCard(ui: ParentIncidentDetailUiState.Loaded) {
     InfoCard(
         icon = {
             Box(
@@ -454,29 +420,13 @@ private fun DateCard() {
             }
         },
         label = "Fecha y hora",
-        value = "Mar 21 oct 2026 · 13:05",
+        value = ui.dateLabel,
         mono = true,
-        trailing = {
-            Box(
-                modifier = Modifier
-                    .clip(CircleShape)
-                    .background(SurfaceContainerLow)
-                    .border(1.dp, Color(0xFFE6E1D8), CircleShape)
-                    .padding(horizontal = 9.dp, vertical = 3.dp),
-            ) {
-                Text(
-                    text = "Turno Mat.",
-                    color = OnSurfaceVariant,
-                    fontFamily = DmSans,
-                    fontSize = 10.sp,
-                )
-            }
-        },
     )
 }
 
 @Composable
-private fun RegistrarCard() {
+private fun RegistrarCard(ui: ParentIncidentDetailUiState.Loaded) {
     InfoCard(
         icon = {
             Box(
@@ -487,7 +437,7 @@ private fun RegistrarCard() {
                 contentAlignment = Alignment.Center,
             ) {
                 Text(
-                    text = "RS",
+                    text = ui.reporterInitials,
                     color = OnPrimary,
                     fontFamily = DmSans,
                     fontWeight = FontWeight.Bold,
@@ -496,23 +446,7 @@ private fun RegistrarCard() {
             }
         },
         label = "Registrado por",
-        value = "Prof. Ricardo Salinas",
-        trailing = {
-            Box(
-                modifier = Modifier
-                    .clip(CircleShape)
-                    .background(PrimaryContainer)
-                    .padding(horizontal = 9.dp, vertical = 3.dp),
-            ) {
-                Text(
-                    text = "Docente titular",
-                    color = OnPrimary,
-                    fontFamily = DmSans,
-                    fontWeight = FontWeight.Medium,
-                    fontSize = 10.sp,
-                )
-            }
-        },
+        value = ui.reporterName.ifBlank { "Sin nombre registrado" },
     )
 }
 
@@ -522,7 +456,6 @@ private fun InfoCard(
     label: String,
     value: String,
     mono: Boolean = false,
-    trailing: @Composable () -> Unit,
 ) {
     Row(
         modifier = Modifier
@@ -555,100 +488,82 @@ private fun InfoCard(
                 overflow = TextOverflow.Ellipsis,
             )
         }
-        Spacer(Modifier.width(8.dp))
-        trailing()
     }
 }
 
 @Composable
-private fun MapFooter(
-    acknowledged: Boolean,
-    onTalkToTeacher: () -> Unit,
-    onAcknowledge: () -> Unit,
-) {
-    val background by animateColorAsState(
-        targetValue = if (acknowledged) PrimaryContainer else SecondaryContainer,
-        animationSpec = tween(220),
-        label = "ackBackground",
-    )
+private fun MapError(message: String) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(16.dp))
+            .background(Color(0xFFFEF3C7))
+            .border(1.dp, Color(0xFF78350F).copy(alpha = 0.15f), RoundedCornerShape(16.dp))
+            .padding(horizontal = 12.dp, vertical = 10.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Icon(
+            imageVector = Icons.Filled.Warning,
+            contentDescription = null,
+            tint = Color(0xFF78350F),
+            modifier = Modifier.size(16.dp),
+        )
+        Spacer(Modifier.width(8.dp))
+        Text(
+            text = message,
+            color = Color(0xFF78350F),
+            fontFamily = DmSans,
+            fontSize = 12.sp,
+            lineHeight = 16.sp,
+        )
+    }
+}
 
+@Composable
+private fun MapMessage(
+    title: String,
+    message: String,
+    onRetry: (() -> Unit)? = null,
+) {
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .background(MaterialTheme.colorScheme.background.copy(alpha = 0.97f)),
+            .clip(RoundedCornerShape(24.dp))
+            .background(Color.White)
+            .border(1.dp, Color(0xFFE6E1D8), RoundedCornerShape(24.dp))
+            .padding(20.dp),
     ) {
-        HorizontalDivider(thickness = 1.dp, color = Color(0xFFF0EDE6))
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .navigationBarsPadding()
-                .padding(horizontal = 16.dp, vertical = 10.dp),
-            horizontalArrangement = Arrangement.spacedBy(10.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            val (talkInteraction, talkPress) = rememberPressScale(0.97f)
-            Row(
-                modifier = talkPress
-                    .weight(1f)
-                    .height(48.dp)
+        Text(
+            text = title,
+            color = PrimaryContainer,
+            fontFamily = BricolageGrotesque,
+            fontWeight = FontWeight.Bold,
+            fontSize = 18.sp,
+        )
+        Spacer(Modifier.height(6.dp))
+        Text(
+            text = message,
+            color = OnSurfaceVariant,
+            fontFamily = DmSans,
+            fontSize = 13.sp,
+            lineHeight = 18.sp,
+        )
+        if (onRetry != null) {
+            Spacer(Modifier.height(14.dp))
+            val (interaction, pressModifier) = rememberPressScale(0.95f)
+            Box(
+                modifier = pressModifier
                     .clip(CircleShape)
-                    .background(Color.White)
-                    .border(1.5.dp, PrimaryContainer, CircleShape)
-                    .clickable(
-                        interactionSource = talkInteraction,
-                        indication = null,
-                        onClick = onTalkToTeacher,
-                    ),
-                horizontalArrangement = Arrangement.Center,
-                verticalAlignment = Alignment.CenterVertically,
+                    .background(PrimaryContainer)
+                    .clickable(interactionSource = interaction, indication = null, onClick = onRetry)
+                    .padding(horizontal = 18.dp, vertical = 8.dp),
             ) {
-                Icon(
-                    imageVector = Icons.AutoMirrored.Outlined.Chat,
-                    contentDescription = null,
-                    tint = PrimaryContainer,
-                    modifier = Modifier.size(18.dp),
-                )
-                Spacer(Modifier.width(7.dp))
                 Text(
-                    text = "Hablar con el docente",
-                    color = PrimaryContainer,
-                    fontFamily = DmSans,
-                    fontWeight = FontWeight.SemiBold,
-                    fontSize = 12.sp,
-                    maxLines = 1,
-                )
-            }
-
-            val (ackInteraction, ackPress) = rememberPressScale(0.97f)
-            Row(
-                modifier = ackPress
-                    .height(48.dp)
-                    .shadow(4.dp, CircleShape)
-                    .clip(CircleShape)
-                    .background(background)
-                    .clickable(
-                        interactionSource = ackInteraction,
-                        indication = null,
-                        onClick = onAcknowledge,
-                    )
-                    .padding(horizontal = 20.dp),
-                horizontalArrangement = Arrangement.Center,
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Icon(
-                    imageVector = Icons.Filled.Check,
-                    contentDescription = null,
-                    tint = OnPrimary,
-                    modifier = Modifier.size(18.dp),
-                )
-                Spacer(Modifier.width(7.dp))
-                Text(
-                    text = "Enterado",
+                    text = "Reintentar",
                     color = OnPrimary,
                     fontFamily = DmSans,
-                    fontWeight = FontWeight.Bold,
+                    fontWeight = FontWeight.SemiBold,
                     fontSize = 13.sp,
-                    maxLines = 1,
                 )
             }
         }

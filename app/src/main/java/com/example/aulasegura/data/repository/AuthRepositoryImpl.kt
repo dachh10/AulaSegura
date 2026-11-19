@@ -123,10 +123,10 @@ class AuthRepositoryImpl(
                 ?: return reject(TutorRegistrationResult.InvalidCode)
             val schoolId = codeDoc.getString(FIELD_SCHOOL_ID)
                 ?: return reject(TutorRegistrationResult.InvalidCode)
-
-            val student = firestore.collection(STUDENTS).document(studentId)
-                .get(Source.SERVER).await()
-            val groupId = student.getString(FIELD_GROUP_ID)
+            // The group travels inside the code. Reading students/{id} here is
+            // not possible: that rule needs an active profile, and users/{uid}
+            // is only a pending write until the batch below commits.
+            val groupId = codeDoc.getString(FIELD_GROUP_ID)
                 ?: return reject(TutorRegistrationResult.InvalidCode)
 
             val (firstName, lastName) = splitName(input.fullName)

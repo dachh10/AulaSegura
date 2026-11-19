@@ -196,6 +196,19 @@ class FirestoreAdminStudentRepository(
             ?: return LinkingCodeResult.Failure(AdminStudentError.NO_SESSION)
 
         return try {
+            // The code carries the group as well as the student on purpose: a
+            // tutor registering cannot read students/{id} yet, because that rule
+            // requires an active profile and users/{uid} does not exist until
+            // the registration batch commits.
+            val student = withTimeout(READ_TIMEOUT_MILLIS) {
+                firestore.collection(AdminStudentFields.COLLECTION)
+                    .document(studentId)
+                    .get(Source.SERVER)
+                    .await()
+            }
+            val groupId = student.getString(AdminStudentFields.GROUP_ID)
+                ?: return LinkingCodeResult.Failure(AdminStudentError.UNKNOWN)
+
             val codes = firestore.collection(AdminStudentFields.LINKING_CODES_COLLECTION)
             repeat(CODE_ATTEMPTS) {
                 val code = newCode()
@@ -212,6 +225,7 @@ class FirestoreAdminStudentRepository(
                 // usedBy/usedAt to the tutor's one-time redemption update.
                 val document = mapOf(
                     AdminStudentFields.STUDENT_ID to studentId,
+                    AdminStudentFields.GROUP_ID to groupId,
                     AdminStudentFields.SCHOOL_ID to user.schoolId,
                     AdminStudentFields.CREATED_BY to user.uid,
                     AdminStudentFields.CREATED_AT to FieldValue.serverTimestamp(),

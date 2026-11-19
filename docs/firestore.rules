@@ -140,6 +140,10 @@ service cloud.firestore {
           && get(codeRef(request.resource.data.registrationCode)).data.usedBy == null
           && request.resource.data.schoolId == getAfter(codeRef(request.resource.data.registrationCode)).data.schoolId
           && request.resource.data.studentIds[0] == getAfter(codeRef(request.resource.data.registrationCode)).data.studentId
+          // groupIds is what the ticket rules later use to scope a tutor's
+          // reads, so it must be exactly the group of the redeemed code. Left
+          // unchecked, a client could inject another group and read its tasks.
+          && request.resource.data.groupIds == [getAfter(codeRef(request.resource.data.registrationCode)).data.groupId]
           && getAfter(codeRef(request.resource.data.registrationCode)).data.usedBy == uid)
         ||
         (isDirectivo()
@@ -467,7 +471,10 @@ service cloud.firestore {
 
       allow create: if isDirectivo()
         && request.resource.data.schoolId == mySchool()
-        && request.resource.data.createdBy == request.auth.uid;
+        && request.resource.data.createdBy == request.auth.uid
+        // groupId is mandatory: the tutor registration copies it into
+        // users.groupIds, and the rules use that to scope later reads.
+        && request.resource.data.groupId is string;
 
       // Redemption: the tutor claims a code, and only once. The first branch
       // covers the registration batch, where users/{uid} exists only as a

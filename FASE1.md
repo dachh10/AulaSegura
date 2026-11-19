@@ -25,6 +25,9 @@
 | **10** — Notificaciones y FCM | push desde la consola + bandeja real + script de avisos | ✅ **cerrado 17 nov 2026** · probado en teléfono · 219 tests |
 | **11** — Perfil | datos reales del docente + foto en Cloudinary + ajustes de cuenta | ✅ **hecho** · `assembleDebug` + 234 tests |
 
+> Los conteos de cada fila son los de su entrega. Con la Fase 2 integrada en `main`, la
+> verificación final es **379 tests, 0 fallos** (52 suites) y `assembleDebug` en verde.
+
 **Criterio de cierre de la fase** (`PLAN.md`): con **modo avión** activo, el docente pasa lista y
 registra un incidente con foto; al reconectar, ambos aparecen en Firestore **sin duplicados** y
 con la media subida.
@@ -600,8 +603,8 @@ sus fotos, con o sin conexión.
 
 **Pendientes conocidos de este bloque**
 
-1. **Sin `Coil`: las fotos se abren en el navegador**, no como miniatura dentro de la app. Agregar la
-   dependencia es una decisión aparte (peso del APK y una librería más).
+1. ~~Sin `Coil`: las fotos se abren en el navegador~~ **resuelto**: Coil 3.6.3 ya está integrado y
+   las fotos se ven como miniatura dentro de la app (bloque 11 y perfil de la directora).
 2. **"Publicaciones" sigue con su placeholder** hasta el bloque 8, igual que antes.
 3. **La consulta trae los últimos 120 incidentes**: paginar es de otra fase, como en el historial de
    listas.
@@ -1035,15 +1038,16 @@ node scripts/notify/index.js \
 | `ui/screens/teacher/TeacherProfileScreen.kt` | cableada: nombre, correo, escuela y materias reales; `AsyncImage` con iniciales de respaldo; diálogo para tomar foto o elegirla; aviso de subida y de resultado |
 | `ui/screens/teacher/TeacherHomeScreen.kt` | saludo y avatar desde el perfil de la sesión, en vez de "Hola, profe Ricardo" / "RS" |
 | `di/AppContainer.kt` · `navigation/AulaSeguraNavHost.kt` | factory del ViewModel del perfil, ruta cableada y perfil de la sesión propagado al inicio |
-| `gradle/libs.versions.toml` · `app/build.gradle.kts` | **Coil 2.7.0** (alias `coil-compose`), la versión ya presente en la caché local de Gradle |
+| `gradle/libs.versions.toml` · `app/build.gradle.kts` | **Coil3 3.6.3** (alias `coil-compose` + `coil-network-okhttp`), versión actual del proyecto tras integrar la Fase 2 |
 | `app/src/main/res/xml/file_paths.xml` | `cache-path` propio para la foto del perfil, separado del de incidentes |
 | `test/.../ProfilePhotoMapperTest.kt` · `TeacherProfileUiTest.kt` · `ProfileMappersTest.kt` · `AuthViewModelsTest.kt` | **nuevos/ampliados**: forma del `update`, round-trip de la caché, iniciales, saludo, materia y fake del repositorio |
 
 **Decisiones que importan**
 
-- **Sin migración de Room.** `photoPublicId` se escribe en Firestore y viaja en `AppUser`, pero no se
-  guarda en `ProfileEntity` (la tabla sigue en `version = 3`). El criterio solo necesita `photoUrl`,
-  que ya tiene columna, para volver a mostrar la foto después de reiniciar.
+- **Sin migración de Room para el perfil.** `photoPublicId` se escribe en Firestore y viaja en
+  `AppUser`, pero no se guarda en `ProfileEntity`. El criterio solo necesita `photoUrl`, que ya tiene
+  columna, para volver a mostrar la foto después de reiniciar. (La base pasó a `version = 4` en la
+  Fase 2 por `requireLocation` de `SchoolEntity`; el perfil no participó en esa migración.)
 - **Dos campos, no un `set()`.** El perfil lo escriben también los flujos del directivo; mandar el
   documento completo desde el teléfono del docente competiría con `role`, `schoolId` y `active`.
   Las reglas ya prohíben cambiarlos, y el `update()` tampoco los menciona.
@@ -1127,10 +1131,10 @@ saludo muestra su nombre real.
 - [ ] **C1** Modo avión: pase de lista completo **y** incidente con foto
 - [ ] **C2** Reconectar: ambos en Firestore, **sin duplicados**, media subida
 - [x] **C3** `assembleDebug` verde
-- [x] **C4** `testDebugUnitTest` verde (227 tests, 0 fallos; la Fase 0 tenía 61)
+- [x] **C4** `testDebugUnitTest` verde (379 tests, 0 fallos al integrar la Fase 2; la Fase 0 tenía 61)
 - [ ] **C5** `connectedDebugAndroidTest` verde en device físico
-- [ ] **C6** Reglas de Firestore y de RTDB publicadas
-- [ ] **C7** `FASE1.md` completo y `CONTEXT.md` actualizado con lo que cambió de esquema
+- [x] **C6** Reglas de Firestore, índices y reglas de RTDB publicadas con `firebase deploy --project aulasegu`
+- [x] **C7** `FASE1.md` completo y `CONTEXT.md` actualizado (Room v4 y Coil3 3.6.3)
 
 ### Evidencia mínima esperada
 

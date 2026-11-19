@@ -19,7 +19,7 @@
 | **5** — Panel | métricas reales del plantel + asistencia del día | ✅ **listo** · build verde · 246 tests |
 | **6** — Reportes | consultas por rango y agregados de asistencia | ✅ **listo** · build verde · 246 tests |
 | **7** — Bandeja de incidentes | lista real y cambio de estado | ✅ **listo** · build verde · 253 tests |
-| **8** — Configuración del plantel | radio, horario y switch escritos en `schools` | ✅ **listo** · build verde · 260 tests · `requireLocation` sin consumidor |
+| **8** — Configuración del plantel | radio, horario y switch escritos en `schools` | ✅ **listo** · build verde · `requireLocation` con consumidor en el gate (`6e83f0b`) |
 | **9** — Notificaciones | bandeja real + push manual (Spark, sin Functions) | ✅ **listo** · build verde · 271 tests · verificado |
 | **10** — Perfil de la directora | datos reales y foto en Cloudinary con Coil | ✅ **listo** · build verde · 275 tests |
 
@@ -73,15 +73,15 @@ Las reglas son contrato compartido: cualquier cambio se avisa antes de mergear.
 
 **Prerrequisitos operativos**
 
-- [ ] **P0.1** Confirmar la rama `feat/admin-usuarios` y que `main` sigue compilando
+- [x] **P0.1** Rama integrada en `main` con el merge `06e606a`; `assembleDebug` y 379 tests en verde
 - [ ] **P0.2** Decidir D1, D2, D3 y D4 y anotar la decisión en `CONTEXT.md` si cambia el contrato
 - [x] **P0.3** Regla de D1 **desplegada el 17 nov 2026**: `firebase deploy --only firestore:rules
       --project aulasegu` → `rules file compiled successfully` + `released rules to
       cloud.firestore` + `Deploy complete!`. El primer intento había dado 401; se reautenticó y
       volvió a correr. (El CLI informó `already up to date, skipping upload`: el ruleset ya
       coincidía con el archivo local.)
-- [ ] **P0.4** Verificar si `requireLocation` de `schools` tiene consumidor en el gate de GPS del
-      docente (ver Bloque 8); escribir el switch sin que nadie lo lea sería una promesa falsa
+- [x] **P0.4** `requireLocation` tiene consumidor real desde `6e83f0b`: `SchoolSite` y
+      `SchoolEntity` lo llevan y el gate de GPS del docente respeta el flag (ver «Novena continuación»)
 - [ ] **P0.5** Discrepancia de correo sin resolver: `FASE0.md` y `CONTEXT.md` documentan
       `directora@escuela.mx`, pero el dueño del proyecto indicó el 17 nov que la cuenta es
       `directora@gmail.com`. No se pudo confirmar contra Firebase: el endpoint de
@@ -561,8 +561,8 @@ del plantel con documento + push en una sola corrida.
       `w_512,h_512,c_fill,g_face,q_auto,f_auto`; iniciales si no hay foto. Sync obligatorio al
       abrir el proyecto en Android Studio
 - [x] **10.4** Logout y cierre forzado por `active = false` siguen funcionando
-- [ ] **10.5** Bloque 11 de la Fase 1 (perfil del docente) **sigue pendiente**: Coil ya está
-      disponible, pero no se tocó código del docente en esta fase
+- [x] **10.5** Bloque 11 de la Fase 1 (perfil del docente) entregado por Diego en `8728cbf`,
+      `c3eb819` y `14b508b`; integrado aquí y verificado con el merge `06e606a`
 
 **Verificación (17 nov 2026):** `assembleDebug` verde · **275 tests, 0 fallos** (eran 271) ·
 `gentle-ai review assess` = `high` por `scripts/notify/index.js` → verificador independiente
@@ -574,9 +574,9 @@ El dueño del proyecto eligió agregar la dependencia pese al peso del APK. Qued
 discrepancia histórica (la Fase 1 dejaba las fotos abriéndose en el navegador). Versión confirmada
 en la documentación oficial: **3.6.3**, con `coil-compose` y `coil-network-okhttp`.
 
-> Coil habilita el pendiente **11.4** del docente, pero **no lo cierra**: el bloque 11 de la Fase 1
-> sigue pendiente en su totalidad (datos reales, saludo y subida). No se tocó código del docente
-> en esta fase.
+> Coil habilitó el pendiente **11.4** del docente y el bloque 11 quedó cerrado por Diego con
+> `8728cbf`, `c3eb819` y `14b508b`: datos reales, saludo, foto persistida y ajustes de cuenta.
+> En esta fase no se tocó código del docente; la integración de ambas ramas ocurrió después en `main`.
 
 **Cómo probarlo**
 
@@ -882,7 +882,8 @@ por el orchestrator en `local.properties` y no se tocó en este cambio):
    `students.tutorIds` no se mantienen solos. Cada alta o asignación tiene que escribir todos
    los lados en una sola operación.
 3. **`data/` y `domain/model` los toca una sola persona a la vez** (`CONTEXT.md` §10). La Fase 1
-   terminó; si Diego sigue cerrando su bloque 11, coordinar antes de tocar esas carpetas.
+   terminó, su bloque 11 quedó entregado y ambas ramas ya conviven en `main`: aun así, coordinar
+   antes de tocar esas carpetas.
 4. **`main` siempre compila.** Un rojo bloquea al otro. `assembleDebug` y `testDebugUnitTest` en
    verde antes de cada merge, como en la Fase 1.
 5. **Spark sin Functions.** Ningún flujo de esta fase puede depender de un disparador automático:

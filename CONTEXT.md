@@ -35,7 +35,13 @@ El tutor representa a la familia. **No existe login propio de alumno** en esta v
 - Patrón de escudos global (`ShieldPattern`) y animación de entrada por bloques (`Reveal` / `Modifier.revealOnEnter`) en las pantallas de los tres roles.
 - **Todos los datos están hardcodeados** en cada archivo de pantalla (`private val sample…`, `private data class …`).
 
-### Etapa 2 — Lógica de negocio 🔜 no iniciada
+### Etapa 2 — Lógica de negocio ✅ completada (registro histórico)
+
+> Las líneas siguientes describen el punto de partida de la Fase 0 y **ya no son válidas**:
+> Firebase, Room, Cloudinary y Coil están integrados (ver §6 y §8). Se conservan como contexto.
+> El estado actual del proyecto es Fase 3 (tutor).
+
+Estado original:
 
 Nada de Firebase, Room ni Cloudinary está integrado todavía:
 
@@ -579,7 +585,11 @@ Coil apunta a la URL transformada; no se descarga el original para pintar una li
 | `NoticeEntity`, `TaskEntity` | Caché de lectura |
 | `OutboxEntity` | Cola de operaciones pendientes |
 | `ProfileEntity` | Último perfil válido de `users/{uid}`, para arrancar sin red (v2) |
-| `SchoolEntity` | Plantel con su geocerca, para evaluar el radio sin red (v3) |
+| `SchoolEntity` | Plantel con su geocerca, para evaluar el radio sin red (v3; `requireLocation` desde v4) |
+
+La base está en **`version = 4`** con `MIGRATION_1_2`, `MIGRATION_2_3` y `MIGRATION_3_4` (esta
+última añade `requireLocation`, con default `true`). No hay `fallbackToDestructiveMigration`.
+El perfil del docente no participa en el cambio: `photoPublicId` vive solo en Firestore.
 
 `syncState`: `PENDING` → `SYNCING` → `SYNCED` | `FAILED`.
 `uploadState` (media): `PENDING` → `UPLOADING` → `UPLOADED` | `FAILED`.

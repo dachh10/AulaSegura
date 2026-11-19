@@ -4,10 +4,10 @@ Actualizado: 18 nov 2026. Este archivo existe para retomar el trabajo en otra su
 
 ## Estado del repo
 
-- Rama de trabajo: `main`, 5 commits adelante de `origin/main` (`cdd438e`): no se subió nada. `origin/feat/docente-pase-lista` se quedó en `f44ad9d` (falta subirla).
-- Últimos commits: `fa793c0` B13 · `6e3dda0` B14 · `ddedc2a` handoff · `cdd438e` B15 · `7164572` B12.
-- Trabajo sin commitear: nada, salvo `.atl/` (ignorado).
-- **Pendiente de decisión del dueño:** `main` se subió sin autorización explícita en esa sesión. Las opciones son dejarlo (recomendado), revertir con `git revert` + push, o forzar `main` a `f44ad9d` (no recomendado). No hacer nada de esto sin que lo pida.
+- Rama de trabajo: `main` en `06e606a`, **alineada con `origin/main`** (divergencia `0 0`). La Fase 2 de Evelyn se integró con el merge `06e606a` y se subió con autorización explícita del dueño.
+- Últimos commits: `06e606a` merge Fase 2 · `6e83f0b` `requireLocation` en el gate · `5db16ce` docs Fase 2 · `1a12dba` merge de la Fase 1 · `5abbb22` Fase 2 directiva.
+- Trabajo sin commitear: nada, salvo `.atl/` (sin trackear, preexistente).
+- Backup del `main` anterior al merge: `backup/main-pre-admin-merge` (`8322862`).
 
 ## Verificación obligatoria
 
@@ -15,7 +15,7 @@ Actualizado: 18 nov 2026. Este archivo existe para retomar el trabajo en otra su
 ./gradlew :app:assembleDebug :app:testDebugUnitTest --console=plain
 ```
 
-Estado al escribir esto: **BUILD SUCCESSFUL · 274 tests · 0 fallos**. Un bloque no se cierra con build rojo ni con tests en rojo. No hay dispositivo conectado en este entorno: las pruebas en teléfono las corre el dueño, y hay que decirlo en el cierre.
+Estado tras integrar la Fase 2: **BUILD SUCCESSFUL · 379 tests · 0 fallos** (52 suites). Un bloque no se cierra con build rojo ni con tests en rojo. El dueño conectó su teléfono por USB con depuración, pero las pruebas en dispositivo siguen siendo suyas: el agente no opera ese dispositivo y hay que decirlo en el cierre.
 
 Conteo de tests, si hace falta:
 
@@ -41,7 +41,7 @@ grep -h -o 'tests="[0-9]*" skipped="[0-9]*" failures="[0-9]*" errors="[0-9]*"' a
 |---|---|---|---|
 | B17 | Perfil según Stitch | Convertir los diálogos de editar perfil y cambiar contraseña en pantallas con el diseño de Stitch. La lógica ya es real (nombre/materias en `users/{uid}`, contraseña con reautenticación). | **código de Stitch**: "Editar Perfil (Docente)", "Cambiar contraseña" |
 
-La Fase 2 (directivo) la lleva Evelyn en su rama; no tocar sus archivos sin coordinar. Sus reglas de Firestore son compartidas: cuando ella publique las nuevas, revisar que sigan pasando los flujos del docente (bandeja, `fcmTokens`, `attendanceSessions`).
+La Fase 2 (directivo) de Evelyn ya está integrada en `main` (`06e606a`). Reglas de Firestore, índices y reglas de RTDB publicados con `firebase deploy`. Al tocar esos archivos, revisar que sigan pasando los flujos del docente (bandeja, `fcmTokens`, `attendanceSessions`).
 
 ## Decisiones que no hay que reabrir sin motivo
 

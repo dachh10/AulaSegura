@@ -37,15 +37,15 @@ La consulta del directivo es `whereEqualTo('studentId', id)`. Agregarle `resourc
 - **`linkingCodes` `get` está abierto a cualquier autenticado**: es el canje. No hay límite de intentos (no hay Cloud Functions en Spark).
 - **Una sola escuela.** Varias reglas se apoyan en que `schoolId` es único en la práctica.
 
-## Cómo se valida
+## Cómo se validó
 
-No hay pruebas automáticas de reglas en el repo (no hay emulador ni `@firebase/rules-unit-testing`). La verificación es:
+No hay pruebas automáticas de reglas en el repo (no hay emulador ni `@firebase/rules-unit-testing`).
 
-```bash
-firebase deploy --only firestore:rules --project aulasegu
-```
+**Publicado el 19 nov 2026** con `firebase deploy --only firestore:rules --project aulasegu`: Firebase compiló el archivo sin errores (`rules file docs/firestore.rules compiled successfully`) y lo liberó en `cloud.firestore`. El `compile` es la única verificación de sintaxis que existe aquí; las condiciones se probaron con flujos reales.
 
-Y en el playground de la consola, con tokens reales, los cuatro casos que estas reglas deciden:
+**Probado por el dueño en el teléfono, con las reglas ya activas, y todo pasó:** panel de la directora con el conteo de sesiones correcto · el docente publica un aviso al grupo (la regla nueva no estorba) · el tutor edita su nombre y su foto · los incidentes del hijo cargan y "Enterado" escribe `seenByTutorIds` · el directivo abre "ver código" de un alumno.
+
+Los cuatro casos que estas reglas deciden, por si hay que repetirlos en el playground con tokens reales:
 
 1. Tutor edita su propio `fullName` → permitido; tutor intenta escribir `groupIds` → denegado.
 2. Docente publica un aviso con `audience.roles: ['tutor']` y su grupo → permitido; con `['docente']` → denegado.

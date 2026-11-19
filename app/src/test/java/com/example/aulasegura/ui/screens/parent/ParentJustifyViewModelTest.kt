@@ -8,10 +8,14 @@ import com.example.aulasegura.domain.model.ParentDayAttendance
 import com.example.aulasegura.domain.model.ParentMonthAttendance
 import com.example.aulasegura.domain.repository.JustificationRepository
 import com.example.aulasegura.domain.repository.JustificationResult
+import com.example.aulasegura.domain.repository.NoticeReadResult
 import com.example.aulasegura.domain.repository.ParentChildrenResult
 import com.example.aulasegura.domain.repository.ParentHomeResult
 import com.example.aulasegura.domain.repository.ParentMonthResult
+import com.example.aulasegura.domain.repository.ParentNoticesResult
 import com.example.aulasegura.domain.repository.ParentRepository
+import com.example.aulasegura.domain.repository.ParentTaskResult
+import com.example.aulasegura.domain.repository.ParentTasksResult
 import com.example.aulasegura.domain.repository.RosterFailure
 import com.example.aulasegura.util.AttendanceTimes
 import java.util.Calendar
@@ -293,6 +297,15 @@ private class FakeParentRepository(
     }
 
     override suspend fun loadHome(): ParentHomeResult = ParentHomeResult.Loaded(emptyList())
+
+    override suspend fun loadTasks(child: ParentChild): ParentTasksResult =
+        ParentTasksResult.Loaded(emptyList())
+
+    override suspend fun loadTask(taskId: String): ParentTaskResult = ParentTaskResult.NotFound
+
+    override suspend fun loadNotices(): ParentNoticesResult = ParentNoticesResult.Loaded(emptyList())
+
+    override suspend fun markNoticeRead(noticeId: String): NoticeReadResult = NoticeReadResult.Marked
 }
 
 private val CHILD = ParentChild(

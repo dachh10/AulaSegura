@@ -375,8 +375,16 @@ service cloud.firestore {
         (isDocente()
           && resource.data.audience.roles.hasAny(['docente'])
           && resource.data.audience.groupIds.hasAny(myGroups())) ||
+        // The tutor's inbox is ONE list query:
+        //   notices.whereArrayContains('audience.groupIds', g)
+        // Firestore proves a list query only from its own constraints and allows
+        // a single array-contains per query, so `audience.roles` must NOT be a
+        // condition here: it cannot be proven from that query and the whole read
+        // would be denied. Group scoping -- the boundary that keeps another
+        // family's notices out -- is untouched. The `tutor` audience check lives
+        // in the client (`parentNoticeFrom`) and the teacher panel only publishes
+        // to `['tutor']`, so no notice addressed to staff is shown to a family.
         (isTutor()
-          && resource.data.audience.roles.hasAny(['tutor'])
           && (
             resource.data.audience.groupIds.hasAny(myGroups()) ||
             resource.data.audience.studentIds.hasAny(myStudents())

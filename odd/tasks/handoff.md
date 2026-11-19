@@ -9,13 +9,14 @@ Cerrar el **flujo completo de la app** para la demo:
 > La directora da de alta docentes y alumnos → el docente pasa lista, reporta incidentes y publica tareas/avisos → el padre se registra con el código de su hijo y entra a las pantallas del tutor, donde ve **todo lo de su propio hijo**.
 
 Estamos en la **Fase 3 (tutor/familias)**, bloque por bloque, en este orden acordado:
-`3.4 ✅ → 3.6 → 3.5 → 3.10 → 3.9 → 3.7 → 3.8`.
+`3.4 ✅ → 3.5 ✅ → 3.6 → 3.10 → 3.9 → 3.7 → 3.8`.
 
 Regla de trabajo: cada bloque termina con `assembleDebug` + `testDebugUnitTest` en verde, su logbook en `odd/tasks/` y un commit. **El dueño prueba en el teléfono al cerrar cada bloque**; sin dispositivo conectado, el agente no puede validar UI.
 
 ## 2. Estado del repo
 
-- `main` en `32c7d9f` (`feat(tutor): justificar faltas reales con comprobante en Cloudinary`), alineado con `origin/main`.
+- `main` en `9298941` (`feat(tutor): tareas y avisos reales con marca de leído`), un commit **sin push** encima de `32c7d9f`.
+- **`docs/firestore.rules` cambió** (rama del tutor en `notices`) pero **no está publicado**: falta `firebase deploy --only firestore:rules --project aulasegu`. Mientras no se publique, la bandeja de avisos del tutor falla en el teléfono; tareas y su detalle funcionan igual.
 - Nada sin commitear salvo `.atl/` (caché de una herramienta, no del proyecto; no se versiona).
 - Fase 1 (docente) y Fase 2 (directivo) ya integradas en `main`.
 
@@ -26,7 +27,7 @@ export JAVA_HOME="/c/Program Files/Android/Android Studio/jbr"
 ./gradlew.bat :app:cleanTestDebugUnitTest :app:testDebugUnitTest :app:assembleDebug --console=plain --offline
 ```
 
-Estado último: **BUILD SUCCESSFUL · 59 suites · 436 tests · 0 fallos**.
+Estado último: **BUILD SUCCESSFUL · 63 suites · 469 tests · 0 fallos**.
 
 El `java` del PATH es JDK 20 y rompe Gradle: siempre fijar `JAVA_HOME` al JBR de Android Studio.
 
@@ -37,15 +38,15 @@ El `java` del PATH es JDK 20 y rompe Gradle: siempre fijar `JAVA_HOME` al JBR de
 | **3.1** | Registro **solo del tutor** con código de 6 caracteres + vinculación atómica | ✅ hecho. Reglas publicadas en `aulasegu` |
 | **3.2** | Inicio del tutor con resumen real de los hijos | ✅ hecho (`3362f3e`) |
 | **3.3** | Asistencia: calendario desde `attendanceSessions` + `records` | ✅ hecho |
-| **3.4** | Justificar falta con adjunto en Cloudinary | ✅ **cerrado hoy** (`32c7d9f`) · falta probarlo en teléfono |
+| **3.4** | Justificar falta con adjunto en Cloudinary | ✅ cerrado (`32c7d9f`) · falta probarlo en teléfono |
 | **3.6** | Incidentes de sus hijos + marcar visto | ⏭️ **siguiente** (sigue con `sampleIncidents()`) |
-| **3.5** | Tareas y avisos reales, con marca de leído | pendiente (`sampleTasks()`, `sampleNotices()`) |
+| **3.5** | Tareas y avisos reales, con marca de leído | ✅ **cerrado** · tareas, detalle y bandeja con `noticeReads` · regla pendiente de publicar |
 | **3.10** | Perfil del tutor y foto | pendiente (copiar el patrón de `TeacherProfileViewModel`) |
 | **3.9** | Notificaciones del tutor (bandeja real) | pendiente (`sampleNotifications()`) |
 | **3.7** | Chat con el docente del grupo (RTDB) | pendiente (`sampleConversations()`) |
 | **3.8** | Asistente IA (AI Logic, Gemini Developer API) | pendiente |
 
-Importante: la lista de hijos ya es real (`ParentRepository.loadChildren`), pero **todo lo demás del tutor sigue con datos inventados**, incluidas tareas, avisos, incidentes y notificaciones que no son de su hijo. Ese es el hueco que queda para la demo.
+Importante: la lista de hijos, la asistencia, el justificante, las tareas y los avisos ya son reales (`ParentRepository`). Lo que sigue inventado en el tutor son **incidentes** (`sampleIncidents()`), **notificaciones** (`sampleNotifications()`) y **chat** (`sampleConversations()`), además del perfil (3.10) y el asistente (3.8). Ese es el hueco que queda para la demo.
 
 ## 4. Lo que ya está resuelto del lado directivo (no tocar)
 
@@ -64,13 +65,18 @@ Importante: la lista de hijos ya es real (`ParentRepository.loadChildren`), pero
 - **3.4 — adjunto**: se copia a `filesDir` (`justification-attachments/`), se comprime si es imagen y se encola en la outbox (`UPSERT_JUSTIFICATION`). `JustificationSyncHandler` **sube primero a Cloudinary**, guarda la URL en el `payloadJson` y solo entonces hace `set()` del documento. Si el archivo ya no está, el justificante se registra sin evidencia. No hay entidad Room nueva (base en `version = 4`).
 - **3.4 — motivos**: el schema manda `enfermedad | cita | viaje | otro`; "Asunto familiar" se guarda como `otro`, se distingue por la descripción. Límite conocido.
 - **Sin Cloud Functions (Spark)**: no hay push automático ni triggers; los push se mandan desde la consola o `scripts/notify`.
+- **3.5 — tareas**: lista por `groupIds` y detalle por id; secciones por fecha de entrega. `active = false` se descarta en la lista. El chip **Entregadas queda vacío** porque `tasks` no tiene estado por alumno y el schema no registra entregas: no se inventa. Se quitó el botón “Marcar como vista” del detalle (no hay colección de leídos para tareas).
+- **3.5 — avisos**: la bandeja lee por grupo y marca leído en `users/{uid}/noticeReads/{noticeId}` (`readAt`, idempotente). Si leer los leídos falla, los avisos se muestran como no leídos; si escribir la marca falla, se revierte y se avisa en pantalla.
+- **3.5 — regla de avisos**: Firestore permite **un solo `array-contains`** por consulta y prueba las listas sólo con sus filtros, así que la rama del tutor en `notices` ya no exige `audience.roles` (lo filtra el cliente, `parentNoticeFrom`) y conserva el alcance por grupo. Es la única relajación de este bloque y está comentada en `docs/firestore.rules`.
 - **Idioma**: UI en español neutro mexicano (tú), código e identificadores en inglés.
 
 ## 6. Pendiente de humano
 
-1. **Probar el 3.4 en el teléfono**: falta marcada por el docente → padre toca el día → justifica con foto o PDF → revisar `justifications/{uuid}` en la consola (`status: "pendiente"`, `dateFrom` = día de la falta, `attachment.url` de Cloudinary). Repetir en modo avión.
-2. Comprobar la cuenta real de la directora (hay una discrepancia sin resolver entre `directora@escuela.mx` y `directora@gmail.com` en la documentación).
-3. Probar el flujo completo de la demo con las tres cuentas.
+1. **Publicar reglas**: `firebase deploy --only firestore:rules --project aulasegu`. Sin esto la bandeja de avisos del tutor responde `PERMISSION_DENIED`.
+2. **Probar el 3.5 en el teléfono**: el docente publica una tarea con PDF y un aviso al grupo → el tutor ve la tarea y abre el PDF; en Avisos el badge baja al tocar y `users/{tutorUid}/noticeReads/{noticeId}` aparece con `readAt`; al reentrar el badge ya no lo cuenta. Repetir la bandeja en modo avión (debe ofrecer Reintentar).
+3. **Probar el 3.4 en el teléfono**: falta marcada por el docente → padre toca el día → justifica con foto o PDF → revisar `justifications/{uuid}` en la consola (`status: "pendiente"`, `dateFrom` = día de la falta, `attachment.url` de Cloudinary). Repetir en modo avión.
+4. Comprobar la cuenta real de la directora (hay una discrepancia sin resolver entre `directora@escuela.mx` y `directora@gmail.com` en la documentación).
+5. Probar el flujo completo de la demo con las tres cuentas.
 
 ## 7. Datos de prueba
 

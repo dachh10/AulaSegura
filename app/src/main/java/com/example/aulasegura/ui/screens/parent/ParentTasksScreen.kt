@@ -23,31 +23,23 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.Error
 import androidx.compose.material.icons.outlined.Alarm
 import androidx.compose.material.icons.outlined.AttachFile
-import androidx.compose.material.icons.outlined.AutoStories
-import androidx.compose.material.icons.outlined.Biotech
 import androidx.compose.material.icons.outlined.CalendarToday
-import androidx.compose.material.icons.outlined.Calculate
 import androidx.compose.material.icons.outlined.History
-import androidx.compose.material.icons.outlined.HistoryEdu
 import androidx.compose.material.icons.outlined.Inbox
 import androidx.compose.material.icons.outlined.School
-import androidx.compose.material.icons.outlined.TaskAlt
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -57,6 +49,7 @@ import com.example.aulasegura.ui.components.ParentTab
 import com.example.aulasegura.ui.components.StudentPill
 import com.example.aulasegura.ui.components.rememberPressScale
 import com.example.aulasegura.ui.screens.access.Reveal
+import com.example.aulasegura.ui.theme.BrandCoral
 import com.example.aulasegura.ui.theme.BricolageGrotesque
 import com.example.aulasegura.ui.theme.DmSans
 import com.example.aulasegura.ui.theme.JetBrainsMono
@@ -81,109 +74,25 @@ private val Emerald200 = Color(0xFFA7F3D0)
 private val Emerald700 = Color(0xFF047857)
 private val Emerald800 = Color(0xFF065F46)
 private val Amber50 = Color(0xFFFFFBEB)
-private val Amber100 = Color(0xFFFEF3C7)
 private val Amber200 = Color(0xFFFDE68A)
 private val Amber700 = Color(0xFFB45309)
-private val Amber900 = Color(0xFF78350F)
+private val CoralTint = Color(0xFFFFEBE8)
 
-private enum class TaskFilter(val label: String) {
-    Pendientes("Pendientes"),
-    Entregadas("Entregadas"),
-    Vencidas("Vencidas"),
-    Todas("Todas"),
-}
-
-private enum class TaskStatus { Pending, Delivered }
-
-private sealed interface FooterLeft {
-    data class Teacher(val name: String) : FooterLeft
-    data class Plain(val text: String) : FooterLeft
-    data class Attachment(val name: String) : FooterLeft
-    data class Reviewed(val text: String) : FooterLeft
-}
-
-private data class SubjectTask(
-    val subject: String,
-    val title: String,
-    val icon: ImageVector,
-    val iconBackground: Color,
-    val iconTint: Color,
-    val footerLeft: FooterLeft,
-    val footerRight: String,
-    val footerRightIcon: ImageVector,
-    val footerRightColor: Color,
-    val footerRightIconColor: Color,
-    val status: TaskStatus,
-    val section: String,
-)
-
-private fun sampleTasks(): List<SubjectTask> = listOf(
-    SubjectTask(
-        subject = "Matemáticas",
-        title = "Fracciones, ejercicios 1-10",
-        icon = Icons.Outlined.Calculate,
-        iconBackground = SecondaryFixed,
-        iconTint = Secondary,
-        footerLeft = FooterLeft.Teacher("Prof. Ricardo Salinas"),
-        footerRight = "Mañana, 08:00",
-        footerRightIcon = Icons.Outlined.Alarm,
-        footerRightColor = SecondaryContainer,
-        footerRightIconColor = SecondaryContainer,
-        status = TaskStatus.Pending,
-        section = "PARA MAÑANA",
-    ),
-    SubjectTask(
-        subject = "Español",
-        title = "Resumen del cuento 'La Luna'",
-        icon = Icons.Outlined.AutoStories,
-        iconBackground = PrimaryFixed,
-        iconTint = PrimaryContainer,
-        footerLeft = FooterLeft.Plain("Lectura comprensiva"),
-        footerRight = "Vie 7 nov",
-        footerRightIcon = Icons.Outlined.CalendarToday,
-        footerRightColor = OnSurfaceVariant,
-        footerRightIconColor = Outline,
-        status = TaskStatus.Pending,
-        section = "ESTA SEMANA",
-    ),
-    SubjectTask(
-        subject = "Ciencias",
-        title = "Maqueta del sistema solar",
-        icon = Icons.Outlined.Biotech,
-        iconBackground = Emerald50,
-        iconTint = Emerald800,
-        footerLeft = FooterLeft.Attachment("Guía_Maqueta.pdf"),
-        footerRight = "Lun 10 nov",
-        footerRightIcon = Icons.Outlined.CalendarToday,
-        footerRightColor = OnSurfaceVariant,
-        footerRightIconColor = Outline,
-        status = TaskStatus.Pending,
-        section = "ESTA SEMANA",
-    ),
-    SubjectTask(
-        subject = "Historia",
-        title = "Línea del tiempo",
-        icon = Icons.Outlined.HistoryEdu,
-        iconBackground = Amber100.copy(alpha = 0.5f),
-        iconTint = Amber900,
-        footerLeft = FooterLeft.Reviewed("Revisada por docente"),
-        footerRight = "Entregada ayer",
-        footerRightIcon = Icons.Outlined.History,
-        footerRightColor = Outline,
-        footerRightIconColor = Outline,
-        status = TaskStatus.Delivered,
-        section = "ESTA SEMANA",
-    ),
-)
-
+/**
+ * The tasks the school published for the child on screen.
+ *
+ * Nothing here depends on a task being handed in: `tasks/{id}` has no per-student
+ * state, so the only two states a card can paint are "Pendiente" and "Vencida".
+ */
 @Composable
 fun ParentTasksScreen(
-    onOpenTask: () -> Unit,
+    ui: ParentTasksUiState,
+    onOpenTask: (String) -> Unit,
+    onSelectFilter: (ParentTaskFilter) -> Unit,
+    onCycleChild: () -> Unit,
+    onRetry: () -> Unit,
     onSelectTab: (ParentTab) -> Unit,
 ) {
-    var filter by remember { mutableStateOf(TaskFilter.Pendientes) }
-    val tasks = remember { sampleTasks() }
-
     Box(
         modifier = Modifier
             .fillMaxSize()
@@ -196,12 +105,28 @@ fun ParentTasksScreen(
                 .statusBarsPadding()
                 .padding(bottom = 104.dp),
         ) {
-            Reveal(0) { TasksTopBar() }
-            Reveal(60) {
-                FilterRow(selected = filter, onSelect = { filter = it })
-            }
-            Reveal(120) {
-                TaskList(filter = filter, tasks = tasks, onOpenTask = onOpenTask)
+            when (ui) {
+                is ParentTasksUiState.Loaded -> {
+                    Reveal(0) {
+                        TasksTopBar(
+                            childName = ui.childName,
+                            groupLabel = ui.groupLabel,
+                            childCount = ui.childCount,
+                            onCycleChild = onCycleChild,
+                        )
+                    }
+                    Reveal(60) {
+                        FilterRow(selected = ui.filter, onSelect = onSelectFilter)
+                    }
+                    Reveal(120) {
+                        TaskList(ui = ui, onOpenTask = onOpenTask)
+                    }
+                }
+
+                else -> {
+                    Reveal(0) { TasksTopBar() }
+                    Reveal(60) { TasksPlaceholder(ui = ui, onRetry = onRetry) }
+                }
             }
         }
 
@@ -214,7 +139,12 @@ fun ParentTasksScreen(
 }
 
 @Composable
-private fun TasksTopBar() {
+private fun TasksTopBar(
+    childName: String? = null,
+    groupLabel: String = "",
+    childCount: Int = 0,
+    onCycleChild: () -> Unit = {},
+) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -232,14 +162,20 @@ private fun TasksTopBar() {
             lineHeight = 32.sp,
             letterSpacing = (-0.5).sp,
         )
-        StudentPill(name = "Mariana", grade = "3° B")
+        if (childName != null) {
+            StudentPill(
+                name = childName,
+                grade = groupLabel,
+                onClick = if (childCount > 1) onCycleChild else ({}),
+            )
+        }
     }
 }
 
 @Composable
 private fun FilterRow(
-    selected: TaskFilter,
-    onSelect: (TaskFilter) -> Unit,
+    selected: ParentTaskFilter,
+    onSelect: (ParentTaskFilter) -> Unit,
 ) {
     Row(
         modifier = Modifier
@@ -248,7 +184,7 @@ private fun FilterRow(
             .padding(horizontal = 16.dp, vertical = 4.dp),
         horizontalArrangement = Arrangement.spacedBy(8.dp),
     ) {
-        TaskFilter.entries.forEach { filter ->
+        ParentTaskFilter.entries.forEach { filter ->
             FilterChip(
                 label = filter.label,
                 selected = filter == selected,
@@ -304,19 +240,11 @@ private fun FilterChip(
 
 @Composable
 private fun TaskList(
-    filter: TaskFilter,
-    tasks: List<SubjectTask>,
-    onOpenTask: () -> Unit,
+    ui: ParentTasksUiState.Loaded,
+    onOpenTask: (String) -> Unit,
 ) {
-    val visible = when (filter) {
-        TaskFilter.Pendientes -> tasks.filter { it.status == TaskStatus.Pending }
-        TaskFilter.Entregadas -> tasks.filter { it.status == TaskStatus.Delivered }
-        TaskFilter.Vencidas -> emptyList()
-        TaskFilter.Todas -> tasks
-    }
-
-    if (visible.isEmpty()) {
-        EmptyTasks()
+    if (ui.sections.isEmpty()) {
+        EmptyTasks(message = ui.emptyMessage)
         return
     }
 
@@ -326,17 +254,14 @@ private fun TaskList(
             .padding(horizontal = 16.dp, vertical = 12.dp),
         verticalArrangement = Arrangement.spacedBy(20.dp),
     ) {
-        listOf("PARA MAÑANA", "ESTA SEMANA").forEach { section ->
-            val sectionTasks = visible.filter { it.section == section }
-            if (sectionTasks.isNotEmpty()) {
-                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                    SectionHeader(
-                        label = section,
-                        count = sectionTasks.size,
+        ui.sections.forEach { section ->
+            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                SectionHeader(label = section.label, count = section.tasks.size)
+                section.tasks.forEach { task ->
+                    TaskCard(
+                        task = task,
+                        onClick = { onOpenTask(task.taskId) },
                     )
-                    sectionTasks.forEach { task ->
-                        TaskCard(task = task, onClick = onOpenTask)
-                    }
                 }
             }
         }
@@ -368,7 +293,7 @@ private fun SectionHeader(label: String, count: Int) {
 }
 
 @Composable
-private fun TaskCard(task: SubjectTask, onClick: () -> Unit) {
+private fun TaskCard(task: ParentTaskRowUi, onClick: () -> Unit) {
     val (interaction, pressModifier) = rememberPressScale(0.99f)
     Column(
         modifier = pressModifier
@@ -385,28 +310,30 @@ private fun TaskCard(task: SubjectTask, onClick: () -> Unit) {
                     modifier = Modifier
                         .size(40.dp)
                         .clip(RoundedCornerShape(16.dp))
-                        .background(task.iconBackground),
+                        .background(if (task.overdue) CoralTint else SecondaryFixed),
                     contentAlignment = Alignment.Center,
                 ) {
                     Icon(
-                        imageVector = task.icon,
+                        imageVector = Icons.Outlined.School,
                         contentDescription = null,
-                        tint = task.iconTint,
+                        tint = if (task.overdue) BrandCoral else Secondary,
                         modifier = Modifier.size(20.dp),
                     )
                 }
                 Spacer(Modifier.width(12.dp))
                 Column {
-                    Text(
-                        text = task.subject,
-                        color = SecondaryContainer,
-                        fontFamily = DmSans,
-                        fontWeight = FontWeight.SemiBold,
-                        fontSize = 12.sp,
-                        letterSpacing = 0.4.sp,
-                        lineHeight = 12.sp,
-                    )
-                    Spacer(Modifier.height(3.dp))
+                    if (task.subject.isNotBlank()) {
+                        Text(
+                            text = task.subject,
+                            color = SecondaryContainer,
+                            fontFamily = DmSans,
+                            fontWeight = FontWeight.SemiBold,
+                            fontSize = 12.sp,
+                            letterSpacing = 0.4.sp,
+                            lineHeight = 12.sp,
+                        )
+                        Spacer(Modifier.height(3.dp))
+                    }
                     Text(
                         text = task.title,
                         color = OnSurface,
@@ -420,7 +347,7 @@ private fun TaskCard(task: SubjectTask, onClick: () -> Unit) {
                 }
             }
             Spacer(Modifier.width(8.dp))
-            StatusChip(status = task.status)
+            StatusChip(overdue = task.overdue)
         }
 
         Spacer(Modifier.height(12.dp))
@@ -432,19 +359,35 @@ private fun TaskCard(task: SubjectTask, onClick: () -> Unit) {
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            FooterLeftContent(footer = task.footerLeft, modifier = Modifier.weight(1f))
+            FooterLeft(
+                attachmentName = task.attachmentName,
+                teacher = task.teacher,
+                modifier = Modifier.weight(1f),
+            )
             Spacer(Modifier.width(8.dp))
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Icon(
-                    imageVector = task.footerRightIcon,
+                    imageVector = when {
+                        task.overdue -> Icons.Outlined.History
+                        task.dueSoon -> Icons.Outlined.Alarm
+                        else -> Icons.Outlined.CalendarToday
+                    },
                     contentDescription = null,
-                    tint = task.footerRightIconColor,
+                    tint = when {
+                        task.overdue -> BrandCoral
+                        task.dueSoon -> Amber700
+                        else -> Outline
+                    },
                     modifier = Modifier.size(14.dp),
                 )
                 Spacer(Modifier.width(4.dp))
                 Text(
-                    text = task.footerRight,
-                    color = task.footerRightColor,
+                    text = task.dueLabel,
+                    color = when {
+                        task.overdue -> BrandCoral
+                        task.dueSoon -> Amber700
+                        else -> OnSurfaceVariant
+                    },
                     fontFamily = JetBrainsMono,
                     fontWeight = FontWeight.Medium,
                     fontSize = 11.sp,
@@ -454,41 +397,18 @@ private fun TaskCard(task: SubjectTask, onClick: () -> Unit) {
     }
 }
 
+/**
+ * The attached PDF wins over the author name: it is the one detail the tutor
+ * needs before opening the task, and the detail screen already names the teacher.
+ */
 @Composable
-private fun FooterLeftContent(footer: FooterLeft, modifier: Modifier = Modifier) {
-    when (footer) {
-        is FooterLeft.Teacher -> Row(
-            modifier = modifier,
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Icon(
-                imageVector = Icons.Outlined.School,
-                contentDescription = null,
-                tint = Outline,
-                modifier = Modifier.size(16.dp),
-            )
-            Spacer(Modifier.width(6.dp))
-            Text(
-                text = footer.name,
-                color = Outline,
-                fontFamily = DmSans,
-                fontSize = 11.sp,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
-        }
-
-        is FooterLeft.Plain -> Text(
-            text = footer.text,
-            color = Outline,
-            fontFamily = DmSans,
-            fontSize = 11.sp,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-            modifier = modifier,
-        )
-
-        is FooterLeft.Attachment -> Row(
+private fun FooterLeft(
+    attachmentName: String?,
+    teacher: String,
+    modifier: Modifier = Modifier,
+) {
+    if (attachmentName != null) {
+        Row(
             modifier = modifier
                 .clip(CircleShape)
                 .background(PrimaryFixed.copy(alpha = 0.4f))
@@ -503,7 +423,7 @@ private fun FooterLeftContent(footer: FooterLeft, modifier: Modifier = Modifier)
             )
             Spacer(Modifier.width(4.dp))
             Text(
-                text = footer.name,
+                text = attachmentName,
                 color = PrimaryContainer,
                 fontFamily = DmSans,
                 fontWeight = FontWeight.Medium,
@@ -512,34 +432,33 @@ private fun FooterLeftContent(footer: FooterLeft, modifier: Modifier = Modifier)
                 overflow = TextOverflow.Ellipsis,
             )
         }
+        return
+    }
 
-        is FooterLeft.Reviewed -> Row(
-            modifier = modifier,
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Icon(
-                imageVector = Icons.Outlined.TaskAlt,
-                contentDescription = null,
-                tint = Emerald700,
-                modifier = Modifier.size(14.dp),
-            )
-            Spacer(Modifier.width(4.dp))
-            Text(
-                text = footer.text,
-                color = Emerald700,
-                fontFamily = DmSans,
-                fontWeight = FontWeight.Medium,
-                fontSize = 11.sp,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
-        }
+    if (teacher.isBlank()) return
+
+    Row(modifier = modifier, verticalAlignment = Alignment.CenterVertically) {
+        Icon(
+            imageVector = Icons.Outlined.School,
+            contentDescription = null,
+            tint = Outline,
+            modifier = Modifier.size(16.dp),
+        )
+        Spacer(Modifier.width(6.dp))
+        Text(
+            text = teacher,
+            color = Outline,
+            fontFamily = DmSans,
+            fontSize = 11.sp,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+        )
     }
 }
 
 @Composable
-private fun StatusChip(status: TaskStatus) {
-    if (status == TaskStatus.Pending) {
+private fun StatusChip(overdue: Boolean) {
+    if (!overdue) {
         Box(
             modifier = Modifier
                 .clip(CircleShape)
@@ -555,35 +474,36 @@ private fun StatusChip(status: TaskStatus) {
                 fontSize = 11.sp,
             )
         }
-    } else {
-        Row(
-            modifier = Modifier
-                .clip(CircleShape)
-                .background(Emerald50)
-                .border(1.dp, Emerald200.copy(alpha = 0.6f), CircleShape)
-                .padding(horizontal = 10.dp, vertical = 2.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Icon(
-                imageVector = Icons.Filled.Check,
-                contentDescription = null,
-                tint = Emerald800,
-                modifier = Modifier.size(13.dp),
-            )
-            Spacer(Modifier.width(2.dp))
-            Text(
-                text = "Entregada",
-                color = Emerald800,
-                fontFamily = DmSans,
-                fontWeight = FontWeight.SemiBold,
-                fontSize = 11.sp,
-            )
-        }
+        return
+    }
+
+    Row(
+        modifier = Modifier
+            .clip(CircleShape)
+            .background(CoralTint)
+            .border(1.dp, BrandCoral.copy(alpha = 0.2f), CircleShape)
+            .padding(horizontal = 10.dp, vertical = 2.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Icon(
+            imageVector = Icons.Filled.Error,
+            contentDescription = null,
+            tint = BrandCoral,
+            modifier = Modifier.size(13.dp),
+        )
+        Spacer(Modifier.width(2.dp))
+        Text(
+            text = "Vencida",
+            color = BrandCoral,
+            fontFamily = DmSans,
+            fontWeight = FontWeight.SemiBold,
+            fontSize = 11.sp,
+        )
     }
 }
 
 @Composable
-private fun EmptyTasks() {
+private fun EmptyTasks(message: String) {
     Column(
         modifier = Modifier
             .fillMaxWidth()
@@ -614,10 +534,97 @@ private fun EmptyTasks() {
         )
         Spacer(Modifier.height(4.dp))
         Text(
-            text = "Cuando haya novedades aparecerán aquí.",
+            text = message,
             color = OnSurfaceVariant,
             fontFamily = DmSans,
             fontSize = 12.sp,
+        )
+    }
+}
+
+/** Loading, no linked child, or a failed read. */
+@Composable
+private fun TasksPlaceholder(ui: ParentTasksUiState, onRetry: () -> Unit) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp)
+            .padding(top = 8.dp)
+            .clip(RoundedCornerShape(24.dp))
+            .background(SurfaceContainerLowest)
+            .border(1.dp, OutlineVariant.copy(alpha = 0.5f), RoundedCornerShape(24.dp))
+            .padding(20.dp),
+    ) {
+        when (ui) {
+            ParentTasksUiState.Loading -> Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(vertical = 32.dp),
+                contentAlignment = Alignment.Center,
+            ) {
+                CircularProgressIndicator(color = PrimaryContainer)
+            }
+
+            ParentTasksUiState.NoChildren -> {
+                Text(
+                    text = "Aún no hay hijos vinculados",
+                    color = PrimaryContainer,
+                    fontFamily = BricolageGrotesque,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 18.sp,
+                )
+                Spacer(Modifier.height(6.dp))
+                Text(
+                    text = "Pide a la escuela el código del alumno y regístrate de nuevo " +
+                        "para ver sus tareas.",
+                    color = OnSurfaceVariant,
+                    fontFamily = DmSans,
+                    fontSize = 13.sp,
+                    lineHeight = 18.sp,
+                )
+            }
+
+            is ParentTasksUiState.Failed -> {
+                Text(
+                    text = "No se pudieron cargar",
+                    color = PrimaryContainer,
+                    fontFamily = BricolageGrotesque,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 18.sp,
+                )
+                Spacer(Modifier.height(6.dp))
+                Text(
+                    text = ui.message,
+                    color = OnSurfaceVariant,
+                    fontFamily = DmSans,
+                    fontSize = 13.sp,
+                    lineHeight = 18.sp,
+                )
+                Spacer(Modifier.height(14.dp))
+                RetryButton(onRetry = onRetry)
+            }
+
+            is ParentTasksUiState.Loaded -> Unit
+        }
+    }
+}
+
+@Composable
+private fun RetryButton(onRetry: () -> Unit) {
+    val (interaction, pressModifier) = rememberPressScale(0.95f)
+    Box(
+        modifier = pressModifier
+            .clip(CircleShape)
+            .background(PrimaryContainer)
+            .clickable(interactionSource = interaction, indication = null, onClick = onRetry)
+            .padding(horizontal = 18.dp, vertical = 8.dp),
+    ) {
+        Text(
+            text = "Reintentar",
+            color = SurfaceContainerLowest,
+            fontFamily = DmSans,
+            fontWeight = FontWeight.SemiBold,
+            fontSize = 13.sp,
         )
     }
 }

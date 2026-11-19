@@ -106,6 +106,9 @@ import com.example.aulasegura.ui.screens.admin.AdminUsersViewModel
 import com.example.aulasegura.ui.screens.parent.ParentAttendanceViewModel
 import com.example.aulasegura.ui.screens.parent.ParentHomeViewModel
 import com.example.aulasegura.ui.screens.parent.ParentJustifyViewModel
+import com.example.aulasegura.ui.screens.parent.ParentNoticesViewModel
+import com.example.aulasegura.ui.screens.parent.ParentTaskDetailViewModel
+import com.example.aulasegura.ui.screens.parent.ParentTasksViewModel
 import com.example.aulasegura.ui.screens.teacher.TeacherGroupDetailViewModel
 import com.example.aulasegura.ui.screens.teacher.TeacherGroupsViewModel
 import com.example.aulasegura.ui.screens.teacher.TeacherHistoryViewModel
@@ -649,6 +652,13 @@ class AppViewModelFactory(
             absenceIso = date,
         )
 
+    /** The task detail is read by document id, which arrives in the route. */
+    fun parentTaskDetailViewModel(taskId: String): ParentTaskDetailViewModel =
+        ParentTaskDetailViewModel(
+            parents = container.parentRepository,
+            taskId = taskId,
+        )
+
     @Suppress("UNCHECKED_CAST")
     override fun <T : ViewModel> create(modelClass: Class<T>): T = when {
         modelClass.isAssignableFrom(LoginViewModel::class.java) ->
@@ -748,6 +758,12 @@ class AppViewModelFactory(
 
         modelClass.isAssignableFrom(ParentAttendanceViewModel::class.java) ->
             ParentAttendanceViewModel(parents = container.parentRepository)
+
+        modelClass.isAssignableFrom(ParentTasksViewModel::class.java) ->
+            ParentTasksViewModel(parents = container.parentRepository)
+
+        modelClass.isAssignableFrom(ParentNoticesViewModel::class.java) ->
+            ParentNoticesViewModel(parents = container.parentRepository)
 
         modelClass.isAssignableFrom(AdminDashboardViewModel::class.java) ->
             AdminDashboardViewModel(

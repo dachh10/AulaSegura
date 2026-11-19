@@ -1,20 +1,28 @@
 package com.example.aulasegura.data.repository
 
 import com.example.aulasegura.domain.model.AttendanceMark
+import com.example.aulasegura.domain.model.ParentAttachment
 import com.example.aulasegura.domain.model.ParentAttendanceCounts
 import com.example.aulasegura.domain.model.ParentChild
 import com.example.aulasegura.domain.model.ParentChildOverview
 import com.example.aulasegura.domain.model.ParentDayAttendance
 import com.example.aulasegura.domain.model.ParentMonthAttendance
+import com.example.aulasegura.domain.model.ParentNoticeItem
 import com.example.aulasegura.domain.model.ParentTaskBrief
+import com.example.aulasegura.domain.model.ParentTaskItem
 import com.example.aulasegura.domain.repository.AuthRepository
+import com.example.aulasegura.domain.repository.NoticeReadResult
 import com.example.aulasegura.domain.repository.ParentChildrenResult
 import com.example.aulasegura.domain.repository.ParentHomeResult
 import com.example.aulasegura.domain.repository.ParentMonthResult
+import com.example.aulasegura.domain.repository.ParentNoticesResult
 import com.example.aulasegura.domain.repository.ParentRepository
+import com.example.aulasegura.domain.repository.ParentTaskResult
+import com.example.aulasegura.domain.repository.ParentTasksResult
 import com.example.aulasegura.domain.repository.RosterFailure
 import com.example.aulasegura.util.AttendanceTimes
 import com.google.firebase.Timestamp
+import com.google.firebase.firestore.FieldValue
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.Source
 import java.util.Calendar
@@ -37,6 +45,12 @@ import kotlinx.coroutines.withTimeout
  *    `resource.data.groupId in myGroups()`.
  *  - `tasks.whereArrayContains("groupIds", g)` is the query form of
  *    `resource.data.groupIds.hasAny(myGroups())`.
+ *  - `notices.whereArrayContains("audience.groupIds", g)` is the query form of
+ *    `resource.data.audience.groupIds.hasAny(myGroups())`. The tutor branch of
+ *    the notice rule deliberately does not check `audience.roles`: Firestore
+ *    proves a list query from its own constraints, allows a single
+ *    `array-contains`, and an extra unprovable condition denies the whole read.
+ *    [parentNoticeFrom] keeps that audience check on the client.
  * A query that does not carry the filter the rule checks is denied, so these
  * three shapes are not an optimisation — they are what makes the read possible.
  *
@@ -111,7 +125,7 @@ class FirestoreParentRepository(
                 sessionId = document.id,
                 date = date,
                 subject = data[FIELD_SUBJECT] as? String ?: "",
-                startedAt = epochMillis(data[FIELD_STARTED_AT]),
+                startedAt = parentEpochMillis(data[FIELD_STARTED_AT]),
             )
         }
 
@@ -206,6 +220,149 @@ class FirestoreParentRepository(
         )
     }
 
+    override suspend fun loadTasks(child: ParentChild): ParentTasksResult {
+        auth.currentUser ?: return ParentTasksResult.SignedOut
+
+        val snapshot = try {
+            withTimeout(READ_TIMEOUT_MILLIS) {
+                firestore.collection(TASKS)
+                    .whereArrayContains(FIELD_GROUP_IDS, child.groupId)
+                    .limit(TASK_LIMIT)
+                    .get(Source.SERVER)
+                    .await()
+            }
+        } catch (error: Exception) {
+            return ParentTasksResult.Failed(error.toRosterFailure())
+        }
+
+        // A deactivated task (`active = false`) is one the teacher withdrew: it
+        // stays in the cloud for the record but is not homework any more.
+        return ParentTasksResult.Loaded(
+            snapshot.documents
+                .mapNotNull { document ->
+                    val data = document.data ?: return@mapNotNull null
+                    if (data[FIELD_ACTIVE] == false) return@mapNotNull null
+                    parentTaskFrom(document.id, data)
+                }
+                .sortedWith(compareBy({ it.dueDateMillis }, { it.title })),
+        )
+    }
+
+    /**
+     * One task by document id.
+     *
+     * A single-document read, not a list: the rules evaluate it against the real
+     * document, so the detail keeps working even for a task the tutor reached
+     * from a notification before the list was ever opened.
+     */
+    override suspend fun loadTask(taskId: String): ParentTaskResult {
+        auth.currentUser ?: return ParentTaskResult.SignedOut
+
+        val document = try {
+            withTimeout(READ_TIMEOUT_MILLIS) {
+                firestore.collection(TASKS).document(taskId).get(Source.SERVER).await()
+            }
+        } catch (error: Exception) {
+            return ParentTaskResult.Failed(error.toRosterFailure())
+        }
+
+        if (!document.exists()) return ParentTaskResult.NotFound
+        val data = document.data ?: return ParentTaskResult.NotFound
+        val task = parentTaskFrom(document.id, data) ?: return ParentTaskResult.NotFound
+        return ParentTaskResult.Loaded(task)
+    }
+
+    override suspend fun loadNotices(): ParentNoticesResult {
+        val user = auth.currentUser ?: return ParentNoticesResult.SignedOut
+
+        val children = when (val result = loadChildren()) {
+            is ParentChildrenResult.Loaded -> result.children
+            ParentChildrenResult.SignedOut -> return ParentNoticesResult.SignedOut
+            is ParentChildrenResult.Failed -> return ParentNoticesResult.Failed(result.reason)
+        }
+        if (children.isEmpty()) return ParentNoticesResult.Loaded(emptyList())
+
+        // The read mark is fetched once and joined in memory: one query for the
+        // whole inbox instead of one document read per notice.
+        val readIds = noticeReadIds(user.uid)
+        val moment = now()
+
+        val byGroup = coroutineScope {
+            children.map { it.groupId }.distinct().map { groupId ->
+                async(Dispatchers.IO) { noticesOf(groupId, readIds, moment) }
+            }.awaitAll()
+        }
+        if (byGroup.any { it == null }) {
+            // One group failing is a read problem, not "this group has no notices".
+            return ParentNoticesResult.Failed(RosterFailure.UNKNOWN)
+        }
+
+        // Siblings in the same group are one query; siblings in different groups
+        // cannot publish the same notice twice, and `distinctBy` keeps it that way
+        // if the school ever addresses one notice to both groups.
+        return ParentNoticesResult.Loaded(
+            byGroup.filterNotNull().flatten()
+                .distinctBy { it.noticeId }
+                .sortedWith(compareByDescending<ParentNoticeItem> { it.createdAtMillis }.thenBy { it.title }),
+        )
+    }
+
+    override suspend fun markNoticeRead(noticeId: String): NoticeReadResult {
+        val user = auth.currentUser ?: return NoticeReadResult.SignedOut
+
+        return try {
+            withTimeout(READ_TIMEOUT_MILLIS) {
+                firestore.collection(USERS)
+                    .document(user.uid)
+                    .collection(NOTICE_READS)
+                    .document(noticeId)
+                    .set(mapOf(FIELD_READ_AT to FieldValue.serverTimestamp()))
+                    .await()
+            }
+            NoticeReadResult.Marked
+        } catch (error: Exception) {
+            NoticeReadResult.Failed(error.toRosterFailure())
+        }
+    }
+
+    /**
+     * The ids the tutor already opened, or an empty set when they cannot be read.
+     *
+     * Failing the whole screen because the mark is missing would hide the school's
+     * notices over a decoration; painting them unread is recoverable and visible.
+     */
+    private suspend fun noticeReadIds(uid: String): Set<String> = try {
+        withTimeout(READ_TIMEOUT_MILLIS) {
+            firestore.collection(USERS)
+                .document(uid)
+                .collection(NOTICE_READS)
+                .get(Source.SERVER)
+                .await()
+        }.documents.map { it.id }.toSet()
+    } catch (_: Exception) {
+        emptySet()
+    }
+
+    /** `null` when the group's notices could not be read at all. */
+    private suspend fun noticesOf(
+        groupId: String,
+        readIds: Set<String>,
+        moment: Long,
+    ): List<ParentNoticeItem>? = try {
+        val snapshot = withTimeout(READ_TIMEOUT_MILLIS) {
+            firestore.collection(NOTICES)
+                .whereArrayContains(FIELD_AUDIENCE_GROUP_IDS, groupId)
+                .limit(NOTICE_LIMIT)
+                .get(Source.SERVER)
+                .await()
+        }
+        snapshot.documents.mapNotNull { document ->
+            document.data?.let { parentNoticeFrom(document.id, it, readIds, moment) }
+        }
+    } catch (_: Exception) {
+        null
+    }
+
     private suspend fun groupLabel(groupId: String): String? = try {
         val document = withTimeout(READ_TIMEOUT_MILLIS) {
             firestore.collection(GROUPS).document(groupId).get(Source.SERVER).await()
@@ -258,7 +415,7 @@ class FirestoreParentRepository(
             .mapNotNull { document ->
                 val data = document.data ?: return@mapNotNull null
                 if (data[FIELD_ACTIVE] == false) return@mapNotNull null
-                val due = epochMillis(data[FIELD_DUE_DATE])
+                val due = parentEpochMillis(data[FIELD_DUE_DATE])
                 if (due < todayStart) return@mapNotNull null
 
                 ParentTaskBrief(
@@ -299,12 +456,6 @@ class FirestoreParentRepository(
     private fun monthPrefix(year: Int, month: Int): String =
         String.format(Locale.US, "%04d-%02d", year, month)
 
-    private fun epochMillis(value: Any?): Long = when (value) {
-        is Timestamp -> value.toDate().time
-        is Number -> value.toLong()
-        else -> 0L
-    }
-
     private data class SessionRow(
         val sessionId: String,
         val date: String,
@@ -331,11 +482,17 @@ class FirestoreParentRepository(
         const val SESSIONS = "attendanceSessions"
         const val RECORDS = "records"
         const val TASKS = "tasks"
+        const val NOTICES = "notices"
+        const val USERS = "users"
+        const val NOTICE_READS = "noticeReads"
 
         /** One cycle of one group, with room to spare. */
         const val SESSION_LIMIT = 200L
 
         const val TASK_LIMIT = 100L
+
+        /** One group publishes a handful of notices a month; a cycle fits twice. */
+        const val NOTICE_LIMIT = 50L
 
         /** The home card shows two; a third is downloaded so a due task cannot hide. */
         const val TASKS_ON_HOME = 2
@@ -355,6 +512,88 @@ class FirestoreParentRepository(
  * child linked", which is the opposite of the truth. The teacher's roster keeps
  * filtering by `active` because there it means "enrolled today".
  */
+internal fun parentTaskFrom(id: String, data: Map<String, Any?>): ParentTaskItem? {
+    val title = (data[FIELD_TITLE] as? String)?.takeIf { it.isNotBlank() } ?: return null
+
+    return ParentTaskItem(
+        taskId = id,
+        groupIds = parentStringList(data[FIELD_GROUP_IDS]),
+        subject = data[FIELD_SUBJECT] as? String ?: "",
+        title = title,
+        description = data[FIELD_DESCRIPTION] as? String ?: "",
+        dueDateMillis = parentEpochMillis(data[FIELD_DUE_DATE]),
+        createdAtMillis = parentEpochMillis(data[FIELD_CREATED_AT]),
+        createdByName = data[FIELD_CREATED_BY_NAME] as? String ?: "",
+        attachments = parentAttachmentsFrom(data[FIELD_ATTACHMENTS]),
+    )
+}
+
+/**
+ * `notices/{noticeId}` as the tutor may see it, or `null` when it is not theirs.
+ *
+ * Three documents are rejected even though the query returned them: one that is
+ * not addressed to `tutor`, one already expired, and one without a title. The
+ * role check lives here because the rules cannot require it *and* the group in a
+ * single list query (see `docs/firestore.rules` §notices), so the client keeps the
+ * audience contract it would otherwise lose.
+ */
+internal fun parentNoticeFrom(
+    id: String,
+    data: Map<String, Any?>,
+    readIds: Set<String>,
+    now: Long,
+): ParentNoticeItem? {
+    val audience = data[FIELD_AUDIENCE] as? Map<*, *> ?: return null
+    if (ROLE_TUTOR !in parentStringList(audience[FIELD_ROLES])) return null
+
+    val expiresAt = parentEpochMillis(data[FIELD_EXPIRES_AT])
+    if (expiresAt > 0 && expiresAt <= now) return null
+
+    val title = (data[FIELD_TITLE] as? String)?.takeIf { it.isNotBlank() } ?: return null
+
+    return ParentNoticeItem(
+        noticeId = id,
+        title = title,
+        body = data[FIELD_BODY] as? String ?: "",
+        category = data[FIELD_CATEGORY] as? String ?: "",
+        urgent = data[FIELD_URGENT] == true,
+        createdByName = data[FIELD_CREATED_BY_NAME] as? String ?: "",
+        createdAtMillis = parentEpochMillis(data[FIELD_CREATED_AT]),
+        attachments = parentAttachmentsFrom(data[FIELD_ATTACHMENTS]),
+        read = id in readIds,
+    )
+}
+
+/**
+ * The `attachments` array of `CONTEXT.md`: maps of `name`, `url` and `type`.
+ *
+ * A row without a URL is dropped: it is a file that never reached Cloudinary, and
+ * a download button that opens nothing is worse than no button.
+ */
+internal fun parentAttachmentsFrom(value: Any?): List<ParentAttachment> =
+    (value as? List<*>)
+        ?.mapNotNull { row ->
+            val map = row as? Map<*, *> ?: return@mapNotNull null
+            val url = (map[FIELD_ATTACHMENT_URL] as? String)?.takeIf { it.isNotBlank() }
+                ?: return@mapNotNull null
+            ParentAttachment(
+                name = (map[FIELD_ATTACHMENT_NAME] as? String).orEmpty(),
+                url = url,
+                type = (map[FIELD_ATTACHMENT_TYPE] as? String).orEmpty(),
+            )
+        }
+        ?: emptyList()
+
+/** Firestore hands timestamps back as [Timestamp]; a seeded document may not. */
+internal fun parentEpochMillis(value: Any?): Long = when (value) {
+    is Timestamp -> value.toDate().time
+    is Number -> value.toLong()
+    else -> 0L
+}
+
+private fun parentStringList(value: Any?): List<String> =
+    (value as? List<*>)?.mapNotNull { it as? String } ?: emptyList()
+
 internal fun parentChildFrom(id: String, data: Map<String, Any?>): ParentChild? {
     val groupId = data[FIELD_GROUP_ID] as? String ?: return null
 
@@ -392,4 +631,20 @@ private const val FIELD_STATUS = "status"
 private const val FIELD_TIME = "time"
 private const val FIELD_NOTE = "note"
 private const val FIELD_TITLE = "title"
+private const val FIELD_DESCRIPTION = "description"
 private const val FIELD_DUE_DATE = "dueDate"
+private const val FIELD_CREATED_AT = "createdAt"
+private const val FIELD_CREATED_BY_NAME = "createdByName"
+private const val FIELD_ATTACHMENTS = "attachments"
+private const val FIELD_ATTACHMENT_NAME = "name"
+private const val FIELD_ATTACHMENT_URL = "url"
+private const val FIELD_ATTACHMENT_TYPE = "type"
+private const val FIELD_AUDIENCE = "audience"
+private const val FIELD_AUDIENCE_GROUP_IDS = "audience.groupIds"
+private const val FIELD_ROLES = "roles"
+private const val FIELD_BODY = "body"
+private const val FIELD_CATEGORY = "category"
+private const val FIELD_URGENT = "urgent"
+private const val FIELD_EXPIRES_AT = "expiresAt"
+private const val FIELD_READ_AT = "readAt"
+private const val ROLE_TUTOR = "tutor"

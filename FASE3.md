@@ -52,7 +52,7 @@ Los IDs siguen la numeración de `PLAN.md` (3.1-3.10). El orden de ejecución se
 | **3.2** | Inicio: resumen real de los hijos (asistencia, tareas, incidentes) | `ParentHomeScreen` | Firestore | ✅ **hecho** (código y tests) |
 | **3.3** | Asistencia: calendario desde `attendanceSessions` y `records` | `ParentAttendanceScreen` | Firestore | ✅ **hecho** (código y tests) |
 | **3.4** | Justificar falta con adjunto en Cloudinary | `ParentJustifyScreen` | Firestore + Cloudinary | ✅ **hecho** (código y tests; falta probar en dispositivo) |
-| **3.5** | Tareas y avisos reales, con marca de leído | `ParentTasksScreen`, `ParentTaskDetailScreen`, `ParentNoticesScreen` | Firestore `noticeReads` | pendiente |
+| **3.5** | Tareas y avisos reales, con marca de leído | `ParentTasksScreen`, `ParentTaskDetailScreen`, `ParentNoticesScreen` | Firestore `noticeReads` | ✅ **hecho** (código y tests; regla de avisos pendiente de publicar) |
 | **3.6** | Incidentes de sus hijos + marcar visto | `ParentIncidentsScreen`, `ParentIncidentDetailScreen`, `ParentIncidentMapScreen` | Firestore | pendiente |
 | **3.7** | Chat con el docente asignado al grupo | `ParentChatScreen`, `ParentConversationScreen` | RTDB | pendiente |
 | **3.8** | Asistente con Firebase AI Logic (Gemini Developer API, free tier, App Check) | `ParentAIScreen` | AI Logic | pendiente |
@@ -69,6 +69,15 @@ Las 14 pantallas del Bloque 2 de `PLAN.md` están implementadas visualmente. La 
 - Los datos que la escuela no produjo no se inventan: día sin sesión = celda gris, mes sin registros = porcentaje `—`, tareas vacías = "Sin tareas próximas", hijo sin vínculo = tarjeta explicativa.
 - El tutor ve a sus hijos por el vínculo `tutorIds`, **aunque el alumno esté `active: false`**: `active` significa "inscripto hoy" para el roster del docente, no "es mi hijo". Un alumno dado de baja sigue apareciendo en la pantalla de la familia; el roster del docente sigue filtrándolo. Para pasar lista de un alumno dado de baja, el directivo lo reactiva desde el detalle del alumno (pestaña Alumnos → «Reactivar»).
 - `ParentAttendanceScreen` cambió de hijo con el pill del top bar (cicla entre hijos); no se agregó un selector nuevo que el diseño no tiene.
+
+**Notas de entrega 3.5** (detalle en `odd/tasks/bloque-3.5-tareas-avisos.md`):
+
+- **Tareas:** `tasks.whereArrayContains("groupIds", g)` para la lista y lectura por id para el detalle. Las secciones salen de la fecha de entrega (`VENCIDAS`, `HOY`, `MAÑANA`, `ESTA SEMANA`, `MÁS ADELANTE`).
+- **“Entregadas” queda vacío a propósito:** `tasks` no tiene estado por alumno. Se explica en pantalla en vez de inventar una entrega.
+- **Detalle sin botón falso:** se quitaron “Marcar como vista” y el marcador; no hay colección de leídos para tareas.
+- **Avisos:** `notices.whereArrayContains("audience.groupIds", g)` por grupo + `users/{uid}/noticeReads/{noticeId}` para el leído (idempotente, optimista y con reversión si falla). El aviso no se escribe nunca desde el tutor.
+- **Regla de avisos ajustada:** Firestore sólo permite un `array-contains` por consulta, así que la rama del tutor ya no exige `audience.roles` en la regla (lo exige el cliente, `parentNoticeFrom`); el alcance por grupo se conserva. **Requiere `firebase deploy --only firestore:rules`.**
+- **Sin Room, colecciones ni índices nuevos.** La base sigue en `version = 4`.
 
 ---
 
@@ -142,7 +151,7 @@ $env:JAVA_HOME = "C:\Program Files\Android\Android Studio\jbr"
 .\gradlew.bat cleanTestDebugUnitTest testDebugUnitTest assembleDebug --offline --no-daemon --no-configuration-cache
 ```
 
-Conteo de suites/tests desde `app/build/test-results/testDebugUnitTest/*.xml`. La línea base al iniciar la fase es **52 suites / 381 tests / 0 fallos**; al cerrar 3.2 + 3.3 es **56 suites / 410 tests / 0 fallos**; al cerrar 3.4 es **59 suites / 436 tests / 0 fallos**.
+Conteo de suites/tests desde `app/build/test-results/testDebugUnitTest/*.xml`. La línea base al iniciar la fase es **52 suites / 381 tests / 0 fallos**; al cerrar 3.2 + 3.3 es **56 suites / 410 tests / 0 fallos**; al cerrar 3.4 es **59 suites / 436 tests / 0 fallos**; al cerrar 3.5 es **63 suites / 469 tests / 0 fallos**.
 
 **Dispositivo:** no hay teléfono conectado. Las pruebas funcionales con las cuentas reales (directora, docente, tutor) las ejecuta el equipo; los pasos se entregan en el reporte de cada bloque.
 

@@ -79,10 +79,13 @@ import com.example.aulasegura.ui.screens.parent.ParentIncidentsScreen
 import com.example.aulasegura.ui.screens.parent.ParentJustifyScreen
 import com.example.aulasegura.ui.screens.parent.ParentJustifyViewModel
 import com.example.aulasegura.ui.screens.parent.ParentNoticesScreen
+import com.example.aulasegura.ui.screens.parent.ParentNoticesViewModel
 import com.example.aulasegura.ui.screens.parent.ParentNotificationsScreen
 import com.example.aulasegura.ui.screens.parent.ParentProfileScreen
 import com.example.aulasegura.ui.screens.parent.ParentTaskDetailScreen
+import com.example.aulasegura.ui.screens.parent.ParentTaskDetailViewModel
 import com.example.aulasegura.ui.screens.parent.ParentTasksScreen
+import com.example.aulasegura.ui.screens.parent.ParentTasksViewModel
 import com.example.aulasegura.ui.screens.teacher.RollCallScreen
 import com.example.aulasegura.ui.screens.teacher.RollCallViewModel
 import com.example.aulasegura.ui.screens.teacher.RollCallViewModelFactory
@@ -341,16 +344,52 @@ fun AulaSeguraNavHost(
             )
         }
         composable(Routes.PARENT_TASKS) {
+            val tasksViewModel: ParentTasksViewModel =
+                viewModel(factory = rememberAppContainer().viewModelFactory)
+            val tasksState by tasksViewModel.state.collectAsState()
+
             ParentTasksScreen(
-                onOpenTask = { navController.navigate(Routes.parentTaskDetail("1")) },
+                ui = tasksState,
+                onOpenTask = { taskId ->
+                    navController.navigate(Routes.parentTaskDetail(taskId))
+                },
+                onSelectFilter = tasksViewModel::selectFilter,
+                onCycleChild = tasksViewModel::cycleChild,
+                onRetry = tasksViewModel::refresh,
                 onSelectTab = { navController.openParentTab(it) },
             )
         }
-        composable(Routes.PARENT_TASK_DETAIL) {
-            ParentTaskDetailScreen(onBack = { navController.popBackStack() })
+        composable(Routes.PARENT_TASK_DETAIL) { entry ->
+            val taskId = entry.arguments?.getString("taskId").orEmpty()
+            val container = rememberAppContainer()
+            val factory = remember(taskId) {
+                object : ViewModelProvider.Factory {
+                    @Suppress("UNCHECKED_CAST")
+                    override fun <T : ViewModel> create(modelClass: Class<T>): T =
+                        container.viewModelFactory.parentTaskDetailViewModel(taskId) as T
+                }
+            }
+            val detailViewModel: ParentTaskDetailViewModel = viewModel(factory = factory)
+            val detailState by detailViewModel.state.collectAsState()
+
+            ParentTaskDetailScreen(
+                ui = detailState,
+                onBack = { navController.popBackStack() },
+                onRetry = detailViewModel::refresh,
+            )
         }
         composable(Routes.PARENT_NOTICES) {
-            ParentNoticesScreen(onBack = { navController.popBackStack() })
+            val noticesViewModel: ParentNoticesViewModel =
+                viewModel(factory = rememberAppContainer().viewModelFactory)
+            val noticesState by noticesViewModel.state.collectAsState()
+
+            ParentNoticesScreen(
+                ui = noticesState,
+                onBack = { navController.popBackStack() },
+                onRetry = noticesViewModel::refresh,
+                onSelectFilter = noticesViewModel::selectFilter,
+                onMarkRead = noticesViewModel::markRead,
+            )
         }
         composable(Routes.PARENT_INCIDENTS) {
             ParentIncidentsScreen(

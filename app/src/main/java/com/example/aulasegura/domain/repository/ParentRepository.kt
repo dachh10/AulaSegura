@@ -3,6 +3,8 @@ package com.example.aulasegura.domain.repository
 import com.example.aulasegura.domain.model.ParentChild
 import com.example.aulasegura.domain.model.ParentChildOverview
 import com.example.aulasegura.domain.model.ParentMonthAttendance
+import com.example.aulasegura.domain.model.ParentNoticeItem
+import com.example.aulasegura.domain.model.ParentTaskItem
 
 /**
  * Read side of the tutor's screen: what the school already produced for the
@@ -28,6 +30,30 @@ interface ParentRepository {
      * month counters and the tasks still due for their group.
      */
     suspend fun loadHome(): ParentHomeResult
+
+    /**
+     * Every task published to [child]'s group, due date included.
+     *
+     * Unlike the home card this list is not narrowed to what is still due: the
+     * tutor opens it to see the overdue ones too, and the screen's filters are
+     * what decide which slice is on screen.
+     */
+    suspend fun loadTasks(child: ParentChild): ParentTasksResult
+
+    /** One task by document id, for the detail route. */
+    suspend fun loadTask(taskId: String): ParentTaskResult
+
+    /**
+     * The notices addressed to the families of every child's group, newest
+     * first, each with the tutor's own read mark.
+     */
+    suspend fun loadNotices(): ParentNoticesResult
+
+    /**
+     * Idempotent, like the document id it writes: opening a notice twice keeps
+     * one `noticeReads` document.
+     */
+    suspend fun markNoticeRead(noticeId: String): NoticeReadResult
 }
 
 sealed interface ParentChildrenResult {
@@ -56,4 +82,43 @@ sealed interface ParentHomeResult {
     data object SignedOut : ParentHomeResult
 
     data class Failed(val reason: RosterFailure) : ParentHomeResult
+}
+
+sealed interface ParentTasksResult {
+
+    data class Loaded(val tasks: List<ParentTaskItem>) : ParentTasksResult
+
+    data object SignedOut : ParentTasksResult
+
+    data class Failed(val reason: RosterFailure) : ParentTasksResult
+}
+
+sealed interface ParentTaskResult {
+
+    data class Loaded(val task: ParentTaskItem) : ParentTaskResult
+
+    /** The document does not exist (or was removed after the list was read). */
+    data object NotFound : ParentTaskResult
+
+    data object SignedOut : ParentTaskResult
+
+    data class Failed(val reason: RosterFailure) : ParentTaskResult
+}
+
+sealed interface ParentNoticesResult {
+
+    data class Loaded(val notices: List<ParentNoticeItem>) : ParentNoticesResult
+
+    data object SignedOut : ParentNoticesResult
+
+    data class Failed(val reason: RosterFailure) : ParentNoticesResult
+}
+
+sealed interface NoticeReadResult {
+
+    data object Marked : NoticeReadResult
+
+    data object SignedOut : NoticeReadResult
+
+    data class Failed(val reason: RosterFailure) : NoticeReadResult
 }

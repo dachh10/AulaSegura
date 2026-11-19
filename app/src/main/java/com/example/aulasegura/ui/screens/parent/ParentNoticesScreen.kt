@@ -29,6 +29,7 @@ import androidx.compose.material.icons.filled.Campaign
 import androidx.compose.material.icons.filled.Error
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.outlined.Inbox
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -66,100 +67,25 @@ private val IndigoTint = Color(0xFFE8E9F7)
 private val CoralTint = Color(0xFFFFEBE8)
 private val MintTint = Color(0xFFE6FAF4)
 private val MintDark = Color(0xFF15803D)
+private val AmberTint = Color(0xFFFEF3C7)
+private val AmberText = Color(0xFF78350F)
 
-private enum class NoticeFilter(val label: String) {
-    Todos("Todos"),
-    Escuela("Escuela"),
-    MiGrupo("Mi grupo"),
-    Urgentes("Urgentes"),
-}
-
-private enum class NoticeSource { School, Teacher }
-
-private data class Notice(
-    val id: Int,
-    val sourceName: String,
-    val time: String,
-    val title: String,
-    val preview: String,
-    val source: NoticeSource,
-    val category: NoticeFilter,
-    val urgent: Boolean,
-    val section: String,
-    val initiallyUnread: Boolean,
-)
-
-private fun sampleNotices(): List<Notice> = listOf(
-    Notice(
-        id = 1,
-        sourceName = "Dirección",
-        time = "Hoy, 09:10",
-        title = "Suspensión de clases el 17 de noviembre",
-        preview = "Por junta de consejo técnico no habrá clases este día. " +
-            "Las actividades se reanudan el martes 18.",
-        source = NoticeSource.School,
-        category = NoticeFilter.Escuela,
-        urgent = true,
-        section = "HOY",
-        initiallyUnread = true,
-    ),
-    Notice(
-        id = 2,
-        sourceName = "Prof. Salinas · 3° B",
-        time = "Hoy, 08:05",
-        title = "Material para la feria de ciencias",
-        preview = "Traer cartulina, plumones y un objeto reciclado para el proyecto del viernes.",
-        source = NoticeSource.Teacher,
-        category = NoticeFilter.MiGrupo,
-        urgent = false,
-        section = "HOY",
-        initiallyUnread = true,
-    ),
-    Notice(
-        id = 3,
-        sourceName = "Dirección",
-        time = "Lun 3 nov",
-        title = "Reunión de padres de familia",
-        preview = "Se llevará a cabo el viernes 14 a las 17:00 en el patio principal de la escuela.",
-        source = NoticeSource.School,
-        category = NoticeFilter.Escuela,
-        urgent = false,
-        section = "ESTA SEMANA",
-        initiallyUnread = false,
-    ),
-    Notice(
-        id = 4,
-        sourceName = "Profa. Laura Mendoza",
-        time = "Dom 2 nov",
-        title = "Lectura del mes",
-        preview = "Los alumnos deberán leer el cuento asignado y comentarlo en clase.",
-        source = NoticeSource.Teacher,
-        category = NoticeFilter.MiGrupo,
-        urgent = false,
-        section = "ESTA SEMANA",
-        initiallyUnread = false,
-    ),
-    Notice(
-        id = 5,
-        sourceName = "Dirección",
-        time = "Vie 31 oct",
-        title = "Festival del Día de Muertos",
-        preview = "Invitamos a toda la comunidad escolar a participar en nuestra ofrenda tradicional...",
-        source = NoticeSource.School,
-        category = NoticeFilter.Escuela,
-        urgent = false,
-        section = "ESTA SEMANA",
-        initiallyUnread = false,
-    ),
-)
-
+/**
+ * Every notice the school addressed to this family's groups.
+ *
+ * Tapping a card opens it: the body unfolds and the read mark is written to
+ * `users/{uid}/noticeReads/{noticeId}`. The notice document itself is never
+ * written from this screen — the school owns it.
+ */
 @Composable
-fun ParentNoticesScreen(onBack: () -> Unit) {
-    var filter by remember { mutableStateOf(NoticeFilter.Todos) }
-    var readIds by remember { mutableStateOf(emptySet<Int>()) }
-    val notices = remember { sampleNotices() }
-
-    val unreadCount = notices.count { it.initiallyUnread && it.id !in readIds }
+fun ParentNoticesScreen(
+    ui: ParentNoticesUiState,
+    onBack: () -> Unit,
+    onRetry: () -> Unit,
+    onSelectFilter: (ParentNoticeFilter) -> Unit,
+    onMarkRead: (String) -> Unit,
+) {
+    var expandedId by remember { mutableStateOf<String?>(null) }
 
     Box(
         modifier = Modifier
@@ -187,20 +113,53 @@ fun ParentNoticesScreen(onBack: () -> Unit) {
                     .padding(horizontal = 16.dp),
                 verticalArrangement = Arrangement.spacedBy(14.dp),
             ) {
-                Reveal(60) { UnreadSummaryCard(unreadCount = unreadCount) }
-                Reveal(120) {
-                    NoticeFilters(
-                        selected = filter,
-                        onSelect = { filter = it },
-                    )
-                }
-                Reveal(180) {
-                    NoticeList(
-                        filter = filter,
-                        notices = notices,
-                        readIds = readIds,
-                        onOpen = { id -> readIds = readIds + id },
-                    )
+                when (ui) {
+                    is ParentNoticesUiState.Loaded -> {
+                        Reveal(60) {
+                            UnreadSummaryCard(
+                                unreadCount = ui.unreadCount,
+                                latestLabel = ui.latestLabel,
+                            )
+                        }
+                        Reveal(120) {
+                            NoticeFilters(
+                                selected = ui.filter,
+                                onSelect = onSelectFilter,
+                            )
+                        }
+                        if (ui.error != null) {
+                            Reveal(150) { ReadMarkError(message = ui.error) }
+                        }
+                        Reveal(180) {
+                            NoticeList(
+                                sections = ui.sections,
+                                emptyMessage = ui.emptyMessage,
+                                expandedId = expandedId,
+                                onOpen = { id ->
+                                    expandedId = if (expandedId == id) null else id
+                                    onMarkRead(id)
+                                },
+                            )
+                        }
+                    }
+
+                    ParentNoticesUiState.Loading -> Reveal(60) {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(vertical = 48.dp),
+                            contentAlignment = Alignment.Center,
+                        ) {
+                            CircularProgressIndicator(color = PrimaryContainer)
+                        }
+                    }
+
+                    is ParentNoticesUiState.Failed -> Reveal(60) {
+                        NoticesFailure(
+                            message = ui.message,
+                            onRetry = onRetry,
+                        )
+                    }
                 }
                 Spacer(Modifier.height(32.dp))
             }
@@ -249,7 +208,7 @@ private fun NoticesTopBar(onBack: () -> Unit) {
 }
 
 @Composable
-private fun UnreadSummaryCard(unreadCount: Int) {
+private fun UnreadSummaryCard(unreadCount: Int, latestLabel: String) {
     Box(
         modifier = Modifier
             .fillMaxWidth()
@@ -299,7 +258,7 @@ private fun UnreadSummaryCard(unreadCount: Int) {
                 )
                 Spacer(Modifier.height(2.dp))
                 Text(
-                    text = if (unreadCount == 0) "Estás al día" else "Último: hoy, 09:10",
+                    text = latestLabel,
                     color = Color.White.copy(alpha = 0.7f),
                     fontFamily = JetBrainsMono,
                     fontSize = 12.sp,
@@ -311,14 +270,14 @@ private fun UnreadSummaryCard(unreadCount: Int) {
 
 @Composable
 private fun NoticeFilters(
-    selected: NoticeFilter,
-    onSelect: (NoticeFilter) -> Unit,
+    selected: ParentNoticeFilter,
+    onSelect: (ParentNoticeFilter) -> Unit,
 ) {
     Row(
         modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.spacedBy(6.dp),
     ) {
-        NoticeFilter.entries.forEach { filter ->
+        ParentNoticeFilter.entries.forEach { filter ->
             NoticeFilterChip(
                 label = filter.label,
                 selected = filter == selected,
@@ -376,20 +335,13 @@ private fun NoticeFilterChip(
 
 @Composable
 private fun NoticeList(
-    filter: NoticeFilter,
-    notices: List<Notice>,
-    readIds: Set<Int>,
-    onOpen: (Int) -> Unit,
+    sections: List<ParentNoticeSectionUi>,
+    emptyMessage: String,
+    expandedId: String?,
+    onOpen: (String) -> Unit,
 ) {
-    val visible = when (filter) {
-        NoticeFilter.Todos -> notices
-        NoticeFilter.Escuela -> notices.filter { it.category == NoticeFilter.Escuela }
-        NoticeFilter.MiGrupo -> notices.filter { it.category == NoticeFilter.MiGrupo }
-        NoticeFilter.Urgentes -> notices.filter { it.urgent }
-    }
-
-    if (visible.isEmpty()) {
-        EmptyNotices()
+    if (sections.isEmpty()) {
+        EmptyNotices(message = emptyMessage)
         return
     }
 
@@ -397,26 +349,23 @@ private fun NoticeList(
         modifier = Modifier.fillMaxWidth(),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        listOf("HOY", "ESTA SEMANA").forEach { section ->
-            val sectionNotices = visible.filter { it.section == section }
-            if (sectionNotices.isNotEmpty()) {
-                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                    Text(
-                        text = section,
-                        color = InkSecondary,
-                        fontFamily = JetBrainsMono,
-                        fontWeight = FontWeight.SemiBold,
-                        fontSize = 12.sp,
-                        letterSpacing = 1.2.sp,
-                        modifier = Modifier.padding(horizontal = 4.dp),
+        sections.forEach { section ->
+            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Text(
+                    text = section.label,
+                    color = InkSecondary,
+                    fontFamily = JetBrainsMono,
+                    fontWeight = FontWeight.SemiBold,
+                    fontSize = 12.sp,
+                    letterSpacing = 1.2.sp,
+                    modifier = Modifier.padding(horizontal = 4.dp),
+                )
+                section.notices.forEach { notice ->
+                    NoticeCard(
+                        notice = notice,
+                        expanded = expandedId == notice.noticeId,
+                        onClick = { onOpen(notice.noticeId) },
                     )
-                    sectionNotices.forEach { notice ->
-                        NoticeCard(
-                            notice = notice,
-                            unread = notice.initiallyUnread && notice.id !in readIds,
-                            onClick = { onOpen(notice.id) },
-                        )
-                    }
                 }
             }
         }
@@ -425,8 +374,8 @@ private fun NoticeList(
 
 @Composable
 private fun NoticeCard(
-    notice: Notice,
-    unread: Boolean,
+    notice: ParentNoticeRowUi,
+    expanded: Boolean,
     onClick: () -> Unit,
 ) {
     val (interaction, pressModifier) = rememberPressScale(0.99f)
@@ -444,19 +393,17 @@ private fun NoticeCard(
             modifier = Modifier
                 .size(44.dp)
                 .clip(CircleShape)
-                .background(
-                    if (notice.source == NoticeSource.School) IndigoTint else MintTint,
-                ),
+                .background(if (notice.fromSchool) IndigoTint else MintTint),
             contentAlignment = Alignment.Center,
         ) {
             Icon(
-                imageVector = if (notice.source == NoticeSource.School) {
+                imageVector = if (notice.fromSchool) {
                     Icons.Filled.AccountBalance
                 } else {
                     Icons.Filled.Person
                 },
                 contentDescription = null,
-                tint = if (notice.source == NoticeSource.School) PrimaryContainer else MintDark,
+                tint = if (notice.fromSchool) PrimaryContainer else MintDark,
                 modifier = Modifier.size(22.dp),
             )
         }
@@ -482,12 +429,12 @@ private fun NoticeCard(
                 Spacer(Modifier.width(8.dp))
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text(
-                        text = notice.time,
-                        color = if (unread) InkSecondary else InkMuted,
+                        text = notice.timeLabel,
+                        color = if (notice.unread) InkSecondary else InkMuted,
                         fontFamily = JetBrainsMono,
                         fontSize = 11.sp,
                     )
-                    if (unread) {
+                    if (notice.unread) {
                         Spacer(Modifier.width(6.dp))
                         Box(
                             modifier = Modifier
@@ -511,12 +458,12 @@ private fun NoticeCard(
             )
             Spacer(Modifier.height(4.dp))
             Text(
-                text = notice.preview,
+                text = notice.body,
                 color = InkSecondary,
                 fontFamily = DmSans,
                 fontSize = 14.sp,
                 lineHeight = 20.sp,
-                maxLines = 2,
+                maxLines = if (expanded) Int.MAX_VALUE else 2,
                 overflow = TextOverflow.Ellipsis,
             )
 
@@ -551,7 +498,34 @@ private fun NoticeCard(
 }
 
 @Composable
-private fun EmptyNotices() {
+private fun ReadMarkError(message: String) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(16.dp))
+            .background(AmberTint)
+            .border(1.dp, AmberText.copy(alpha = 0.15f), RoundedCornerShape(16.dp))
+            .padding(horizontal = 12.dp, vertical = 8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Icon(
+            imageVector = Icons.Filled.Error,
+            contentDescription = null,
+            tint = AmberText,
+            modifier = Modifier.size(15.dp),
+        )
+        Spacer(Modifier.width(6.dp))
+        Text(
+            text = message,
+            color = AmberText,
+            fontFamily = DmSans,
+            fontSize = 12.sp,
+        )
+    }
+}
+
+@Composable
+private fun EmptyNotices(message: String) {
     Column(
         modifier = Modifier
             .fillMaxWidth()
@@ -582,10 +556,56 @@ private fun EmptyNotices() {
         )
         Spacer(Modifier.height(4.dp))
         Text(
-            text = "Cuando haya novedades aparecerán aquí.",
+            text = message,
             color = InkSecondary,
             fontFamily = DmSans,
             fontSize = 12.sp,
         )
+    }
+}
+
+@Composable
+private fun NoticesFailure(message: String, onRetry: () -> Unit) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(top = 8.dp)
+            .clip(RoundedCornerShape(24.dp))
+            .background(Color.White)
+            .border(1.dp, WarmBorder, RoundedCornerShape(24.dp))
+            .padding(20.dp),
+    ) {
+        Text(
+            text = "No se pudieron cargar",
+            color = InkPrimary,
+            fontFamily = BricolageGrotesque,
+            fontWeight = FontWeight.Bold,
+            fontSize = 18.sp,
+        )
+        Spacer(Modifier.height(6.dp))
+        Text(
+            text = message,
+            color = InkSecondary,
+            fontFamily = DmSans,
+            fontSize = 13.sp,
+            lineHeight = 18.sp,
+        )
+        Spacer(Modifier.height(14.dp))
+        val (interaction, pressModifier) = rememberPressScale(0.95f)
+        Box(
+            modifier = pressModifier
+                .clip(CircleShape)
+                .background(PrimaryContainer)
+                .clickable(interactionSource = interaction, indication = null, onClick = onRetry)
+                .padding(horizontal = 18.dp, vertical = 8.dp),
+        ) {
+            Text(
+                text = "Reintentar",
+                color = Color.White,
+                fontFamily = DmSans,
+                fontWeight = FontWeight.SemiBold,
+                fontSize = 13.sp,
+            )
+        }
     }
 }

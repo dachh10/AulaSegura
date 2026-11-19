@@ -1,5 +1,7 @@
 package com.example.aulasegura.ui.screens.parent
 
+import android.content.Intent
+import android.net.Uri
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -11,7 +13,6 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -23,29 +24,24 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.ArrowBack
-import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Image
 import androidx.compose.material.icons.filled.PictureAsPdf
 import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.material.icons.filled.Shield
-import androidx.compose.material.icons.outlined.BookmarkBorder
+import androidx.compose.material.icons.outlined.CalendarToday
 import androidx.compose.material.icons.outlined.Download
 import androidx.compose.material.icons.outlined.Event
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.shadow
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -77,10 +73,20 @@ private val PdfText = Color(0xFFAE3123)
 private val AmberSurface = Color(0xFFFEF3C7)
 private val AmberText = Color(0xFF78350F)
 
+/**
+ * The task as the school published it.
+ *
+ * There is no "Marcar como vista" footer any more: `tasks` has no per-student
+ * state and no read collection, so a button that only changed its own colour
+ * would be the one lie left on this screen. The read mark lives in the notices
+ * inbox, where `noticeReads` backs it.
+ */
 @Composable
-fun ParentTaskDetailScreen(onBack: () -> Unit) {
-    var marked by remember { mutableStateOf(false) }
-
+fun ParentTaskDetailScreen(
+    ui: ParentTaskDetailUiState,
+    onBack: () -> Unit,
+    onRetry: () -> Unit,
+) {
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -97,16 +103,43 @@ fun ParentTaskDetailScreen(onBack: () -> Unit) {
                 .padding(top = 16.dp, bottom = 24.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
-            Reveal(0) { TaskHeaderCard() }
-            Reveal(60) { DueDateCard() }
-            Reveal(120) { InstructionsSection() }
-            Reveal(180) { AttachmentsSection() }
-        }
+            when (ui) {
+                is ParentTaskDetailUiState.Loaded -> {
+                    Reveal(0) { TaskHeaderCard(ui) }
+                    Reveal(60) { DueDateCard(ui) }
+                    Reveal(120) { InstructionsSection(ui.description) }
+                    if (ui.attachments.isNotEmpty()) {
+                        Reveal(180) { AttachmentsSection(ui.attachments) }
+                    }
+                }
 
-        DetailFooter(
-            marked = marked,
-            onToggle = { marked = !marked },
-        )
+                ParentTaskDetailUiState.Loading -> Reveal(0) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 48.dp),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        CircularProgressIndicator(color = PrimaryContainer)
+                    }
+                }
+
+                ParentTaskDetailUiState.NotFound -> Reveal(0) {
+                    DetailMessage(
+                        title = "Esta tarea ya no está disponible",
+                        message = "La escuela la retiró o el enlace está incompleto.",
+                    )
+                }
+
+                is ParentTaskDetailUiState.Failed -> Reveal(0) {
+                    DetailMessage(
+                        title = "No se pudo cargar la tarea",
+                        message = ui.message,
+                        onRetry = onRetry,
+                    )
+                }
+            }
+        }
     }
 }
 
@@ -118,28 +151,20 @@ private fun DetailTopBar(onBack: () -> Unit) {
                 .fillMaxWidth()
                 .height(56.dp)
                 .padding(horizontal = 16.dp),
-            horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                RoundIconButton(
-                    icon = Icons.AutoMirrored.Outlined.ArrowBack,
-                    contentDescription = "Volver",
-                    onClick = onBack,
-                )
-                Spacer(Modifier.width(8.dp))
-                Text(
-                    text = "Detalle de tarea",
-                    color = PrimaryContainer,
-                    fontFamily = DmSans,
-                    fontWeight = FontWeight.SemiBold,
-                    fontSize = 16.sp,
-                )
-            }
             RoundIconButton(
-                icon = Icons.Outlined.BookmarkBorder,
-                contentDescription = "Guardar marcador",
-                onClick = {},
+                icon = Icons.AutoMirrored.Outlined.ArrowBack,
+                contentDescription = "Volver",
+                onClick = onBack,
+            )
+            Spacer(Modifier.width(8.dp))
+            Text(
+                text = "Detalle de tarea",
+                color = PrimaryContainer,
+                fontFamily = DmSans,
+                fontWeight = FontWeight.SemiBold,
+                fontSize = 16.sp,
             )
         }
         HorizontalDivider(thickness = 1.dp, color = BorderWarm)
@@ -170,7 +195,7 @@ private fun RoundIconButton(
 }
 
 @Composable
-private fun TaskHeaderCard() {
+private fun TaskHeaderCard(ui: ParentTaskDetailUiState.Loaded) {
     Box(
         modifier = Modifier
             .fillMaxWidth()
@@ -194,31 +219,35 @@ private fun TaskHeaderCard() {
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                Box(
-                    modifier = Modifier
-                        .clip(CircleShape)
-                        .background(BrandCoral)
-                        .padding(horizontal = 12.dp, vertical = 4.dp),
-                ) {
+                if (ui.subject.isNotBlank()) {
+                    Box(
+                        modifier = Modifier
+                            .clip(CircleShape)
+                            .background(BrandCoral)
+                            .padding(horizontal = 12.dp, vertical = 4.dp),
+                    ) {
+                        Text(
+                            text = ui.subject,
+                            color = OnPrimary,
+                            fontFamily = DmSans,
+                            fontWeight = FontWeight.Medium,
+                            fontSize = 12.sp,
+                        )
+                    }
+                }
+                if (ui.groupLabel.isNotBlank()) {
                     Text(
-                        text = "Matemáticas",
-                        color = OnPrimary,
-                        fontFamily = DmSans,
-                        fontWeight = FontWeight.Medium,
-                        fontSize = 12.sp,
+                        text = ui.groupLabel,
+                        color = Slate500,
+                        fontFamily = JetBrainsMono,
+                        fontSize = 11.sp,
                     )
                 }
-                Text(
-                    text = "Secundaria 2° B",
-                    color = Slate500,
-                    fontFamily = JetBrainsMono,
-                    fontSize = 11.sp,
-                )
             }
 
             Spacer(Modifier.height(12.dp))
             Text(
-                text = "Fracciones, ejercicios 1-10",
+                text = ui.title,
                 color = PrimaryContainer,
                 fontFamily = BricolageGrotesque,
                 fontWeight = FontWeight.Bold,
@@ -227,42 +256,46 @@ private fun TaskHeaderCard() {
                 letterSpacing = (-0.3).sp,
             )
 
-            Spacer(Modifier.height(12.dp))
-            HorizontalDivider(thickness = 1.dp, color = IndigoBorder.copy(alpha = 0.8f))
-            Spacer(Modifier.height(8.dp))
+            if (ui.teacherName.isNotBlank()) {
+                Spacer(Modifier.height(12.dp))
+                HorizontalDivider(thickness = 1.dp, color = IndigoBorder.copy(alpha = 0.8f))
+                Spacer(Modifier.height(8.dp))
 
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Box(
-                    modifier = Modifier
-                        .size(32.dp)
-                        .clip(CircleShape)
-                        .background(PrimaryContainer)
-                        .border(2.dp, Color.White, CircleShape),
-                    contentAlignment = Alignment.Center,
-                ) {
-                    Text(
-                        text = "RS",
-                        color = OnPrimary,
-                        fontFamily = DmSans,
-                        fontWeight = FontWeight.SemiBold,
-                        fontSize = 11.sp,
-                    )
-                }
-                Spacer(Modifier.width(8.dp))
-                Column {
-                    Text(
-                        text = "Prof. Ricardo Salinas",
-                        color = PrimaryContainer,
-                        fontFamily = DmSans,
-                        fontWeight = FontWeight.Medium,
-                        fontSize = 12.sp,
-                    )
-                    Text(
-                        text = "Publicada: lun 3 nov, 10:15",
-                        color = Slate600,
-                        fontFamily = JetBrainsMono,
-                        fontSize = 11.sp,
-                    )
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Box(
+                        modifier = Modifier
+                            .size(32.dp)
+                            .clip(CircleShape)
+                            .background(PrimaryContainer)
+                            .border(2.dp, Color.White, CircleShape),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Text(
+                            text = ui.teacherInitials,
+                            color = OnPrimary,
+                            fontFamily = DmSans,
+                            fontWeight = FontWeight.SemiBold,
+                            fontSize = 11.sp,
+                        )
+                    }
+                    Spacer(Modifier.width(8.dp))
+                    Column {
+                        Text(
+                            text = ui.teacherName,
+                            color = PrimaryContainer,
+                            fontFamily = DmSans,
+                            fontWeight = FontWeight.Medium,
+                            fontSize = 12.sp,
+                        )
+                        if (ui.publishedLabel != null) {
+                            Text(
+                                text = ui.publishedLabel,
+                                color = Slate600,
+                                fontFamily = JetBrainsMono,
+                                fontSize = 11.sp,
+                            )
+                        }
+                    }
                 }
             }
         }
@@ -270,7 +303,7 @@ private fun TaskHeaderCard() {
 }
 
 @Composable
-private fun DueDateCard() {
+private fun DueDateCard(ui: ParentTaskDetailUiState.Loaded) {
     Column(
         modifier = Modifier
             .fillMaxWidth()
@@ -304,7 +337,7 @@ private fun DueDateCard() {
                     fontSize = 11.sp,
                 )
                 Text(
-                    text = "Miércoles 5 de noviembre · 08:00",
+                    text = ui.dueLabel ?: "Sin fecha registrada",
                     color = PrimaryContainer,
                     fontFamily = JetBrainsMono,
                     fontWeight = FontWeight.SemiBold,
@@ -313,39 +346,45 @@ private fun DueDateCard() {
             }
         }
 
-        Spacer(Modifier.height(10.dp))
-        HorizontalDivider(thickness = 1.dp, color = Color(0xFFF4EFE7))
-        Spacer(Modifier.height(8.dp))
+        if (ui.dueSoon || ui.overdue) {
+            Spacer(Modifier.height(10.dp))
+            HorizontalDivider(thickness = 1.dp, color = Color(0xFFF4EFE7))
+            Spacer(Modifier.height(8.dp))
 
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Row(
-                modifier = Modifier
-                    .clip(CircleShape)
-                    .background(AmberSurface)
-                    .padding(horizontal = 12.dp, vertical = 4.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Icon(
-                    imageVector = Icons.Filled.Schedule,
-                    contentDescription = null,
-                    tint = AmberText,
-                    modifier = Modifier.size(14.dp),
-                )
-                Spacer(Modifier.width(6.dp))
-                Text(
-                    text = "Vence mañana",
-                    color = AmberText,
-                    fontFamily = DmSans,
-                    fontWeight = FontWeight.Medium,
-                    fontSize = 12.sp,
-                )
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Row(
+                    modifier = Modifier
+                        .clip(CircleShape)
+                        .background(if (ui.overdue) PdfSurface else AmberSurface)
+                        .padding(horizontal = 12.dp, vertical = 4.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Icon(
+                        imageVector = if (ui.overdue) {
+                            Icons.Outlined.CalendarToday
+                        } else {
+                            Icons.Filled.Schedule
+                        },
+                        contentDescription = null,
+                        tint = if (ui.overdue) PdfText else AmberText,
+                        modifier = Modifier.size(14.dp),
+                    )
+                    Spacer(Modifier.width(6.dp))
+                    Text(
+                        text = if (ui.overdue) "La fecha ya pasó" else "Vence pronto",
+                        color = if (ui.overdue) PdfText else AmberText,
+                        fontFamily = DmSans,
+                        fontWeight = FontWeight.Medium,
+                        fontSize = 12.sp,
+                    )
+                }
             }
         }
     }
 }
 
 @Composable
-private fun InstructionsSection() {
+private fun InstructionsSection(description: String) {
     Column(Modifier.fillMaxWidth()) {
         Text(
             text = "Instrucciones",
@@ -365,8 +404,7 @@ private fun InstructionsSection() {
                 .padding(20.dp),
         ) {
             Text(
-                text = "Resuelve los ejercicios 1 al 10 de la página 84 del libro. " +
-                    "Escribe el procedimiento completo y revisa tus resultados antes de entregar.",
+                text = description.ifBlank { "La escuela no agregó instrucciones a esta tarea." },
                 color = Slate700,
                 fontFamily = DmSans,
                 fontSize = 14.sp,
@@ -377,7 +415,7 @@ private fun InstructionsSection() {
 }
 
 @Composable
-private fun AttachmentsSection() {
+private fun AttachmentsSection(attachments: List<ParentAttachmentUi>) {
     Column(Modifier.fillMaxWidth()) {
         Row(
             modifier = Modifier
@@ -394,7 +432,7 @@ private fun AttachmentsSection() {
                 fontSize = 18.sp,
             )
             Text(
-                text = "2 recursos",
+                text = if (attachments.size == 1) "1 recurso" else "${attachments.size} recursos",
                 color = Slate500,
                 fontFamily = JetBrainsMono,
                 fontSize = 11.sp,
@@ -403,35 +441,17 @@ private fun AttachmentsSection() {
         Spacer(Modifier.height(8.dp))
 
         Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            AttachmentRow(
-                name = "Guia_fracciones.pdf",
-                meta = "240 KB · Documento PDF",
-                icon = Icons.Filled.PictureAsPdf,
-                iconBackground = PdfSurface,
-                iconTint = PdfText,
-                iconBorder = PdfBorder,
-            )
-            AttachmentRow(
-                name = "Ejemplo_resuelto.jpg",
-                meta = "1.2 MB · Imagen",
-                icon = Icons.Filled.Image,
-                iconBackground = IndigoTint,
-                iconTint = PrimaryContainer,
-                iconBorder = IndigoBorder,
-            )
+            attachments.forEach { attachment ->
+                AttachmentRow(attachment = attachment)
+            }
         }
     }
 }
 
 @Composable
-private fun AttachmentRow(
-    name: String,
-    meta: String,
-    icon: ImageVector,
-    iconBackground: Color,
-    iconTint: Color,
-    iconBorder: Color,
-) {
+private fun AttachmentRow(attachment: ParentAttachmentUi) {
+    val context = LocalContext.current
+
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -449,21 +469,29 @@ private fun AttachmentRow(
                 modifier = Modifier
                     .size(40.dp)
                     .clip(RoundedCornerShape(16.dp))
-                    .background(iconBackground)
-                    .border(1.dp, iconBorder, RoundedCornerShape(16.dp)),
+                    .background(if (attachment.isPdf) PdfSurface else IndigoTint)
+                    .border(
+                        1.dp,
+                        if (attachment.isPdf) PdfBorder else IndigoBorder,
+                        RoundedCornerShape(16.dp),
+                    ),
                 contentAlignment = Alignment.Center,
             ) {
                 Icon(
-                    imageVector = icon,
+                    imageVector = if (attachment.isPdf) {
+                        Icons.Filled.PictureAsPdf
+                    } else {
+                        Icons.Filled.Image
+                    },
                     contentDescription = null,
-                    tint = iconTint,
+                    tint = if (attachment.isPdf) PdfText else PrimaryContainer,
                     modifier = Modifier.size(20.dp),
                 )
             }
             Spacer(Modifier.width(12.dp))
             Column(Modifier.weight(1f)) {
                 Text(
-                    text = name,
+                    text = attachment.name,
                     color = Color(0xFF1C1C19),
                     fontFamily = DmSans,
                     fontWeight = FontWeight.SemiBold,
@@ -472,7 +500,7 @@ private fun AttachmentRow(
                     overflow = TextOverflow.Ellipsis,
                 )
                 Text(
-                    text = meta,
+                    text = attachment.meta,
                     color = Slate500,
                     fontFamily = JetBrainsMono,
                     fontSize = 11.sp,
@@ -487,12 +515,18 @@ private fun AttachmentRow(
             modifier = pressModifier
                 .size(36.dp)
                 .clip(CircleShape)
-                .clickable(interactionSource = interaction, indication = null, onClick = {}),
+                .clickable(interactionSource = interaction, indication = null) {
+                    runCatching {
+                        context.startActivity(
+                            Intent(Intent.ACTION_VIEW, Uri.parse(attachment.url)),
+                        )
+                    }
+                },
             contentAlignment = Alignment.Center,
         ) {
             Icon(
                 imageVector = Icons.Outlined.Download,
-                contentDescription = "Descargar $name",
+                contentDescription = "Abrir ${attachment.name}",
                 tint = PrimaryContainer,
                 modifier = Modifier.size(18.dp),
             )
@@ -501,57 +535,52 @@ private fun AttachmentRow(
 }
 
 @Composable
-private fun DetailFooter(
-    marked: Boolean,
-    onToggle: () -> Unit,
+private fun DetailMessage(
+    title: String,
+    message: String,
+    onRetry: (() -> Unit)? = null,
 ) {
-    val (interaction, pressModifier) = rememberPressScale(0.97f)
-    Box(
+    Column(
         modifier = Modifier
             .fillMaxWidth()
-            .background(
-                Brush.verticalGradient(
-                    listOf(
-                        Color.Transparent,
-                        BrandCream.copy(alpha = 0.95f),
-                        BrandCream,
-                    ),
-                ),
-            )
-            .navigationBarsPadding()
-            .padding(horizontal = 16.dp)
-            .padding(top = 12.dp, bottom = 10.dp),
+            .clip(RoundedCornerShape(24.dp))
+            .background(Color.White)
+            .border(1.dp, BorderWarm, RoundedCornerShape(24.dp))
+            .padding(20.dp),
     ) {
-        Row(
-            modifier = pressModifier
-                .fillMaxWidth()
-                .height(48.dp)
-                .shadow(
-                    elevation = 10.dp,
-                    shape = CircleShape,
-                    ambientColor = BrandCoral.copy(alpha = 0.3f),
-                    spotColor = BrandCoral.copy(alpha = 0.3f),
+        Text(
+            text = title,
+            color = PrimaryContainer,
+            fontFamily = BricolageGrotesque,
+            fontWeight = FontWeight.Bold,
+            fontSize = 18.sp,
+        )
+        Spacer(Modifier.height(6.dp))
+        Text(
+            text = message,
+            color = Slate600,
+            fontFamily = DmSans,
+            fontSize = 13.sp,
+            lineHeight = 18.sp,
+        )
+        if (onRetry != null) {
+            Spacer(Modifier.height(14.dp))
+            val (interaction, pressModifier) = rememberPressScale(0.95f)
+            Box(
+                modifier = pressModifier
+                    .clip(CircleShape)
+                    .background(PrimaryContainer)
+                    .clickable(interactionSource = interaction, indication = null, onClick = onRetry)
+                    .padding(horizontal = 18.dp, vertical = 8.dp),
+            ) {
+                Text(
+                    text = "Reintentar",
+                    color = OnPrimary,
+                    fontFamily = DmSans,
+                    fontWeight = FontWeight.SemiBold,
+                    fontSize = 13.sp,
                 )
-                .clip(CircleShape)
-                .background(if (marked) PrimaryContainer else BrandCoral)
-                .clickable(interactionSource = interaction, indication = null, onClick = onToggle),
-            horizontalArrangement = Arrangement.Center,
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Icon(
-                imageVector = Icons.Filled.CheckCircle,
-                contentDescription = null,
-                tint = OnPrimary,
-                modifier = Modifier.size(18.dp),
-            )
-            Spacer(Modifier.width(8.dp))
-            Text(
-                text = if (marked) "Tarea vista" else "Marcar como vista",
-                color = OnPrimary,
-                fontFamily = DmSans,
-                fontWeight = FontWeight.SemiBold,
-                fontSize = 14.sp,
-            )
+            }
         }
     }
 }

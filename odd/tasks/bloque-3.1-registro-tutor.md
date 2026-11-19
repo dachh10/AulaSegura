@@ -38,3 +38,8 @@ Registro oficial: `FASE3.md` §3 y §4. Este archivo es el logbook de ejecución
 **L5** — Decisión: `registerTutor` vive en `AuthRepository` porque necesita el mismo `FirebaseAuth` y el mismo `currentUser` que Login y Session; así, después del lote se puede resolver el perfil y dejar la sesión lista sin una segunda implementación del caché Room.
 
 **L6** — 19 nov 2026: verificación verde con `assembleDebug` y **54 suites / 389 tests / 0 fallos / 0 errores** (eran 52/381). Un error de compilación en el test corregido: `registerResult` es una propiedad del fake, no un parámetro del constructor. Las reglas nuevas compilan con `firebase deploy --only firestore:rules --dry-run --project aulasegu` → `rules file compiled successfully`. **No se publicaron**: publicar reglas de seguridad que permiten autocrear cuentas es un cambio de producción y requiere autorización explícita. Sin eso, el registro en dispositivo fallará con `PERMISSION_DENIED`.
+
+**L7** - 19 nov 2026, correccion tras probar en dispositivo (`65d5dd78`): el primer intento devolvio `PERMISSION_DENIED`. El logcat mostro `Listen ... linkingCodes/35Q3BC failed`: la lectura del codigo se hacia antes de crear la cuenta Auth, y `linkingCodes.get` exige `isSignedIn()`. Se invirtio el orden: primero `createUserWithEmailAndPassword`, despues leer codigo y alumno; cualquier fallo posterior cierra la sesion para no dejar cuentas a medias. No quedo usuario creado. APK recompilado e instalado con la correccion.
+
+**L8** - Reglas publicadas con autorizacion explicita del dueno: `firebase deploy --only firestore:rules --project aulasegu` -> `released rules to cloud.firestore`. Hay 7 codigos sin usar; `35Q3BC` (vence 26 nov) es uno de ellos. El dueno hara la prueba funcional del registro.
+

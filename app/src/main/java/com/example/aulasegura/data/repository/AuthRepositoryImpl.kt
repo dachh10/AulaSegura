@@ -96,33 +96,40 @@ class AuthRepositoryImpl(
         if (!isValidStudentCode(code)) return TutorRegistrationResult.InvalidCode
 
         var authCreated = false
+        fun reject(result: TutorRegistrationResult): TutorRegistrationResult {
+            // No half accounts: if anything fails after Auth was created, close
+            // that session so the next login attempt starts clean.
+            if (authCreated) signOut()
+            return result
+        }
+
         return try {
-            // Read the code before creating anything: a bad code must not leave
-            // an Auth account behind.
-            val codeDoc = firestore.collection(LINKING_CODES).document(code)
-                .get(Source.SERVER).await()
-            if (!codeDoc.exists()) return TutorRegistrationResult.InvalidCode
-            if (codeDoc.getString(FIELD_USED_BY) != null) {
-                return TutorRegistrationResult.CodeAlreadyUsed
-            }
-            codeDoc.getTimestamp(FIELD_EXPIRES_AT)?.toDate()?.let { expires ->
-                if (expires.before(Date())) return TutorRegistrationResult.ExpiredCode
-            }
-            val studentId = codeDoc.getString(FIELD_STUDENT_ID)
-                ?: return TutorRegistrationResult.InvalidCode
-            val schoolId = codeDoc.getString(FIELD_SCHOOL_ID)
-                ?: return TutorRegistrationResult.InvalidCode
-
-            val student = firestore.collection(STUDENTS).document(studentId)
-                .get(Source.SERVER).await()
-            val groupId = student.getString(FIELD_GROUP_ID)
-                ?: return TutorRegistrationResult.InvalidCode
-
+            // Auth first: `linkingCodes.get` is gated by isSignedIn(), so the code
+            // cannot be read before the account exists.
             val created = auth.createUserWithEmailAndPassword(
                 input.email.trim(), input.password,
             ).await()
             authCreated = true
-            val uid = created.user?.uid ?: return TutorRegistrationResult.Failed
+            val uid = created.user?.uid ?: return reject(TutorRegistrationResult.Failed)
+
+            val codeDoc = firestore.collection(LINKING_CODES).document(code)
+                .get(Source.SERVER).await()
+            if (!codeDoc.exists()) return reject(TutorRegistrationResult.InvalidCode)
+            if (codeDoc.getString(FIELD_USED_BY) != null) {
+                return reject(TutorRegistrationResult.CodeAlreadyUsed)
+            }
+            codeDoc.getTimestamp(FIELD_EXPIRES_AT)?.toDate()?.let { expires ->
+                if (expires.before(Date())) return reject(TutorRegistrationResult.ExpiredCode)
+            }
+            val studentId = codeDoc.getString(FIELD_STUDENT_ID)
+                ?: return reject(TutorRegistrationResult.InvalidCode)
+            val schoolId = codeDoc.getString(FIELD_SCHOOL_ID)
+                ?: return reject(TutorRegistrationResult.InvalidCode)
+
+            val student = firestore.collection(STUDENTS).document(studentId)
+                .get(Source.SERVER).await()
+            val groupId = student.getString(FIELD_GROUP_ID)
+                ?: return reject(TutorRegistrationResult.InvalidCode)
 
             val (firstName, lastName) = splitName(input.fullName)
             val userData = mapOf(

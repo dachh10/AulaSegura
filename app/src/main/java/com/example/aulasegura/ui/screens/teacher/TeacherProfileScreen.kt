@@ -259,6 +259,31 @@ fun TeacherProfileScreen(
             onSelect = onSelectTab,
             modifier = Modifier.align(Alignment.BottomCenter),
         )
+
+        // Full-screen account forms cover the profile and its bottom bar. They
+        // share this screen's ViewModel, so saving keeps `saving`/`message` and
+        // returning shows a profile refreshed from the same session profile.
+        when (ui.screen) {
+            ProfileSection.EditProfile -> TeacherEditProfileScreen(
+                ui = ui,
+                onBack = onCloseDialog,
+                onChangePhoto = { showPhotoOptions = true },
+                onNameChange = onEditNameChange,
+                onSubjectsChange = onEditSubjectsChange,
+                onSave = onSaveProfile,
+                onDismissMessage = onDismissMessage,
+            )
+            ProfileSection.ChangePassword -> TeacherChangePasswordScreen(
+                ui = ui,
+                onBack = onCloseDialog,
+                onCurrentChange = onCurrentPasswordChange,
+                onNewChange = onNewPasswordChange,
+                onConfirmChange = onConfirmPasswordChange,
+                onSave = onSavePassword,
+                onDismissMessage = onDismissMessage,
+            )
+            ProfileSection.None -> Unit
+        }
     }
 
     if (showPhotoOptions) {
@@ -385,187 +410,7 @@ fun TeacherProfileScreen(
         }
     }
 
-    when (ui.dialog) {
-        ProfileDialog.EditProfile -> EditProfileDialog(
-            ui = ui,
-            onNameChange = onEditNameChange,
-            onSubjectsChange = onEditSubjectsChange,
-            onSave = onSaveProfile,
-            onClose = onCloseDialog,
-        )
-        ProfileDialog.ChangePassword -> ChangePasswordDialog(
-            ui = ui,
-            onCurrentChange = onCurrentPasswordChange,
-            onNewChange = onNewPasswordChange,
-            onConfirmChange = onConfirmPasswordChange,
-            onSave = onSavePassword,
-            onClose = onCloseDialog,
-        )
-        ProfileDialog.None -> Unit
-    }
 }
-
-/** Shared opaque card for the two account dialogs. */
-@Composable
-private fun AccountDialog(
-    onClose: () -> Unit,
-    content: @Composable ColumnScope.() -> Unit,
-) {
-    Dialog(onDismissRequest = onClose) {
-        Surface(
-            shape = RoundedCornerShape(24.dp),
-            color = SurfaceContainerLowest,
-            tonalElevation = 6.dp,
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 24.dp),
-        ) {
-            Column(
-                modifier = Modifier.padding(24.dp),
-                verticalArrangement = Arrangement.spacedBy(12.dp),
-                content = content,
-            )
-        }
-    }
-}
-
-@Composable
-private fun EditProfileDialog(
-    ui: TeacherProfileUi,
-    onNameChange: (String) -> Unit,
-    onSubjectsChange: (String) -> Unit,
-    onSave: () -> Unit,
-    onClose: () -> Unit,
-) {
-    AccountDialog(onClose = onClose) {
-        Text(
-            text = "Editar perfil",
-            color = PrimaryContainer,
-            fontFamily = BricolageGrotesque,
-            fontWeight = FontWeight.Bold,
-            fontSize = 20.sp,
-        )
-        OutlinedTextField(
-            value = ui.editName,
-            onValueChange = onNameChange,
-            label = { Text(text = "Nombre completo") },
-            modifier = Modifier.fillMaxWidth(),
-            singleLine = true,
-            keyboardOptions = KeyboardOptions(imeAction = ImeAction.Next),
-        )
-        OutlinedTextField(
-            value = ui.editSubjects,
-            onValueChange = onSubjectsChange,
-            label = { Text(text = "Materias") },
-            placeholder = { Text(text = "Matemáticas, Ciencias") },
-            modifier = Modifier.fillMaxWidth(),
-            singleLine = true,
-            keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
-        )
-        Text(
-            text = "Separa las materias con una coma.",
-            color = Outline,
-            fontFamily = DmSans,
-            fontSize = 11.sp,
-        )
-        DialogActions(
-            saving = ui.saving,
-            saveLabel = "Guardar",
-            onSave = onSave,
-            onClose = onClose,
-        )
-    }
-}
-
-@Composable
-private fun ChangePasswordDialog(
-    ui: TeacherProfileUi,
-    onCurrentChange: (String) -> Unit,
-    onNewChange: (String) -> Unit,
-    onConfirmChange: (String) -> Unit,
-    onSave: () -> Unit,
-    onClose: () -> Unit,
-) {
-    AccountDialog(onClose = onClose) {
-        Text(
-            text = "Cambiar contraseña",
-            color = PrimaryContainer,
-            fontFamily = BricolageGrotesque,
-            fontWeight = FontWeight.Bold,
-            fontSize = 20.sp,
-        )
-        OutlinedTextField(
-            value = ui.currentPassword,
-            onValueChange = onCurrentChange,
-            label = { Text(text = "Contraseña actual") },
-            visualTransformation = PasswordVisualTransformation(),
-            keyboardOptions = KeyboardOptions(
-                keyboardType = KeyboardType.Password,
-                imeAction = ImeAction.Next,
-            ),
-            modifier = Modifier.fillMaxWidth(),
-            singleLine = true,
-        )
-        OutlinedTextField(
-            value = ui.newPassword,
-            onValueChange = onNewChange,
-            label = { Text(text = "Nueva contraseña") },
-            visualTransformation = PasswordVisualTransformation(),
-            keyboardOptions = KeyboardOptions(
-                keyboardType = KeyboardType.Password,
-                imeAction = ImeAction.Next,
-            ),
-            modifier = Modifier.fillMaxWidth(),
-            singleLine = true,
-        )
-        OutlinedTextField(
-            value = ui.confirmPassword,
-            onValueChange = onConfirmChange,
-            label = { Text(text = "Repite la nueva contraseña") },
-            visualTransformation = PasswordVisualTransformation(),
-            keyboardOptions = KeyboardOptions(
-                keyboardType = KeyboardType.Password,
-                imeAction = ImeAction.Done,
-            ),
-            modifier = Modifier.fillMaxWidth(),
-            singleLine = true,
-        )
-        DialogActions(
-            saving = ui.saving,
-            saveLabel = "Cambiar",
-            onSave = onSave,
-            onClose = onClose,
-        )
-    }
-}
-
-@Composable
-private fun DialogActions(
-    saving: Boolean,
-    saveLabel: String,
-    onSave: () -> Unit,
-    onClose: () -> Unit,
-) {
-    Spacer(Modifier.height(4.dp))
-    Button(
-        onClick = onSave,
-        enabled = !saving,
-        modifier = Modifier.fillMaxWidth(),
-    ) {
-        Text(
-            text = if (saving) "Guardando…" else saveLabel,
-            fontFamily = DmSans,
-            fontWeight = FontWeight.Bold,
-        )
-    }
-    TextButton(
-        onClick = onClose,
-        modifier = Modifier.fillMaxWidth(),
-    ) {
-        Text(text = "Cancelar", color = Outline, fontFamily = DmSans)
-    }
-}
-
 @Composable
 private fun ProfileMessage(
     message: String,

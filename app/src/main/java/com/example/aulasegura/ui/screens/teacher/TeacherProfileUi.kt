@@ -15,12 +15,13 @@ data class TeacherProfileUi(
     val email: String = "",
     val schoolId: String = "",
     val subjects: List<String> = emptyList(),
+    val groups: List<String> = emptyList(),
     val photoUrl: String? = null,
     val uploading: Boolean = false,
     val saving: Boolean = false,
     val message: String? = null,
     val saved: Boolean = false,
-    val dialog: ProfileDialog = ProfileDialog.None,
+    val screen: ProfileSection = ProfileSection.None,
     val editName: String = "",
     val editSubjects: String = "",
     val currentPassword: String = "",
@@ -28,14 +29,14 @@ data class TeacherProfileUi(
     val confirmPassword: String = "",
 )
 
-/** The two editable dialogs. Permissions is a navigation target, not a dialog. */
-sealed interface ProfileDialog {
+/** The two full-screen account forms. Permissions is a navigation target. */
+sealed interface ProfileSection {
 
-    data object None : ProfileDialog
+    data object None : ProfileSection
 
-    data object EditProfile : ProfileDialog
+    data object EditProfile : ProfileSection
 
-    data object ChangePassword : ProfileDialog
+    data object ChangePassword : ProfileSection
 }
 
 /** Maps the cached session profile into the screen model. */
@@ -86,7 +87,7 @@ fun parseSubjects(input: String): List<String> =
 fun profileEditError(fullName: String): String? =
     if (fullName.isBlank()) "Escribe tu nombre." else null
 
-/** `null` means the password can be changed. */
+/** `null` means the password can be changed. Same rules the checklist displays. */
 fun passwordChangeError(
     current: String,
     new: String,
@@ -95,8 +96,35 @@ fun passwordChangeError(
     current.isBlank() -> "Escribe tu contraseña actual."
     new.isBlank() -> "Escribe la nueva contraseña."
     new.length < MIN_PASSWORD_CHARS -> "La contraseña debe tener al menos $MIN_PASSWORD_CHARS caracteres."
+    new.none { it.isUpperCase() } -> "Incluye al menos una letra mayúscula."
+    new.none { it.isDigit() } -> "Incluye al menos un número."
     new != confirmation -> "Las contraseñas no coinciden."
     else -> null
+}
+
+/** A rule shown in the form. `met` comes from the same predicate as the error. */
+data class PasswordRuleUi(val label: String, val met: Boolean)
+
+/** The Stitch checklist, driven by what the app actually enforces. */
+fun passwordRules(new: String): List<PasswordRuleUi> = listOf(
+    PasswordRuleUi("Mínimo $MIN_PASSWORD_CHARS caracteres", new.length >= MIN_PASSWORD_CHARS),
+    PasswordRuleUi("Una letra mayúscula", new.any { it.isUpperCase() }),
+    PasswordRuleUi("Un número", new.any { it.isDigit() }),
+    PasswordRuleUi("Un símbolo (recomendado)", new.any { !it.isLetterOrDigit() }),
+)
+
+/** The "Coinciden" pill lives next to the field, not in the checklist. */
+fun passwordsMatch(new: String, confirmation: String): Boolean =
+    confirmation.isNotBlank() && new == confirmation
+
+/** How many of the four Stitch strength segments are lit. */
+fun passwordStrengthSteps(new: String): Int = passwordRules(new).count { it.met }
+
+/** Short strength readout shown next to the new-password field. */
+fun passwordStrengthLabel(new: String): String = when {
+    new.isBlank() -> ""
+    passwordStrengthSteps(new) >= 3 -> "Buena"
+    else -> "Puede mejorar"
 }
 
 fun profileUpdateMessage(result: ProfileUpdateResult): String = when (result) {
@@ -117,4 +145,4 @@ fun passwordChangeMessage(result: PasswordChangeResult): String = when (result) 
     PasswordChangeResult.Failed -> "No se pudo cambiar la contraseña."
 }
 
-private const val MIN_PASSWORD_CHARS = 6
+private const val MIN_PASSWORD_CHARS = 8

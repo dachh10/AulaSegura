@@ -34,19 +34,18 @@ grep -h -o 'tests="[0-9]*" skipped="[0-9]*" failures="[0-9]*" errors="[0-9]*"' a
 - `bloque-16-chips-historial.md` — chips de una línea (`maxLines`/`softWrap`), `FlowRow`, evidencia con icono, PDF de una tarea abre con `ACTION_VIEW` y su fila muestra chip `PDF` en vez del nombre.
 - `bloque-12-inicio-real.md` — inicio con datos reales: siguiente clase desde `groups/{groupId}/schedule`, resumen de hoy (listas/grupos, faltas, outbox), actividad reciente (asistencia + incidentes + tareas + avisos), campanita con no leídas reales y badge oculto en 0.
 - `bloque-15-radio-calendario.md` — pase de lista bloqueado sábado y domingo ("Hoy no hay clases"), mes real en el historial con flechas y filtro por mes en las tres pestañas.
+- `bloque-17-perfil-stitch.md` — los diálogos de editar perfil y cambiar contraseña se reemplazan por pantallas completas inspiradas en Stitch, con solo los campos reales y un checklist de contraseña que coincide con la validación.
 
 ## Lo que falta
 
-| # | Bloque | Qué incluye | Dependencia |
-|---|---|---|---|
-| B17 | Perfil según Stitch | Convertir los diálogos de editar perfil y cambiar contraseña en pantallas con el diseño de Stitch. La lógica ya es real (nombre/materias en `users/{uid}`, contraseña con reautenticación). | **código de Stitch**: "Editar Perfil (Docente)", "Cambiar contraseña" |
+No queda código del docente pendiente. Lo que sigue es verificación en dispositivo (`C1`, `C2`, `C5` de `FASE1.md`, a cargo del dueño) y la Fase 3 (tutor).
 
 La Fase 2 (directivo) de Evelyn ya está integrada en `main` (`06e606a`). Reglas de Firestore, índices y reglas de RTDB publicados con `firebase deploy`. Al tocar esos archivos, revisar que sigan pasando los flujos del docente (bandeja, `fcmTokens`, `attendanceSessions`).
 
 ## Decisiones que no hay que reabrir sin motivo
 
 - **Fin de semana:** el pase de lista se rechaza antes de verificar ubicación; lo ya guardado no se toca. Sin feriados: no existe colección y crearla depende del directivo. `util/SchoolCalendar.kt` es el único lugar a tocar cuando exista.
-- **Horario:** se lee en vivo, sin caché Room. Los documentos los escribe el directivo (que aún no existe). Las reglas autorizan `schedule` con `get()` del grupo padre, por eso se lee grupo por grupo y no con `collectionGroup`.
+- **Horario:** se lee en vivo, sin caché Room. Los documentos los escribe el rol directivo (ya implementado en la Fase 2). Las reglas autorizan `schedule` con `get()` del grupo padre, por eso se lee grupo por grupo y no con `collectionGroup`.
 - **Clase en curso gana a la siguiente** en la card del inicio.
 - **Aula 12 no existe** en el esquema: la card muestra materia · grupo y "N alumnos", nada de salón inventado.
 - **Historial:** el mes se compara como `año * 12 + mes` (sin `java.time`: `minSdk` 24 sin desugaring); el filtro aplica a las tres pestañas porque el encabezado es uno.

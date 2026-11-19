@@ -8,6 +8,7 @@ import com.example.aulasegura.data.remote.cloudinary.CloudinaryResult
 import com.example.aulasegura.data.remote.cloudinary.CloudinaryUploader
 import com.example.aulasegura.data.remote.cloudinary.ImageCompressor
 import com.example.aulasegura.domain.repository.AuthRepository
+import com.example.aulasegura.domain.repository.GroupRepository
 import com.example.aulasegura.domain.repository.PasswordChangeResult
 import com.example.aulasegura.domain.repository.ProfilePhotoResult
 import com.example.aulasegura.domain.repository.ProfileUpdateResult
@@ -27,6 +28,7 @@ import kotlinx.coroutines.launch
  */
 class TeacherProfileViewModel(
     private val auth: AuthRepository,
+    private val groups: GroupRepository,
     private val compressor: ImageCompressor,
     private val uploader: CloudinaryUploader,
 ) : ViewModel() {
@@ -35,6 +37,16 @@ class TeacherProfileViewModel(
         auth.currentUser?.toProfileUi() ?: TeacherProfileUi(),
     )
     val ui: StateFlow<TeacherProfileUi> = _ui.asStateFlow()
+
+    init {
+        // The Stitch card shows assigned groups. They live in the roster, not in
+        // the profile: observing them keeps the chips real when the director changes them.
+        viewModelScope.launch {
+            groups.observeMyGroups().collect { list ->
+                _ui.value = _ui.value.copy(groups = list.map { it.label })
+            }
+        }
+    }
 
     // ---- Avatar -------------------------------------------------------------
 
@@ -105,7 +117,7 @@ class TeacherProfileViewModel(
     fun openEditProfile() {
         val current = auth.currentUser
         _ui.value = _ui.value.copy(
-            dialog = ProfileDialog.EditProfile,
+            screen = ProfileSection.EditProfile,
             editName = current?.fullName.orEmpty(),
             editSubjects = subjectsInput(current?.subjects.orEmpty()),
             message = null,
@@ -138,7 +150,7 @@ class TeacherProfileViewModel(
             when (result) {
                 ProfileUpdateResult.Saved -> {
                     _ui.value = auth.currentUser?.toProfileUi()?.copy(
-                        dialog = ProfileDialog.None,
+                        screen = ProfileSection.None,
                         saving = false,
                         saved = true,
                         message = profileUpdateMessage(result),
@@ -156,7 +168,7 @@ class TeacherProfileViewModel(
 
     fun openChangePassword() {
         _ui.value = _ui.value.copy(
-            dialog = ProfileDialog.ChangePassword,
+            screen = ProfileSection.ChangePassword,
             currentPassword = "",
             newPassword = "",
             confirmPassword = "",
@@ -197,7 +209,11 @@ class TeacherProfileViewModel(
             )
             _ui.value = _ui.value.copy(
                 saving = false,
-                dialog = if (result == PasswordChangeResult.Changed) ProfileDialog.None else _ui.value.dialog,
+                screen = if (result == PasswordChangeResult.Changed) {
+                    ProfileSection.None
+                } else {
+                    _ui.value.screen
+                },
                 message = passwordChangeMessage(result),
             )
         }
@@ -205,12 +221,17 @@ class TeacherProfileViewModel(
 
     // ---- Shared -------------------------------------------------------------
 
-    fun closeDialog() {
-        _ui.value = _ui.value.copy(dialog = ProfileDialog.None, message = null)
+    fun closeSection() {
+        _ui.value = _ui.value.copy(screen = ProfileSection.None, message = null)
     }
 
     fun clearMessage() {
         _ui.value = _ui.value.copy(message = null)
+    }
+
+    /** Re-reads the session profile after a form wrote it, so the header is fresh. */
+    fun refresh() {
+        auth.currentUser?.let { _ui.value = it.toProfileUi() }
     }
 
     private fun finishPhoto(message: String) {

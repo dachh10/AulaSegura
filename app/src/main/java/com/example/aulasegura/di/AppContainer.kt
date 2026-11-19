@@ -720,6 +720,7 @@ class AppViewModelFactory(
         modelClass.isAssignableFrom(TeacherProfileViewModel::class.java) ->
             TeacherProfileViewModel(
                 auth = container.authRepository,
+                groups = container.groupRepository,
                 compressor = container.imageCompressor,
                 uploader = container.cloudinaryUploader,
             )

@@ -5,7 +5,9 @@ import com.example.aulasegura.domain.model.UserRole
 import com.example.aulasegura.domain.repository.PasswordChangeResult
 import com.example.aulasegura.domain.repository.ProfileUpdateResult
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
@@ -86,20 +88,54 @@ class TeacherProfileUiTest {
     }
 
     @Test
-    fun `the password form checks length and confirmation`() {
+    fun `the password form checks every rule it displays`() {
         assertEquals(
             "Escribe tu contraseña actual.",
-            passwordChangeError("", "abc123", "abc123"),
+            passwordChangeError("", "Abc12345", "Abc12345"),
         )
         assertEquals(
-            "La contraseña debe tener al menos 6 caracteres.",
+            "La contraseña debe tener al menos 8 caracteres.",
             passwordChangeError("vieja", "abc", "abc"),
         )
         assertEquals(
-            "Las contraseñas no coinciden.",
-            passwordChangeError("vieja", "abc123", "otra123"),
+            "Incluye al menos una letra mayúscula.",
+            passwordChangeError("vieja", "abcdefgh", "abcdefgh"),
         )
-        assertNull(passwordChangeError("vieja", "abc123", "abc123"))
+        assertEquals(
+            "Incluye al menos un número.",
+            passwordChangeError("vieja", "ABCDEFGH", "ABCDEFGH"),
+        )
+        assertEquals(
+            "Las contraseñas no coinciden.",
+            passwordChangeError("vieja", "Abc12345", "otra1234"),
+        )
+        // A symbol is recommended in the design but not required by the form.
+        assertNull(passwordChangeError("vieja", "Abc12345", "Abc12345"))
+    }
+
+    @Test
+    fun `the checklist reflects the same rules as the validation`() {
+        val rules = passwordRules("Abc12345")
+
+        assertEquals(4, rules.size)
+        assertEquals(listOf(true, true, true, false), rules.map { it.met })
+        assertEquals("Mínimo 8 caracteres", rules[0].label)
+        assertEquals("Un símbolo (recomendado)", rules[3].label)
+        assertEquals(listOf(false, false, false, false), passwordRules("").map { it.met })
+        assertTrue(passwordsMatch("Abc12345", "Abc12345"))
+        assertFalse(passwordsMatch("Abc12345", ""))
+        assertFalse(passwordsMatch("Abc12345", "otra1234"))
+    }
+
+    @Test
+    fun `the strength bar follows the enforced rules`() {
+        assertEquals(0, passwordStrengthSteps(""))
+        assertEquals(1, passwordStrengthSteps("abcdefgh"))
+        assertEquals(3, passwordStrengthSteps("Abc12345"))
+        assertEquals(4, passwordStrengthSteps("Abc12345!"))
+        assertEquals("", passwordStrengthLabel(""))
+        assertEquals("Puede mejorar", passwordStrengthLabel("abc"))
+        assertEquals("Buena", passwordStrengthLabel("Abc12345"))
     }
 
     @Test

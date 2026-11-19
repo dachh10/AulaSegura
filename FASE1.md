@@ -25,8 +25,8 @@
 | **10** — Notificaciones y FCM | push desde la consola + bandeja real + script de avisos | ✅ **cerrado 17 nov 2026** · probado en teléfono · 219 tests |
 | **11** — Perfil | datos reales del docente + foto en Cloudinary + ajustes de cuenta | ✅ **hecho** · `assembleDebug` + 234 tests |
 
-> Los conteos de cada fila son los de su entrega. Con la Fase 2 integrada en `main`, la
-> verificación final es **379 tests, 0 fallos** (52 suites) y `assembleDebug` en verde.
+> Los conteos de cada fila son los de su entrega. Con la Fase 2 integrada y el bloque 17 cerrado,
+> la verificación final es **381 tests, 0 fallos** (52 suites) y `assembleDebug` en verde.
 
 **Criterio de cierre de la fase** (`PLAN.md`): con **modo avión** activo, el docente pasa lista y
 registra un incidente con foto; al reconectar, ambos aparecen en Firestore **sin duplicados** y
@@ -1121,6 +1121,33 @@ Cómo probarlo en el teléfono:
 4. **Notificaciones**: con el permiso concedido, tocar la fila abre los ajustes de notificaciones
    de la app; al desactivarlas desde ahí y volver, el interruptor debe aparecer apagado.
 
+**B17 — pantallas de perfil según Stitch** (18 nov 2026)
+
+Los dos diálogos de la extensión se reemplazan por pantallas completas inspiradas en los diseños
+"Editar Perfil (Docente)" y "Cambiar contraseña" de Stitch. Se toma la estructura (encabezado con
+volver, tarjetas, checklist de contraseña) y se descarta lo que el proyecto no puede sostener:
+`Nombre(s)`/`Apellidos` separados (`AppUser` solo tiene `fullName`), teléfono (no está en el modelo),
+la nota de guardado offline (el perfil no usa la outbox) y los chips de grupos (los asigna la
+directora y se ven en "Mis grupos").
+
+- [x] **11.10** "Editar perfil" es una pantalla completa: nombre y materias editables; correo y
+      escuela en solo lectura porque las reglas los hacen inmutables para el docente.
+- [x] **11.11** "Cambiar contraseña" es una pantalla completa: actual, nueva y confirmación, con un
+      checklist que refleja exactamente las reglas validadas (mínimo 8, mayúscula, número;
+      símbolo recomendado y "Coinciden" calculado).
+
+El port sigue el HTML de Stitch: avatar de 104 dp con badge coral, campos de 52/56 dp con icono,
+tarjeta institucional con filas opacas y chips de grupos reales del roster, dock inferior fijo con
+botón coral, toast de guardado, patrón de escudos, candado de 112 dp, barra de fuerza de 4
+segmentos, píldora "Coinciden" y botones de mostrar/ocultar contraseña. La entrada de cada zona usa
+el mismo `Reveal` escalonado que las demás pantallas del docente. Se omitió la barra de estado
+simulada del mockup y se cambió el aviso offline por uno cierto ("Los cambios se guardan en tu
+cuenta"), porque el perfil no pasa por la outbox.
+
+**Cómo probarlo:** desde Perfil, tocar "Editar perfil" o "Cambiar contraseña" abre una pantalla a
+pantalla completa con flecha de volver. El checklist de la contraseña se pone verde con cada regla
+cumplida; si falta alguna, el guardado explica cuál.
+
 **Criterio:** el docente cambia su foto, cierra la app, vuelve a entrar y la foto sigue ahí; el
 saludo muestra su nombre real.
 
@@ -1131,7 +1158,7 @@ saludo muestra su nombre real.
 - [ ] **C1** Modo avión: pase de lista completo **y** incidente con foto
 - [ ] **C2** Reconectar: ambos en Firestore, **sin duplicados**, media subida
 - [x] **C3** `assembleDebug` verde
-- [x] **C4** `testDebugUnitTest` verde (379 tests, 0 fallos al integrar la Fase 2; la Fase 0 tenía 61)
+- [x] **C4** `testDebugUnitTest` verde (381 tests, 0 fallos con el bloque 17; la Fase 0 tenía 61)
 - [ ] **C5** `connectedDebugAndroidTest` verde en device físico
 - [x] **C6** Reglas de Firestore, índices y reglas de RTDB publicadas con `firebase deploy --project aulasegu`
 - [x] **C7** `FASE1.md` completo y `CONTEXT.md` actualizado (Room v4 y Coil3 3.6.3)

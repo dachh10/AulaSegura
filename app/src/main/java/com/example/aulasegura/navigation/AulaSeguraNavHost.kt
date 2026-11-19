@@ -668,6 +668,7 @@ fun AulaSeguraNavHost(
             val profileViewModel: TeacherProfileViewModel =
                 viewModel(factory = rememberAppContainer().viewModelFactory)
             val profileUi by profileViewModel.ui.collectAsState()
+            LaunchedEffect(Unit) { profileViewModel.refresh() }
             TeacherProfileScreen(
                 ui = profileUi,
                 onSelectTab = { navController.openTeacherTab(it) },
@@ -684,7 +685,7 @@ fun AulaSeguraNavHost(
                 onNewPasswordChange = profileViewModel::setNewPassword,
                 onConfirmPasswordChange = profileViewModel::setConfirmPassword,
                 onSavePassword = profileViewModel::savePassword,
-                onCloseDialog = profileViewModel::closeDialog,
+                onCloseDialog = profileViewModel::closeSection,
             )
         }
 

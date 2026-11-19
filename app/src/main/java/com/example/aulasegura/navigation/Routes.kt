@@ -54,6 +54,7 @@ object Routes {
     const val ADMIN_DASHBOARD = "admin/dashboard"
     const val ADMIN_USERS = "admin/users"
     const val ADMIN_NEW_STUDENT = "admin/users/new"
+    const val ADMIN_NEW_STUDENT_FOR_GROUP = "admin/users/new/{groupId}"
     const val ADMIN_GROUPS = "admin/groups"
     const val ADMIN_GROUP_DETAIL = "admin/groups/{groupId}"
     const val ADMIN_REPORTS = "admin/reports"
@@ -76,4 +77,5 @@ object Routes {
     fun teacherRollCallOffline(groupId: String) = "teacher/roll-call/offline/$groupId"
     fun teacherConversation(conversationId: String) = "teacher/chat/$conversationId"
     fun adminGroupDetail(groupId: String) = "admin/groups/$groupId"
+    fun adminNewStudent(groupId: String) = "admin/users/new/$groupId"
 }

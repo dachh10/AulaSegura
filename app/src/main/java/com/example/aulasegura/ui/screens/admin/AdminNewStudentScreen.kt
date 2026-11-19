@@ -35,18 +35,25 @@ import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.filled.Groups
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.PhotoCamera
-import androidx.compose.material.icons.filled.Sell
 import androidx.compose.material.icons.filled.Share
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.lifecycle.ViewModel
+import androidx.lifecycle.ViewModelProvider
+import androidx.lifecycle.viewmodel.compose.viewModel
+import com.example.aulasegura.di.rememberAppContainer
+import com.example.aulasegura.domain.model.AdminGroup
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -88,18 +95,26 @@ private val CodeCardBorder = PrimaryFixedDim.copy(alpha = 0.70f)
 private val CameraShadow = Color(0x331B1D3A)
 private val SaveShadow = Color(0x59FC6955)
 
-private val grupos = listOf("3° B", "1° A", "1° B", "2° A", "2° B", "3° A")
-
 @Composable
 fun AdminNewStudentScreen(
     onBack: () -> Unit = {},
     onGuardar: () -> Unit = {},
+    presetGroupId: String = "",
 ) {
-    var nombre by rememberSaveable { mutableStateOf("") }
-    var apellidos by rememberSaveable { mutableStateOf("") }
-    var numeroLista by rememberSaveable { mutableStateOf("") }
-    var grupo by rememberSaveable { mutableStateOf(grupos.first()) }
-    var curp by rememberSaveable { mutableStateOf("") }
+    val container = rememberAppContainer()
+    // A key scoped to the preset id keeps the Users-tab (no group) form separate
+    // from a form opened for a specific group, so navigating back and forth never
+    // reuses a stale selection.
+    val factory = remember(presetGroupId) {
+        object : ViewModelProvider.Factory {
+            @Suppress("UNCHECKED_CAST")
+            override fun <T : ViewModel> create(modelClass: Class<T>): T =
+                container.viewModelFactory.adminNewStudentViewModel(presetGroupId) as T
+        }
+    }
+    val viewModel: AdminNewStudentViewModel = viewModel(factory = factory)
+    val uiState by viewModel.state.collectAsState()
+    val form = uiState.form
 
     Column(
         modifier = Modifier
@@ -148,38 +163,43 @@ fun AdminNewStudentScreen(
 
             Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
                 FormField(
-                    value = nombre,
-                    onValueChange = { nombre = it },
+                    value = form.firstName,
+                    onValueChange = { viewModel.onFormChange(form.copy(firstName = it)) },
                     placeholder = "Nombre(s)",
                     icon = Icons.Filled.Person,
                 )
                 FormField(
-                    value = apellidos,
-                    onValueChange = { apellidos = it },
+                    value = form.lastName,
+                    onValueChange = { viewModel.onFormChange(form.copy(lastName = it)) },
                     placeholder = "Apellidos",
                     icon = Icons.Filled.Badge,
                 )
-                FormField(
-                    value = numeroLista,
-                    onValueChange = { numeroLista = it.filter { c -> c.isDigit() } },
-                    placeholder = "Número de lista",
-                    icon = Icons.Filled.Sell,
-                    mono = true,
-                )
                 GroupField(
-                    grupo = grupo,
-                    onGrupoChange = { grupo = it },
+                    selectedGroupId = form.groupId,
+                    groups = uiState.groups,
+                    onGroupChange = { viewModel.onFormChange(form.copy(groupId = it)) },
                 )
                 FormField(
-                    value = curp,
-                    onValueChange = { curp = it.uppercase() },
+                    value = form.curp,
+                    onValueChange = { viewModel.onFormChange(form.copy(curp = it.uppercase())) },
                     placeholder = "CURP (opcional)",
                     icon = Icons.Filled.AssignmentInd,
                     mono = true,
                 )
+                uiState.error?.let {
+                    Text(
+                        text = it,
+                        color = MaterialTheme.colorScheme.error,
+                        fontFamily = DmSans,
+                        fontSize = 12.sp,
+                    )
+                }
+                uiState.message?.let {
+                    Text(text = it, color = OnSurfaceVariant, fontFamily = DmSans, fontSize = 12.sp)
+                }
             }
 
-            LinkingCodeCard()
+            LinkingCodeCard(code = uiState.linkingCode)
         }
 
         Column(
@@ -200,7 +220,7 @@ fun AdminNewStudentScreen(
                     .padding(horizontal = 16.dp, vertical = 8.dp),
                 horizontalAlignment = Alignment.CenterHorizontally,
             ) {
-                SaveButton(onClick = onGuardar)
+                SaveButton(onClick = viewModel::submit, enabled = !uiState.loading)
                 Spacer(modifier = Modifier.height(6.dp))
                 Text(
                     text = "Cancelar",
@@ -215,6 +235,43 @@ fun AdminNewStudentScreen(
                 )
             }
         }
+    }
+
+    // The code is shown before leaving the form: once the screen is popped there
+    // is no other place in the app that reveals it.
+    uiState.linkingCode?.let { code ->
+        AlertDialog(
+            onDismissRequest = onGuardar,
+            title = {
+                Text(
+                    text = "Código de vinculación",
+                    color = Primary,
+                    fontFamily = BricolageGrotesque,
+                    fontWeight = FontWeight.Bold,
+                )
+            },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text(
+                        text = "Compártelo con el padre de familia para que pueda vincular al alumno.",
+                        fontFamily = DmSans,
+                        fontSize = 14.sp,
+                    )
+                    Text(
+                        text = code,
+                        color = PrimaryContainer,
+                        fontFamily = JetBrainsMono,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 22.sp,
+                    )
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = onGuardar) {
+                    Text(text = "Listo", color = Primary, fontFamily = DmSans)
+                }
+            },
+        )
     }
 }
 
@@ -347,10 +404,13 @@ private fun FormField(
 
 @Composable
 private fun GroupField(
-    grupo: String,
-    onGrupoChange: (String) -> Unit,
+    selectedGroupId: String,
+    groups: List<AdminGroup>,
+    onGroupChange: (String) -> Unit,
 ) {
     var expanded by remember { mutableStateOf(false) }
+    val selectedLabel = groups.firstOrNull { it.id == selectedGroupId }?.name
+        ?: if (groups.isEmpty()) "Cargando grupos…" else "Selecciona un grupo"
 
     Box {
         Row(
@@ -360,7 +420,7 @@ private fun GroupField(
                 .clip(FieldShape)
                 .background(SurfaceContainerLowest)
                 .border(1.dp, SurfaceVariant, FieldShape)
-                .clickable { expanded = true }
+                .clickable(enabled = groups.isNotEmpty()) { expanded = true }
                 .padding(start = 14.dp, end = 14.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
@@ -372,7 +432,7 @@ private fun GroupField(
             )
             Spacer(modifier = Modifier.width(10.dp))
             Text(
-                text = grupo,
+                text = selectedLabel,
                 color = OnSurface,
                 fontFamily = DmSans,
                 fontWeight = FontWeight.Medium,
@@ -392,19 +452,23 @@ private fun GroupField(
             onDismissRequest = { expanded = false },
             modifier = Modifier.background(SurfaceContainerLowest),
         ) {
-            grupos.forEach { option ->
+            groups.forEach { option ->
                 DropdownMenuItem(
                     text = {
                         Text(
-                            text = option,
+                            text = option.name,
                             color = OnSurface,
                             fontFamily = DmSans,
-                            fontWeight = if (option == grupo) FontWeight.SemiBold else FontWeight.Normal,
+                            fontWeight = if (option.id == selectedGroupId) {
+                                FontWeight.SemiBold
+                            } else {
+                                FontWeight.Normal
+                            },
                             fontSize = 14.sp,
                         )
                     },
                     onClick = {
-                        onGrupoChange(option)
+                        onGroupChange(option.id)
                         expanded = false
                     },
                 )
@@ -414,7 +478,7 @@ private fun GroupField(
 }
 
 @Composable
-private fun LinkingCodeCard() {
+private fun LinkingCodeCard(code: String?) {
     Box(
         modifier = Modifier
             .fillMaxWidth()
@@ -434,11 +498,11 @@ private fun LinkingCodeCard() {
             )
             Spacer(modifier = Modifier.height(6.dp))
             Text(
-                text = "AS-4F7K-92",
+                text = code ?: "Se generará al guardar",
                 color = PrimaryContainer,
                 fontFamily = JetBrainsMono,
                 fontWeight = FontWeight.Bold,
-                fontSize = 26.sp,
+                fontSize = if (code == null) 16.sp else 26.sp,
                 lineHeight = 32.sp,
                 letterSpacing = 1.2.sp,
             )
@@ -505,7 +569,7 @@ private fun CodeActionPill(icon: ImageVector, label: String) {
 }
 
 @Composable
-private fun SaveButton(onClick: () -> Unit) {
+private fun SaveButton(onClick: () -> Unit, enabled: Boolean = true) {
     val source = remember { MutableInteractionSource() }
     val pressed by source.collectIsPressedAsState()
     val scale by animateFloatAsState(
@@ -525,7 +589,7 @@ private fun SaveButton(onClick: () -> Unit) {
             .shadow(14.dp, RoundedCornerShape(percent = 50), ambientColor = SaveShadow, spotColor = SaveShadow)
             .clip(RoundedCornerShape(percent = 50))
             .background(SecondaryContainer)
-            .clickable(interactionSource = source, indication = null, onClick = onClick),
+            .clickable(enabled = enabled, interactionSource = source, indication = null, onClick = onClick),
         contentAlignment = Alignment.Center,
     ) {
         Text(

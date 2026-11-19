@@ -3,9 +3,10 @@
   "private": true,
   "version": "1.0.0",
   "type": "module",
-  "description": "Idempotent Firestore seed for AulaSegura (Fase 0, bloque K).",
+  "description": "Idempotent Firestore seed and account creation for AulaSegura (Fase 0 bloque K, Fase 2 bloque 1).",
   "scripts": {
-    "seed": "node seed.mjs"
+    "seed": "node seed.mjs",
+    "create-user": "node create-user.mjs"
   },
   "engines": {
     "node": ">=20"

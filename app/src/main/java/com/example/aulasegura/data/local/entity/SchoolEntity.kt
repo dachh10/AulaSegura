@@ -24,4 +24,7 @@ data class SchoolEntity(
     val longitude: Double? = null,
     val radiusMeters: Double? = null,
     val updatedAt: Long,
+    // Declared last so it matches the column MIGRATION_3_4 appends. The default
+    // keeps an old cached row (and every caller that omits it) fail-closed.
+    val requireLocation: Boolean = true,
 )

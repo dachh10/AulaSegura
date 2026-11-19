@@ -1,6 +1,5 @@
 package com.example.aulasegura.ui.screens.admin
 
-import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -24,10 +23,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.Badge
-import androidx.compose.material.icons.filled.CheckCircle
-import androidx.compose.material.icons.filled.CloudDone
 import androidx.compose.material.icons.filled.CloudOff
 import androidx.compose.material.icons.filled.Error
 import androidx.compose.material.icons.filled.Groups
@@ -38,24 +34,21 @@ import androidx.compose.material.icons.filled.Shield
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.StrokeCap
-import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.text.AnnotatedString
-import androidx.compose.ui.text.SpanStyle
-import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.lifecycle.viewmodel.compose.viewModel
+import com.example.aulasegura.di.rememberAppContainer
 import com.example.aulasegura.ui.components.AdminBottomBar
 import com.example.aulasegura.ui.components.AdminTab
 import com.example.aulasegura.ui.screens.access.Reveal
@@ -72,29 +65,17 @@ import com.example.aulasegura.ui.theme.PrimaryContainer
 import com.example.aulasegura.ui.theme.PrimaryFixed
 import com.example.aulasegura.ui.theme.SecondaryContainer
 import com.example.aulasegura.ui.theme.SecondaryFixed
-import com.example.aulasegura.ui.theme.SurfaceContainer
 import com.example.aulasegura.ui.theme.SurfaceContainerLowest
-import com.example.aulasegura.ui.theme.TertiaryFixedDim
 
-/** 4.1 — Panel Directivo. Ported 1:1 from the Stitch markup of the admin dashboard. */
+/** 4.1 — Panel Directivo. Stitch layout kept; every number now comes from Firestore. */
 
-/** Hairline borders used across every card in the mockup (#E6E1D8). */
-private val Hairline = Color(0xFFE6E1D8)
+private val TileShape = RoundedCornerShape(20.dp)
+private val HeroShape = RoundedCornerShape(24.dp)
 
-/** Mockup accents that are not part of the shared M3 palette. */
-private val DangerRed = Color(0xFFE5484D)
-private val AttentionAmber = Color(0xFFF59E0B)
-private val SuccessPillBg = Color(0xFFEAF6F0)
-private val SuccessPillText = Color(0xFF2E9E6B)
-private val PendingPillBg = Color(0xFFFEF3C7)
 private val PendingPillText = Color(0xFFD97706)
 private val AttentionCardBg = Color(0xFFFFFBEB)
 private val AttentionCardBorder = Color(0xFFFDE68A)
 private val AttentionText = Color(0xFF92400E)
-private val AttentionChevron = Color(0xFFB45309)
-
-private val TileShape = RoundedCornerShape(20.dp)
-private val HeroShape = RoundedCornerShape(24.dp)
 
 @Composable
 fun AdminDashboardScreen(
@@ -104,6 +85,18 @@ fun AdminDashboardScreen(
     onReportes: () -> Unit = {},
     onMas: () -> Unit = {},
 ) {
+    val viewModel: AdminDashboardViewModel = viewModel(
+        factory = rememberAppContainer().viewModelFactory,
+    )
+    val uiState by viewModel.state.collectAsState()
+    val error = uiState.error
+    val cards = if (uiState.loading) loadingCards() else dashboardCards(uiState.dashboard)
+    val summary = if (uiState.loading) {
+        "Cargando datos del plantel…"
+    } else {
+        summaryLabel(uiState.dashboard)
+    }
+
     Box(
         modifier = Modifier
             .fillMaxSize()
@@ -118,9 +111,26 @@ fun AdminDashboardScreen(
             verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
             Reveal(0) { AdminTopBar(onNotificaciones = onNotificaciones) }
-            Reveal(60) { TodayAttendanceCard() }
-            Reveal(120) { CampusNumbers() }
-            Reveal(180) { TodayGroups(onVerDetalles = onGrupos) }
+            Reveal(60) {
+                AttendanceTodayCard(
+                    message = todayAttendanceMessage(
+                        summary = uiState.todaySummary,
+                        loading = uiState.todayLoading,
+                        error = uiState.todayError,
+                    ),
+                )
+            }
+            if (error != null) {
+                Reveal(120) { DashboardErrorCard(message = error, onRetry = viewModel::refresh) }
+            } else {
+                Reveal(120) { CampusNumbers(cards = cards, summary = summary) }
+                Reveal(180) {
+                    TodayGroups(
+                        groupCount = uiState.dashboard.groupCount,
+                        onVerDetalles = onGrupos,
+                    )
+                }
+            }
             Reveal(240) { AttentionRequired() }
         }
 
@@ -184,45 +194,34 @@ private fun AdminTopBar(onNotificaciones: () -> Unit) {
             }
         }
 
-        Box(contentAlignment = Alignment.TopEnd) {
-            Box(
-                modifier = Modifier
-                    .size(44.dp)
-                    .clip(CircleShape)
-                    .background(SurfaceContainerLowest)
-                    .border(1.dp, OutlineVariant.copy(alpha = 0.5f), CircleShape)
-                    .clickable(onClick = onNotificaciones),
-                contentAlignment = Alignment.Center,
-            ) {
-                Icon(
-                    imageVector = Icons.Filled.Notifications,
-                    contentDescription = "Notificaciones",
-                    tint = Primary,
-                    modifier = Modifier.size(22.dp),
-                )
-            }
-            Box(
-                modifier = Modifier
-                    .offset(x = 2.dp, y = (-2).dp)
-                    .size(16.dp)
-                    .clip(CircleShape)
-                    .background(SecondaryContainer),
-                contentAlignment = Alignment.Center,
-            ) {
-                Text(
-                    text = "4",
-                    color = OnPrimary,
-                    fontFamily = JetBrainsMono,
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 10.sp,
-                )
-            }
+        Box(
+            modifier = Modifier
+                .size(44.dp)
+                .clip(CircleShape)
+                .background(SurfaceContainerLowest)
+                .border(1.dp, OutlineVariant.copy(alpha = 0.5f), CircleShape)
+                .clickable(onClick = onNotificaciones),
+            contentAlignment = Alignment.Center,
+        ) {
+            Icon(
+                imageVector = Icons.Filled.Notifications,
+                contentDescription = "Notificaciones",
+                tint = Primary,
+                modifier = Modifier.size(22.dp),
+            )
         }
     }
 }
 
+/**
+ * The "attendance of today" card, fed by `reports.getTodaySummary()`.
+ *
+ * The message is computed by a pure helper: it states how many sessions were held
+ * and the real attendance percentage, or says plainly that there are none. A failed
+ * read shows its own error and never a fake 0%.
+ */
 @Composable
-private fun TodayAttendanceCard() {
+private fun AttendanceTodayCard(message: String) {
     Box(
         modifier = Modifier
             .fillMaxWidth()
@@ -243,7 +242,7 @@ private fun TodayAttendanceCard() {
 
         Column(modifier = Modifier.padding(16.dp)) {
             Text(
-                text = "ASISTENCIA DE HOY · MAR 3 NOV",
+                text = "ASISTENCIA DE HOY",
                 color = OnPrimary.copy(alpha = 0.70f),
                 fontFamily = JetBrainsMono,
                 fontWeight = FontWeight.Medium,
@@ -251,129 +250,45 @@ private fun TodayAttendanceCard() {
                 letterSpacing = 0.6.sp,
             )
             Spacer(modifier = Modifier.height(12.dp))
-
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                AttendanceRing(percent = 0.93f)
-                Column(
-                    modifier = Modifier
-                        .padding(start = 8.dp)
-                        .fillMaxWidth(),
-                    verticalArrangement = Arrangement.spacedBy(6.dp),
-                ) {
-                    AttendanceMetric(color = Color(0xFF5ED3B0), label = "79 presentes")
-                    AttendanceMetric(color = DangerRed, label = "4 faltas")
-                    AttendanceMetric(color = AttentionAmber, label = "2 retardos")
-                }
-            }
-
-            Spacer(modifier = Modifier.height(12.dp))
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(1.dp)
-                    .background(OnPrimary.copy(alpha = 0.15f)),
-            )
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(top = 10.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Icon(
-                    imageVector = Icons.Filled.CloudDone,
-                    contentDescription = null,
-                    tint = Color(0xFF5ED3B0),
-                    modifier = Modifier.size(15.dp),
-                )
-                Spacer(modifier = Modifier.width(6.dp))
-                Text(
-                    text = "Actualizado hace 2 min",
-                    color = OnPrimary.copy(alpha = 0.70f),
-                    fontFamily = JetBrainsMono,
-                    fontWeight = FontWeight.Normal,
-                    fontSize = 11.sp,
-                )
-            }
-        }
-    }
-}
-
-@Composable
-private fun AttendanceRing(percent: Float) {
-    Box(
-        modifier = Modifier.size(88.dp),
-        contentAlignment = Alignment.Center,
-    ) {
-        Canvas(modifier = Modifier.fillMaxSize()) {
-            val stroke = 7.dp.toPx()
-            val inset = stroke / 2f
-            val arcSize = Size(size.width - stroke, size.height - stroke)
-            drawArc(
-                color = OnPrimary.copy(alpha = 0.20f),
-                startAngle = 0f,
-                sweepAngle = 360f,
-                useCenter = false,
-                topLeft = Offset(inset, inset),
-                size = arcSize,
-                style = Stroke(width = stroke),
-            )
-            drawArc(
-                color = TertiaryFixedDim,
-                startAngle = -90f,
-                sweepAngle = 360f * percent,
-                useCenter = false,
-                topLeft = Offset(inset, inset),
-                size = arcSize,
-                style = Stroke(width = stroke, cap = StrokeCap.Round),
-            )
-        }
-        Column(horizontalAlignment = Alignment.CenterHorizontally) {
             Text(
-                text = "93%",
+                text = message,
                 color = OnPrimary,
-                fontFamily = JetBrainsMono,
-                fontWeight = FontWeight.Bold,
-                fontSize = 24.sp,
-                lineHeight = 26.sp,
-            )
-            Text(
-                text = "TOTAL",
-                color = OnPrimary.copy(alpha = 0.70f),
-                fontFamily = DmSans,
-                fontWeight = FontWeight.Medium,
-                fontSize = 9.sp,
-                letterSpacing = 0.6.sp,
+                fontFamily = BricolageGrotesque,
+                fontWeight = FontWeight.SemiBold,
+                fontSize = 20.sp,
+                lineHeight = 24.sp,
             )
         }
     }
 }
 
 @Composable
-private fun AttendanceMetric(color: Color, label: String) {
-    Row(verticalAlignment = Alignment.CenterVertically) {
-        Box(
-            modifier = Modifier
-                .size(10.dp)
-                .clip(CircleShape)
-                .background(color),
-        )
-        Spacer(modifier = Modifier.width(8.dp))
+private fun DashboardErrorCard(message: String, onRetry: () -> Unit) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(TileShape)
+            .background(AttentionCardBg)
+            .border(1.dp, AttentionCardBorder, TileShape)
+            .padding(16.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
         Text(
-            text = label,
-            color = OnPrimary,
+            text = message,
+            color = AttentionText,
             fontFamily = DmSans,
             fontWeight = FontWeight.Medium,
             fontSize = 14.sp,
             lineHeight = 18.sp,
         )
+        TextButton(onClick = onRetry) {
+            Text(text = "Reintentar", color = Primary, fontFamily = DmSans)
+        }
     }
 }
 
 @Composable
-private fun CampusNumbers() {
+private fun CampusNumbers(cards: List<DashboardCardUi>, summary: String) {
     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
         Text(
             text = "Plantel en números",
@@ -383,6 +298,14 @@ private fun CampusNumbers() {
             fontSize = 18.sp,
             lineHeight = 24.sp,
         )
+        Text(
+            text = summary,
+            color = Outline,
+            fontFamily = DmSans,
+            fontWeight = FontWeight.Normal,
+            fontSize = 12.sp,
+            lineHeight = 16.sp,
+        )
 
         Row(
             modifier = Modifier
@@ -391,17 +314,13 @@ private fun CampusNumbers() {
             horizontalArrangement = Arrangement.spacedBy(10.dp),
         ) {
             StatTile(
-                icon = Icons.Filled.School,
-                value = "85",
-                label = "Alumnos",
+                card = cards[0],
                 modifier = Modifier
                     .weight(1f)
                     .fillMaxHeight(),
             )
             StatTile(
-                icon = Icons.Filled.Badge,
-                value = "4",
-                label = "Docentes",
+                card = cards[1],
                 modifier = Modifier
                     .weight(1f)
                     .fillMaxHeight(),
@@ -415,20 +334,13 @@ private fun CampusNumbers() {
             horizontalArrangement = Arrangement.spacedBy(10.dp),
         ) {
             StatTile(
-                icon = Icons.Filled.Groups,
-                value = "3",
-                label = "Grupos",
+                card = cards[2],
                 modifier = Modifier
                     .weight(1f)
                     .fillMaxHeight(),
             )
             StatTile(
-                icon = Icons.Filled.Warning,
-                value = "2",
-                label = "Incidentes nuevos",
-                chipColor = SecondaryFixed.copy(alpha = 0.5f),
-                chipContentColor = SecondaryContainer,
-                valueColor = Color(0xFFFF6B57),
+                card = cards[3],
                 modifier = Modifier
                     .weight(1f)
                     .fillMaxHeight(),
@@ -439,14 +351,10 @@ private fun CampusNumbers() {
 
 @Composable
 private fun StatTile(
-    icon: ImageVector,
-    value: String,
-    label: String,
+    card: DashboardCardUi,
     modifier: Modifier = Modifier,
-    chipColor: Color = PrimaryFixed.copy(alpha = 0.6f),
-    chipContentColor: Color = Primary,
-    valueColor: Color = OnSurface,
 ) {
+    val isIncident = card.key == DashboardCardKey.INCIDENTS
     Column(
         modifier = modifier
             .clip(TileShape)
@@ -459,27 +367,30 @@ private fun StatTile(
             modifier = Modifier
                 .size(36.dp)
                 .clip(CircleShape)
-                .background(chipColor),
+                .background(
+                    if (isIncident) SecondaryFixed.copy(alpha = 0.5f)
+                    else PrimaryFixed.copy(alpha = 0.6f),
+                ),
             contentAlignment = Alignment.Center,
         ) {
             Icon(
-                imageVector = icon,
+                imageVector = iconFor(card.key),
                 contentDescription = null,
-                tint = chipContentColor,
+                tint = if (isIncident) SecondaryContainer else Primary,
                 modifier = Modifier.size(20.dp),
             )
         }
         Spacer(modifier = Modifier.height(8.dp))
         Text(
-            text = value,
-            color = valueColor,
+            text = card.value,
+            color = if (isIncident) Color(0xFFFF6B57) else OnSurface,
             fontFamily = JetBrainsMono,
             fontWeight = FontWeight.Bold,
             fontSize = 22.sp,
             lineHeight = 26.sp,
         )
         Text(
-            text = label,
+            text = card.label,
             color = Outline,
             fontFamily = DmSans,
             fontWeight = FontWeight.Medium,
@@ -489,21 +400,16 @@ private fun StatTile(
     }
 }
 
-private data class TodayGroupRow(
-    val badge: String,
-    val teacher: String,
-    val percent: Int?,
-    val done: Boolean,
-)
+private fun iconFor(key: DashboardCardKey): ImageVector = when (key) {
+    DashboardCardKey.STUDENTS -> Icons.Filled.School
+    DashboardCardKey.TEACHERS -> Icons.Filled.Badge
+    DashboardCardKey.GROUPS -> Icons.Filled.Groups
+    DashboardCardKey.INCIDENTS -> Icons.Filled.Warning
+}
 
-private val todayGroups = listOf(
-    TodayGroupRow(badge = "3° B", teacher = "Prof. Salinas", percent = 94, done = true),
-    TodayGroupRow(badge = "3° A", teacher = "Profa. Mendoza", percent = 91, done = true),
-    TodayGroupRow(badge = "2° C", teacher = "Prof. Vega", percent = null, done = false),
-)
-
+/** Real group count only: no invented per-group teacher names or attendance bars. */
 @Composable
-private fun TodayGroups(onVerDetalles: () -> Unit) {
+private fun TodayGroups(groupCount: Int, onVerDetalles: () -> Unit) {
     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
         Row(
             modifier = Modifier.fillMaxWidth(),
@@ -535,147 +441,61 @@ private fun TodayGroups(onVerDetalles: () -> Unit) {
                 .background(SurfaceContainerLowest)
                 .border(1.dp, OutlineVariant.copy(alpha = 0.6f), HeroShape),
         ) {
-            todayGroups.forEachIndexed { index, group ->
-                if (index > 0) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(14.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
                     Box(
                         modifier = Modifier
-                            .fillMaxWidth()
-                            .height(1.dp)
-                            .background(OutlineVariant.copy(alpha = 0.4f)),
-                    )
-                }
-                TodayGroupRowItem(group)
-            }
-        }
-    }
-}
-
-@Composable
-private fun TodayGroupRowItem(group: TodayGroupRow) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(14.dp),
-        horizontalArrangement = Arrangement.SpaceBetween,
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Box(
-                modifier = Modifier
-                    .size(40.dp)
-                    .clip(RoundedCornerShape(16.dp))
-                    .background(
-                        if (group.done) PrimaryFixed else PrimaryFixed.copy(alpha = 0.5f),
-                    ),
-                contentAlignment = Alignment.Center,
-            ) {
-                Text(
-                    text = group.badge,
-                    color = if (group.done) Primary else Primary.copy(alpha = 0.8f),
-                    fontFamily = DmSans,
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 16.sp,
-                )
-            }
-            Spacer(modifier = Modifier.width(12.dp))
-            Column {
-                Text(
-                    text = group.teacher,
-                    color = OnSurface,
-                    fontFamily = DmSans,
-                    fontWeight = FontWeight.SemiBold,
-                    fontSize = 14.sp,
-                    lineHeight = 18.sp,
-                )
-                Spacer(modifier = Modifier.height(4.dp))
-                if (group.percent != null) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Box(
-                            modifier = Modifier
-                                .width(64.dp)
-                                .height(6.dp)
-                                .clip(RoundedCornerShape(percent = 50))
-                                .background(SurfaceContainer),
-                        ) {
-                            Box(
-                                modifier = Modifier
-                                    .fillMaxWidth(group.percent / 100f)
-                                    .fillMaxHeight()
-                                    .clip(RoundedCornerShape(percent = 50))
-                                    .background(PrimaryContainer),
-                            )
-                        }
-                        Spacer(modifier = Modifier.width(8.dp))
+                            .size(40.dp)
+                            .clip(RoundedCornerShape(16.dp))
+                            .background(PrimaryFixed),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Icon(
+                            imageVector = Icons.Filled.Groups,
+                            contentDescription = null,
+                            tint = Primary,
+                            modifier = Modifier.size(20.dp),
+                        )
+                    }
+                    Spacer(modifier = Modifier.width(12.dp))
+                    Column {
                         Text(
-                            text = "${group.percent}%",
+                            text = "Grupos registrados",
                             color = OnSurface,
-                            fontFamily = JetBrainsMono,
-                            fontWeight = FontWeight.Medium,
+                            fontFamily = DmSans,
+                            fontWeight = FontWeight.SemiBold,
+                            fontSize = 14.sp,
+                            lineHeight = 18.sp,
+                        )
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text(
+                            text = "En el plantel",
+                            color = Outline,
+                            fontFamily = DmSans,
+                            fontWeight = FontWeight.Normal,
                             fontSize = 11.sp,
                         )
                     }
-                } else {
-                    Text(
-                        text = "—",
-                        color = Outline,
-                        fontFamily = JetBrainsMono,
-                        fontWeight = FontWeight.Medium,
-                        fontSize = 11.sp,
-                    )
                 }
-            }
-        }
-
-        if (group.done) {
-            Row(
-                modifier = Modifier
-                    .clip(RoundedCornerShape(percent = 50))
-                    .background(SuccessPillBg)
-                    .padding(horizontal = 10.dp, vertical = 4.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Icon(
-                    imageVector = Icons.Filled.CheckCircle,
-                    contentDescription = null,
-                    tint = SuccessPillText,
-                    modifier = Modifier.size(14.dp),
-                )
-                Spacer(modifier = Modifier.width(4.dp))
                 Text(
-                    text = "Lista hecha",
-                    color = SuccessPillText,
-                    fontFamily = DmSans,
-                    fontWeight = FontWeight.SemiBold,
-                    fontSize = 11.sp,
-                )
-            }
-        } else {
-            Row(
-                modifier = Modifier
-                    .clip(RoundedCornerShape(percent = 50))
-                    .background(PendingPillBg)
-                    .padding(horizontal = 10.dp, vertical = 4.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Icon(
-                    imageVector = Icons.Filled.Schedule,
-                    contentDescription = null,
-                    tint = PendingPillText,
-                    modifier = Modifier.size(14.dp),
-                )
-                Spacer(modifier = Modifier.width(4.dp))
-                Text(
-                    text = "Pendiente",
-                    color = PendingPillText,
-                    fontFamily = DmSans,
-                    fontWeight = FontWeight.SemiBold,
-                    fontSize = 11.sp,
+                    text = formatCount(groupCount),
+                    color = OnSurface,
+                    fontFamily = JetBrainsMono,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 22.sp,
                 )
             }
         }
     }
 }
 
+/** Attendance-derived alerts are a Reportes feature; show no counts for them. */
 @Composable
 private fun AttentionRequired() {
     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -698,10 +518,7 @@ private fun AttentionRequired() {
         ) {
             AttentionRow(
                 icon = Icons.Filled.Error,
-                text = buildAnnotatedString {
-                    append("Alumnos con 3 o más faltas este mes: ")
-                    withStyle(SpanStyle(fontWeight = FontWeight.Bold)) { append("3") }
-                },
+                text = "Seguimiento de faltas · Disponible con Reportes",
             )
             Box(
                 modifier = Modifier
@@ -712,49 +529,32 @@ private fun AttentionRequired() {
             )
             AttentionRow(
                 icon = Icons.Filled.CloudOff,
-                text = buildAnnotatedString {
-                    append("Registros sin sincronizar: ")
-                    withStyle(SpanStyle(fontWeight = FontWeight.Bold)) { append("1") }
-                },
+                text = "Sincronización de registros · Disponible con Reportes",
             )
         }
     }
 }
 
 @Composable
-private fun AttentionRow(icon: ImageVector, text: AnnotatedString) {
+private fun AttentionRow(icon: ImageVector, text: String) {
     Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clickable { },
-        horizontalArrangement = Arrangement.SpaceBetween,
+        modifier = Modifier.fillMaxWidth(),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Row(
-            modifier = Modifier.padding(end = 8.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Icon(
-                imageVector = icon,
-                contentDescription = null,
-                tint = PendingPillText,
-                modifier = Modifier.size(20.dp),
-            )
-            Spacer(modifier = Modifier.width(10.dp))
-            Text(
-                text = text,
-                color = AttentionText,
-                fontFamily = DmSans,
-                fontWeight = FontWeight.Medium,
-                fontSize = 13.sp,
-                lineHeight = 18.sp,
-            )
-        }
         Icon(
-            imageVector = Icons.Filled.ChevronRight,
+            imageVector = icon,
             contentDescription = null,
-            tint = AttentionChevron,
+            tint = PendingPillText,
             modifier = Modifier.size(20.dp),
+        )
+        Spacer(modifier = Modifier.width(10.dp))
+        Text(
+            text = text,
+            color = AttentionText,
+            fontFamily = DmSans,
+            fontWeight = FontWeight.Medium,
+            fontSize = 13.sp,
+            lineHeight = 18.sp,
         )
     }
 }

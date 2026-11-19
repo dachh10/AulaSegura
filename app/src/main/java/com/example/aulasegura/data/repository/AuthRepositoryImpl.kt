@@ -10,16 +10,19 @@ import com.example.aulasegura.domain.model.UserRole
 import com.example.aulasegura.domain.repository.AuthFailure
 import com.example.aulasegura.domain.repository.AuthRepository
 import com.example.aulasegura.domain.repository.AuthResult
+import com.example.aulasegura.domain.repository.PasswordChangeError
 import com.example.aulasegura.domain.repository.PasswordChangeResult
 import com.example.aulasegura.domain.repository.PasswordResetResult
 import com.example.aulasegura.domain.repository.ProfilePhotoResult
 import com.example.aulasegura.domain.repository.ProfileUpdateResult
+import com.example.aulasegura.domain.repository.passwordChangeErrorFromCode
 import com.example.aulasegura.domain.telemetry.AnalyticsEvent
 import com.example.aulasegura.domain.telemetry.AnalyticsLogger
 import com.example.aulasegura.domain.telemetry.NoOpAnalyticsLogger
 import com.google.firebase.FirebaseNetworkException
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.auth.EmailAuthProvider
+import com.google.firebase.auth.FirebaseAuthException
 import com.google.firebase.auth.FirebaseAuthInvalidCredentialsException
 import com.google.firebase.auth.FirebaseAuthInvalidUserException
 import com.google.firebase.auth.FirebaseAuthRecentLoginRequiredException
@@ -158,14 +161,14 @@ class AuthRepositoryImpl(
         val firebaseUser = auth.currentUser
             ?: return PasswordChangeResult.SignedOut
         val email = firebaseUser.email ?: currentUser?.email
-            ?: return PasswordChangeResult.Failed
+            ?: return PasswordChangeResult.SignedOut
 
         return try {
             // Firebase rejects updatePassword after a long session without a
             // recent login. Reauthenticating with the current password is what
             // makes the change possible instead of failing hours into the shift.
             firebaseUser.reauthenticate(
-                EmailAuthProvider.getCredential(email, currentPassword),
+                EmailAuthProvider.getCredential(email.trim(), currentPassword),
             ).await()
             firebaseUser.updatePassword(newPassword).await()
             PasswordChangeResult.Changed
@@ -177,6 +180,18 @@ class AuthRepositoryImpl(
             PasswordChangeResult.RequiresRecentLogin
         } catch (e: FirebaseNetworkException) {
             PasswordChangeResult.NetworkError
+        } catch (e: FirebaseAuthException) {
+            // Keep the pure classifier in the loop for codes the typed exceptions
+            // above do not cover; the reason is still exposed through Failure.
+            when (passwordChangeErrorFromCode(e.errorCode)) {
+                PasswordChangeError.WRONG_PASSWORD -> PasswordChangeResult.WrongPassword
+                PasswordChangeError.WEAK_PASSWORD -> PasswordChangeResult.WeakPassword
+                PasswordChangeError.REQUIRES_RECENT_LOGIN -> PasswordChangeResult.RequiresRecentLogin
+                PasswordChangeError.NETWORK -> PasswordChangeResult.NetworkError
+                PasswordChangeError.NO_SESSION,
+                PasswordChangeError.UNKNOWN,
+                -> PasswordChangeResult.Failed
+            }
         } catch (e: Exception) {
             PasswordChangeResult.Failed
         }

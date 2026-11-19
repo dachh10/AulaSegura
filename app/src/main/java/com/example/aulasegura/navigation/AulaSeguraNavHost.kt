@@ -22,6 +22,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavHostController
@@ -31,6 +32,7 @@ import androidx.navigation.compose.rememberNavController
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.aulasegura.di.rememberAppContainer
 import com.example.aulasegura.location.evaluateGeofence
+import com.example.aulasegura.location.honouring
 import com.example.aulasegura.location.rememberCurrentLocation
 import com.example.aulasegura.location.rememberSchoolSite
 import com.example.aulasegura.location.toSessionLocation
@@ -54,6 +56,7 @@ import com.example.aulasegura.ui.screens.admin.AdminNewStudentScreen
 import com.example.aulasegura.ui.screens.admin.AdminNotificationsScreen
 import com.example.aulasegura.ui.screens.admin.AdminProfileScreen
 import com.example.aulasegura.ui.screens.admin.AdminReportsScreen
+import com.example.aulasegura.ui.screens.admin.ReportPdfExporter
 import com.example.aulasegura.ui.screens.admin.AdminUsersScreen
 import com.example.aulasegura.ui.screens.parent.ParentAIScreen
 import com.example.aulasegura.ui.screens.parent.ParentAttendanceScreen
@@ -455,7 +458,9 @@ fun AulaSeguraNavHost(
             val school = rememberSchoolSite()
             val location = rememberCurrentLocation()
             val geofence = remember(location.fix, school.site) {
-                evaluateGeofence(location.fix, school.site)
+                // When the school opted out of GPS, even a fix inside the radius
+                // must not produce a verified banner or a verified session.
+                evaluateGeofence(location.fix, school.site).honouring(school.site)
             }
             // The verdict is frozen here, from the reading of this moment. The
             // session stores that value and never recomputes it on read: a later
@@ -695,11 +700,11 @@ fun AulaSeguraNavHost(
         }
         composable(Routes.ADMIN_USERS) {
             AdminUsersScreen(
-                onAgregarUsuario = { navController.navigate(Routes.ADMIN_NEW_STUDENT) },
                 onPanel = { navController.navigate(Routes.ADMIN_DASHBOARD) },
                 onGrupos = { navController.navigate(Routes.ADMIN_GROUPS) },
                 onReportes = { navController.navigate(Routes.ADMIN_REPORTS) },
                 onMas = { navController.navigate(Routes.ADMIN_MORE) },
+                onAddStudent = { navController.navigate(Routes.ADMIN_NEW_STUDENT) },
             )
         }
         composable(Routes.ADMIN_NEW_STUDENT) {
@@ -708,13 +713,24 @@ fun AulaSeguraNavHost(
                 onGuardar = { navController.popBackStack() },
             )
         }
+        composable(Routes.ADMIN_NEW_STUDENT_FOR_GROUP) { entry ->
+            val groupId = entry.arguments?.getString("groupId").orEmpty()
+            AdminNewStudentScreen(
+                onBack = { navController.popBackStack() },
+                onGuardar = { navController.popBackStack() },
+                presetGroupId = groupId,
+            )
+        }
         composable(Routes.ADMIN_GROUPS) {
             AdminGroupsScreen(
                 onBack = { navController.popBackStack() },
                 onAgregarGrupo = {},
-                onGrupo = { name ->
-                    // La ruta no admite espacios ni "°": 3° B -> 3B
-                    navController.navigate(Routes.adminGroupDetail(name.replace(" ", "").replace("°", "")))
+                onGrupo = { groupId ->
+                    // El id del documento no tiene espacios ni "°".
+                    navController.navigate(Routes.adminGroupDetail(groupId))
+                },
+                onAddStudent = { groupId ->
+                    navController.navigate(Routes.adminNewStudent(groupId))
                 },
                 onPanel = { navController.navigate(Routes.ADMIN_DASHBOARD) },
                 onUsuarios = { navController.navigate(Routes.ADMIN_USERS) },
@@ -726,15 +742,20 @@ fun AulaSeguraNavHost(
             val groupId = entry.arguments?.getString("groupId") ?: "3B"
             val groupLabel = if (groupId.length == 2) "${groupId.first()}° ${groupId.last()}" else groupId
             AdminGroupDetailScreen(
+                groupId = groupId,
                 groupLabel = groupLabel,
                 onBack = { navController.popBackStack() },
-                onMore = {},
-                onAddStudent = { navController.navigate(Routes.ADMIN_NEW_STUDENT) },
+                onAddStudent = { groupId ->
+                    navController.navigate(Routes.adminNewStudent(groupId))
+                },
             )
         }
         composable(Routes.ADMIN_REPORTS) {
+            // The screen owns its ViewModel; pass its current state to the exporter
+            // so no second ViewModel (and no stale snapshot) is created here.
+            val context = LocalContext.current
             AdminReportsScreen(
-                onDescargar = {},
+                onDescargar = { state -> ReportPdfExporter.export(context, state) },
                 onPanel = { navController.navigate(Routes.ADMIN_DASHBOARD) },
                 onUsuarios = { navController.navigate(Routes.ADMIN_USERS) },
                 onGrupos = { navController.navigate(Routes.ADMIN_GROUPS) },
@@ -744,7 +765,6 @@ fun AulaSeguraNavHost(
         composable(Routes.ADMIN_INCIDENTS) {
             AdminIncidentsScreen(
                 onBack = { navController.popBackStack() },
-                onFiltrar = {},
                 onIncidente = {},
                 onPanel = { navController.navigate(Routes.ADMIN_DASHBOARD) },
                 onUsuarios = { navController.navigate(Routes.ADMIN_USERS) },
@@ -757,7 +777,6 @@ fun AulaSeguraNavHost(
             AdminCampusScreen(
                 onBack = { navController.popBackStack() },
                 onAyuda = {},
-                onGuardar = { navController.popBackStack() },
             )
         }
         composable(Routes.ADMIN_MORE) {
@@ -775,12 +794,13 @@ fun AulaSeguraNavHost(
         composable(Routes.ADMIN_NOTIFICATIONS) {
             AdminNotificationsScreen(
                 onBack = { navController.popBackStack() },
-                onRevisar = { navController.navigate(Routes.ADMIN_INCIDENTS) },
+                onDeepLink = { route -> navController.navigate(route) { launchSingleTop = true } },
             )
         }
         composable(Routes.ADMIN_PROFILE) {
             AdminProfileScreen(
                 onLogout = { sessionViewModel.signOut() },
+                onOpenAppPermissions = { navController.navigate(Routes.PERMISSIONS) },
                 onBack = { navController.popBackStack() },
                 onPanel = { navController.navigate(Routes.ADMIN_DASHBOARD) },
                 onUsuarios = { navController.navigate(Routes.ADMIN_USERS) },

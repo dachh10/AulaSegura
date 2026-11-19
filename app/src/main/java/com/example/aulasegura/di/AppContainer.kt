@@ -21,6 +21,13 @@ import com.example.aulasegura.data.remote.cloudinary.OkHttpCloudinaryUploader
 import com.example.aulasegura.data.remote.remoteconfig.FirebaseRemoteConfigSource
 import com.example.aulasegura.data.remote.remoteconfig.RemoteConfigRepository
 import com.example.aulasegura.data.repository.AuthRepositoryImpl
+import com.example.aulasegura.data.repository.FirestoreAdminDashboardRepository
+import com.example.aulasegura.data.repository.FirestoreAdminGroupRepository
+import com.example.aulasegura.data.repository.FirestoreAdminIncidentRepository
+import com.example.aulasegura.data.repository.FirestoreAdminReportRepository
+import com.example.aulasegura.data.repository.FirestoreAdminSchoolRepository
+import com.example.aulasegura.data.repository.FirestoreAdminStudentRepository
+import com.example.aulasegura.data.repository.FirestoreAdminUserRepository
 import com.example.aulasegura.data.repository.FirestoreIncidentHistoryRepository
 import com.example.aulasegura.domain.repository.IncidentHistoryRepository
 import com.example.aulasegura.data.repository.FirestoreAttendanceHistoryRepository
@@ -37,6 +44,13 @@ import com.example.aulasegura.data.repository.RoomNoticeRepository
 import com.example.aulasegura.data.repository.RoomTaskRepository
 import com.example.aulasegura.data.telemetry.FirebaseAnalyticsLogger
 import com.example.aulasegura.domain.repository.AiAssistant
+import com.example.aulasegura.domain.repository.AdminDashboardRepository
+import com.example.aulasegura.domain.repository.AdminGroupRepository
+import com.example.aulasegura.domain.repository.AdminIncidentRepository
+import com.example.aulasegura.domain.repository.AdminReportRepository
+import com.example.aulasegura.domain.repository.AdminSchoolRepository
+import com.example.aulasegura.domain.repository.AdminStudentRepository
+import com.example.aulasegura.domain.repository.AdminUserRepository
 import com.example.aulasegura.domain.repository.AttendanceHistoryRepository
 import com.example.aulasegura.domain.repository.AttendanceRepository
 import com.example.aulasegura.domain.repository.AuthRepository
@@ -71,6 +85,16 @@ import com.example.aulasegura.sync.UploadTaskAttachmentHandler
 import com.example.aulasegura.ui.screens.access.ForgotPasswordViewModel
 import com.example.aulasegura.ui.screens.access.LoginViewModel
 import com.example.aulasegura.ui.screens.access.SessionViewModel
+import com.example.aulasegura.ui.screens.admin.AdminCampusViewModel
+import com.example.aulasegura.ui.screens.admin.AdminDashboardViewModel
+import com.example.aulasegura.ui.screens.admin.AdminGroupDetailViewModel
+import com.example.aulasegura.ui.screens.admin.AdminGroupsViewModel
+import com.example.aulasegura.ui.screens.admin.AdminIncidentsViewModel
+import com.example.aulasegura.ui.screens.admin.AdminNewStudentViewModel
+import com.example.aulasegura.ui.screens.admin.AdminNotificationsViewModel
+import com.example.aulasegura.ui.screens.admin.AdminProfileViewModel
+import com.example.aulasegura.ui.screens.admin.AdminReportsViewModel
+import com.example.aulasegura.ui.screens.admin.AdminUsersViewModel
 import com.example.aulasegura.ui.screens.teacher.TeacherGroupDetailViewModel
 import com.example.aulasegura.ui.screens.teacher.TeacherGroupsViewModel
 import com.example.aulasegura.ui.screens.teacher.TeacherHistoryViewModel
@@ -312,6 +336,85 @@ class AppContainer(context: Context) {
         )
     }
 
+    /**
+     * The principal's campus numbers. Aggregate queries over four collections,
+     * scoped to the school of the open session; a single shared instance keeps the
+     * dashboard and its refresh on the same Firestore and session.
+     */
+    val adminDashboardRepository: AdminDashboardRepository by lazy {
+        FirestoreAdminDashboardRepository(
+            firestore = firestore,
+            auth = authRepository,
+        )
+    }
+
+    /**
+     * The principal's attendance reports. One-shot range queries over
+     * `attendanceSessions`, plus the single-day summary the dashboard card shows;
+     * a shared instance keeps both consumers on the same session and Firestore.
+     */
+    val adminReportRepository: AdminReportRepository by lazy {
+        FirestoreAdminReportRepository(
+            firestore = firestore,
+            auth = authRepository,
+        )
+    }
+
+    /**
+     * The principal's incident inbox. One-shot school-filtered reads plus the
+     * status-only edit; a shared instance keeps the inbox list and its refresh on
+     * the same Firestore and session. Incidents are evidence and are never deleted.
+     */
+    val adminIncidentRepository: AdminIncidentRepository by lazy {
+        FirestoreAdminIncidentRepository(
+            firestore = firestore,
+            auth = authRepository,
+        )
+    }
+
+    /** The principal's one-shot user list and whitelisted profile edit. */
+    val adminUserRepository: AdminUserRepository by lazy {
+        FirestoreAdminUserRepository(
+            firestore = firestore,
+            auth = authRepository,
+            context = appContext,
+        )
+    }
+
+    /**
+     * The principal's groups. The only path that assigns teachers, and therefore
+     * the only writer of the two-side `teacherIds`/`groupIds` link.
+     */
+    val adminGroupRepository: AdminGroupRepository by lazy {
+        FirestoreAdminGroupRepository(
+            firestore = firestore,
+            auth = authRepository,
+        )
+    }
+
+    /**
+     * The principal's students. The only path that creates a student and keeps
+     * `groups/{id}.studentCount` in sync with the teacher's roll-call query.
+     */
+    val adminStudentRepository: AdminStudentRepository by lazy {
+        FirestoreAdminStudentRepository(
+            firestore = firestore,
+            auth = authRepository,
+        )
+    }
+
+    /**
+     * The principal's campus form. Online-only and cache-free, unlike the
+     * teacher's geofence read: a save must be confirmed by the server, while the
+     * teacher keeps using the last cached centre until their next online refresh.
+     */
+    val adminSchoolRepository: AdminSchoolRepository by lazy {
+        FirestoreAdminSchoolRepository(
+            firestore = firestore,
+            auth = authRepository,
+        )
+    }
+
     val noticeRepository: NoticeRepository by lazy {
         RoomNoticeRepository(
             noticeDao = database.noticeDao(),
@@ -448,7 +551,7 @@ class AppContainer(context: Context) {
     }
 
     // ---- ViewModels ---------------------------------------------------------
-    val viewModelFactory: ViewModelProvider.Factory by lazy { AppViewModelFactory(this) }
+    val viewModelFactory: AppViewModelFactory by lazy { AppViewModelFactory(this) }
 }
 
 /**
@@ -461,6 +564,18 @@ class AppContainer(context: Context) {
 class AppViewModelFactory(
     private val container: AppContainer,
 ) : ViewModelProvider.Factory {
+
+    /**
+     * The new-student form sometimes arrives with a preselected group (from a group
+     * card or the group detail screen). Building it here keeps the repositories in
+     * the composition root instead of leaking them into the screen.
+     */
+    fun adminNewStudentViewModel(presetGroupId: String): AdminNewStudentViewModel =
+        AdminNewStudentViewModel(
+            students = container.adminStudentRepository,
+            groups = container.adminGroupRepository,
+            presetGroupId = presetGroupId,
+        )
 
     @Suppress("UNCHECKED_CAST")
     override fun <T : ViewModel> create(modelClass: Class<T>): T = when {
@@ -551,6 +666,55 @@ class AppViewModelFactory(
                 groups = container.groupRepository,
                 auth = container.authRepository,
                 notices = container.noticeRepository,
+            )
+
+        modelClass.isAssignableFrom(AdminDashboardViewModel::class.java) ->
+            AdminDashboardViewModel(
+                dashboard = container.adminDashboardRepository,
+                reports = container.adminReportRepository,
+            )
+
+        modelClass.isAssignableFrom(AdminReportsViewModel::class.java) ->
+            AdminReportsViewModel(reports = container.adminReportRepository)
+
+        modelClass.isAssignableFrom(AdminIncidentsViewModel::class.java) ->
+            AdminIncidentsViewModel(incidents = container.adminIncidentRepository)
+
+        modelClass.isAssignableFrom(AdminUsersViewModel::class.java) ->
+            AdminUsersViewModel(
+                users = container.adminUserRepository,
+                students = container.adminStudentRepository,
+                groups = container.adminGroupRepository,
+            )
+
+        modelClass.isAssignableFrom(AdminNewStudentViewModel::class.java) ->
+            AdminNewStudentViewModel(
+                students = container.adminStudentRepository,
+                groups = container.adminGroupRepository,
+            )
+
+        modelClass.isAssignableFrom(AdminGroupsViewModel::class.java) ->
+            AdminGroupsViewModel(groups = container.adminGroupRepository)
+
+        modelClass.isAssignableFrom(AdminGroupDetailViewModel::class.java) ->
+            AdminGroupDetailViewModel(
+                groups = container.adminGroupRepository,
+                users = container.adminUserRepository,
+                students = container.adminStudentRepository,
+            )
+
+        modelClass.isAssignableFrom(AdminCampusViewModel::class.java) ->
+            AdminCampusViewModel(schools = container.adminSchoolRepository)
+
+        modelClass.isAssignableFrom(AdminNotificationsViewModel::class.java) ->
+            AdminNotificationsViewModel(notifications = container.notificationRepository)
+
+        modelClass.isAssignableFrom(AdminProfileViewModel::class.java) ->
+            AdminProfileViewModel(
+                users = container.adminUserRepository,
+                auth = container.authRepository,
+                compressor = container.imageCompressor,
+                uploader = container.cloudinaryUploader,
             )
 
         modelClass.isAssignableFrom(TeacherProfileViewModel::class.java) ->

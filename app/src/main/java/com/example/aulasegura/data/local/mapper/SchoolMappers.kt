@@ -28,6 +28,8 @@ fun schoolEntityFrom(id: String, data: Map<String, Any?>): SchoolEntity? {
         longitude = (location?.get("lng") as? Number)?.toDouble(),
         radiusMeters = (data["radiusMeters"] as? Number)?.toDouble(),
         updatedAt = (data["updatedAt"] as? Timestamp)?.toEpochMillis() ?: 0L,
+        // A document written before the flag existed must keep requiring GPS.
+        requireLocation = data["requireLocation"] as? Boolean ?: true,
     )
 }
 
@@ -48,6 +50,7 @@ fun SchoolEntity.toSchoolSite(fallbackRadiusMeters: Double): SchoolSite? {
         latitude = latitude,
         longitude = longitude,
         radiusMeters = radiusMeters.orDefault(fallbackRadiusMeters),
+        requireLocation = requireLocation,
     )
 }
 

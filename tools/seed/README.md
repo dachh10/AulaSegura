@@ -63,3 +63,43 @@ lives in the repo leaks through one careless `git add -A`.
 
 After seeding, revoke the key in the console (IAM → Service Accounts → Keys).
 `node_modules/` is ignored.
+
+## Crear una cuenta (Fase 2, bloque 1)
+
+`create-user.mjs` crea una cuenta real en Firebase Auth **y** su documento
+`users/{uid}` en una sola corrida. Se usa en lugar de un alta desde la app:
+`createUserWithEmailAndPassword` desloguea a la directora, y en Spark no hay
+Cloud Functions que hagan el alta desde un contexto privilegiado.
+
+```powershell
+cd tools/seed
+npm run create-user -- --email=ana@aulasegura.com --password=secreto123 `
+  --role=docente --first-name=Ana --last-name=López `
+  --subjects=Matemáticas --group-ids=grp-3b
+```
+
+Opciones: `--email`, `--password`, `--role` (`docente` | `directivo` | `tutor`),
+`--first-name`, `--last-name`, `--school-id`, `--phone`, `--subjects=a,b`,
+`--group-ids=a,b`, `--student-ids=a,b`, `--custom-claim` y `--dry-run`.
+
+Reglas del script:
+
+- **Idempotente por email.** Si la cuenta ya existe, resuelve el `uid` y **no**
+  cambia la contraseña. Si `users/{uid}` ya existe con la misma identidad, no
+  escribe nada; si existe con otro rol o correo, falla en vez de sobrescribirlo.
+- **Repara el documento faltante.** Una cuenta creada a mano en la consola que
+  no tenga `users/{uid}` recibe el documento completo sin tocar su contraseña.
+- **El rol de Firestore manda.** Las reglas leen `users/{uid}.role`, no un claim.
+  `--custom-claim` escribe un claim igual como copia opcional, nunca como fuente.
+- **Verifica leyendo.** Después de escribir, vuelve a leer Auth y Firestore y
+  comprueba email, rol, `schoolId`, `fullName` y `active`. Un mismatch sale con
+  código de error.
+
+Probá primero con `--dry-run`: muestra el plan, resuelve si el email existe y
+no escribe nada. Después de la tanda de altas, **revocá la llave** igual que
+después del seed.
+
+> No hace falta el claim para que la app funcione. Si se usa, tiene que escribirse
+> siempre **desde** `users.{role}`, nunca al revés: dos fuentes de verdad para el
+> rol es cómo aparece un directivo que la app no reconoce.
+

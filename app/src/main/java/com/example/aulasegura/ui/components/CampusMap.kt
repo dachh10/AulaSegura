@@ -6,6 +6,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
@@ -158,6 +159,111 @@ fun CampusMap(
                 icon = markerIcons?.teacher,
             )
         }
+    }
+}
+
+/**
+ * Editable campus map for the principal's form.
+ *
+ * The single draggable marker and the geofence circle share one center: the valid
+ * draft coordinates, or the stored school location, or a sane default. Every move
+ * (drag or tap) is reported through [onLocationChange] so the text fields and the
+ * map edit the same draft state.
+ */
+@Composable
+fun EditableCampusMap(
+    latitude: Double?,
+    longitude: Double?,
+    fallbackLatitude: Double?,
+    fallbackLongitude: Double?,
+    radiusMeters: Float,
+    onLocationChange: (LatLng) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val center = when {
+        latitude != null && longitude != null -> LatLng(latitude, longitude)
+        fallbackLatitude != null && fallbackLongitude != null &&
+            (fallbackLatitude != 0.0 || fallbackLongitude != 0.0) ->
+            LatLng(fallbackLatitude, fallbackLongitude)
+        else -> CampusGeo.SanAgustin
+    }
+
+    val cameraPositionState = rememberCameraPositionState {
+        position = CameraPosition.fromLatLngZoom(center, 16.2f)
+    }
+    val markerState = rememberMarkerState(position = center)
+
+    // The camera must not fight the user mid-drag. Outside a drag, keep it in sync
+    // with the draft coordinates and move the marker if the parent changed them.
+    LaunchedEffect(center) {
+        if (!markerState.isDragging) {
+            cameraPositionState.position = CameraPosition.fromLatLngZoom(center, 16.2f)
+            if (markerState.position != center) markerState.position = center
+        }
+    }
+
+    // maps-compose 6.1.2 exposes no marker-drag callbacks. MarkerState.position is
+    // a snapshot-backed mutable state that the SDK updates while isDragging is
+    // true, so observing the pair reports live drag positions (and the final one
+    // when isDragging flips back to false).
+    LaunchedEffect(markerState, onLocationChange) {
+        var wasDragging = false
+        snapshotFlow { markerState.position to markerState.isDragging }
+            .collect { (position, dragging) ->
+                when {
+                    dragging -> {
+                        wasDragging = true
+                        onLocationChange(position)
+                    }
+                    wasDragging -> {
+                        wasDragging = false
+                        onLocationChange(position)
+                    }
+                }
+            }
+    }
+
+    val context = LocalContext.current
+    var markerIcons by remember { mutableStateOf<MapMarkerIcons?>(null) }
+    LaunchedEffect(context) {
+        // Same initialization order as CampusMap: creating descriptors before the
+        // SDK is ready crashes with an NPE.
+        MapsInitializer.initialize(context.applicationContext)
+        markerIcons = runCatching {
+            MapMarkerIcons(
+                school = BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_VIOLET),
+                teacher = BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_AZURE),
+                incident = BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_RED),
+            )
+        }.getOrNull()
+    }
+
+    GoogleMap(
+        modifier = modifier,
+        cameraPositionState = cameraPositionState,
+        onMapClick = { latLng -> onLocationChange(latLng) },
+        properties = MapProperties(isBuildingEnabled = true),
+        uiSettings = MapUiSettings(
+            zoomControlsEnabled = false,
+            myLocationButtonEnabled = false,
+            mapToolbarEnabled = false,
+            compassEnabled = false,
+        ),
+    ) {
+        Circle(
+            center = center,
+            radius = radiusMeters.toDouble(),
+            fillColor = Color(0x245ED3B0),
+            strokeColor = Color(0xFF5ED3B0),
+            strokeWidth = 4f,
+        )
+        Marker(
+            state = markerState,
+            title = "Plantel",
+            snippet = "Arrastra para mover el centro",
+            icon = markerIcons?.school,
+            draggable = true,
+        )
     }
 }
 

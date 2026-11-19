@@ -54,6 +54,7 @@ import com.example.aulasegura.domain.model.SchoolSite
 import com.example.aulasegura.location.GeofenceReason
 import com.example.aulasegura.location.evaluateGeofence
 import com.example.aulasegura.location.rememberCurrentLocation
+import com.example.aulasegura.location.shouldRequireGps
 import com.example.aulasegura.ui.components.CampusGeo
 import com.example.aulasegura.ui.components.CampusMap
 import com.example.aulasegura.ui.theme.BricolageGrotesque
@@ -118,6 +119,14 @@ fun TeacherLocationVerifyingScreen(
     }
 
     LaunchedEffect(location.fix, school, schoolLoaded) {
+        // The directora can turn GPS verification off for the school. In that
+        // case there is nothing to wait for and, crucially, no fix that could
+        // send the teacher to the outside-radius screen. Fail-closed helper:
+        // a school that is not cached yet keeps the current behaviour.
+        if (!shouldRequireGps(school)) {
+            onInsideRadius()
+            return@LaunchedEffect
+        }
         val fix = location.fix ?: return@LaunchedEffect
         // Without the cache read there is nothing to compare against yet; the
         // first Room emission arrives in milliseconds, so this is not a wait.

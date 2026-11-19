@@ -106,6 +106,10 @@ dependencies {
     implementation(libs.kotlinx.serialization.json)
     implementation(libs.androidx.exifinterface)
     implementation(libs.coil.compose)
+    implementation(libs.coil.network.okhttp)
+    // Coil 2 remains for the teacher screens (coil.compose imports); the admin
+    // screens use Coil 3 (coil3.compose). Both groups coexist without clashing.
+    implementation(libs.coil2.compose)
     testImplementation(libs.junit)
     testImplementation(libs.kotlinx.coroutines.test)
     androidTestImplementation(platform(libs.androidx.compose.bom))

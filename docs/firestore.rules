@@ -76,6 +76,24 @@ service cloud.firestore {
       return request.resource.data.diff(resource.data).affectedKeys();
     }
 
+    // Identity is immutable for every client, including the principal. Only
+    // the Admin SDK (seed/account script) may set these fields.
+    function immutableSelfKeys() {
+      return ['uid', 'email', 'role', 'active', 'schoolId', 'createdAt'];
+    }
+
+    // The principal manages staff and families of their own school. `active`
+    // is the logical-deactivation flag (Fase 2 bloque 1/2); never a delete.
+    // `groupIds` and `studentIds` are the denormalised links the rules read,
+    // so assigning them here is what makes a teacher see a new group.
+    function principalEditableUserKeys() {
+      return [
+        'firstName', 'lastName', 'fullName', 'phone', 'photoUrl',
+        'photoPublicId', 'subjects', 'groupIds', 'studentIds',
+        'preferences', 'active', 'updatedAt'
+      ];
+    }
+
     // ---------------------------------------------------------------------
     // users/{uid}
     // ---------------------------------------------------------------------
@@ -86,18 +104,43 @@ service cloud.firestore {
         (isDirectivo() && resource.data.schoolId == mySchool())
       );
 
-      // Accounts are created by the Admin SDK (seed script) or the console.
-      // The Admin SDK bypasses these rules, so no client needs create here.
-      allow create, delete: if false;
+      // The principal may create docente/tutor accounts of their own school.
+      // The Auth user is created through a SECONDARY FirebaseApp so the
+      // principal's session is not replaced; this clause writes the matching
+      // users/{uid} document. A client can never create another directivo,
+      // and delete stays forbidden (logical deactivation uses active = false).
+      allow create: if isDirectivo()
+        && request.resource.data.uid == uid
+        && request.resource.data.schoolId == mySchool()
+        && request.resource.data.role in ['docente', 'tutor']
+        && request.resource.data.active == true
+        && request.resource.data.email is string
+        && request.resource.data.firstName is string
+        && request.resource.data.lastName is string
+        && request.resource.data.fullName is string
+        && request.resource.data.createdAt is timestamp;
+      allow delete: if false;
 
-      // Self-service profile edits only. Identity fields are immutable:
-      // whoever could change `role` or `active` could promote themselves.
-      allow update: if isActive() && request.auth.uid == uid
-        && !changedKeys().hasAny([
-          'uid', 'email', 'role', 'active', 'schoolId', 'createdAt'
-        ])
-        && request.resource.data.schoolId == resource.data.schoolId
-        && request.resource.data.role == resource.data.role;
+      // Self-service edits and principal-managed edits share this rule, but
+      // the principal is constrained by a field whitelist AND by schoolId.
+      // Identity is never writable from a client: whoever could change `role`
+      // could promote themselves, and changing `schoolId` would move a user
+      // into another school's visibility.
+      allow update: if isActive() && (
+        // A user edits their own profile. `active` is excluded on purpose so
+        // nobody can deactivate their own account; that is the principal's job.
+        (request.auth.uid == uid
+          && !changedKeys().hasAny(immutableSelfKeys())
+          && request.resource.data.schoolId == resource.data.schoolId
+          && request.resource.data.role == resource.data.role)
+        ||
+        // The principal edits users of their own school. `changedKeys().hasOnly`
+        // is what guarantees no identity field travels in the write.
+        (isDirectivo()
+          && resource.data.schoolId == mySchool()
+          && request.resource.data.schoolId == resource.data.schoolId
+          && changedKeys().hasOnly(principalEditableUserKeys()))
+      );
 
       match /fcmTokens/{tokenId} {
         allow read, write: if isActive() && request.auth.uid == uid;

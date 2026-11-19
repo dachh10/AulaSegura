@@ -95,11 +95,10 @@ class AuthRepositoryImpl(
         val code = normalizeStudentCode(input.code)
         if (!isValidStudentCode(code)) return TutorRegistrationResult.InvalidCode
 
-        var authCreated = false
-        fun reject(result: TutorRegistrationResult): TutorRegistrationResult {
-            // No half accounts: if anything fails after Auth was created, close
-            // that session so the next login attempt starts clean.
-            if (authCreated) signOut()
+        suspend fun reject(result: TutorRegistrationResult): TutorRegistrationResult {
+            // No half accounts: anything that fails after Auth was created
+            // deletes that account instead of leaving the email taken.
+            discardHalfRegisteredAccount()
             return result
         }
 
@@ -109,7 +108,6 @@ class AuthRepositoryImpl(
             val created = auth.createUserWithEmailAndPassword(
                 input.email.trim(), input.password,
             ).await()
-            authCreated = true
             val uid = created.user?.uid ?: return reject(TutorRegistrationResult.Failed)
 
             val codeDoc = firestore.collection(LINKING_CODES).document(code)
@@ -180,19 +178,30 @@ class AuthRepositoryImpl(
         } catch (e: FirebaseAuthWeakPasswordException) {
             TutorRegistrationResult.WeakPassword
         } catch (e: FirebaseNetworkException) {
-            if (authCreated) signOut()
+            discardHalfRegisteredAccount()
             TutorRegistrationResult.NetworkError
         } catch (e: FirebaseFirestoreException) {
-            if (authCreated) signOut()
+            discardHalfRegisteredAccount()
             if (e.code == FirebaseFirestoreException.Code.PERMISSION_DENIED) {
                 TutorRegistrationResult.Rejected
             } else {
                 TutorRegistrationResult.Failed
             }
         } catch (e: Exception) {
-            if (authCreated) signOut()
+            discardHalfRegisteredAccount()
             TutorRegistrationResult.Failed
         }
+    }
+
+    /**
+     * A half-registered account is worse than a failed one: the email stays
+     * taken, every retry answers "account already exists", and signing in finds
+     * no profile to route. Deleting the Auth user is the only way back to a
+     * clean state, so a refused batch never leaves a ghost behind.
+     */
+    private suspend fun discardHalfRegisteredAccount() {
+        runCatching { auth.currentUser?.delete()?.await() }
+        signOut()
     }
 
     override suspend fun restoreSession(): AuthResult {

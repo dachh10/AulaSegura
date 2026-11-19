@@ -139,7 +139,7 @@ Conteo de suites/tests desde `app/build/test-results/testDebugUnitTest/*.xml`. L
 
 **Checklist de cierre de la fase:**
 
-- [ ] Reglas publicadas en `aulasegu` con las tres cláusulas de §4 (`users.create`, `students.update`, `linkingCodes.update`). Preparadas y compiladas en dry-run; **publicación pendiente de autorización**.
+- [x] Reglas publicadas en `aulasegu` con las tres cláusulas de §4 (`users.create`, `students.update`, `linkingCodes.update`), con la rama del registro **primero** para que `isDirectivo()`/`isActive()` no evalúen un `users/{uid}` que solo existe como escritura pendiente.
 - [ ] El registro solo crea tutores: sin código no se crea la cuenta y no existe opción de registrarse como docente ni directivo.
 - [ ] Directora crea docente, grupo y dos alumnos desde la app.
 - [ ] Docente queda vinculado al grupo y lo ve sin tocar código.

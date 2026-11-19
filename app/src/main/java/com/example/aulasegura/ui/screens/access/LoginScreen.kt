@@ -87,6 +87,7 @@ fun LoginScreen(
     errorMessage: String? = null,
     onLogin: (email: String, password: String) -> Unit,
     onForgotPassword: () -> Unit,
+    onRegister: () -> Unit = {},
 ) {
     var email by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
@@ -249,6 +250,27 @@ fun LoginScreen(
                             text = "Continuar con Google",
                             onClick = { if (!isLoading) onLogin(email, password) },
                         )
+
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.Center,
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Text(
+                                text = "¿Eres familia? ",
+                                color = Outline,
+                                fontFamily = DmSans,
+                                fontSize = 13.sp,
+                            )
+                            Text(
+                                text = "Crea tu cuenta",
+                                color = BrandCoral,
+                                fontFamily = DmSans,
+                                fontWeight = FontWeight.SemiBold,
+                                fontSize = 13.sp,
+                                modifier = Modifier.clickable(onClick = onRegister),
+                            )
+                        }
                     }
                 }
             }

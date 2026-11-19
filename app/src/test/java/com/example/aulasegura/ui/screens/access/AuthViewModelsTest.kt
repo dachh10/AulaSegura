@@ -10,6 +10,8 @@ import com.example.aulasegura.domain.repository.PasswordResetResult
 import com.example.aulasegura.domain.repository.ProfilePhotoResult
 import com.example.aulasegura.domain.repository.ProfileUpdateResult
 import com.example.aulasegura.domain.repository.PushTokenRepository
+import com.example.aulasegura.domain.repository.TutorRegistrationInput
+import com.example.aulasegura.domain.repository.TutorRegistrationResult
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
@@ -49,6 +51,9 @@ private class FakeAuthRepository(
     var currentPassword: String? = null
     var newPassword: String? = null
     var passwordResult: PasswordChangeResult = PasswordChangeResult.Changed
+    var registerResult: TutorRegistrationResult =
+        TutorRegistrationResult.Success(user(UserRole.TUTOR))
+    var lastRegistration: TutorRegistrationInput? = null
 
     override val currentUserId: String? = null
 
@@ -58,6 +63,11 @@ private class FakeAuthRepository(
         signInCalls++
         lastEmail = email
         return signInResult
+    }
+
+    override suspend fun registerTutor(input: TutorRegistrationInput): TutorRegistrationResult {
+        lastRegistration = input
+        return registerResult
     }
 
     override suspend fun restoreSession(): AuthResult = restoreResult
@@ -311,5 +321,82 @@ class SessionViewModelTest {
 
         assertEquals(SessionState.SignedIn(UserRole.TEACHER), viewModel.state.value)
         assertEquals(0, repo.signOutCalls)
+    }
+}
+
+@OptIn(ExperimentalCoroutinesApi::class)
+class RegisterViewModelTest {
+
+    private val dispatcher = StandardTestDispatcher()
+
+    @Before
+    fun setUp() { Dispatchers.setMain(dispatcher) }
+
+    @After
+    fun tearDown() { Dispatchers.resetMain() }
+
+    private fun viewModel(repo: FakeAuthRepository): RegisterViewModel {
+        val vm = RegisterViewModel(repo)
+        vm.setFullName("Mariana Gómez")
+        vm.setEmail("mariana@correo.com")
+        vm.setPhone("55 1234 5678")
+        vm.setPassword("AulaSegura#2024")
+        vm.setConfirmPassword("AulaSegura#2024")
+        vm.setCode("ABC123")
+        vm.setAccepted(true)
+        return vm
+    }
+
+    @Test
+    fun `a bad code is rejected before any account is created`() = runTest(dispatcher) {
+        val repo = FakeAuthRepository()
+        val vm = viewModel(repo)
+        vm.setCode("ALU-2024")
+
+        vm.submit()
+
+        assertEquals("Escribe el código de 6 caracteres que te dio la escuela.",
+            vm.uiState.value.errorMessage)
+        assertNull(repo.lastRegistration)
+    }
+
+    @Test
+    fun `an unaccepted form does not call the repository`() = runTest(dispatcher) {
+        val repo = FakeAuthRepository()
+        val vm = viewModel(repo)
+        vm.setAccepted(false)
+
+        vm.submit()
+
+        assertEquals("Acepta el aviso de privacidad y los términos de uso.",
+            vm.uiState.value.errorMessage)
+        assertNull(repo.lastRegistration)
+    }
+
+    @Test
+    fun `a successful registration emits the tutor role`() = runTest(dispatcher) {
+        val repo = FakeAuthRepository()
+        val vm = viewModel(repo)
+
+        vm.submit()
+        advanceUntilIdle()
+
+        assertEquals(UserRole.TUTOR, vm.uiState.value.registeredRole)
+        assertEquals("ABC123", repo.lastRegistration?.code)
+        assertFalse(vm.uiState.value.isLoading)
+    }
+
+    @Test
+    fun `a used code explains why and emits no role`() = runTest(dispatcher) {
+        val repo = FakeAuthRepository()
+        repo.registerResult = TutorRegistrationResult.CodeAlreadyUsed
+        val vm = viewModel(repo)
+
+        vm.submit()
+        advanceUntilIdle()
+
+        assertNull(vm.uiState.value.registeredRole)
+        assertEquals("Ese código ya fue usado. Pide uno nuevo a la escuela.",
+            vm.uiState.value.errorMessage)
     }
 }

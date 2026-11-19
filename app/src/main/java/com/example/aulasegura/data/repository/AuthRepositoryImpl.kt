@@ -15,12 +15,18 @@ import com.example.aulasegura.domain.repository.PasswordChangeResult
 import com.example.aulasegura.domain.repository.PasswordResetResult
 import com.example.aulasegura.domain.repository.ProfilePhotoResult
 import com.example.aulasegura.domain.repository.ProfileUpdateResult
+import com.example.aulasegura.domain.repository.TutorRegistrationInput
+import com.example.aulasegura.domain.repository.TutorRegistrationResult
+import com.example.aulasegura.domain.repository.isValidStudentCode
+import com.example.aulasegura.domain.repository.normalizeStudentCode
 import com.example.aulasegura.domain.repository.passwordChangeErrorFromCode
 import com.example.aulasegura.domain.telemetry.AnalyticsEvent
 import com.example.aulasegura.domain.telemetry.AnalyticsLogger
 import com.example.aulasegura.domain.telemetry.NoOpAnalyticsLogger
 import com.google.firebase.FirebaseNetworkException
+import com.google.firebase.Timestamp
 import com.google.firebase.auth.FirebaseAuth
+import com.google.firebase.auth.FirebaseAuthUserCollisionException
 import com.google.firebase.auth.EmailAuthProvider
 import com.google.firebase.auth.FirebaseAuthException
 import com.google.firebase.auth.FirebaseAuthInvalidCredentialsException
@@ -29,10 +35,14 @@ import com.google.firebase.auth.FirebaseAuthRecentLoginRequiredException
 import com.google.firebase.auth.FirebaseAuthWeakPasswordException
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.FirebaseFirestoreException
+import com.google.firebase.firestore.FieldValue
+import com.google.firebase.firestore.Source
+import java.util.Date
 import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.callbackFlow
 import kotlinx.coroutines.tasks.await
+import kotlinx.coroutines.withTimeout
 
 /**
  * Firebase implementation of [AuthRepository].
@@ -80,6 +90,103 @@ class AuthRepositoryImpl(
             signOut()
             AuthResult.Failure(AuthFailure.UNKNOWN)
         }
+
+    override suspend fun registerTutor(input: TutorRegistrationInput): TutorRegistrationResult {
+        val code = normalizeStudentCode(input.code)
+        if (!isValidStudentCode(code)) return TutorRegistrationResult.InvalidCode
+
+        var authCreated = false
+        return try {
+            // Read the code before creating anything: a bad code must not leave
+            // an Auth account behind.
+            val codeDoc = firestore.collection(LINKING_CODES).document(code)
+                .get(Source.SERVER).await()
+            if (!codeDoc.exists()) return TutorRegistrationResult.InvalidCode
+            if (codeDoc.getString(FIELD_USED_BY) != null) {
+                return TutorRegistrationResult.CodeAlreadyUsed
+            }
+            codeDoc.getTimestamp(FIELD_EXPIRES_AT)?.toDate()?.let { expires ->
+                if (expires.before(Date())) return TutorRegistrationResult.ExpiredCode
+            }
+            val studentId = codeDoc.getString(FIELD_STUDENT_ID)
+                ?: return TutorRegistrationResult.InvalidCode
+            val schoolId = codeDoc.getString(FIELD_SCHOOL_ID)
+                ?: return TutorRegistrationResult.InvalidCode
+
+            val student = firestore.collection(STUDENTS).document(studentId)
+                .get(Source.SERVER).await()
+            val groupId = student.getString(FIELD_GROUP_ID)
+                ?: return TutorRegistrationResult.InvalidCode
+
+            val created = auth.createUserWithEmailAndPassword(
+                input.email.trim(), input.password,
+            ).await()
+            authCreated = true
+            val uid = created.user?.uid ?: return TutorRegistrationResult.Failed
+
+            val (firstName, lastName) = splitName(input.fullName)
+            val userData = mapOf(
+                "uid" to uid,
+                FIELD_EMAIL to input.email.trim(),
+                FIELD_ROLE to "tutor",
+                "firstName" to firstName,
+                "lastName" to lastName,
+                FIELD_FULL_NAME to input.fullName.trim(),
+                "phone" to input.phone.trim(),
+                FIELD_SCHOOL_ID to schoolId,
+                "groupIds" to listOf(groupId),
+                "studentIds" to listOf(studentId),
+                FIELD_ACTIVE to true,
+                "createdAt" to FieldValue.serverTimestamp(),
+                "updatedAt" to FieldValue.serverTimestamp(),
+                // Lets the rules verify the exact code without listing codes.
+                "registrationCode" to code,
+            )
+
+            // One batch: if any rule refuses, no document changes at all.
+            val batch = firestore.batch()
+            batch.set(firestore.collection(USERS).document(uid), userData)
+            batch.update(firestore.collection(STUDENTS).document(studentId), mapOf(
+                "tutorIds" to FieldValue.arrayUnion(uid),
+                "updatedAt" to FieldValue.serverTimestamp(),
+            ))
+            batch.update(firestore.collection(LINKING_CODES).document(code), mapOf(
+                FIELD_USED_BY to uid,
+                "usedAt" to FieldValue.serverTimestamp(),
+            ))
+            withTimeout(WRITE_TIMEOUT_MILLIS) { batch.commit().await() }
+
+            val user = AppUser(
+                uid = uid,
+                email = input.email.trim(),
+                role = UserRole.TUTOR,
+                fullName = input.fullName.trim(),
+                schoolId = schoolId,
+                active = true,
+            )
+            currentUser = user
+            runCatching { profileDao.upsert(user.toCachedEntity(System.currentTimeMillis())) }
+            analytics.log(AnalyticsEvent.LoginSuccess(UserRole.TUTOR))
+            TutorRegistrationResult.Success(user)
+        } catch (e: FirebaseAuthUserCollisionException) {
+            TutorRegistrationResult.EmailInUse
+        } catch (e: FirebaseAuthWeakPasswordException) {
+            TutorRegistrationResult.WeakPassword
+        } catch (e: FirebaseNetworkException) {
+            if (authCreated) signOut()
+            TutorRegistrationResult.NetworkError
+        } catch (e: FirebaseFirestoreException) {
+            if (authCreated) signOut()
+            if (e.code == FirebaseFirestoreException.Code.PERMISSION_DENIED) {
+                TutorRegistrationResult.Rejected
+            } else {
+                TutorRegistrationResult.Failed
+            }
+        } catch (e: Exception) {
+            if (authCreated) signOut()
+            TutorRegistrationResult.Failed
+        }
+    }
 
     override suspend fun restoreSession(): AuthResult {
         if (auth.currentUser == null) return AuthResult.Failure(AuthFailure.NO_SESSION)
@@ -316,6 +423,13 @@ class AuthRepositoryImpl(
 
     private companion object {
         const val USERS = "users"
+        const val STUDENTS = "students"
+        const val LINKING_CODES = "linkingCodes"
+        const val FIELD_USED_BY = "usedBy"
+        const val FIELD_STUDENT_ID = "studentId"
+        const val FIELD_EXPIRES_AT = "expiresAt"
+        const val FIELD_GROUP_ID = "groupId"
+        const val WRITE_TIMEOUT_MILLIS = 10_000L
         const val FIELD_EMAIL = "email"
         const val FIELD_ROLE = "role"
         const val FIELD_FULL_NAME = "fullName"
@@ -323,5 +437,10 @@ class AuthRepositoryImpl(
         const val FIELD_ACTIVE = "active"
         const val FIELD_PHOTO_URL = "photoUrl"
         const val FIELD_SUBJECTS = "subjects"
+
+        fun splitName(full: String): Pair<String, String> {
+            val parts = full.trim().split(Regex("\\s+"), limit = 2)
+            return parts.firstOrNull().orEmpty() to parts.getOrNull(1).orEmpty()
+        }
     }
 }

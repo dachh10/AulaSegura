@@ -28,6 +28,13 @@ interface AuthRepository {
     /** Signs in and resolves the role from `users/{uid}`. */
     suspend fun signIn(email: String, password: String): AuthResult
 
+    /**
+     * Creates a tutor account from a linking code. The three writes (profile,
+     * student link, code redemption) are one atomic batch; on success the session
+     * profile and its Room cache are already refreshed.
+     */
+    suspend fun registerTutor(input: TutorRegistrationInput): TutorRegistrationResult
+
     /** Resolves the persisted session, if any. Used by Splash. */
     suspend fun restoreSession(): AuthResult
 

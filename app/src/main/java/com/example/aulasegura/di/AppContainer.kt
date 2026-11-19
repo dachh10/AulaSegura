@@ -84,6 +84,7 @@ import com.example.aulasegura.sync.UploadIncidentMediaHandler
 import com.example.aulasegura.sync.UploadTaskAttachmentHandler
 import com.example.aulasegura.ui.screens.access.ForgotPasswordViewModel
 import com.example.aulasegura.ui.screens.access.LoginViewModel
+import com.example.aulasegura.ui.screens.access.RegisterViewModel
 import com.example.aulasegura.ui.screens.access.SessionViewModel
 import com.example.aulasegura.ui.screens.admin.AdminCampusViewModel
 import com.example.aulasegura.ui.screens.admin.AdminDashboardViewModel
@@ -581,6 +582,9 @@ class AppViewModelFactory(
     override fun <T : ViewModel> create(modelClass: Class<T>): T = when {
         modelClass.isAssignableFrom(LoginViewModel::class.java) ->
             LoginViewModel(container.authRepository)
+
+        modelClass.isAssignableFrom(RegisterViewModel::class.java) ->
+            RegisterViewModel(container.authRepository)
 
         modelClass.isAssignableFrom(SessionViewModel::class.java) ->
             SessionViewModel(

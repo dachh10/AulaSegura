@@ -64,6 +64,7 @@ import com.example.aulasegura.ui.theme.AulaTextStyles
 import com.example.aulasegura.ui.theme.Background
 import com.example.aulasegura.ui.theme.BricolageGrotesque
 import com.example.aulasegura.ui.theme.DmSans
+import com.example.aulasegura.ui.theme.Error
 import com.example.aulasegura.ui.theme.JetBrainsMono
 import com.example.aulasegura.ui.theme.OnSecondaryFixed
 import com.example.aulasegura.ui.theme.OnSurface
@@ -92,14 +93,19 @@ fun RegisterScreen(
     onSkip: () -> Unit,
     onCreated: () -> Unit,
     onLogin: () -> Unit,
+    ui: RegisterUiState = RegisterUiState(),
+    onFullNameChange: (String) -> Unit = {},
+    onEmailChange: (String) -> Unit = {},
+    onPhoneChange: (String) -> Unit = {},
+    onPasswordChange: (String) -> Unit = {},
+    onConfirmPasswordChange: (String) -> Unit = {},
+    onCodeChange: (String) -> Unit = {},
+    onAcceptedChange: (Boolean) -> Unit = {},
+    isLoading: Boolean = false,
+    errorMessage: String? = null,
 ) {
-    var fullName by remember { mutableStateOf("Mariana Gómez Fuentes") }
-    var email by remember { mutableStateOf("") }
-    var phone by remember { mutableStateOf("") }
-    var password by remember { mutableStateOf("AulaSegura#2024") }
-    var confirmPassword by remember { mutableStateOf("") }
-    var studentCode by remember { mutableStateOf("") }
-    var accepted by remember { mutableStateOf(true) }
+    // Visibility is local UI state; every value that matters to the account
+    // lives in RegisterUiState so the ViewModel can validate and submit it.
     var passwordVisible by remember { mutableStateOf(false) }
     var confirmVisible by remember { mutableStateOf(false) }
 
@@ -142,8 +148,8 @@ fun RegisterScreen(
                 Reveal(delayMillis = 140) {
                     Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
                         AulaField(
-                            value = fullName,
-                            onValueChange = { fullName = it },
+                            value = ui.fullName,
+                            onValueChange = onFullNameChange,
                             placeholder = "Nombre y apellidos",
                             leadingIcon = Icons.Filled.Person,
                             label = "Nombre completo",
@@ -151,8 +157,8 @@ fun RegisterScreen(
                         )
 
                         AulaField(
-                            value = email,
-                            onValueChange = { email = it },
+                            value = ui.email,
+                            onValueChange = onEmailChange,
                             placeholder = "ejemplo@correo.com",
                             leadingIcon = Icons.Outlined.Mail,
                             label = "Correo electrónico",
@@ -160,8 +166,8 @@ fun RegisterScreen(
                         )
 
                         AulaField(
-                            value = phone,
-                            onValueChange = { phone = it },
+                            value = ui.phone,
+                            onValueChange = onPhoneChange,
                             placeholder = "55 1234 5678",
                             leadingIcon = Icons.Outlined.Call,
                             label = "Teléfono de contacto",
@@ -171,8 +177,8 @@ fun RegisterScreen(
 
                         Column {
                             AulaField(
-                                value = password,
-                                onValueChange = { password = it },
+                                value = ui.password,
+                                onValueChange = onPasswordChange,
                                 placeholder = "••••••••",
                                 leadingIcon = Icons.Outlined.Lock,
                                 label = "Contraseña",
@@ -193,8 +199,8 @@ fun RegisterScreen(
                         }
 
                         AulaField(
-                            value = confirmPassword,
-                            onValueChange = { confirmPassword = it },
+                            value = ui.confirmPassword,
+                            onValueChange = onConfirmPasswordChange,
                             placeholder = "Repite tu contraseña",
                             leadingIcon = Icons.Outlined.LockClock,
                             label = "Confirmar contraseña",
@@ -211,9 +217,9 @@ fun RegisterScreen(
 
                         Column {
                             AulaField(
-                                value = studentCode,
-                                onValueChange = { studentCode = it.uppercase() },
-                                placeholder = "ALU-2024-9821",
+                                value = ui.code,
+                                onValueChange = { onCodeChange(it.uppercase()) },
+                                placeholder = "ABC123",
                                 leadingIcon = Icons.Outlined.Badge,
                                 label = "Código del alumno",
                                 keyboardType = KeyboardType.Text,
@@ -248,7 +254,7 @@ fun RegisterScreen(
                                                 fontWeight = FontWeight.Medium,
                                             ),
                                         ) {
-                                            append("Ej. ALU-2024-9821")
+                                            append("Ej. ABC123")
                                         }
                                     },
                                     color = OnSurfaceVariant,
@@ -258,8 +264,8 @@ fun RegisterScreen(
                         }
 
                         TermsRow(
-                            accepted = accepted,
-                            onToggle = { accepted = !accepted },
+                            accepted = ui.accepted,
+                            onToggle = { onAcceptedChange(!ui.accepted) },
                             modifier = Modifier.padding(top = 8.dp),
                         )
                     }
@@ -270,6 +276,8 @@ fun RegisterScreen(
         RegisterBottomBar(
             onCreated = onCreated,
             onLogin = onLogin,
+            isLoading = isLoading,
+            errorMessage = errorMessage,
             modifier = Modifier.align(Alignment.BottomCenter),
         )
     }
@@ -590,6 +598,8 @@ private fun TermsRow(
 private fun RegisterBottomBar(
     onCreated: () -> Unit,
     onLogin: () -> Unit,
+    isLoading: Boolean = false,
+    errorMessage: String? = null,
     modifier: Modifier = Modifier,
 ) {
     Column(
@@ -609,9 +619,20 @@ private fun RegisterBottomBar(
             .padding(top = 16.dp, bottom = 8.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
+        if (errorMessage != null) {
+            Text(
+                text = errorMessage,
+                color = Error,
+                fontFamily = DmSans,
+                fontSize = 12.sp,
+                lineHeight = 16.sp,
+                modifier = Modifier.padding(bottom = 6.dp),
+            )
+        }
+
         PillButton(
-            text = "Crear cuenta",
-            onClick = onCreated,
+            text = if (isLoading) "Creando cuenta…" else "Crear cuenta",
+            onClick = { if (!isLoading) onCreated() },
             containerColor = SecondaryContainer,
             contentColor = SurfaceContainerLowest,
             fontSize = 16.sp,

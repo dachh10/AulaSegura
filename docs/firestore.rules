@@ -76,6 +76,17 @@ service cloud.firestore {
       return request.resource.data.diff(resource.data).affectedKeys();
     }
 
+    // The tutor self-registration writes users, students and a linking code in
+    // ONE batch. `getAfter` sees the post-batch state, so each of the three
+    // writes can prove that the other two belong to the same redemption.
+    function userRef(uid) {
+      return /databases/$(database)/documents/users/$(uid);
+    }
+
+    function codeRef(code) {
+      return /databases/$(database)/documents/linkingCodes/$(code);
+    }
+
     // Identity is immutable for every client, including the principal. Only
     // the Admin SDK (seed/account script) may set these fields.
     function immutableSelfKeys() {
@@ -109,16 +120,39 @@ service cloud.firestore {
       // principal's session is not replaced; this clause writes the matching
       // users/{uid} document. A client can never create another directivo,
       // and delete stays forbidden (logical deactivation uses active = false).
-      allow create: if isDirectivo()
-        && request.resource.data.uid == uid
-        && request.resource.data.schoolId == mySchool()
-        && request.resource.data.role in ['docente', 'tutor']
-        && request.resource.data.active == true
-        && request.resource.data.email is string
-        && request.resource.data.firstName is string
-        && request.resource.data.lastName is string
-        && request.resource.data.fullName is string
-        && request.resource.data.createdAt is timestamp;
+      allow create: if
+        (isDirectivo()
+          && request.resource.data.uid == uid
+          && request.resource.data.schoolId == mySchool()
+          && request.resource.data.role in ['docente', 'tutor']
+          && request.resource.data.active == true
+          && request.resource.data.email is string
+          && request.resource.data.firstName is string
+          && request.resource.data.lastName is string
+          && request.resource.data.fullName is string
+          && request.resource.data.createdAt is timestamp)
+        ||
+        // A parent registers only as a tutor and only with an unused code.
+        // `registrationCode` is written by the client so this rule can check
+        // the exact document without ever listing codes. No client path can
+        // create a docente or a directivo here.
+        (isSignedIn()
+          && request.auth.uid == uid
+          && request.resource.data.uid == uid
+          && request.resource.data.role == 'tutor'
+          && request.resource.data.active == true
+          && request.resource.data.email == request.auth.token.email
+          && request.resource.data.firstName is string
+          && request.resource.data.lastName is string
+          && request.resource.data.fullName is string
+          && request.resource.data.createdAt is timestamp
+          && request.resource.data.registrationCode is string
+          && request.resource.data.studentIds is list
+          && request.resource.data.studentIds.size() == 1
+          && get(codeRef(request.resource.data.registrationCode)).data.usedBy == null
+          && request.resource.data.schoolId == getAfter(codeRef(request.resource.data.registrationCode)).data.schoolId
+          && request.resource.data.studentIds[0] == getAfter(codeRef(request.resource.data.registrationCode)).data.studentId
+          && getAfter(codeRef(request.resource.data.registrationCode)).data.usedBy == uid);
       allow delete: if false;
 
       // Self-service edits and principal-managed edits share this rule, but
@@ -161,8 +195,21 @@ service cloud.firestore {
         (isDocente() && resource.data.groupId in myGroups()) ||
         (isTutor() && request.auth.uid in resource.data.tutorIds)
       );
-      allow create, update: if isDirectivo()
+      allow create: if isDirectivo()
         && request.resource.data.schoolId == mySchool();
+      // A registering tutor may add only themselves, only once, and only when
+      // the same batch created their account from the code for THIS student.
+      allow update: if
+        (isDirectivo() && request.resource.data.schoolId == mySchool())
+        ||
+        (isSignedIn()
+          && request.auth.uid in request.resource.data.tutorIds
+          && !(request.auth.uid in resource.data.tutorIds)
+          && changedKeys().hasOnly(['tutorIds', 'updatedAt'])
+          && getAfter(userRef(request.auth.uid)).data.role == 'tutor'
+          && studentId in getAfter(userRef(request.auth.uid)).data.studentIds
+          && getAfter(codeRef(getAfter(userRef(request.auth.uid)).data.registrationCode)).data.studentId == studentId
+          && getAfter(userRef(request.auth.uid)).data.schoolId == resource.data.schoolId);
       allow delete: if isDirectivo() && resource.data.schoolId == mySchool();
     }
 
@@ -419,11 +466,22 @@ service cloud.firestore {
         && request.resource.data.schoolId == mySchool()
         && request.resource.data.createdBy == request.auth.uid;
 
-      // Redemption: the tutor claims a code, and only once.
-      allow update: if isActive() && isTutor()
-        && changedKeys().hasOnly(['usedBy', 'usedAt'])
-        && request.resource.data.usedBy == request.auth.uid
-        && resource.data.usedBy == null;
+      // Redemption: the tutor claims a code, and only once. The second branch
+      // covers the registration batch, where users/{uid} does not exist in the
+      // pre-state yet, so isTutor() cannot be used.
+      allow update: if
+        (isActive() && isTutor()
+          && changedKeys().hasOnly(['usedBy', 'usedAt'])
+          && request.resource.data.usedBy == request.auth.uid
+          && resource.data.usedBy == null)
+        ||
+        (isSignedIn()
+          && changedKeys().hasOnly(['usedBy', 'usedAt'])
+          && request.resource.data.usedBy == request.auth.uid
+          && resource.data.usedBy == null
+          && getAfter(userRef(request.auth.uid)).data.role == 'tutor'
+          && getAfter(userRef(request.auth.uid)).data.registrationCode == code
+          && getAfter(userRef(request.auth.uid)).data.studentIds == [resource.data.studentId]);
 
       allow delete: if false;
     }

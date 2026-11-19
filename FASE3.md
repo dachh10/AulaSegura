@@ -48,7 +48,7 @@ Los IDs siguen la numeración de `PLAN.md` (3.1-3.10). El orden de ejecución se
 
 | # | Tarea | Pantalla(s) | Servicios | Estado |
 |---|---|---|---|---|
-| **3.1** | Registro **solo del tutor** con código obligatorio y vinculación atómica al alumno | `RegisterScreen` (Stitch `4ed8ecd6...`) | Auth + Firestore `linkingCodes`, `users`, `students` | pendiente |
+| **3.1** | Registro **solo del tutor** con código obligatorio y vinculación atómica al alumno | `RegisterScreen` (Stitch `4ed8ecd6...`) | Auth + Firestore `linkingCodes`, `users`, `students` | ✅ **hecho** (código y tests; reglas pendientes de publicar) |
 | **3.2** | Inicio: resumen real de los hijos (asistencia, tareas, incidentes) | `ParentHomeScreen` | Firestore | pendiente |
 | **3.3** | Asistencia: calendario desde `attendanceSessions` y `records` | `ParentAttendanceScreen` | Firestore | pendiente |
 | **3.4** | Justificar falta con adjunto en Cloudinary | `ParentJustifyScreen` | Firestore + Cloudinary | pendiente |
@@ -139,7 +139,7 @@ Conteo de suites/tests desde `app/build/test-results/testDebugUnitTest/*.xml`. L
 
 **Checklist de cierre de la fase:**
 
-- [ ] Reglas publicadas en `aulasegu` con las tres cláusulas de §4 (`users.create`, `students.update`, `linkingCodes.update`).
+- [ ] Reglas publicadas en `aulasegu` con las tres cláusulas de §4 (`users.create`, `students.update`, `linkingCodes.update`). Preparadas y compiladas en dry-run; **publicación pendiente de autorización**.
 - [ ] El registro solo crea tutores: sin código no se crea la cuenta y no existe opción de registrarse como docente ni directivo.
 - [ ] Directora crea docente, grupo y dos alumnos desde la app.
 - [ ] Docente queda vinculado al grupo y lo ve sin tocar código.

@@ -43,6 +43,8 @@ import com.example.aulasegura.ui.screens.access.LoginScreen
 import com.example.aulasegura.ui.screens.access.LoginViewModel
 import com.example.aulasegura.ui.screens.access.OnboardingScreen
 import com.example.aulasegura.ui.screens.access.PermissionsScreen
+import com.example.aulasegura.ui.screens.access.RegisterScreen
+import com.example.aulasegura.ui.screens.access.RegisterViewModel
 import com.example.aulasegura.ui.screens.access.SessionState
 import com.example.aulasegura.ui.screens.access.SessionViewModel
 import com.example.aulasegura.ui.screens.access.SplashScreen
@@ -212,6 +214,42 @@ fun AulaSeguraNavHost(
                 errorMessage = uiState.errorMessage,
                 onLogin = loginViewModel::signIn,
                 onForgotPassword = { navController.navigate(Routes.FORGOT_PASSWORD) },
+                onRegister = { navController.navigate(Routes.REGISTER) },
+            )
+        }
+        composable(Routes.REGISTER) {
+            val registerViewModel: RegisterViewModel =
+                viewModel(factory = rememberAppContainer().viewModelFactory)
+            val registerUi by registerViewModel.uiState.collectAsState()
+
+            LaunchedEffect(registerUi.registeredRole) {
+                val role = registerUi.registeredRole ?: return@LaunchedEffect
+                registerViewModel.consumeNavigation()
+                sessionViewModel.onSignedIn(role)
+                navController.navigate(role.homeRoute()) {
+                    popUpTo(Routes.LOGIN) { inclusive = true }
+                }
+            }
+
+            RegisterScreen(
+                onBack = { navController.popBackStack() },
+                onSkip = { navController.popBackStack() },
+                onCreated = registerViewModel::submit,
+                onLogin = {
+                    navController.navigate(Routes.LOGIN) {
+                        popUpTo(Routes.LOGIN) { inclusive = true }
+                    }
+                },
+                ui = registerUi,
+                onFullNameChange = registerViewModel::setFullName,
+                onEmailChange = registerViewModel::setEmail,
+                onPhoneChange = registerViewModel::setPhone,
+                onPasswordChange = registerViewModel::setPassword,
+                onConfirmPasswordChange = registerViewModel::setConfirmPassword,
+                onCodeChange = registerViewModel::setCode,
+                onAcceptedChange = registerViewModel::setAccepted,
+                isLoading = registerUi.isLoading,
+                errorMessage = registerUi.errorMessage,
             )
         }
         composable(Routes.FORGOT_PASSWORD) {

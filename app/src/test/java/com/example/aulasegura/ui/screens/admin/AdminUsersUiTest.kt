@@ -237,4 +237,18 @@ class AdminUsersUiTest {
         assertTrue(orphanedAfterCleanup(hadUser = true, cleanupSucceeded = false))
         assertTrue(orphanedAfterCleanup(hadUser = false, cleanupSucceeded = true))
     }
+
+    @Test
+    fun `the dialog offers reactivation once the student is deactivated`() {
+        // Regression: an inactive student kept a disabled "Dar de baja" and nothing
+        // else, so the logical baja could not be undone from the app.
+        assertEquals("Dar de baja", studentStatusAction(active = true, saving = false))
+        assertEquals("Reactivar", studentStatusAction(active = false, saving = false))
+    }
+
+    @Test
+    fun `the saving verb follows the direction being written`() {
+        assertEquals("Dando de baja…", studentStatusAction(active = true, saving = true))
+        assertEquals("Reactivando…", studentStatusAction(active = false, saving = true))
+    }
 }

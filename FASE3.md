@@ -67,7 +67,7 @@ Las 14 pantallas del Bloque 2 de `PLAN.md` están implementadas visualmente. La 
 - `attendanceSessions` se lee por `groupId` y el mes se filtra en cliente, para no declarar un índice compuesto que hoy solo existe en la consola.
 - El porcentaje es `(presentes + retardos) / total`; una falta justificada sigue siendo inasistencia y se muestra aparte.
 - Los datos que la escuela no produjo no se inventan: día sin sesión = celda gris, mes sin registros = porcentaje `—`, tareas vacías = "Sin tareas próximas", hijo sin vínculo = tarjeta explicativa.
-- El tutor ve a sus hijos por el vínculo `tutorIds`, **aunque el alumno esté `active: false`**: `active` significa "inscripto hoy" para el roster del docente, no "es mi hijo". Un alumno dado de baja sigue apareciendo en la pantalla de la familia; el roster del docente sigue filtrándolo.
+- El tutor ve a sus hijos por el vínculo `tutorIds`, **aunque el alumno esté `active: false`**: `active` significa "inscripto hoy" para el roster del docente, no "es mi hijo". Un alumno dado de baja sigue apareciendo en la pantalla de la familia; el roster del docente sigue filtrándolo. Para pasar lista de un alumno dado de baja, el directivo lo reactiva desde el detalle del alumno (pestaña Alumnos → «Reactivar»).
 - `ParentAttendanceScreen` cambió de hijo con el pill del top bar (cicla entre hijos); no se agregó un selector nuevo que el diseño no tiene.
 
 ---

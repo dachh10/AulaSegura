@@ -396,6 +396,7 @@ fun AdminUsersScreen(
             saving = uiState.detailSaving,
             error = uiState.detailError,
             onDeactivate = { viewModel.deactivateStudent() },
+            onReactivate = { viewModel.reactivateStudent() },
             onDismiss = { viewModel.dismissStudent() },
         )
     }
@@ -806,7 +807,7 @@ private fun UserRowItem(row: UserRow, onClick: () -> Unit) {
     }
 }
 
-/** Full student record plus the live linking code and the logical baja action. */
+/** Full student record plus the live linking code and the logical baja/re-activation action. */
 @Composable
 private fun StudentDetailDialog(
     student: AdminStudent,
@@ -816,6 +817,7 @@ private fun StudentDetailDialog(
     saving: Boolean,
     error: String?,
     onDeactivate: () -> Unit,
+    onReactivate: () -> Unit,
     onDismiss: () -> Unit,
 ) {
     AlertDialog(
@@ -859,12 +861,13 @@ private fun StudentDetailDialog(
             }
         },
         confirmButton = {
+            // One action, two directions: the same slot undoes the logical baja.
             TextButton(
-                onClick = onDeactivate,
-                enabled = student.active && !saving && !loading,
+                onClick = if (student.active) onDeactivate else onReactivate,
+                enabled = !saving && !loading,
             ) {
                 Text(
-                    text = if (saving) "Dando de baja…" else "Dar de baja",
+                    text = studentStatusAction(active = student.active, saving = saving),
                     fontFamily = DmSans,
                 )
             }

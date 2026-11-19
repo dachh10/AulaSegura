@@ -195,11 +195,24 @@ class AdminUsersViewModel(
 
     /** Logical baja through the existing setActive path, then a fresh student read. */
     fun deactivateStudent() {
+        setStudentActive(active = false)
+    }
+
+    /**
+     * Undo of the logical baja: same path with `active = true`, so the group's
+     * `studentCount` goes back up. Without it a directivo could deactivate a
+     * student and never bring them back from the app.
+     */
+    fun reactivateStudent() {
+        setStudentActive(active = true)
+    }
+
+    private fun setStudentActive(active: Boolean) {
         val studentId = _state.value.selectedStudentId ?: return
         _state.update { it.copy(detailSaving = true, detailError = null) }
         viewModelScope.launch {
-            // Reuse the repository's batch: active flag + groups.studentCount - 1.
-            when (val result = students.setActive(studentId, false)) {
+            // Reuse the repository's batch: active flag + groups.studentCount ±1.
+            when (val result = students.setActive(studentId, active)) {
                 AdminStudentResult.Success -> {
                     dismissStudent()
                     refreshStudents()

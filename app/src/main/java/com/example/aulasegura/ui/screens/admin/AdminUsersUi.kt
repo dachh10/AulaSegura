@@ -229,6 +229,21 @@ fun buildUpdatePayload(form: AdminUserForm): Map<String, Any> {
     )
 }
 
+/**
+ * The single action of the student detail dialog, in both directions.
+ *
+ * A deactivated student used to keep a disabled "Dar de baja" and nothing else,
+ * so the logical baja could not be undone from the app: the directivo had to go
+ * to the console. The same slot now toggles the state and `saving` only changes
+ * the verb.
+ */
+fun studentStatusAction(active: Boolean, saving: Boolean): String = when {
+    saving && active -> "Dando de baja…"
+    saving -> "Reactivando…"
+    active -> "Dar de baja"
+    else -> "Reactivar"
+}
+
 private fun AdminUser.toRow(): AdminUserRowUi = AdminUserRowUi(
     uid = uid,
     name = fullName.ifBlank { "$firstName $lastName".trim() }.ifBlank { email },

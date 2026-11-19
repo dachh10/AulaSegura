@@ -960,3 +960,16 @@ igual que hoy.
 > Fuera de alcance: `TeacherIncidentNewScreen` calcula el `verified` del **incidente** solo por
 > distancia, sin consultar el flag. Si el dueño quiere que `requireLocation` aplique también a
 > incidentes, es otro cambio.
+
+---
+
+## Corrección posterior (detectada en Fase 3) — reactivar alumno
+
+La baja lógica del alumno se podía hacer pero **no deshacer**: con el alumno ya en `active: false`
+el botón «Dar de baja» quedaba deshabilitado y el diálogo no ofrecía otra acción, así que el
+directivo tenía que ir a la consola para reactivarlo. Ahora el mismo botón alterna
+«Dar de baja» / «Reactivar» y llama `setActive(id, active)` en ambos sentidos — el repositorio
+ya ajustaba `groups.studentCount` con `±1` y las reglas ya permitían el `update` del directivo,
+así que el cambio es únicamente de UI: `reactivateStudent()` en `AdminUsersViewModel` sobre un
+`setStudentActive(active)` privado compartido, y `studentStatusAction()` en `AdminUsersUi.kt`.
+Tests: 2 nuevos en `AdminUsersUiTest` (**417** en total). Sin cambios en reglas, Firestore ni índices.

@@ -2,6 +2,7 @@ package com.example.aulasegura.ui.screens.admin
 
 import com.example.aulasegura.domain.model.AdminDashboard
 import com.example.aulasegura.domain.model.AdminDashboardStatus
+import com.example.aulasegura.domain.model.AdminReportRangeSummary
 import com.example.aulasegura.domain.repository.AdminDashboardError
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -86,6 +87,36 @@ class AdminDashboardUiTest {
         assertTrue(AdminDashboard.loaded(0, 0, 0, 0).empty)
         assertFalse(AdminDashboard.loaded(1, 0, 0, 0).empty)
         assertFalse(AdminDashboard().empty)
+    }
+
+    @Test
+    fun `today attendance copy prints the count and never the model's toString`() {
+        // Regression: `"$summary.sessionCount"` interpolates the whole object and
+        // appends ".sessionCount" literally, so the card printed the data class.
+        val one = AdminReportRangeSummary(
+            sessionCount = 1,
+            presentCount = 0,
+            absentCount = 2,
+            lateCount = 0,
+            justifiedCount = 0,
+        )
+
+        val message = todayAttendanceMessage(summary = one, loading = false, error = null)
+
+        assertEquals("1 sesión · 0% de asistencia", message)
+        assertFalse(message.contains("AdminReportRangeSummary"))
+        assertEquals(
+            "2 sesiones · 0% de asistencia",
+            todayAttendanceMessage(summary = one.copy(sessionCount = 2), loading = false, error = null),
+        )
+        assertEquals(
+            "Aún no hay sesiones registradas hoy.",
+            todayAttendanceMessage(
+                summary = one.copy(sessionCount = 0),
+                loading = false,
+                error = null,
+            ),
+        )
     }
 
     @Test

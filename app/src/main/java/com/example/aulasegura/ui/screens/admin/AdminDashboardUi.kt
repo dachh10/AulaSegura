@@ -36,7 +36,7 @@ fun todayAttendanceMessage(
     summary.sessionCount == 0 -> "Aún no hay sesiones registradas hoy."
     else -> {
         val sessions = if (summary.sessionCount == 1) "sesión" else "sesiones"
-        "$summary.sessionCount $sessions · ${summary.attendancePercentage}% de asistencia"
+        "${summary.sessionCount} $sessions · ${summary.attendancePercentage}% de asistencia"
     }
 }
 

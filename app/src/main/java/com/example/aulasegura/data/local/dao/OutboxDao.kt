@@ -35,6 +35,17 @@ interface OutboxDao {
     @Query("UPDATE outbox SET attempts = attempts + 1, lastError = :error WHERE id = :id")
     suspend fun markAttempt(id: Long, error: String?)
 
+    /**
+     * Rewrites the serialized operation without touching its position in the
+     * queue.
+     *
+     * The justification handler uses it to store the Cloudinary URL after the
+     * upload succeeded: a retried Firestore write must not upload the same
+     * photo twice.
+     */
+    @Query("UPDATE outbox SET payloadJson = :payloadJson WHERE id = :id")
+    suspend fun updatePayload(id: Long, payloadJson: String)
+
     @Query("DELETE FROM outbox WHERE id = :id")
     suspend fun deleteById(id: Long)
 

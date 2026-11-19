@@ -25,6 +25,15 @@ object Routes {
     const val PARENT_INCIDENT_DETAIL = "parent/incidents/{incidentId}"
     const val PARENT_INCIDENT_MAP = "parent/incidents/{incidentId}/map"
     const val PARENT_JUSTIFY = "parent/justify"
+
+    /**
+     * The same destination plus what the form needs to point at a real absence:
+     * the child, and the ISO day of the record the tutor touched.
+     *
+     * Query arguments and not path segments so the notification deep link keeps
+     * working with [PARENT_JUSTIFY] alone.
+     */
+    const val PARENT_JUSTIFY_ARGS = "$PARENT_JUSTIFY?studentId={studentId}&date={date}"
     const val PARENT_CHAT = "parent/chat"
     const val PARENT_CONVERSATION = "parent/chat/{conversationId}"
     const val PARENT_AI = "parent/assistant"
@@ -78,4 +87,19 @@ object Routes {
     fun teacherConversation(conversationId: String) = "teacher/chat/$conversationId"
     fun adminGroupDetail(groupId: String) = "admin/groups/$groupId"
     fun adminNewStudent(groupId: String) = "admin/users/new/$groupId"
+
+    /**
+     * Justificar falta, optionally pointing at one absence.
+     *
+     * [studentId] keeps the form on the child the tutor was looking at; [date] is
+     * the ISO day of the record they touched. Both are optional: the quick access
+     * from home sends nothing and the form resolves the newest absence itself.
+     */
+    fun parentJustify(studentId: String? = null, date: String? = null): String {
+        val query = listOfNotNull(
+            studentId?.takeIf { it.isNotBlank() }?.let { "studentId=$it" },
+            date?.takeIf { it.isNotBlank() }?.let { "date=$it" },
+        )
+        return if (query.isEmpty()) PARENT_JUSTIFY else "$PARENT_JUSTIFY?${query.joinToString("&")}"
+    }
 }

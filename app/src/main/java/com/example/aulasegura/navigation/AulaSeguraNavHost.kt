@@ -26,9 +26,13 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavHostController
+import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
+import androidx.navigation.navArgument
+import androidx.lifecycle.ViewModel
+import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.aulasegura.di.rememberAppContainer
 import com.example.aulasegura.location.evaluateGeofence
@@ -62,15 +66,18 @@ import com.example.aulasegura.ui.screens.admin.ReportPdfExporter
 import com.example.aulasegura.ui.screens.admin.AdminUsersScreen
 import com.example.aulasegura.ui.screens.parent.ParentAIScreen
 import com.example.aulasegura.ui.screens.parent.ParentAttendanceScreen
+import com.example.aulasegura.ui.screens.parent.ParentAttendanceUiState
 import com.example.aulasegura.ui.screens.parent.ParentAttendanceViewModel
 import com.example.aulasegura.ui.screens.parent.ParentChatScreen
 import com.example.aulasegura.ui.screens.parent.ParentConversationScreen
 import com.example.aulasegura.ui.screens.parent.ParentHomeScreen
+import com.example.aulasegura.ui.screens.parent.ParentHomeUiState
 import com.example.aulasegura.ui.screens.parent.ParentHomeViewModel
 import com.example.aulasegura.ui.screens.parent.ParentIncidentDetailScreen
 import com.example.aulasegura.ui.screens.parent.ParentIncidentMapScreen
 import com.example.aulasegura.ui.screens.parent.ParentIncidentsScreen
 import com.example.aulasegura.ui.screens.parent.ParentJustifyScreen
+import com.example.aulasegura.ui.screens.parent.ParentJustifyViewModel
 import com.example.aulasegura.ui.screens.parent.ParentNoticesScreen
 import com.example.aulasegura.ui.screens.parent.ParentNotificationsScreen
 import com.example.aulasegura.ui.screens.parent.ParentProfileScreen
@@ -299,7 +306,12 @@ fun AulaSeguraNavHost(
                 onNotifications = { navController.navigate(Routes.PARENT_NOTIFICATIONS) },
                 onQuickAvisos = { navController.navigate(Routes.PARENT_NOTICES) },
                 onQuickIncidentes = { navController.navigate(Routes.PARENT_INCIDENTS) },
-                onQuickJustificar = { navController.navigate(Routes.PARENT_JUSTIFY) },
+                onQuickJustificar = {
+                    // The quick access justifies the child the card is showing;
+                    // which absence is resolved by the form itself.
+                    val childId = (homeState as? ParentHomeUiState.Loaded)?.child?.studentId
+                    navController.navigate(Routes.parentJustify(studentId = childId))
+                },
                 onQuickAsistente = { navController.navigate(Routes.PARENT_AI) },
                 onVerTareas = { navController.navigate(Routes.PARENT_TASKS) },
                 onSelectChild = homeViewModel::select,
@@ -313,7 +325,15 @@ fun AulaSeguraNavHost(
 
             ParentAttendanceScreen(
                 ui = attendanceState,
-                onJustificar = { navController.navigate(Routes.PARENT_JUSTIFY) },
+                onJustificar = { record ->
+                    val loaded = attendanceState as? ParentAttendanceUiState.Loaded
+                    navController.navigate(
+                        Routes.parentJustify(
+                            studentId = loaded?.studentId,
+                            date = record.isoDate,
+                        ),
+                    )
+                },
                 onPreviousMonth = attendanceViewModel::previousMonth,
                 onNextMonth = attendanceViewModel::nextMonth,
                 onCycleChild = attendanceViewModel::cycleChild,
@@ -351,10 +371,49 @@ fun AulaSeguraNavHost(
                 onTalkToTeacher = { navController.navigate(Routes.parentConversation("1")) },
             )
         }
-        composable(Routes.PARENT_JUSTIFY) {
+        // Optional query arguments, so the plain route (the notification deep link)
+        // still matches this destination and the form resolves the absence itself.
+        composable(
+            route = Routes.PARENT_JUSTIFY_ARGS,
+            arguments = listOf(
+                navArgument("studentId") {
+                    type = NavType.StringType
+                    nullable = true
+                    defaultValue = null
+                },
+                navArgument("date") {
+                    type = NavType.StringType
+                    nullable = true
+                    defaultValue = null
+                },
+            ),
+        ) { entry ->
+            val studentId = entry.arguments?.getString("studentId")
+            val absenceDate = entry.arguments?.getString("date")
+            val container = rememberAppContainer()
+            val factory = remember(studentId, absenceDate) {
+                object : ViewModelProvider.Factory {
+                    @Suppress("UNCHECKED_CAST")
+                    override fun <T : ViewModel> create(modelClass: Class<T>): T =
+                        container.viewModelFactory
+                            .parentJustifyViewModel(studentId, absenceDate) as T
+                }
+            }
+            val justifyViewModel: ParentJustifyViewModel = viewModel(factory = factory)
+            val justifyState by justifyViewModel.state.collectAsState()
+
             ParentJustifyScreen(
+                ui = justifyState,
                 onBack = { navController.popBackStack() },
-                onSend = { navController.popBackStack() },
+                // The form already stored the receipt and queued the write; leaving
+                // it is the only confirmation the tutor needs.
+                onSent = { navController.popBackStack() },
+                onRetry = justifyViewModel::refresh,
+                onSelectReason = justifyViewModel::selectReason,
+                onDetailsChange = justifyViewModel::updateDetails,
+                onAttach = justifyViewModel::attach,
+                onRemoveReceipt = justifyViewModel::removeReceipt,
+                onSend = justifyViewModel::send,
             )
         }
         composable(Routes.PARENT_CHAT) {

@@ -130,6 +130,7 @@ class ParentAttendanceViewModel(
 
         return ParentAttendanceUiState.Loaded(
             childName = child.firstName.ifBlank { child.fullName },
+            studentId = child.studentId,
             groupLabel = child.groupLabel,
             childCount = children.size,
             selected = selected,

@@ -10,8 +10,10 @@ import com.example.aulasegura.BuildConfig
 import com.example.aulasegura.data.local.AulaSeguraDatabase
 import com.example.aulasegura.data.local.DatabaseProvider
 import com.example.aulasegura.data.local.media.FileIncidentMediaStore
+import com.example.aulasegura.data.local.media.FileJustificationAttachmentStore
 import com.example.aulasegura.data.local.media.FileTaskAttachmentStore
 import com.example.aulasegura.data.local.media.IncidentMediaStore
+import com.example.aulasegura.data.local.media.JustificationAttachmentStore
 import com.example.aulasegura.data.local.media.TaskAttachmentStore
 import com.example.aulasegura.data.remote.cloudinary.CloudinaryConfig
 import com.example.aulasegura.data.remote.cloudinary.CloudinaryUploader
@@ -41,6 +43,7 @@ import com.example.aulasegura.data.repository.FirestoreChatRepository
 import com.example.aulasegura.data.repository.FirestoreNotificationRepository
 import com.example.aulasegura.data.repository.FirestoreParentRepository
 import com.example.aulasegura.data.repository.FirestorePushTokenRepository
+import com.example.aulasegura.data.repository.QueuedJustificationRepository
 import com.example.aulasegura.data.repository.RoomNoticeRepository
 import com.example.aulasegura.data.repository.RoomTaskRepository
 import com.example.aulasegura.data.telemetry.FirebaseAnalyticsLogger
@@ -57,6 +60,7 @@ import com.example.aulasegura.domain.repository.AttendanceRepository
 import com.example.aulasegura.domain.repository.AuthRepository
 import com.example.aulasegura.domain.repository.ChatRepository
 import com.example.aulasegura.domain.repository.NotificationRepository
+import com.example.aulasegura.domain.repository.JustificationRepository
 import com.example.aulasegura.domain.repository.ParentRepository
 import com.example.aulasegura.domain.repository.PushTokenRepository
 import com.example.aulasegura.domain.repository.GroupRepository
@@ -74,6 +78,7 @@ import com.example.aulasegura.domain.usecase.SaveRollCallUseCase
 import com.example.aulasegura.domain.usecase.StartRollCallUseCase
 import com.example.aulasegura.sync.AttendanceSyncHandler
 import com.example.aulasegura.sync.IncidentSyncHandler
+import com.example.aulasegura.sync.JustificationSyncHandler
 import com.example.aulasegura.sync.NoticeSyncHandler
 import com.example.aulasegura.sync.TaskSyncHandler
 import com.example.aulasegura.sync.CrashlyticsSyncReporter
@@ -100,6 +105,7 @@ import com.example.aulasegura.ui.screens.admin.AdminReportsViewModel
 import com.example.aulasegura.ui.screens.admin.AdminUsersViewModel
 import com.example.aulasegura.ui.screens.parent.ParentAttendanceViewModel
 import com.example.aulasegura.ui.screens.parent.ParentHomeViewModel
+import com.example.aulasegura.ui.screens.parent.ParentJustifyViewModel
 import com.example.aulasegura.ui.screens.teacher.TeacherGroupDetailViewModel
 import com.example.aulasegura.ui.screens.teacher.TeacherGroupsViewModel
 import com.example.aulasegura.ui.screens.teacher.TeacherHistoryViewModel
@@ -285,6 +291,24 @@ class AppContainer(context: Context) {
         FirestoreParentRepository(
             firestore = firestore,
             auth = authRepository,
+        )
+    }
+
+    /**
+     * The tutor's only write path: a receipt filed from the phone and queued for
+     * the worker.
+     *
+     * Offline-first because the form promises it, and the document is written by
+     * `JustificationSyncHandler` only after Cloudinary accepted the file: the
+     * tutor's rule allows `create` and never `update`.
+     */
+    val justificationRepository: JustificationRepository by lazy {
+        QueuedJustificationRepository(
+            database = database,
+            attachments = justificationAttachmentStore,
+            auth = authRepository,
+            scheduling = syncScheduler,
+            analytics = analyticsLogger,
         )
     }
 
@@ -486,6 +510,11 @@ class AppContainer(context: Context) {
                     noticeDao = database.noticeDao(),
                     firestore = firestore,
                 ),
+                SyncOperation.UPSERT_JUSTIFICATION to JustificationSyncHandler(
+                    firestore = firestore,
+                    uploader = cloudinaryUploader,
+                    outboxDao = database.outboxDao(),
+                ),
             ),
         )
     }
@@ -538,6 +567,17 @@ class AppContainer(context: Context) {
      */
     val taskAttachmentStore: TaskAttachmentStore by lazy {
         FileTaskAttachmentStore(appContext)
+    }
+
+    /**
+     * Where the justification's receipt lives between the form and the upload.
+     *
+     * `filesDir` and not the cache, for the same reason as the task PDF: a
+     * justification filed on Sunday can reach Cloudinary on Tuesday, and the
+     * system is free to delete cached files long before that.
+     */
+    val justificationAttachmentStore: JustificationAttachmentStore by lazy {
+        FileJustificationAttachmentStore(appContext, imageCompressor)
     }
 
     // ---- Remote Config ------------------------------------------------------
@@ -594,6 +634,19 @@ class AppViewModelFactory(
             students = container.adminStudentRepository,
             groups = container.adminGroupRepository,
             presetGroupId = presetGroupId,
+        )
+
+    /**
+     * The tutor's justification form. Both arguments come from the route and are
+     * optional: without them the form points at the newest absence the school
+     * registered, never at an invented date.
+     */
+    fun parentJustifyViewModel(studentId: String?, date: String?): ParentJustifyViewModel =
+        ParentJustifyViewModel(
+            parents = container.parentRepository,
+            justifications = container.justificationRepository,
+            studentId = studentId,
+            absenceIso = date,
         )
 
     @Suppress("UNCHECKED_CAST")

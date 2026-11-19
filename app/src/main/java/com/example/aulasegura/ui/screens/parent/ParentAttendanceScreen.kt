@@ -105,7 +105,7 @@ private fun stateOf(cell: ParentCalendarDay): DayState = when (cell.mark) {
 @Composable
 fun ParentAttendanceScreen(
     ui: ParentAttendanceUiState,
-    onJustificar: () -> Unit,
+    onJustificar: (ParentAttendanceRecordUi) -> Unit,
     onPreviousMonth: () -> Unit,
     onNextMonth: () -> Unit,
     onCycleChild: () -> Unit,
@@ -685,7 +685,7 @@ private fun LegendItem(label: String, dotColor: Color) {
 @Composable
 private fun RecentDetail(
     records: List<ParentAttendanceRecordUi>,
-    onJustificar: () -> Unit,
+    onJustificar: (ParentAttendanceRecordUi) -> Unit,
 ) {
     Column(Modifier.fillMaxWidth()) {
         Row(
@@ -854,7 +854,10 @@ private fun RecentRecord(record: ParentAttendanceRecordUi) {
 }
 
 @Composable
-private fun AbsentRecord(record: ParentAttendanceRecordUi, onJustificar: () -> Unit) {
+private fun AbsentRecord(
+    record: ParentAttendanceRecordUi,
+    onJustificar: (ParentAttendanceRecordUi) -> Unit,
+) {
     Column(
         modifier = Modifier
             .fillMaxWidth()
@@ -910,7 +913,7 @@ private fun AbsentRecord(record: ParentAttendanceRecordUi, onJustificar: () -> U
                 modifier = Modifier.weight(1f),
             )
             Spacer(Modifier.width(8.dp))
-            JustifyButton(onClick = onJustificar)
+            JustifyButton(onClick = { onJustificar(record) })
         }
     }
 }

@@ -24,6 +24,7 @@ object AttendanceTimes {
     private const val ISO_DATE = "yyyy-MM-dd"
     private const val CLOCK_TIME = "HH:mm"
     private const val DAY_LABEL = "EEE d MMM"
+    private const val LONG_DATE = "EEEE d 'de' MMMM"
     private const val WEEKDAY = "EEE"
     private const val MONTH_LABEL = "MMMM yyyy"
 
@@ -46,6 +47,21 @@ object AttendanceTimes {
         format(isoDateToMillis(iso, zone) ?: 0L, WEEKDAY, Locale("es", "MX"), zone)
             .replace(".", "")
             .uppercase(Locale("es", "MX"))
+
+    /**
+     * `"Viernes 31 de octubre"` - the absence the tutor is justifying.
+     *
+     * Long form on purpose: the justification is a document the principal reads
+     * days later, so the day cannot depend on the reader remembering which week
+     * "Vie 31" was.
+     */
+    fun longDateLabel(iso: String, zone: TimeZone = TimeZone.getDefault()): String {
+        val millis = isoDateToMillis(iso, zone) ?: return iso
+        val label = SimpleDateFormat(LONG_DATE, Locale("es", "MX"))
+            .apply { timeZone = zone }
+            .format(Date(millis))
+        return label.replaceFirstChar { it.uppercase(Locale.getDefault()) }
+    }
 
     /**
      * `"Noviembre 2026"` - the header of the tutor's attendance month.

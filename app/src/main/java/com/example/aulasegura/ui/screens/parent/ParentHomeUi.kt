@@ -37,6 +37,7 @@ sealed interface ParentHomeUiState {
 }
 
 data class ParentChildUi(
+    val studentId: String,
     val name: String,
     val grade: String,
     val initials: String,
@@ -59,6 +60,7 @@ internal fun ParentChildOverview.toChildUi(): ParentChildUi {
     val name = child.firstName.ifBlank { child.fullName }
 
     return ParentChildUi(
+        studentId = child.studentId,
         name = name,
         grade = child.groupLabel,
         initials = initialsOf(child.fullName),

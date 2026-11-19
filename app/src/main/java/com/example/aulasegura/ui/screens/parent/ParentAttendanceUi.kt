@@ -15,6 +15,8 @@ sealed interface ParentAttendanceUiState {
 
     data class Loaded(
         val childName: String,
+        /** Needed to open the justification form for the child on screen. */
+        val studentId: String,
         val groupLabel: String,
         /** How many children the tutor has; more than one makes the pill tappable. */
         val childCount: Int,
@@ -44,6 +46,8 @@ data class ParentCalendarDay(
 
 data class ParentAttendanceRecordUi(
     val weekday: String,
+    /** ISO day of the session: the justification form points at this absence. */
+    val isoDate: String,
     val day: String,
     val title: String,
     val subtitle: String,
@@ -142,6 +146,7 @@ internal fun ParentDayAttendance.toRecentUi(
     zone: TimeZone = TimeZone.getDefault(),
 ): ParentAttendanceRecordUi = ParentAttendanceRecordUi(
     weekday = AttendanceTimes.weekdayLabel(date, zone),
+    isoDate = date,
     day = date.takeLast(2),
     title = subject.ifBlank { "Día completo" },
     subtitle = when (mark) {

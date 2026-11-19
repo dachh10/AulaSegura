@@ -1,7 +1,9 @@
 package com.example.aulasegura.ui.screens.parent
 
+import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
+import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.Image
@@ -33,24 +35,25 @@ import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.ArrowBack
+import androidx.compose.material.icons.automirrored.outlined.Send
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.VerifiedUser
 import androidx.compose.material.icons.outlined.CloudOff
 import androidx.compose.material.icons.outlined.Description
+import androidx.compose.material.icons.outlined.EventBusy
 import androidx.compose.material.icons.outlined.Image
 import androidx.compose.material.icons.outlined.PhotoCamera
-import androidx.compose.material.icons.automirrored.outlined.Send
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -88,35 +91,44 @@ import com.example.aulasegura.ui.theme.SecondaryContainer
 import com.example.aulasegura.ui.theme.SurfaceContainerLowest
 import com.example.aulasegura.ui.theme.TertiaryContainer
 import com.example.aulasegura.ui.theme.TertiaryFixed
+import java.io.ByteArrayOutputStream
 
-/** 2.5 — Justificar falta. Ported from Stitch screen `9a38ede8a0894eb9886bd7197031d841`. */
-
-private enum class AbsenceReason(val label: String) {
-    Enfermedad("Enfermedad"),
-    CitaMedica("Cita médica"),
-    AsuntoFamiliar("Asunto familiar"),
-    Otro("Otro"),
-}
-
+/**
+ * 3.4 — Justificar falta. Ported from Stitch screen `9a38ede8a0894eb9886bd7197031d841`.
+ *
+ * The whole screen is a projection of [ParentJustifyUiState]: the date, the child
+ * and the group come from the sessions the school registered, and the send button
+ * is disabled when there is no absence to justify. The only local state left is
+ * the photo preview, which is a decoded byte array and therefore not something a
+ * ViewModel should hold.
+ */
 @Composable
 fun ParentJustifyScreen(
+    ui: ParentJustifyUiState,
     onBack: () -> Unit,
+    onSent: () -> Unit,
+    onRetry: () -> Unit,
+    onSelectReason: (JustificationReason) -> Unit,
+    onDetailsChange: (String) -> Unit,
+    onAttach: (fileName: String, mimeType: String, bytes: ByteArray) -> Unit,
+    onRemoveReceipt: () -> Unit,
     onSend: () -> Unit,
 ) {
     val context = LocalContext.current
-    var reason by remember { mutableStateOf(AbsenceReason.Enfermedad) }
-    var details by remember { mutableStateOf("") }
-    var photo by remember { mutableStateOf<Bitmap?>(null) }
-    var fileName by remember { mutableStateOf("receta_medica.jpg") }
-    var hasReceipt by remember { mutableStateOf(true) }
 
+    // The camera returns a small preview bitmap, which is already the right size
+    // for a receipt; the gallery hands over the original, and the store compresses
+    // it before the upload.
     val cameraLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.TakePicturePreview(),
     ) { bitmap ->
         if (bitmap != null) {
-            photo = bitmap
-            fileName = "comprobante_foto.jpg"
-            hasReceipt = true
+            val bytes = ByteArrayOutputStream().use { out ->
+                bitmap.compress(Bitmap.CompressFormat.JPEG, CAMERA_QUALITY, out)
+                out.toByteArray()
+            }
+            bitmap.recycle()
+            onAttach("comprobante_foto.jpg", "image/jpeg", bytes)
         }
     }
 
@@ -124,19 +136,19 @@ fun ParentJustifyScreen(
         contract = ActivityResultContracts.GetContent(),
     ) { uri ->
         if (uri != null) {
-            val decoded = runCatching {
-                context.contentResolver.openInputStream(uri)?.use { stream ->
-                    BitmapFactory.decodeStream(stream)
-                }
+            val bytes = runCatching {
+                context.contentResolver.openInputStream(uri)?.use { it.readBytes() }
             }.getOrNull()
-            photo = decoded
-            fileName = uri.lastPathSegment
-                ?.substringAfterLast('/')
-                ?.substringAfterLast(':')
-                ?.takeIf { it.isNotBlank() }
-                ?: "comprobante.jpg"
-            hasReceipt = true
+            if (bytes != null && bytes.isNotEmpty()) {
+                val mimeType = context.contentResolver.getType(uri) ?: "image/jpeg"
+                onAttach(displayName(context, uri), mimeType, bytes)
+            }
         }
+    }
+
+    val loaded = ui as? ParentJustifyUiState.Loaded
+    LaunchedEffect(loaded?.sent) {
+        if (loaded?.sent == true) onSent()
     }
 
     Column(
@@ -147,43 +159,105 @@ fun ParentJustifyScreen(
     ) {
         JustifyTopBar(onBack = onBack)
 
-        Column(
+        Box(
             modifier = Modifier
                 .weight(1f)
-                .verticalScroll(rememberScrollState())
-                .padding(horizontal = 16.dp)
-                .padding(top = 16.dp, bottom = 24.dp),
-            verticalArrangement = Arrangement.spacedBy(20.dp),
+                .fillMaxWidth(),
         ) {
-            Reveal(0) { AbsenceCard() }
+            when (ui) {
+                ParentJustifyUiState.Loading -> Box(
+                    modifier = Modifier.fillMaxSize(),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    CircularProgressIndicator(
+                        color = SecondaryContainer,
+                        modifier = Modifier.size(36.dp),
+                    )
+                }
 
-            Reveal(60) {
-                ReasonSection(
-                    selected = reason,
-                    onSelect = { reason = it },
-                    details = details,
-                    onDetailsChange = { details = it },
+                ParentJustifyUiState.NoChildren -> JustifyMessage(
+                    title = "Sin alumno vinculado",
+                    message = "Tu cuenta todavía no tiene un alumno registrado.",
                 )
-            }
 
-            Reveal(120) {
-                ReceiptSection(
-                    hasReceipt = hasReceipt,
-                    fileName = fileName,
-                    photo = photo,
+                is ParentJustifyUiState.Failed -> JustifyMessage(
+                    title = "No se pudo abrir el justificante",
+                    message = ui.message,
+                    actionLabel = "Reintentar",
+                    onAction = onRetry,
+                )
+
+                is ParentJustifyUiState.Loaded -> LoadedContent(
+                    ui = ui,
+                    onSelectReason = onSelectReason,
+                    onDetailsChange = onDetailsChange,
                     onTakePhoto = { cameraLauncher.launch(null) },
                     onPickGallery = { galleryLauncher.launch("image/*") },
-                    onRemove = {
-                        hasReceipt = false
-                        photo = null
-                    },
+                    onRemoveReceipt = onRemoveReceipt,
                 )
             }
-
-            Reveal(180) { OfflineNote() }
         }
 
-        JustifyFooter(onSend = onSend)
+        JustifyFooter(
+            enabled = loaded?.canSend == true,
+            sending = loaded?.sending == true,
+            onSend = onSend,
+        )
+    }
+}
+
+@Composable
+private fun LoadedContent(
+    ui: ParentJustifyUiState.Loaded,
+    onSelectReason: (JustificationReason) -> Unit,
+    onDetailsChange: (String) -> Unit,
+    onTakePhoto: () -> Unit,
+    onPickGallery: () -> Unit,
+    onRemoveReceipt: () -> Unit,
+) {
+    val photo = remember(ui.receipt) { ui.receipt?.decodePreview() }
+
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .verticalScroll(rememberScrollState())
+            .padding(horizontal = 16.dp)
+            .padding(top = 16.dp, bottom = 24.dp),
+        verticalArrangement = Arrangement.spacedBy(20.dp),
+    ) {
+        Reveal(0) {
+            AbsenceCard(
+                absence = ui.absence,
+                childName = ui.childName,
+                groupLabel = ui.groupLabel,
+                emptyMessage = ui.emptyMessage,
+            )
+        }
+
+        Reveal(60) {
+            ReasonSection(
+                selected = ui.reason,
+                onSelect = onSelectReason,
+                details = ui.details,
+                onDetailsChange = onDetailsChange,
+            )
+        }
+
+        Reveal(120) {
+            ReceiptSection(
+                receipt = ui.receipt,
+                photo = photo,
+                onTakePhoto = onTakePhoto,
+                onPickGallery = onPickGallery,
+                onRemove = onRemoveReceipt,
+            )
+        }
+
+        if (ui.error != null) {
+            Reveal(150) { ErrorNote(message = ui.error) }
+        }
+
+        Reveal(180) { OfflineNote() }
     }
 }
 
@@ -236,7 +310,12 @@ private fun JustifyTopBar(onBack: () -> Unit) {
 }
 
 @Composable
-private fun AbsenceCard() {
+private fun AbsenceCard(
+    absence: JustifyAbsenceUi?,
+    childName: String,
+    groupLabel: String,
+    emptyMessage: String?,
+) {
     Box(
         modifier = Modifier
             .fillMaxWidth()
@@ -264,53 +343,81 @@ private fun AbsenceCard() {
                 .padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
-            Row(
-                modifier = Modifier
-                    .clip(CircleShape)
-                    .background(ErrorContainer)
-                    .padding(horizontal = 10.dp, vertical = 2.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Icon(
-                    imageVector = Icons.Filled.Close,
-                    contentDescription = null,
-                    tint = Error,
-                    modifier = Modifier.size(14.dp),
-                )
-                Spacer(Modifier.width(4.dp))
+            if (absence != null) {
+                AbsencePill()
                 Text(
-                    text = "Falta",
-                    color = Error,
-                    fontFamily = DmSans,
-                    fontWeight = FontWeight.Medium,
-                    fontSize = 12.sp,
-                    letterSpacing = 0.24.sp,
+                    text = absence.dateLabel,
+                    color = PrimaryContainer,
+                    fontFamily = BricolageGrotesque,
+                    fontWeight = FontWeight.SemiBold,
+                    fontSize = 20.sp,
+                    lineHeight = 26.sp,
+                    letterSpacing = (-0.2).sp,
+                )
+            } else {
+                Text(
+                    text = "Sin falta por justificar",
+                    color = PrimaryContainer,
+                    fontFamily = BricolageGrotesque,
+                    fontWeight = FontWeight.SemiBold,
+                    fontSize = 20.sp,
+                    lineHeight = 26.sp,
+                    letterSpacing = (-0.2).sp,
                 )
             }
+
             Text(
-                text = "Viernes 31 de octubre",
-                color = PrimaryContainer,
-                fontFamily = BricolageGrotesque,
-                fontWeight = FontWeight.SemiBold,
-                fontSize = 20.sp,
-                lineHeight = 26.sp,
-                letterSpacing = (-0.2).sp,
-            )
-            Text(
-                text = "Mariana Gómez Ruiz · 3° B",
+                text = "$childName · $groupLabel",
                 color = Outline,
                 fontFamily = DmSans,
                 fontSize = 14.sp,
                 lineHeight = 20.sp,
             )
+
+            if (absence == null && emptyMessage != null) {
+                Text(
+                    text = emptyMessage,
+                    color = Outline,
+                    fontFamily = DmSans,
+                    fontSize = 13.sp,
+                    lineHeight = 18.sp,
+                )
+            }
         }
     }
 }
 
 @Composable
+private fun AbsencePill() {
+    Row(
+        modifier = Modifier
+            .clip(CircleShape)
+            .background(ErrorContainer)
+            .padding(horizontal = 10.dp, vertical = 2.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Icon(
+            imageVector = Icons.Filled.Close,
+            contentDescription = null,
+            tint = Error,
+            modifier = Modifier.size(14.dp),
+        )
+        Spacer(Modifier.width(4.dp))
+        Text(
+            text = "Falta",
+            color = Error,
+            fontFamily = DmSans,
+            fontWeight = FontWeight.Medium,
+            fontSize = 12.sp,
+            letterSpacing = 0.24.sp,
+        )
+    }
+}
+
+@Composable
 private fun ReasonSection(
-    selected: AbsenceReason,
-    onSelect: (AbsenceReason) -> Unit,
+    selected: JustificationReason,
+    onSelect: (JustificationReason) -> Unit,
     details: String,
     onDetailsChange: (String) -> Unit,
 ) {
@@ -324,7 +431,7 @@ private fun ReasonSection(
                 .horizontalScroll(rememberScrollState()),
             horizontalArrangement = Arrangement.spacedBy(8.dp),
         ) {
-            AbsenceReason.entries.forEach { reason ->
+            JustificationReason.entries.forEach { reason ->
                 ReasonChip(
                     label = reason.label,
                     selected = reason == selected,
@@ -409,7 +516,7 @@ private fun DetailsField(
     ) {
         BasicTextField(
             value = value,
-            onValueChange = { if (it.length <= 200) onValueChange(it) },
+            onValueChange = { if (it.length <= DETAILS_LIMIT) onValueChange(it) },
             modifier = Modifier
                 .fillMaxWidth()
                 .heightIn(min = 66.dp),
@@ -438,7 +545,7 @@ private fun DetailsField(
         )
         Spacer(Modifier.height(4.dp))
         Text(
-            text = "${value.length}/200",
+            text = "${value.length}/$DETAILS_LIMIT",
             modifier = Modifier.fillMaxWidth(),
             color = Outline,
             fontFamily = JetBrainsMono,
@@ -450,8 +557,7 @@ private fun DetailsField(
 
 @Composable
 private fun ReceiptSection(
-    hasReceipt: Boolean,
-    fileName: String,
+    receipt: JustifyReceiptUi?,
     photo: Bitmap?,
     onTakePhoto: () -> Unit,
     onPickGallery: () -> Unit,
@@ -572,10 +678,10 @@ private fun ReceiptSection(
             }
         }
 
-        if (hasReceipt) {
+        if (receipt != null) {
             Spacer(Modifier.height(12.dp))
             ReceiptPreview(
-                fileName = fileName,
+                fileName = receipt.fileName,
                 photo = photo,
                 onRemove = onRemove,
             )
@@ -687,6 +793,36 @@ private fun ReceiptPreview(
 }
 
 @Composable
+private fun ErrorNote(message: String) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(10.dp))
+            .background(ErrorContainer.copy(alpha = 0.5f))
+            .padding(horizontal = 12.dp, vertical = 10.dp),
+        verticalAlignment = Alignment.Top,
+    ) {
+        Icon(
+            imageVector = Icons.Filled.Close,
+            contentDescription = null,
+            tint = Error,
+            modifier = Modifier
+                .padding(top = 1.dp)
+                .size(16.dp),
+        )
+        Spacer(Modifier.width(8.dp))
+        Text(
+            text = message,
+            color = Error,
+            fontFamily = DmSans,
+            fontWeight = FontWeight.Medium,
+            fontSize = 12.sp,
+            lineHeight = 17.sp,
+        )
+    }
+}
+
+@Composable
 private fun OfflineNote() {
     Row(
         modifier = Modifier
@@ -716,7 +852,11 @@ private fun OfflineNote() {
 }
 
 @Composable
-private fun JustifyFooter(onSend: () -> Unit) {
+private fun JustifyFooter(
+    enabled: Boolean,
+    sending: Boolean,
+    onSend: () -> Unit,
+) {
     Column(
         modifier = Modifier
             .fillMaxWidth()
@@ -740,10 +880,11 @@ private fun JustifyFooter(onSend: () -> Unit) {
                     .height(48.dp)
                     .shadow(4.dp, CircleShape)
                     .clip(CircleShape)
-                    .background(SecondaryContainer)
+                    .background(SecondaryContainer.copy(alpha = if (enabled) 1f else 0.4f))
                     .clickable(
                         interactionSource = interaction,
                         indication = null,
+                        enabled = enabled,
                         onClick = onSend,
                     ),
                 horizontalArrangement = Arrangement.Center,
@@ -757,11 +898,77 @@ private fun JustifyFooter(onSend: () -> Unit) {
                 )
                 Spacer(Modifier.width(8.dp))
                 Text(
-                    text = "Enviar justificante",
+                    text = if (sending) "Enviando…" else "Enviar justificante",
                     color = OnPrimary,
                     fontFamily = DmSans,
                     fontWeight = FontWeight.SemiBold,
                     fontSize = 16.sp,
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun JustifyMessage(
+    title: String,
+    message: String,
+    actionLabel: String? = null,
+    onAction: (() -> Unit)? = null,
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(horizontal = 32.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center,
+    ) {
+        Icon(
+            imageVector = Icons.Outlined.EventBusy,
+            contentDescription = null,
+            tint = PrimaryContainer.copy(alpha = 0.5f),
+            modifier = Modifier.size(48.dp),
+        )
+        Spacer(Modifier.height(16.dp))
+        Text(
+            text = title,
+            color = PrimaryContainer,
+            fontFamily = BricolageGrotesque,
+            fontWeight = FontWeight.SemiBold,
+            fontSize = 20.sp,
+            lineHeight = 26.sp,
+            textAlign = TextAlign.Center,
+        )
+        Spacer(Modifier.height(8.dp))
+        Text(
+            text = message,
+            color = Outline,
+            fontFamily = DmSans,
+            fontSize = 14.sp,
+            lineHeight = 20.sp,
+            textAlign = TextAlign.Center,
+        )
+
+        if (actionLabel != null && onAction != null) {
+            Spacer(Modifier.height(20.dp))
+            val (interaction, pressModifier) = rememberPressScale(0.95f)
+            Box(
+                modifier = pressModifier
+                    .clip(CircleShape)
+                    .background(SecondaryContainer)
+                    .clickable(
+                        interactionSource = interaction,
+                        indication = null,
+                        onClick = onAction,
+                    )
+                    .padding(horizontal = 24.dp, vertical = 10.dp),
+            ) {
+                Text(
+                    text = actionLabel,
+                    color = OnPrimary,
+                    fontFamily = DmSans,
+                    fontWeight = FontWeight.SemiBold,
+                    fontSize = 14.sp,
                 )
             }
         }
@@ -781,6 +988,19 @@ private fun SectionTitle(text: String) {
     )
 }
 
+/** Decodes only what the preview shows; a PDF keeps the placeholder icon. */
+private fun JustifyReceiptUi.decodePreview(): Bitmap? {
+    if (!isImage) return null
+    return runCatching { BitmapFactory.decodeByteArray(bytes, 0, bytes.size) }.getOrNull()
+}
+
+/** The picker's own name when it has one, instead of a random document id. */
+private fun displayName(context: Context, uri: Uri): String = uri.lastPathSegment
+    ?.substringAfterLast('/')
+    ?.substringAfterLast(':')
+    ?.takeIf { it.isNotBlank() }
+    ?: "comprobante.jpg"
+
 private fun Modifier.dashedBorder(
     color: Color,
     cornerRadius: androidx.compose.ui.unit.Dp,
@@ -798,3 +1018,6 @@ private fun Modifier.dashedBorder(
         ),
     )
 }
+
+private const val CAMERA_QUALITY = 80
+private const val DETAILS_LIMIT = 200

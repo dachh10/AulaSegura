@@ -72,6 +72,27 @@ service cloud.firestore {
       return profile().get('studentIds', []);
     }
 
+    // The tutor's children are whoever `students/{id}.tutorIds` lists: that is
+    // the link the app shows and the one the `students` read rule checks.
+    // Reading the student document is allowed here because every tutor query
+    // over `incidents` carries `where('studentId', '==', id)`, so the path is a
+    // constant of the request and Rules can prove it. `users.studentIds` stays
+    // as the denormalised copy the other tutor rules read, but it is no longer
+    // a second, independent answer to "whose child is this".
+    // `exists()` first: studentId is nullable in `incidents` (a group-level
+    // incident has no child), and reading `.data` of a missing document is an
+    // error, not `false` -- an error denies the whole allow instead of falling
+    // through to the branch that would have granted it.
+    function tutorOfStudent(studentId) {
+      return isTutor()
+        && studentId is string
+        && studentId != ''
+        && exists(/databases/$(database)/documents/students/$(studentId))
+        && request.auth.uid in get(
+          /databases/$(database)/documents/students/$(studentId)
+        ).data.get('tutorIds', []);
+    }
+
     function changedKeys() {
       return request.resource.data.diff(resource.data).affectedKeys();
     }
@@ -87,10 +108,18 @@ service cloud.firestore {
       return /databases/$(database)/documents/linkingCodes/$(code);
     }
 
-    // Identity is immutable for every client, including the principal. Only
-    // the Admin SDK (seed/account script) may set these fields.
-    function immutableSelfKeys() {
-      return ['uid', 'email', 'role', 'active', 'schoolId', 'createdAt'];
+    // What a user may change about THEMSELVES: the profile screen (`fullName`,
+    // `subjects`), the avatar (`photoUrl`, `photoPublicId`) and the notification
+    // switch (`preferences`). `groupIds` and `studentIds` are deliberately out:
+    // they are what the security rules read to decide which group's tasks and
+    // notices a tutor sees and which child's records they read, so a
+    // self-service write there would be a privilege escalation, not a profile
+    // edit. Assigning them stays with the principal and with registration.
+    function selfEditableUserKeys() {
+      return [
+        'firstName', 'lastName', 'fullName', 'phone', 'photoUrl',
+        'photoPublicId', 'subjects', 'preferences', 'updatedAt'
+      ];
     }
 
     // The principal manages staff and families of their own school. `active`
@@ -167,7 +196,7 @@ service cloud.firestore {
         // A user edits their own profile. `active` is excluded on purpose so
         // nobody can deactivate their own account; that is the principal's job.
         (request.auth.uid == uid
-          && !changedKeys().hasAny(immutableSelfKeys())
+          && changedKeys().hasOnly(selfEditableUserKeys())
           && request.resource.data.schoolId == resource.data.schoolId
           && request.resource.data.role == resource.data.role)
         ||
@@ -316,7 +345,7 @@ service cloud.firestore {
         (isDirectivo() && resource.data.schoolId == mySchool()) ||
         resource.data.reportedBy == request.auth.uid ||
         (isDocente() && resource.data.groupId in myGroups()) ||
-        (isTutor() && resource.data.studentId in myStudents())
+        tutorOfStudent(resource.data.studentId)
       );
 
       allow create: if isDocente()
@@ -325,10 +354,13 @@ service cloud.firestore {
         && request.resource.data.groupId in myGroups()
         && request.resource.data.status == 'nuevo';
 
-      // A tutor may only acknowledge the incident, never rewrite it.
+      // A tutor may only acknowledge the incident, never rewrite it, and only
+      // for a child linked in `students.tutorIds` -- the same link the read rule
+      // and the child list use. Without that check any tutor could mark a
+      // stranger's incident as seen by guessing its id.
       allow update: if isActive() && (
         (isDirectivo() && resource.data.schoolId == mySchool()) ||
-        (isTutor()
+        (tutorOfStudent(resource.data.studentId)
           && changedKeys().hasOnly(['seenByTutorIds'])
           && request.resource.data.seenByTutorIds.hasAll(resource.data.seenByTutorIds)
           && request.auth.uid in request.resource.data.seenByTutorIds)
@@ -378,12 +410,14 @@ service cloud.firestore {
         // The tutor's inbox is ONE list query:
         //   notices.whereArrayContains('audience.groupIds', g)
         // Firestore proves a list query only from its own constraints and allows
-        // a single array-contains per query, so `audience.roles` must NOT be a
-        // condition here: it cannot be proven from that query and the whole read
-        // would be denied. Group scoping -- the boundary that keeps another
-        // family's notices out -- is untouched. The `tutor` audience check lives
-        // in the client (`parentNoticeFrom`) and the teacher panel only publishes
-        // to `['tutor']`, so no notice addressed to staff is shown to a family.
+        // a single array-contains per query, so `audience.roles` CANNOT be a
+        // condition here: it is unprovable from that query and would deny the
+        // whole read. The role is therefore guaranteed at WRITE time instead:
+        // `create` below requires every notice to be addressed to tutors, so a
+        // document that reaches this branch was already meant for a family.
+        // Group scoping -- the boundary that keeps another family's notices out
+        // -- is untouched, and `parentNoticeFrom` still drops anything whose
+        // audience does not list `tutor`.
         (isTutor()
           && (
             resource.data.audience.groupIds.hasAny(myGroups()) ||
@@ -391,9 +425,19 @@ service cloud.firestore {
           ))
       );
 
+      // Every notice is a family notice: the tutor read branch cannot prove
+      // `audience.roles` from its single array-contains query (see above), so
+      // the audience is pinned here. The teacher panel already publishes to
+      // `['tutor']`; a staff-only group notice would be downloaded by every
+      // family of that group and hidden only by the client, which is exactly
+      // the leak this line closes. Staff communication belongs in
+      // `notifications` (one document per recipient), not in `notices`.
       allow create: if isActive()
         && request.resource.data.schoolId == mySchool()
         && request.resource.data.createdBy == request.auth.uid
+        && request.resource.data.audience is map
+        && request.resource.data.audience.roles is list
+        && request.resource.data.audience.roles.hasAny(['tutor'])
         && (
           isDirectivo() ||
           (isDocente()
@@ -475,6 +519,12 @@ service cloud.firestore {
     match /linkingCodes/{code} {
       // No listing: a tutor redeems one exact code, never browses them.
       allow get: if isSignedIn();
+      // The principal's query is `whereEqualTo('studentId', id)`, and a list
+      // rule cannot prove `resource.data.schoolId` from that constraint: adding
+      // the school check here would deny the "ver código" flow instead of
+      // scoping it. The boundary is the single school the app declares, plus
+      // the exact studentId the principal already owns. Revisit together with
+      // multi-school support, not by patching this line.
       allow list: if isDirectivo();
 
       allow create: if isDirectivo()

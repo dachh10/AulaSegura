@@ -32,9 +32,9 @@ Esta es la prueba guía; todo bloque debe dejarla más cerca de funcionar:
 1. **Directiva (Evelyn/Diego):** desde la app crea un **docente nuevo** en Usuarios, con contraseña temporal (Auth secundaria, para no desloguear a la directora). Queda `users/{uid}` con `role: "docente"`, `schoolId` y `groupIds: []`.
 2. **Directiva:** crea un **grupo nuevo** y su horario; le asigna ese docente. Escritura atómica: `groups.teacherIds` y `users.groupIds` se actualizan juntos (`AssignTeacherUseCase`, previsto en Fase 2).
 3. **Directiva:** crea **dos alumnos** en ese grupo con CURP y número de lista. Cada alta genera un `linkingCodes/{code}` de 6 caracteres, `usedBy: null`, con vencimiento.
-4. **Directiva:** crea la **cuenta del tutor** en la pestaña Padres. Queda `users/{uid}` con `role: "tutor"`, `studentIds: []`. Le entrega al "padre" su correo, contraseña temporal y el código del hijo.
+4. **Directiva:** crea el docente, el grupo y los alumnos. **No crea tutores**: esa cuenta la crea el padre en el registro (ver abajo). Le entrega al padre el código de vinculación de su hijo.
 5. **Docente nuevo:** entra con su cuenta, ve el grupo asignado, pasa lista, reporta un incidente con foto y publica una tarea/aviso. Todo eso ya existe (Fase 1) y **no se toca**.
-6. **Padre/tutor:** inicia sesión con su cuenta y, en el primer ingreso, **canjea el código del hijo**. El canjeo marca `linkingCodes.usedBy` y completa en los dos sentidos `users.studentIds` y `students.tutorIds` (ver §4).
+6. **Padre/tutor:** desde el Login toca **Crea tu cuenta** y completa la pantalla de Stitch `4ed8ecd6ef044004bce46d44e15fc520`: nombre, correo, teléfono, contraseña (mínimo 8), confirmación y el campo obligatorio **Código del alumno**. Con ese código se crea su cuenta `role: "tutor"`, se vincula al hijo y entra directo a las pantallas del tutor. No hay paso extra: **registro = vinculación = inicio de sesión**. El código es el único campo que decide el rol; nadie puede registrarse como docente ni directivo desde aquí.
 7. **Tutor:** ve el resumen real de sus hijos, la asistencia que cargó el docente, las tareas y avisos, los incidentes con mapa, justifica una falta con adjunto, conversa con el docente y recibe notificaciones.
 8. **Directiva/docente:** verifican que no duplicaron datos ni roles y que la asignación del paso 2 sigue intacta.
 
@@ -48,7 +48,7 @@ Los IDs siguen la numeración de `PLAN.md` (3.1-3.10). El orden de ejecución se
 
 | # | Tarea | Pantalla(s) | Servicios | Estado |
 |---|---|---|---|---|
-| **3.1** | Vinculación tutor ↔ alumnos por código, en el primer ingreso | Registro/Perfil del tutor | Firestore `linkingCodes`, `users`, `students` | pendiente |
+| **3.1** | Registro **solo del tutor** con código obligatorio y vinculación atómica al alumno | `RegisterScreen` (Stitch `4ed8ecd6...`) | Auth + Firestore `linkingCodes`, `users`, `students` | pendiente |
 | **3.2** | Inicio: resumen real de los hijos (asistencia, tareas, incidentes) | `ParentHomeScreen` | Firestore | pendiente |
 | **3.3** | Asistencia: calendario desde `attendanceSessions` y `records` | `ParentAttendanceScreen` | Firestore | pendiente |
 | **3.4** | Justificar falta con adjunto en Cloudinary | `ParentJustifyScreen` | Firestore + Cloudinary | pendiente |
@@ -65,40 +65,39 @@ Las 14 pantallas del Bloque 2 de `PLAN.md` están implementadas visualmente, per
 
 ## 4. Cambio de contrato necesario (antes de tocar código)
 
-Hay un bloqueo concreto en las reglas publicadas hoy:
+El registro libre del tutor con código exige tres ajustes en las reglas publicadas, porque hoy:
 
-- `linkingCodes/{code}` **sí** permite que el tutor canjee el código: `allow update: if isActive() && isTutor() && changedKeys().hasOnly(['usedBy','usedAt']) && usedBy == request.auth.uid && resource.data.usedBy == null` (`docs/firestore.rules:422-426`).
-- Pero `students/{studentId}` solo permite `create, update` a `isDirectivo()` (`docs/firestore.rules:164-165`). El tutor **no puede** agregarse a `students.tutorIds`.
-- Las reglas de lectura de `students`, `attendanceSessions`, `incidents` y `tasks/incidents` se apoyan en `request.auth.uid in resource.data.tutorIds`. Sin el vínculo inverso, el tutor **no podría leer nada de su hijo** aunque canjee el código.
+- `users.create` solo lo permite `isDirectivo()` (`docs/firestore.rules:112`): el padre no puede crear su propio documento.
+- `students.update` solo lo permite `isDirectivo()` (`docs/firestore.rules:164`): el tutor no puede agregarse a `students.tutorIds`.
+- `linkingCodes.update` exige `isTutor()` (`docs/firestore.rules:423`), que es falso durante el registro porque `users/{uid}` todavía no existe.
 
-**Solución (bloque 3.1):** ampliar `students` con una cláusula acotada que permita al tutor agregarse **solo a sí mismo** cuando el código que canjea apunta a ese alumno:
+Con Spark y sin Cloud Functions, la forma de hacerlo atómica es un **`WriteBatch` validado con `getAfter()`**:
 
-```
-allow update: if isDirectivo() && request.resource.data.schoolId == mySchool()
-  || (isTutor()
-      && isActive()
-      && request.auth.uid in request.resource.data.tutorIds
-      && !(request.auth.uid in resource.data.tutorIds)
-      && changedKeys().hasOnly(['tutorIds', 'updatedAt'])
-      /* + comprobación del linkingCode canjeado por este uid */
-     );
-```
+1. **Secuencia (un solo flujo, sin pasos visibles para el usuario):**
+   a. `createUserWithEmailAndPassword` → el usuario queda autenticado (necesario para el `get` del código: `linkingCodes.get` exige `isSignedIn()`).
+   b. `get` exacto de `linkingCodes/{code}` — nunca `list` — validar `usedBy == null` y `expiresAt` vigente, y leer `studentId` y `schoolId`.
+   c. `WriteBatch` atómico con tres escrituras:
+      - `users/{uid}` create → `role: "tutor"`, `studentIds: [studentId]`, `schoolId` del código, `active: true`, `email` del token.
+      - `students/{studentId}` update → `tutorIds: arrayUnion(uid)` y `updatedAt`.
+      - `linkingCodes/{code}` update → `usedBy: uid`, `usedAt: now`.
+   d. Navegar a `Routes.PARENT_HOME`.
 
-El canjeo se hace en **una transacción/`update` por documento**, en este orden y con rollback lógico si falla alguno:
+2. **Cláusulas nuevas en `docs/firestore.rules`:**
+   - `users.create`: además de la de directivo, permitir el autocreate cuando `request.auth.uid == uid`, `role == 'tutor'`, `active == true`, `email == request.auth.token.email`, `schoolId == getAfter(código).schoolId`, `studentIds == [getAfter(código).studentId]`, `get(código).usedBy == null` y `getAfter(código).usedBy == uid`.
+   - `students.update`: además de la de directivo, permitir que el tutor se agregue **solo a sí mismo**, con `changedKeys().hasOnly(['tutorIds','updatedAt'])`, `uid` presente en `request.resource.data.tutorIds` pero no en `resource.data.tutorIds`, y el código canjeado apuntando a ese alumno.
+   - `linkingCodes.update`: conservar la cláusula actual para el canjeo posterior y agregar una que acepte `getAfter(users/{uid}).data.role == 'tutor'` con el `studentIds` coincidente, porque durante el registro el documento de usuario no existe en el estado previo.
+   - `getAfter()` garantiza que el lote sea atómico: si una escritura falla, no se aplica ninguna.
 
-1. `get` exacto de `linkingCodes/{code}` (sin `list`), validar `usedBy == null`, `expiresAt` vigente y `schoolId` del tutor.
-2. `update` del código → `usedBy`, `usedAt`.
-3. `update` de `students/{studentId}` → `arrayUnion(uid)` en `tutorIds`.
-4. `update` de `users/{uid}` → `arrayUnion(studentId)` en `studentIds` (el propio usuario sí puede escribir `studentIds`).
+3. **Publicar** con `firebase deploy --only firestore:rules --project aulasegu` antes de probar en dispositivo. No se agrega ninguna colección ni índice nuevo.
 
-El cambio de reglas se publica con `firebase deploy --only firestore:rules --project aulasegu` **antes** de probar el flujo en dispositivo. No se agrega ninguna colección ni índice nuevo.
+**Consecuencia de rolls:** el directivo **no crea tutores**. La pestaña "Padres" del alta de usuarios de la Fase 2 se desactiva o se deja fuera de uso en este bloque, para que haya una sola fuente de verdad: el registro libre con código obligatorio.
 
----
+**Formato del código:** la pantalla de Stitch muestra `ALU-2024-9821` como ejemplo, pero el valor real que valida la app es el **código de 6 caracteres** que ya genera `AdminNewStudentScreen` (Fase 2, `linkingCodes/{code}`). Se ajusta el placeholder y el texto de ayuda para que no induzca a error.
 
 ## 5. Decisiones y restricciones (no reabrir sin motivo)
 
 1. **El rol sale de `users/{uid}.role`**, no de un custom claim. El script `tools/seed/create-user.mjs` puede escribir el claim como optimización, pero las reglas leen el documento (`docs/firestore.rules:47-61`).
-2. **El tutor no se crea a sí mismo.** `users.create` exige `isDirectivo()` (`docs/firestore.rules:112-121`). Con Spark y sin Cloud Functions, no hay forma segura de que un registro público cree un `users/{uid}` con `role: "tutor"`. El alta la hace la directora desde la app (Fase 2, Auth secundaria) y el "registro con código" es el **canjeo en el primer ingreso**, no una autocreación de cuenta. Esta es la diferencia clave con el wording del `PLAN.md:265`.
+2. **Solo el tutor se registra desde el Login**, con el código del alumno como campo obligatorio. La pantalla de Stitch `4ed8ecd6...` ya lo trae ("Código del alumno · Requerido por plantel"); se implementa con el `WriteBatch` de §4, que crea la cuenta, vincula al hijo y deja al usuario dentro de las pantallas del tutor en un solo paso. **Docente y directivo nunca se registran**: el directivo crea docentes y alumnos desde su app; el tutor se crea solo. Esto reemplaza la decisión anterior de este documento y corrige el wording del `PLAN.md:265`.
 3. **Un código, un uso.** `usedBy` inmutable después del canjeo. Si el padre pierde el código, la directora genera otro desde el detalle del alumno.
 4. **Sin Cloud Functions:** no hay vinculación ni push automáticos. Los push se envían desde la consola o `scripts/notify`; la app solo registra tokens y lee la bandeja.
 5. **Chat:** el id de conversación sigue el patrón `{uidA}__{uidB}` de `docs/rtdb.rules`. El tutor chatea con el `teacherId` del grupo de su hijo, resuelto desde `groups/{id}.teacherIds`.
@@ -114,7 +113,7 @@ Cada bloque termina con `assembleDebug` + `testDebugUnitTest` en verde y su regi
 
 | Orden | Bloque | Por qué va ahí |
 |---|---|---|
-| 1 | **3.1** | Sin vínculo no hay ningún dato visible. Desbloquea todo lo demás; incluye el cambio de reglas. |
+| 1 | **3.1** | Registro del tutor con código + reglas. Sin vínculo no hay ningún dato visible; desbloquea todo lo demás. |
 | 2 | **3.2 + 3.3** | Resumen y asistencia son la prueba de que el vínculo funciona con datos reales del docente. |
 | 3 | **3.5 + 3.6** | Tareas/avisos e incidentes: el resto de lo que el docente ya produce. |
 | 4 | **3.4** | Justificar falta es el único flujo de escritura del tutor además del chat. |
@@ -140,7 +139,8 @@ Conteo de suites/tests desde `app/build/test-results/testDebugUnitTest/*.xml`. L
 
 **Checklist de cierre de la fase:**
 
-- [ ] Reglas de `students` con la cláusula de canjeo **publicadas** en `aulasegu`.
+- [ ] Reglas publicadas en `aulasegu` con las tres cláusulas de §4 (`users.create`, `students.update`, `linkingCodes.update`).
+- [ ] El registro solo crea tutores: sin código no se crea la cuenta y no existe opción de registrarse como docente ni directivo.
 - [ ] Directora crea docente, grupo y dos alumnos desde la app.
 - [ ] Docente queda vinculado al grupo y lo ve sin tocar código.
 - [ ] Tutor entra, canjea el código y ve **sus** hijos (no los de otro grupo).

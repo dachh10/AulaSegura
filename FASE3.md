@@ -54,7 +54,7 @@ Los IDs siguen la numeración de `PLAN.md` (3.1-3.10). El orden de ejecución se
 | **3.4** | Justificar falta con adjunto en Cloudinary | `ParentJustifyScreen` | Firestore + Cloudinary | ✅ **hecho** (código y tests; falta probar en dispositivo) |
 | **3.5** | Tareas y avisos reales, con marca de leído | `ParentTasksScreen`, `ParentTaskDetailScreen`, `ParentNoticesScreen` | Firestore `noticeReads` | ✅ **hecho** (código y tests; regla de avisos pendiente de publicar) |
 | **3.6** | Incidentes de sus hijos + marcar visto | `ParentIncidentsScreen`, `ParentIncidentDetailScreen`, `ParentIncidentMapScreen` | Firestore `seenByTutorIds` | ✅ **hecho** (código y tests; sin incidentes en los datos demo al validar la lectura) |
-| **3.7** | Chat con el docente asignado al grupo | `ParentChatScreen`, `ParentConversationScreen` | RTDB | ✅ **hecho** (código y tests; falta probar en dispositivo) |
+| **3.7** | Chat con el docente asignado al grupo | `ParentChatScreen`, `ParentConversationScreen` | RTDB | ✅ **hecho y probado en dispositivo** (19 nov) |
 | **3.8** | Asistente con Firebase AI Logic (Gemini Developer API, free tier, App Check) | `ParentAIScreen` | AI Logic | pendiente |
 | **3.9** | Notificaciones + deep links + push desde consola | `ParentNotificationsScreen` | Firestore + FCM | pendiente |
 | **3.10** | Perfil del tutor y foto, con los ajustes reales que ya tiene el docente | `ParentProfileScreen` | Auth + Cloudinary | pendiente |
@@ -98,6 +98,7 @@ Las 14 pantallas del Bloque 2 de `PLAN.md` están implementadas visualmente. La 
 - **"Hablar con el docente"** del detalle y el mapa de incidentes abre la pestaña Mensajes; ya no navega a un id de ejemplo.
 - **Sin cambios de reglas, colecciones, índices ni Room** (`version = 4`). Lo compartido se extrajo a `ChatFormatting` y a `ChatContact.otherUid/otherRole`, con `chatConversationSubtitle` derivando "Tutor de…" o "Docente · 3° B" según quién mira.
 - **Reglas publicadas al cerrar 3.7:** `users/{uid}` ahora permite `get` a un tutor sobre un docente del mismo plantel que comparte grupo (`users.groupIds` del tutor vs `groupIds` del docente). Sin eso la hoja mostraba "Docente de 4° D" dos veces y el tutor escribía al docente equivocado. `list` sigue cerrado: no hay enumeración.
+- **Probado en dispositivo (19 nov):** el tutor abre Mensajes, elige al docente por nombre (dos docentes del mismo grupo ya no se confunden), envía y el docente lo recibe. Cierra el bug reportado: el mensaje nunca se perdió, iba a la cuenta equivocada.
 
 ---
 
@@ -171,9 +172,9 @@ $env:JAVA_HOME = "C:\Program Files\Android\Android Studio\jbr"
 .\gradlew.bat cleanTestDebugUnitTest testDebugUnitTest assembleDebug --offline --no-daemon --no-configuration-cache
 ```
 
-Conteo de suites/tests desde `app/build/test-results/testDebugUnitTest/*.xml`. La línea base al iniciar la fase es **52 suites / 381 tests / 0 fallos**; al cerrar 3.2 + 3.3 es **56 suites / 410 tests / 0 fallos**; al cerrar 3.4 es **59 suites / 436 tests / 0 fallos**; al cerrar 3.5 es **63 suites / 469 tests / 0 fallos**; al cerrar 3.6 es **67 suites / 496 tests / 0 fallos**; al cerrar 3.7 es **68 suites / 504 tests / 0 fallos**.
+Conteo de suites/tests desde `app/build/test-results/testDebugUnitTest/*.xml`. La línea base al iniciar la fase es **52 suites / 381 tests / 0 fallos**; al cerrar 3.2 + 3.3 es **56 suites / 410 tests / 0 fallos**; al cerrar 3.4 es **59 suites / 436 tests / 0 fallos**; al cerrar 3.5 es **63 suites / 469 tests / 0 fallos**; al cerrar 3.6 es **67 suites / 496 tests / 0 fallos**; al cerrar 3.7 es **68 suites / 505 tests / 0 fallos**.
 
-**Dispositivo:** no hay teléfono conectado. Las pruebas funcionales con las cuentas reales (directora, docente, tutor) las ejecuta el equipo; los pasos se entregan en el reporte de cada bloque.
+**Dispositivo:** no hay teléfono conectado durante el desarrollo. Las pruebas funcionales con las cuentas reales (directora, docente, tutor) las ejecuta el equipo; los pasos se entregan en el reporte de cada bloque. 3.7 quedó verificado en dispositivo el 19 nov (tutor → Mensajes → docente por nombre → mensaje recibido del otro lado).
 
 **Checklist de cierre de la fase:**
 

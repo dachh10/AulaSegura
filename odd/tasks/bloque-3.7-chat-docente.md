@@ -84,3 +84,9 @@ Pedido textual: «no pues entonces esta mal, necesito que tu mismo tengas ese pe
 - Costo aceptado y anotado en `FASE3.md` §5: la rama nueva abre el documento completo del docente (incluye `email` y `phone`), porque Firestore no filtra por campo. La alternativa, si se quiere cerrar, es denormalizar `teacherNames` en `groups/{id}`.
 
 **Verificación:** `:app:testDebugUnitTest :app:assembleDebug` → **BUILD SUCCESSFUL**, 68 suites / 505 tests / 0 fallos. Reglas compiladas y publicadas. Prueba funcional sigue pendiente del equipo (no hay dispositivo).
+
+**L6 — 19 nov 2026, prueba en dispositivo y publicación.**
+
+- El dueño probó en el teléfono y funcionó correctamente: tutor → Mensajes → lápiz → elige al docente **por nombre** → envía → el docente lo recibe. Queda cerrado el bug de "el docente no ve el mensaje": nunca se perdió, iba a la otra cuenta del grupo.
+- `FASE3.md`: 3.7 pasa a "hecho y probado en dispositivo (19 nov)", el conteo de cierre queda en 68 suites / 505 tests y la sección de dispositivo registra la verificación.
+- Commit de cierre y push a `origin/main` con el OK del dueño.

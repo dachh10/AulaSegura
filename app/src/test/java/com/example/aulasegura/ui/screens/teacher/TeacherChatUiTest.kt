@@ -2,6 +2,8 @@ package com.example.aulasegura.ui.screens.teacher
 
 import com.example.aulasegura.domain.model.ChatContact
 import com.example.aulasegura.domain.model.ChatConversation
+import com.example.aulasegura.ui.chat.chatInitials
+import com.example.aulasegura.ui.chat.chatTimeLabel
 import java.util.Calendar
 import java.util.TimeZone
 import org.junit.Assert.assertEquals
@@ -106,7 +108,7 @@ class TeacherChatUiTest {
     @Test
     fun `a tutor row keeps its group and its label`() {
         val contact = ChatContact(
-            tutorUid = "uid-tutor",
+            otherUid = "uid-tutor",
             label = "Tutor de Mariana Gómez",
             studentId = "stu-1",
             studentName = "Mariana Gómez",
@@ -115,7 +117,7 @@ class TeacherChatUiTest {
 
         val row = contactRowOf(contact)
 
-        assertEquals("uid-tutor", row.tutorUid)
+        assertEquals("uid-tutor", row.otherUid)
         assertEquals("Tutor de Mariana Gómez", row.label)
         assertEquals("3° B", row.groupLabel)
     }

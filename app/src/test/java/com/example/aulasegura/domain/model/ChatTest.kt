@@ -41,4 +41,18 @@ class ChatTest {
         assertEquals(true, message.isMine("uid-a"))
         assertEquals(false, message.isMine("uid-b"))
     }
+
+    @Test
+    fun `the same chat reads as the tutor for the teacher and as the docente for the family`() {
+        assertEquals(
+            "Tutor de Mariana Gómez",
+            chatConversationSubtitle(ROLE_TUTOR, "Mariana Gómez", "3° B"),
+        )
+        assertEquals(
+            "Docente · 3° B",
+            chatConversationSubtitle(ROLE_DOCENTE, "Mariana Gómez", "3° B"),
+        )
+        assertEquals("Docente", chatConversationSubtitle(ROLE_DOCENTE, "", null))
+        assertEquals("Tutor", chatConversationSubtitle(ROLE_TUTOR, "", "3° B"))
+    }
 }

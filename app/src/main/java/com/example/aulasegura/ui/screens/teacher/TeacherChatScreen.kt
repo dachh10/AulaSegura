@@ -48,6 +48,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.aulasegura.ui.chat.chatInitials
 import com.example.aulasegura.ui.components.TeacherBottomBar
 import com.example.aulasegura.ui.components.TeacherTab
 import com.example.aulasegura.ui.components.rememberPressScale
@@ -253,7 +254,7 @@ private fun ContactsSheet(
                     modifier = Modifier
                         .fillMaxWidth()
                         .clip(RoundedCornerShape(12.dp))
-                        .clickable { onStartConversation(contact.tutorUid) }
+                        .clickable { onStartConversation(contact.otherUid) }
                         .padding(vertical = 10.dp, horizontal = 4.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {

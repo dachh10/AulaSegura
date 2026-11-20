@@ -6,6 +6,7 @@ import com.example.aulasegura.domain.model.ChatMessage
 import com.example.aulasegura.domain.model.ChatOpenOutcome
 import com.example.aulasegura.domain.model.ChatSendOutcome
 import com.example.aulasegura.domain.model.chatConversationId
+import com.example.aulasegura.domain.model.chatConversationSubtitle
 import com.example.aulasegura.domain.model.otherParticipant
 import com.example.aulasegura.domain.repository.AuthRepository
 import com.example.aulasegura.domain.repository.ChatRepository
@@ -24,6 +25,7 @@ import com.google.firebase.firestore.FieldValue
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.FirebaseFirestoreException
 import com.google.firebase.firestore.Query
+import com.google.firebase.firestore.Source
 import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.callbackFlow
@@ -138,7 +140,8 @@ class FirestoreChatRepository(
             tutorIds.filterIsInstance<String>().forEach { tutorUid ->
                 byTutor.getOrPut(tutorUid) {
                     ChatContact(
-                        tutorUid = tutorUid,
+                        otherUid = tutorUid,
+                        otherRole = ROLE_TUTOR,
                         label = if (studentName.isBlank()) {
                             "Tutor"
                         } else {
@@ -155,11 +158,76 @@ class FirestoreChatRepository(
         return byTutor.values.sortedWith(compareBy({ it.groupLabel }, { it.label }))
     }
 
+    override suspend fun tutorContacts(): List<ChatContact> {
+        val user = auth.currentUser ?: return emptyList()
+
+        val children = runCatching {
+            firestore.collection(STUDENTS)
+                .whereArrayContains(FIELD_TUTOR_IDS, user.uid)
+                .get(Source.SERVER)
+                .await()
+        }.getOrNull()?.documents.orEmpty().mapNotNull { document ->
+            val groupId = document.getString(FIELD_GROUP_ID) ?: return@mapNotNull null
+            ContactChild(
+                studentId = document.id,
+                studentName = document.getString(FIELD_FULL_NAME).orEmpty(),
+                groupId = groupId,
+            )
+        }
+        if (children.isEmpty()) return emptyList()
+
+        // One group document per distinct group of the family, read by id: a
+        // family has one or two children, not a roster.
+        val groups = children.map { it.groupId }.distinct().associateWith { groupId ->
+            runCatching {
+                firestore.collection(GROUPS).document(groupId).get(Source.SERVER).await()
+            }.getOrNull()
+        }
+
+        // One row per teacher: two siblings in the same group give one chat, not
+        // two, and the first child is the one the header names.
+        val byTeacher = linkedMapOf<String, ChatContact>()
+        children.forEach { child ->
+            val group = groups[child.groupId] ?: return@forEach
+            val groupLabel = group.getString(FIELD_GROUP_NAME).orEmpty()
+            val teacherIds = (group.get(FIELD_TEACHER_IDS) as? List<*>)
+                .orEmpty()
+                .filterIsInstance<String>()
+
+            teacherIds.forEach { teacherUid ->
+                byTeacher.getOrPut(teacherUid) {
+                    ChatContact(
+                        otherUid = teacherUid,
+                        label = teacherLabel(groupLabel),
+                        otherRole = ROLE_DOCENTE,
+                        studentId = child.studentId,
+                        studentName = child.studentName,
+                        groupLabel = groupLabel,
+                    )
+                }
+            }
+        }
+
+        return byTeacher.values.sortedWith(compareBy({ it.groupLabel }, { it.label }))
+    }
+
+    /**
+     * "Docente de 3° B", the name this side shows.
+     *
+     * `users/{uid}` is readable only by its owner and the principal, so a tutor
+     * cannot read the teacher's profile and this code does not spend a request
+     * that the rules would deny. The group is enough to know who they are talking
+     * to; the real name appears only when the teacher starts the chat, because
+     * that side is the one that writes `participantNames`.
+     */
+    private fun teacherLabel(groupLabel: String): String =
+        if (groupLabel.isBlank()) "Docente" else "Docente de $groupLabel"
+
     override suspend fun ensureConversation(contact: ChatContact): ChatOpenOutcome {
         val user = auth.currentUser ?: return ChatOpenOutcome.SignedOut
-        val conversationId = chatConversationId(user.uid, contact.tutorUid)
+        val conversationId = chatConversationId(user.uid, contact.otherUid)
         val document = firestore.collection(CONVERSATIONS).document(conversationId)
-        val participants = listOf(user.uid, contact.tutorUid)
+        val participants = listOf(user.uid, contact.otherUid)
 
         return try {
             // The rules deny `get()` on a document that does not exist (the read
@@ -264,17 +332,24 @@ class FirestoreChatRepository(
         myRole: String,
         contact: ChatContact,
     ): Map<String, Any?> = mapOf(
-        FIELD_PARTICIPANTS to listOf(myUid, contact.tutorUid),
-        "participantNames" to mapOf(myUid to myName, contact.tutorUid to contact.label),
-        "participantRoles" to mapOf(myUid to myRole, contact.tutorUid to ROLE_TUTOR),
+        FIELD_PARTICIPANTS to listOf(myUid, contact.otherUid),
+        "participantNames" to mapOf(myUid to myName, contact.otherUid to contact.label),
+        "participantRoles" to mapOf(myUid to myRole, contact.otherUid to contact.otherRole),
         FIELD_STUDENT_ID to contact.studentId,
         FIELD_STUDENT_NAME to contact.studentName,
         FIELD_GROUP_LABEL to contact.groupLabel,
         FIELD_LAST_MESSAGE to "",
         FIELD_LAST_MESSAGE_AT to Timestamp.now(),
         FIELD_LAST_SENDER_ID to "",
-        "unread" to mapOf(myUid to 0, contact.tutorUid to 0),
+        "unread" to mapOf(myUid to 0, contact.otherUid to 0),
         "createdAt" to Timestamp.now(),
+    )
+
+    /** One child of the family, as `tutorContacts()` needs it. */
+    private data class ContactChild(
+        val studentId: String,
+        val studentName: String,
+        val groupId: String,
     )
 
     private fun DocumentSnapshot.toConversation(myUid: String): ChatConversation? {
@@ -289,14 +364,19 @@ class FirestoreChatRepository(
         val unread = get("unread") as? Map<*, *>
         val studentName = getString(FIELD_STUDENT_NAME).orEmpty()
 
-        val title = (names?.get(other) as? String)?.takeIf { it.isNotBlank() }
-            ?: if (studentName.isBlank()) "Tutor" else "Tutor de $studentName"
         val role = (roles?.get(other) as? String).orEmpty()
+        val groupLabel = getString(FIELD_GROUP_LABEL)
+        val title = (names?.get(other) as? String)?.takeIf { it.isNotBlank() }
+            ?: when {
+                role == ROLE_DOCENTE -> "Docente"
+                studentName.isNotBlank() -> "Tutor de $studentName"
+                else -> "Chat"
+            }
 
         return ChatConversation(
             id = id,
             title = title,
-            subtitle = subtitleFor(role, studentName),
+            subtitle = chatConversationSubtitle(role, studentName, groupLabel),
             lastMessage = getString(FIELD_LAST_MESSAGE).orEmpty(),
             lastMessageAt = getTimestamp(FIELD_LAST_MESSAGE_AT)?.toDate()?.time ?: 0L,
             unread = (unread?.get(myUid) as? Number)?.toInt() ?: 0,
@@ -304,14 +384,6 @@ class FirestoreChatRepository(
             groupLabel = getString(FIELD_GROUP_LABEL),
             otherUid = other,
         )
-    }
-
-    private fun subtitleFor(role: String, studentName: String): String = when {
-        role == ROLE_TUTOR && studentName.isNotBlank() -> "Tutor de $studentName"
-        role == ROLE_TUTOR -> "Tutor"
-        role == ROLE_DOCENTE -> "Docente"
-        studentName.isNotBlank() -> studentName
-        else -> ""
     }
 
     private fun DataSnapshot.toMessage(): ChatMessage? {
@@ -329,6 +401,7 @@ class FirestoreChatRepository(
         const val MESSAGES = "messages"
         const val PRESENCE = "presence"
         const val STUDENTS = "students"
+        const val GROUPS = "groups"
 
         const val FIELD_PARTICIPANTS = "participants"
         const val FIELD_LAST_MESSAGE = "lastMessage"
@@ -338,6 +411,8 @@ class FirestoreChatRepository(
         const val FIELD_STUDENT_NAME = "studentName"
         const val FIELD_GROUP_LABEL = "groupLabel"
         const val FIELD_GROUP_ID = "groupId"
+        const val FIELD_GROUP_NAME = "name"
+        const val FIELD_TEACHER_IDS = "teacherIds"
         const val FIELD_FULL_NAME = "fullName"
         const val FIELD_TUTOR_IDS = "tutorIds"
 

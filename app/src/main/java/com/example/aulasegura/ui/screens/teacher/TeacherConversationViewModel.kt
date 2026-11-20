@@ -8,6 +8,7 @@ import com.example.aulasegura.domain.model.ChatSendOutcome
 import com.example.aulasegura.domain.model.otherParticipant
 import com.example.aulasegura.domain.repository.AuthRepository
 import com.example.aulasegura.domain.repository.ChatRepository
+import com.example.aulasegura.ui.chat.clockLabel
 import java.util.TimeZone
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers

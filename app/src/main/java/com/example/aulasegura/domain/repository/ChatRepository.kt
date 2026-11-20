@@ -36,6 +36,18 @@ interface ChatRepository {
      */
     suspend fun contacts(): List<ChatContact>
 
+    /**
+     * Teachers the tutor can talk to: one row per distinct teacher of the groups
+     * their children belong to.
+     *
+     * A family has no roster to read, so this walks the link the other way:
+     * `students.whereArrayContains("tutorIds", uid)` → `groups/{id}.teacherIds`.
+     * The teacher's profile is not readable from this side (the rules only open
+     * `users/{uid}` to its owner and the principal), so the row is labelled from
+     * the group: "Docente de 3° B".
+     */
+    suspend fun tutorContacts(): List<ChatContact>
+
     /** Opens the chat with [contact], creating the summary if it does not exist. */
     suspend fun ensureConversation(contact: ChatContact): ChatOpenOutcome
 

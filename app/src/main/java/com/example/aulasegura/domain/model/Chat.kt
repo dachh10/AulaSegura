@@ -25,15 +25,19 @@ data class ChatConversation(
 )
 
 /**
- * A tutor the teacher can start a chat with.
+ * The other person of a chat the signed-in user wants to start.
  *
- * Built from the roster: a docente cannot read `users/{uid}` of a tutor (the
- * rules only allow the owner or the directivo), so the name comes from the child
- * — "Tutor de Mariana Gómez" — and never from a profile the app cannot read.
+ * Built from the data each role may read. The teacher takes it from the roster:
+ * a docente cannot read a tutor's `users/{uid}`, so the name comes from the child
+ * — "Tutor de Mariana Gómez". The family takes it from its child's group: the
+ * teacher's name comes from `users/{uid}`, which the rules allow a tutor to read
+ * only for the teachers of their own children's groups.
  */
 data class ChatContact(
-    val tutorUid: String,
+    val otherUid: String,
     val label: String,
+    /** `"tutor"` or `"docente"`, the value written to `participantRoles`. */
+    val otherRole: String = ROLE_TUTOR,
     val studentId: String?,
     val studentName: String,
     val groupLabel: String,
@@ -62,6 +66,29 @@ fun chatConversationId(uidA: String, uidB: String): String {
     val first = if (uidA <= uidB) uidA else uidB
     val second = if (uidA <= uidB) uidB else uidA
     return "$first$SEPARATOR$second"
+}
+
+const val ROLE_TUTOR: String = "tutor"
+const val ROLE_DOCENTE: String = "docente"
+
+/**
+ * Who the other person is, in the words the current user reads.
+ *
+ * The same document is a "Tutor de Mariana Gómez" for the teacher and a
+ * "Docente · 3° B" for the family, so the subtitle is derived from the role and
+ * never stored: a stored copy would be wrong for one of the two sides.
+ */
+fun chatConversationSubtitle(
+    role: String,
+    studentName: String,
+    groupLabel: String?,
+): String = when {
+    role == ROLE_TUTOR && studentName.isNotBlank() -> "Tutor de $studentName"
+    role == ROLE_TUTOR -> "Tutor"
+    role == ROLE_DOCENTE && !groupLabel.isNullOrBlank() -> "Docente · $groupLabel"
+    role == ROLE_DOCENTE -> "Docente"
+    studentName.isNotBlank() -> studentName
+    else -> ""
 }
 
 /** The other participant of [conversationId], or `null` when the id is malformed. */

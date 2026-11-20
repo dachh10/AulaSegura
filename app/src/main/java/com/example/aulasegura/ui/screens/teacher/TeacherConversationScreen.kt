@@ -52,6 +52,7 @@ import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.aulasegura.ui.chat.chatInitials
 import com.example.aulasegura.ui.components.ShieldPattern
 import com.example.aulasegura.ui.components.rememberPressScale
 import com.example.aulasegura.ui.theme.BricolageGrotesque

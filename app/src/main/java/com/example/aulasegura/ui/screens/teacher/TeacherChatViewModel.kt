@@ -135,8 +135,8 @@ class TeacherChatViewModel(
         contactsOpen.value = false
     }
 
-    fun startConversation(tutorUid: String) {
-        val contact = contacts.value.firstOrNull { it.tutorUid == tutorUid }
+    fun startConversation(otherUid: String) {
+        val contact = contacts.value.firstOrNull { it.otherUid == otherUid }
         if (contact == null) {
             notice.value = "Ese tutor ya no aparece en tus grupos."
             return

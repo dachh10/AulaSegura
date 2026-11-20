@@ -54,12 +54,12 @@ Los IDs siguen la numeración de `PLAN.md` (3.1-3.10). El orden de ejecución se
 | **3.4** | Justificar falta con adjunto en Cloudinary | `ParentJustifyScreen` | Firestore + Cloudinary | ✅ **hecho** (código y tests; falta probar en dispositivo) |
 | **3.5** | Tareas y avisos reales, con marca de leído | `ParentTasksScreen`, `ParentTaskDetailScreen`, `ParentNoticesScreen` | Firestore `noticeReads` | ✅ **hecho** (código y tests; regla de avisos pendiente de publicar) |
 | **3.6** | Incidentes de sus hijos + marcar visto | `ParentIncidentsScreen`, `ParentIncidentDetailScreen`, `ParentIncidentMapScreen` | Firestore `seenByTutorIds` | ✅ **hecho** (código y tests; sin incidentes en los datos demo al validar la lectura) |
-| **3.7** | Chat con el docente asignado al grupo | `ParentChatScreen`, `ParentConversationScreen` | RTDB | pendiente |
+| **3.7** | Chat con el docente asignado al grupo | `ParentChatScreen`, `ParentConversationScreen` | RTDB | ✅ **hecho** (código y tests; falta probar en dispositivo) |
 | **3.8** | Asistente con Firebase AI Logic (Gemini Developer API, free tier, App Check) | `ParentAIScreen` | AI Logic | pendiente |
 | **3.9** | Notificaciones + deep links + push desde consola | `ParentNotificationsScreen` | Firestore + FCM | pendiente |
 | **3.10** | Perfil del tutor y foto, con los ajustes reales que ya tiene el docente | `ParentProfileScreen` | Auth + Cloudinary | pendiente |
 
-Las 14 pantallas del Bloque 2 de `PLAN.md` están implementadas visualmente. La Fase 3 las conecta a datos reales una por una; no se rediseñan. Desde el bloque 3.2 + 3.3 las dos primeras ya tienen ViewModel, repositorio y tests propios (`ui/screens/parent/*Ui.kt`, `*ViewModel.kt`, `FirestoreParentRepository`); las doce restantes siguen sin ellos.
+Las 14 pantallas del Bloque 2 de `PLAN.md` están implementadas visualmente. La Fase 3 las conecta a datos reales una por una; no se rediseñan. Cada bloque cerrado tiene ViewModel, repositorio y tests propios (`ui/screens/parent/*Ui.kt`, `*ViewModel.kt`); la nota de entrega correspondiente indica el detalle.
 
 **Notas de entrega 3.2 + 3.3:**
 
@@ -87,6 +87,17 @@ Las 14 pantallas del Bloque 2 de `PLAN.md` están implementadas visualmente. La 
 - **Sin cambios de reglas, colecciones, índices ni Room** (`version = 4`). La rama del tutor en `incidents` ya soportaba la lectura por `studentId` y el update de sólo `seenByTutorIds`.
 - **Verificado por REST con la sesión real:** consulta por cada hijo → 200 (hoy 0 incidentes en los datos demo), alumno ajeno y consulta sin filtro → 403.
 - **Límite conocido:** la regla de lectura valida contra `users.studentIds` (no contra `students.tutorIds`); con el registro por código coinciden. Un vínculo hecho sólo en `students.tutorIds` daría `PERMISSION_DENIED` al leer incidentes.
+
+**Notas de entrega 3.7** (detalle en `odd/tasks/bloque-3.7-chat-docente.md`):
+
+- **Lista real:** `ParentChatViewModel` observa `conversations` donde participa el tutor y pinta la hora relativa con el mismo formateador que la lista del docente (`ui/chat/ChatFormatting.kt`). La búsqueda filtra en el ViewModel para poder fijarla con tests.
+- **Nuevo mensaje:** el lápiz del encabezado abre una hoja con los docentes de los grupos de sus hijos (`students.whereArrayContains("tutorIds", uid)` → `groups/{id}.teacherIds`), una fila por docente distinto. Sin docentes asignados, la hoja lo explica; no se inventa un destinatario.
+- **El nombre del docente sale del grupo:** las reglas sólo permiten leer `users/{uid}` a su dueño y al directivo, así que el tutor ve "Docente de 3° B". No se gasta una lectura que la nube negaría; el nombre real aparece sólo si el docente inicia el chat.
+- **Conversación real:** mensajes de RTDB (hasta 200), encabezado desde el resumen de Firestore, presencia del otro participante, recibo de lectura al abrir y aviso de "se enviará al reconectar". El chip de día se dibuja sólo al cambiar de día.
+- **Sin estados inventados:** se fue "Pendiente de enviar" (RTDB no trae ack por mensaje) y la lista no dibuja presencia por fila. El ícono de cámara queda del diseño, pero el chat con media está fuera de este bloque.
+- **"Hablar con el docente"** del detalle y el mapa de incidentes abre la pestaña Mensajes; ya no navega a un id de ejemplo.
+- **Sin cambios de reglas, colecciones, índices ni Room** (`version = 4`). Lo compartido se extrajo a `ChatFormatting` y a `ChatContact.otherUid/otherRole`, con `chatConversationSubtitle` derivando "Tutor de…" o "Docente · 3° B" según quién mira.
+- **Límite conocido:** el nombre real del docente requiere abrir `users/{uid}` a los tutores de sus grupos (decisión del dueño, no se agregó acá).
 
 ---
 
@@ -160,7 +171,7 @@ $env:JAVA_HOME = "C:\Program Files\Android\Android Studio\jbr"
 .\gradlew.bat cleanTestDebugUnitTest testDebugUnitTest assembleDebug --offline --no-daemon --no-configuration-cache
 ```
 
-Conteo de suites/tests desde `app/build/test-results/testDebugUnitTest/*.xml`. La línea base al iniciar la fase es **52 suites / 381 tests / 0 fallos**; al cerrar 3.2 + 3.3 es **56 suites / 410 tests / 0 fallos**; al cerrar 3.4 es **59 suites / 436 tests / 0 fallos**; al cerrar 3.5 es **63 suites / 469 tests / 0 fallos**; al cerrar 3.6 es **67 suites / 496 tests / 0 fallos**.
+Conteo de suites/tests desde `app/build/test-results/testDebugUnitTest/*.xml`. La línea base al iniciar la fase es **52 suites / 381 tests / 0 fallos**; al cerrar 3.2 + 3.3 es **56 suites / 410 tests / 0 fallos**; al cerrar 3.4 es **59 suites / 436 tests / 0 fallos**; al cerrar 3.5 es **63 suites / 469 tests / 0 fallos**; al cerrar 3.6 es **67 suites / 496 tests / 0 fallos**; al cerrar 3.7 es **68 suites / 504 tests / 0 fallos**.
 
 **Dispositivo:** no hay teléfono conectado. Las pruebas funcionales con las cuentas reales (directora, docente, tutor) las ejecuta el equipo; los pasos se entregan en el reporte de cada bloque.
 
@@ -184,4 +195,5 @@ Conteo de suites/tests desde `app/build/test-results/testDebugUnitTest/*.xml`. L
 - **Cambio de reglas compartido:** §4 afecta `students`, que también usan Fase 1 y 2. Hay que correr los tests de esas fases después de publicar.
 - **Cuentas temporales:** si la contraseña temporal se usa una vez y Firebase obliga a cambiarla, hay que documentar el paso en el high-five al "padre" antes de la prueba en vivo.
 - **Sin feriados ni sustituciones:** ya quedó decidido en Fase 1/2; no se reabre acá.
+- **Nombre del docente en el chat del tutor:** la regla de `users` sólo abre el perfil a su dueño y al directivo, así que el tutor ve "Docente de 3° B" hasta que ese docente inicie el chat. Mostrar el nombre real exige abrir `users/{uid}` a los tutores de sus grupos; es una decisión de reglas que queda pendiente.
 - **Fase 4** (`PLAN.md:280`) queda para después: Hosting y Test Lab. Test Lab tiene cuota gratuita limitada; verificar dispositivos antes de usarlo.

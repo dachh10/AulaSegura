@@ -31,7 +31,6 @@ import androidx.compose.material.icons.automirrored.outlined.ArrowBack
 import androidx.compose.material.icons.filled.DoneAll
 import androidx.compose.material.icons.outlined.MoreVert
 import androidx.compose.material.icons.outlined.PhotoCamera
-import androidx.compose.material.icons.outlined.Schedule
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -39,19 +38,17 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.aulasegura.ui.chat.chatInitials
 import com.example.aulasegura.ui.components.ShieldPattern
 import com.example.aulasegura.ui.components.rememberPressScale
 import com.example.aulasegura.ui.theme.BricolageGrotesque
@@ -67,55 +64,19 @@ import com.example.aulasegura.ui.theme.SurfaceContainerHigh
 import com.example.aulasegura.ui.theme.SurfaceContainerLowest
 import com.example.aulasegura.ui.theme.SurfaceVariant
 import com.example.aulasegura.ui.theme.TertiaryFixedDim
-import java.text.SimpleDateFormat
-import java.util.Date
-import java.util.Locale
 
 /** 2.10 — Conversación de chat. Ported from Stitch screen `889c39e23e6142c09cd11698a057830e`. */
 
-private data class ChatMessage(
-    val id: Int,
-    val text: String,
-    val sent: Boolean,
-    val time: String,
-    val pending: Boolean = false,
-)
-
-private fun sampleMessages(): List<ChatMessage> = listOf(
-    ChatMessage(
-        id = 1,
-        text = "Buenos días, Carlos. Mariana tendrá examen de Matemáticas el jueves.",
-        sent = false,
-        time = "10:40",
-    ),
-    ChatMessage(
-        id = 2,
-        text = "Gracias, profesor. ¿Qué temas incluye?",
-        sent = true,
-        time = "10:41",
-    ),
-    ChatMessage(
-        id = 3,
-        text = "Fracciones y números decimales. Le comparto la guía en la sección de tareas.",
-        sent = false,
-        time = "10:42",
-    ),
-    ChatMessage(
-        id = 4,
-        text = "Perfecto, lo repasamos hoy.",
-        sent = true,
-        time = "10:42",
-        pending = true,
-    ),
-)
-
 @Composable
-fun ParentConversationScreen(onBack: () -> Unit) {
-    var draft by remember { mutableStateOf("") }
-    var messages by remember { mutableStateOf(sampleMessages()) }
+fun ParentConversationScreen(
+    onBack: () -> Unit,
+    ui: ParentConversationUi = ParentConversationUi(),
+    onDraftChange: (String) -> Unit = {},
+    onSend: () -> Unit = {},
+) {
     val scrollState = rememberScrollState()
 
-    LaunchedEffect(messages.size) {
+    LaunchedEffect(ui.messages.size) {
         scrollState.animateScrollTo(scrollState.maxValue)
     }
 
@@ -126,7 +87,12 @@ fun ParentConversationScreen(onBack: () -> Unit) {
             .statusBarsPadding()
             .imePadding(),
     ) {
-        ConversationTopBar(onBack = onBack)
+        ConversationTopBar(
+            title = ui.title,
+            subtitle = ui.subtitle,
+            online = ui.online,
+            onBack = onBack,
+        )
 
         Box(
             modifier = Modifier
@@ -147,35 +113,53 @@ fun ParentConversationScreen(onBack: () -> Unit) {
                     .padding(top = 16.dp, bottom = 16.dp),
                 verticalArrangement = Arrangement.spacedBy(16.dp),
             ) {
-                DayChip()
-                messages.forEach { message ->
+                if (ui.loading) {
+                    CenterHint("Cargando mensajes…")
+                } else if (ui.messages.isEmpty()) {
+                    CenterHint("Todavía no hay mensajes. Escribe el primero.")
+                }
+
+                ui.messages.forEach { message ->
+                    message.dayLabel?.let { DayChip(label = it) }
                     MessageBubble(message = message)
                 }
+
+                ui.notice?.let { CenterHint(it) }
             }
         }
 
         MessageComposer(
-            draft = draft,
-            onDraftChange = { draft = it },
-            onSend = {
-                val text = draft.trim()
-                if (text.isNotEmpty()) {
-                    val time = SimpleDateFormat("HH:mm", Locale.getDefault()).format(Date())
-                    messages = messages + ChatMessage(
-                        id = (messages.maxOfOrNull { it.id } ?: 0) + 1,
-                        text = text,
-                        sent = true,
-                        time = time,
-                    )
-                    draft = ""
-                }
-            },
+            draft = ui.draft,
+            sending = ui.sending,
+            onDraftChange = onDraftChange,
+            onSend = onSend,
         )
     }
 }
 
 @Composable
-private fun ConversationTopBar(onBack: () -> Unit) {
+private fun CenterHint(text: String) {
+    Box(
+        modifier = Modifier.fillMaxWidth(),
+        contentAlignment = Alignment.Center,
+    ) {
+        Text(
+            text = text,
+            color = Outline,
+            fontFamily = DmSans,
+            fontSize = 13.sp,
+            lineHeight = 18.sp,
+        )
+    }
+}
+
+@Composable
+private fun ConversationTopBar(
+    title: String,
+    subtitle: String,
+    online: Boolean,
+    onBack: () -> Unit,
+) {
     Column(modifier = Modifier.fillMaxWidth().background(Surface)) {
         Row(
             modifier = Modifier
@@ -215,7 +199,7 @@ private fun ConversationTopBar(onBack: () -> Unit) {
                     contentAlignment = Alignment.Center,
                 ) {
                     Text(
-                        text = "RS",
+                        text = chatInitials(title),
                         color = SurfaceContainerLowest,
                         fontFamily = BricolageGrotesque,
                         fontWeight = FontWeight.SemiBold,
@@ -223,38 +207,43 @@ private fun ConversationTopBar(onBack: () -> Unit) {
                         letterSpacing = (-0.18).sp,
                     )
                 }
-                Box(
-                    modifier = Modifier
-                        .align(Alignment.BottomEnd)
-                        .size(12.dp)
-                        .clip(CircleShape)
-                        .background(TertiaryFixedDim)
-                        .border(2.dp, Surface, CircleShape),
-                )
+                if (online) {
+                    Box(
+                        modifier = Modifier
+                            .align(Alignment.BottomEnd)
+                            .size(12.dp)
+                            .clip(CircleShape)
+                            .background(TertiaryFixedDim)
+                            .border(2.dp, Surface, CircleShape),
+                    )
+                }
             }
 
             Spacer(Modifier.width(10.dp))
 
             Column(modifier = Modifier.weight(1f)) {
                 Text(
-                    text = "Prof. Ricardo Salinas",
+                    text = title,
                     color = PrimaryContainer,
                     fontFamily = BricolageGrotesque,
                     fontWeight = FontWeight.SemiBold,
                     fontSize = 18.sp,
                     lineHeight = 22.sp,
                     letterSpacing = (-0.18).sp,
+                    maxLines = 1,
                 )
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Box(
-                        modifier = Modifier
-                            .size(8.dp)
-                            .clip(CircleShape)
-                            .background(TertiaryFixedDim),
-                    )
-                    Spacer(Modifier.width(6.dp))
+                    if (online) {
+                        Box(
+                            modifier = Modifier
+                                .size(8.dp)
+                                .clip(CircleShape)
+                                .background(TertiaryFixedDim),
+                        )
+                        Spacer(Modifier.width(6.dp))
+                    }
                     Text(
-                        text = "Docente de 3° B · En línea",
+                        text = if (online) "$subtitle · En línea" else subtitle,
                         color = OnSurfaceVariant,
                         fontFamily = DmSans,
                         fontWeight = FontWeight.Medium,
@@ -290,7 +279,7 @@ private fun ConversationTopBar(onBack: () -> Unit) {
 }
 
 @Composable
-private fun DayChip() {
+private fun DayChip(label: String) {
     Box(
         modifier = Modifier.fillMaxWidth(),
         contentAlignment = Alignment.Center,
@@ -303,7 +292,7 @@ private fun DayChip() {
                 .padding(horizontal = 14.dp, vertical = 4.dp),
         ) {
             Text(
-                text = "Hoy",
+                text = label,
                 color = OnSurfaceVariant,
                 fontFamily = DmSans,
                 fontWeight = FontWeight.Medium,
@@ -315,8 +304,8 @@ private fun DayChip() {
 }
 
 @Composable
-private fun MessageBubble(message: ChatMessage) {
-    val shape = if (message.sent) {
+private fun MessageBubble(message: ParentMessageUi) {
+    val shape = if (message.mine) {
         RoundedCornerShape(
             topStart = 20.dp,
             topEnd = 20.dp,
@@ -334,22 +323,15 @@ private fun MessageBubble(message: ChatMessage) {
 
     Box(
         modifier = Modifier.fillMaxWidth(),
-        contentAlignment = if (message.sent) Alignment.CenterEnd else Alignment.CenterStart,
+        contentAlignment = if (message.mine) Alignment.CenterEnd else Alignment.CenterStart,
     ) {
         Column(
             modifier = Modifier
                 .widthIn(max = 292.dp)
                 .clip(shape)
-                .background(
-                    if (message.sent) {
-                        if (message.pending) PrimaryContainer.copy(alpha = 0.95f)
-                        else PrimaryContainer
-                    } else {
-                        SurfaceContainerLowest
-                    },
-                )
+                .background(if (message.mine) PrimaryContainer else SurfaceContainerLowest)
                 .then(
-                    if (message.sent) {
+                    if (message.mine) {
                         Modifier
                     } else {
                         Modifier.border(1.dp, SurfaceVariant, shape)
@@ -359,7 +341,7 @@ private fun MessageBubble(message: ChatMessage) {
         ) {
             Text(
                 text = message.text,
-                color = if (message.sent) OnPrimary else MaterialTheme.colorScheme.onSurface,
+                color = if (message.mine) OnPrimary else MaterialTheme.colorScheme.onSurface,
                 fontFamily = DmSans,
                 fontSize = 14.sp,
                 lineHeight = 19.sp,
@@ -369,25 +351,9 @@ private fun MessageBubble(message: ChatMessage) {
                 modifier = Modifier.align(Alignment.End),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                if (message.pending) {
-                    Icon(
-                        imageVector = Icons.Outlined.Schedule,
-                        contentDescription = null,
-                        tint = OnPrimary.copy(alpha = 0.8f),
-                        modifier = Modifier.size(13.dp),
-                    )
-                    Spacer(Modifier.width(4.dp))
-                    Text(
-                        text = "Pendiente de enviar",
-                        color = OnPrimary.copy(alpha = 0.8f),
-                        fontFamily = JetBrainsMono,
-                        fontSize = 11.sp,
-                    )
-                    Spacer(Modifier.width(6.dp))
-                }
                 Text(
                     text = message.time,
-                    color = if (message.sent) {
+                    color = if (message.mine) {
                         OnPrimary.copy(alpha = 0.7f)
                     } else {
                         Outline
@@ -395,7 +361,7 @@ private fun MessageBubble(message: ChatMessage) {
                     fontFamily = JetBrainsMono,
                     fontSize = 11.sp,
                 )
-                if (message.sent && !message.pending) {
+                if (message.mine) {
                     Spacer(Modifier.width(4.dp))
                     Icon(
                         imageVector = Icons.Filled.DoneAll,
@@ -412,6 +378,7 @@ private fun MessageBubble(message: ChatMessage) {
 @Composable
 private fun MessageComposer(
     draft: String,
+    sending: Boolean,
     onDraftChange: (String) -> Unit,
     onSend: () -> Unit,
 ) {
@@ -490,7 +457,7 @@ private fun MessageComposer(
                     .size(44.dp)
                     .shadow(4.dp, CircleShape)
                     .clip(CircleShape)
-                    .background(SecondaryContainer)
+                    .background(if (sending) SecondaryContainer.copy(alpha = 0.6f) else SecondaryContainer)
                     .clickable(
                         interactionSource = interaction,
                         indication = null,

@@ -69,7 +69,9 @@ import com.example.aulasegura.ui.screens.parent.ParentAttendanceScreen
 import com.example.aulasegura.ui.screens.parent.ParentAttendanceUiState
 import com.example.aulasegura.ui.screens.parent.ParentAttendanceViewModel
 import com.example.aulasegura.ui.screens.parent.ParentChatScreen
+import com.example.aulasegura.ui.screens.parent.ParentChatViewModel
 import com.example.aulasegura.ui.screens.parent.ParentConversationScreen
+import com.example.aulasegura.ui.screens.parent.ParentConversationViewModel
 import com.example.aulasegura.ui.screens.parent.ParentHomeScreen
 import com.example.aulasegura.ui.screens.parent.ParentHomeUiState
 import com.example.aulasegura.ui.screens.parent.ParentHomeViewModel
@@ -427,7 +429,7 @@ fun AulaSeguraNavHost(
                 onOpenMap = {
                     navController.navigate(Routes.parentIncidentMap(incidentId))
                 },
-                onTalkToTeacher = { navController.navigate(Routes.parentConversation("1")) },
+                onTalkToTeacher = { navController.navigate(Routes.PARENT_CHAT) },
                 onAcknowledge = incidentViewModel::acknowledge,
                 onRetry = incidentViewModel::refresh,
             )
@@ -448,7 +450,7 @@ fun AulaSeguraNavHost(
             ParentIncidentMapScreen(
                 ui = incidentState,
                 onBack = { navController.popBackStack() },
-                onTalkToTeacher = { navController.navigate(Routes.parentConversation("1")) },
+                onTalkToTeacher = { navController.navigate(Routes.PARENT_CHAT) },
                 onAcknowledge = incidentViewModel::acknowledge,
                 onRetry = incidentViewModel::refresh,
             )
@@ -499,15 +501,51 @@ fun AulaSeguraNavHost(
             )
         }
         composable(Routes.PARENT_CHAT) {
+            val container = rememberAppContainer()
+            val chatViewModel: ParentChatViewModel = viewModel(factory = container.viewModelFactory)
+            val chatUi by chatViewModel.state.collectAsState()
+            val openedConversation by chatViewModel.openedConversation.collectAsState()
+
+            // Starting a chat is a suspend call, so the id is consumed here and
+            // cleared right after; a rotation does not reopen it.
+            LaunchedEffect(openedConversation) {
+                openedConversation?.let { conversationId ->
+                    navController.navigate(Routes.parentConversation(conversationId))
+                    chatViewModel.openedHandled()
+                }
+            }
+
             ParentChatScreen(
+                ui = chatUi,
                 onOpenConversation = { conversationId ->
                     navController.navigate(Routes.parentConversation(conversationId))
                 },
                 onSelectTab = { navController.openParentTab(it) },
+                onNuevoMensaje = chatViewModel::openContacts,
+                onQueryChange = chatViewModel::setQuery,
+                onContactsDismiss = chatViewModel::dismissContacts,
+                onStartConversation = chatViewModel::startConversation,
             )
         }
-        composable(Routes.PARENT_CONVERSATION) {
-            ParentConversationScreen(onBack = { navController.popBackStack() })
+        composable(Routes.PARENT_CONVERSATION) { entry ->
+            val conversationId = entry.arguments?.getString("conversationId").orEmpty()
+            val container = rememberAppContainer()
+            val conversationViewModel: ParentConversationViewModel =
+                viewModel(factory = container.viewModelFactory)
+            val conversationUi by conversationViewModel.state.collectAsState()
+
+            LaunchedEffect(conversationId) {
+                if (conversationId.isNotBlank()) {
+                    conversationViewModel.open(conversationId)
+                }
+            }
+
+            ParentConversationScreen(
+                ui = conversationUi,
+                onBack = { navController.popBackStack() },
+                onDraftChange = conversationViewModel::setDraft,
+                onSend = conversationViewModel::send,
+            )
         }
         composable(Routes.PARENT_AI) {
             ParentAIScreen(onBack = { navController.popBackStack() })

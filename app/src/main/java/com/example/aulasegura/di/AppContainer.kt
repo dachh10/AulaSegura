@@ -104,6 +104,8 @@ import com.example.aulasegura.ui.screens.admin.AdminProfileViewModel
 import com.example.aulasegura.ui.screens.admin.AdminReportsViewModel
 import com.example.aulasegura.ui.screens.admin.AdminUsersViewModel
 import com.example.aulasegura.ui.screens.parent.ParentAttendanceViewModel
+import com.example.aulasegura.ui.screens.parent.ParentChatViewModel
+import com.example.aulasegura.ui.screens.parent.ParentConversationViewModel
 import com.example.aulasegura.ui.screens.parent.ParentHomeViewModel
 import com.example.aulasegura.ui.screens.parent.ParentIncidentDetailViewModel
 import com.example.aulasegura.ui.screens.parent.ParentIncidentsViewModel
@@ -779,6 +781,15 @@ class AppViewModelFactory(
 
         modelClass.isAssignableFrom(ParentIncidentsViewModel::class.java) ->
             ParentIncidentsViewModel(parents = container.parentRepository)
+
+        modelClass.isAssignableFrom(ParentChatViewModel::class.java) ->
+            ParentChatViewModel(chat = container.chatRepository)
+
+        modelClass.isAssignableFrom(ParentConversationViewModel::class.java) ->
+            ParentConversationViewModel(
+                chat = container.chatRepository,
+                auth = container.authRepository,
+            )
 
         modelClass.isAssignableFrom(AdminDashboardViewModel::class.java) ->
             AdminDashboardViewModel(

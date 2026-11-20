@@ -462,7 +462,8 @@ Los índices se versionan en `docs/firestore.indexes.json`.
 ### 6.4 Reglas de seguridad — esquema
 
 ```
-users/{uid}            read: el propio usuario o directivo del mismo schoolId
+users/{uid}            read: el propio usuario | directivo del mismo schoolId |
+                             tutor de un grupo del docente (solo docentes del mismo plantel)
                        write: el propio usuario SOLO campos de perfil
                               (email, role, active y schoolId son inmutables)
 students/{id}          read: directivo | docente de un grupo del alumno | tutor en tutorIds

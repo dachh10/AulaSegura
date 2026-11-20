@@ -139,9 +139,19 @@ service cloud.firestore {
     // ---------------------------------------------------------------------
 
     match /users/{uid} {
+      // A family may read the profile of the teachers of its children's groups:
+      // without that name the chat sheet cannot tell two teachers of the same
+      // group apart and the tutor writes to the wrong one. `users.groupIds` for
+      // a tutor is the groups of their children (see the header note), and the
+      // branch stays narrow: only a docente of the same school who shares a
+      // group. It is a `get`-only path; an unfiltered `list` still fails.
       allow read: if isSignedIn() && (
         request.auth.uid == uid ||
-        (isDirectivo() && resource.data.schoolId == mySchool())
+        (isDirectivo() && resource.data.schoolId == mySchool()) ||
+        (isTutor()
+          && resource.data.get('role', '') == 'docente'
+          && resource.data.get('schoolId', '') == mySchool()
+          && myGroups().hasAny(resource.data.get('groupIds', [])))
       );
 
       // The principal may create docente/tutor accounts of their own school.

@@ -7,6 +7,7 @@ import com.example.aulasegura.domain.model.ChatOpenOutcome
 import com.example.aulasegura.domain.model.ChatSendOutcome
 import com.example.aulasegura.domain.model.chatConversationId
 import com.example.aulasegura.domain.model.chatConversationSubtitle
+import com.example.aulasegura.domain.model.chatTeacherLabel
 import com.example.aulasegura.domain.model.otherParticipant
 import com.example.aulasegura.domain.repository.AuthRepository
 import com.example.aulasegura.domain.repository.ChatRepository
@@ -185,43 +186,51 @@ class FirestoreChatRepository(
         }
 
         // One row per teacher: two siblings in the same group give one chat, not
-        // two, and the first child is the one the header names.
+        // two, and the first child is the one the header names. The name is read
+        // once per teacher and cached: the same teacher can appear under two
+        // children of the same group.
+        val names = mutableMapOf<String, String?>()
+
+        suspend fun nameOf(teacherUid: String): String? {
+            if (names.containsKey(teacherUid)) return names[teacherUid]
+            val name = runCatching {
+                firestore.collection(USERS).document(teacherUid)
+                    .get(Source.SERVER).await()
+                    .getString(FIELD_FULL_NAME)
+            }.getOrNull()
+            names[teacherUid] = name
+            return name
+        }
+
         val byTeacher = linkedMapOf<String, ChatContact>()
-        children.forEach { child ->
-            val group = groups[child.groupId] ?: return@forEach
+        children.forEach child@{ child ->
+            val group = groups[child.groupId] ?: return@child
             val groupLabel = group.getString(FIELD_GROUP_NAME).orEmpty()
+            val titularUid = group.getString(FIELD_TITULAR_TEACHER_ID)
             val teacherIds = (group.get(FIELD_TEACHER_IDS) as? List<*>)
                 .orEmpty()
                 .filterIsInstance<String>()
 
-            teacherIds.forEach { teacherUid ->
-                byTeacher.getOrPut(teacherUid) {
-                    ChatContact(
-                        otherUid = teacherUid,
-                        label = teacherLabel(groupLabel),
-                        otherRole = ROLE_DOCENTE,
-                        studentId = child.studentId,
-                        studentName = child.studentName,
+            teacherIds.forEach teacher@{ teacherUid ->
+                if (byTeacher.containsKey(teacherUid)) return@teacher
+
+                byTeacher[teacherUid] = ChatContact(
+                    otherUid = teacherUid,
+                    label = chatTeacherLabel(
+                        fullName = nameOf(teacherUid),
                         groupLabel = groupLabel,
-                    )
-                }
+                        titular = teacherUid == titularUid,
+                    ),
+                    otherRole = ROLE_DOCENTE,
+                    studentId = child.studentId,
+                    studentName = child.studentName,
+                    groupLabel = groupLabel,
+                )
             }
         }
 
         return byTeacher.values.sortedWith(compareBy({ it.groupLabel }, { it.label }))
     }
-
-    /**
-     * "Docente de 3° B", the name this side shows.
-     *
-     * `users/{uid}` is readable only by its owner and the principal, so a tutor
-     * cannot read the teacher's profile and this code does not spend a request
-     * that the rules would deny. The group is enough to know who they are talking
-     * to; the real name appears only when the teacher starts the chat, because
-     * that side is the one that writes `participantNames`.
-     */
-    private fun teacherLabel(groupLabel: String): String =
-        if (groupLabel.isBlank()) "Docente" else "Docente de $groupLabel"
 
     override suspend fun ensureConversation(contact: ChatContact): ChatOpenOutcome {
         val user = auth.currentUser ?: return ChatOpenOutcome.SignedOut
@@ -240,13 +249,26 @@ class FirestoreChatRepository(
                     FIELD_STUDENT_ID to contact.studentId,
                     FIELD_STUDENT_NAME to contact.studentName,
                     FIELD_GROUP_LABEL to contact.groupLabel,
+                    // The other side's name, as this side reads it. Refreshing it
+                    // here is what fixes a conversation created before the name
+                    // was readable: the row stops saying "Docente de 4° D" twice.
+                    FIELD_PARTICIPANT_NAMES + "." + contact.otherUid to contact.label,
                 ),
             ).await()
             ChatOpenOutcome.Ready(conversationId)
         } catch (notThere: FirebaseFirestoreException) {
             try {
-                document.set(initialDocument(user.uid, user.fullName, user.role.name.lowercase(), contact))
-                    .await()
+                document.set(
+                    initialDocument(
+                        myUid = user.uid,
+                        myName = user.fullName,
+                        // `firestoreValue`, not the enum name: `TEACHER.name` is
+                        // "teacher" and every role check in the app and in the
+                        // rules expects the lowercase Spanish value.
+                        myRole = user.role.firestoreValue,
+                        contact = contact,
+                    ),
+                ).await()
                 ChatOpenOutcome.Ready(conversationId)
             } catch (failed: Exception) {
                 ChatOpenOutcome.Failed(failed.message ?: "No se pudo abrir el chat.")
@@ -333,7 +355,7 @@ class FirestoreChatRepository(
         contact: ChatContact,
     ): Map<String, Any?> = mapOf(
         FIELD_PARTICIPANTS to listOf(myUid, contact.otherUid),
-        "participantNames" to mapOf(myUid to myName, contact.otherUid to contact.label),
+        FIELD_PARTICIPANT_NAMES to mapOf(myUid to myName, contact.otherUid to contact.label),
         "participantRoles" to mapOf(myUid to myRole, contact.otherUid to contact.otherRole),
         FIELD_STUDENT_ID to contact.studentId,
         FIELD_STUDENT_NAME to contact.studentName,
@@ -402,8 +424,10 @@ class FirestoreChatRepository(
         const val PRESENCE = "presence"
         const val STUDENTS = "students"
         const val GROUPS = "groups"
+        const val USERS = "users"
 
         const val FIELD_PARTICIPANTS = "participants"
+        const val FIELD_PARTICIPANT_NAMES = "participantNames"
         const val FIELD_LAST_MESSAGE = "lastMessage"
         const val FIELD_LAST_MESSAGE_AT = "lastMessageAt"
         const val FIELD_LAST_SENDER_ID = "lastSenderId"
@@ -413,6 +437,7 @@ class FirestoreChatRepository(
         const val FIELD_GROUP_ID = "groupId"
         const val FIELD_GROUP_NAME = "name"
         const val FIELD_TEACHER_IDS = "teacherIds"
+        const val FIELD_TITULAR_TEACHER_ID = "titularTeacherId"
         const val FIELD_FULL_NAME = "fullName"
         const val FIELD_TUTOR_IDS = "tutorIds"
 

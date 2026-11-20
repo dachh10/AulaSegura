@@ -42,9 +42,9 @@ interface ChatRepository {
      *
      * A family has no roster to read, so this walks the link the other way:
      * `students.whereArrayContains("tutorIds", uid)` → `groups/{id}.teacherIds`.
-     * The teacher's profile is not readable from this side (the rules only open
-     * `users/{uid}` to its owner and the principal), so the row is labelled from
-     * the group: "Docente de 3° B".
+     * The name comes from `users/{uid}`, which the rules open to the tutors of
+     * that teacher's groups; when that read fails the row is labelled from the
+     * group ("Docente de 3° B", or "Docente titular" for the titular).
      */
     suspend fun tutorContacts(): List<ChatContact>
 

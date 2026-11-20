@@ -92,12 +92,12 @@ Las 14 pantallas del Bloque 2 de `PLAN.md` están implementadas visualmente. La 
 
 - **Lista real:** `ParentChatViewModel` observa `conversations` donde participa el tutor y pinta la hora relativa con el mismo formateador que la lista del docente (`ui/chat/ChatFormatting.kt`). La búsqueda filtra en el ViewModel para poder fijarla con tests.
 - **Nuevo mensaje:** el lápiz del encabezado abre una hoja con los docentes de los grupos de sus hijos (`students.whereArrayContains("tutorIds", uid)` → `groups/{id}.teacherIds`), una fila por docente distinto. Sin docentes asignados, la hoja lo explica; no se inventa un destinatario.
-- **El nombre del docente sale del grupo:** las reglas sólo permiten leer `users/{uid}` a su dueño y al directivo, así que el tutor ve "Docente de 3° B". No se gasta una lectura que la nube negaría; el nombre real aparece sólo si el docente inicia el chat.
+- **El nombre del docente sale de su perfil:** la regla de `users` se abrió (sólo lectura, sólo docentes del mismo plantel que comparten grupo con un hijo del tutor), así que la hoja y la lista muestran el nombre real y dos docentes del mismo grupo se distinguen. Si la lectura falla, el fallback nombra al titular: "Docente titular de 4° D" vs "Docente de 4° D".
 - **Conversación real:** mensajes de RTDB (hasta 200), encabezado desde el resumen de Firestore, presencia del otro participante, recibo de lectura al abrir y aviso de "se enviará al reconectar". El chip de día se dibuja sólo al cambiar de día.
 - **Sin estados inventados:** se fue "Pendiente de enviar" (RTDB no trae ack por mensaje) y la lista no dibuja presencia por fila. El ícono de cámara queda del diseño, pero el chat con media está fuera de este bloque.
 - **"Hablar con el docente"** del detalle y el mapa de incidentes abre la pestaña Mensajes; ya no navega a un id de ejemplo.
 - **Sin cambios de reglas, colecciones, índices ni Room** (`version = 4`). Lo compartido se extrajo a `ChatFormatting` y a `ChatContact.otherUid/otherRole`, con `chatConversationSubtitle` derivando "Tutor de…" o "Docente · 3° B" según quién mira.
-- **Límite conocido:** el nombre real del docente requiere abrir `users/{uid}` a los tutores de sus grupos (decisión del dueño, no se agregó acá).
+- **Reglas publicadas al cerrar 3.7:** `users/{uid}` ahora permite `get` a un tutor sobre un docente del mismo plantel que comparte grupo (`users.groupIds` del tutor vs `groupIds` del docente). Sin eso la hoja mostraba "Docente de 4° D" dos veces y el tutor escribía al docente equivocado. `list` sigue cerrado: no hay enumeración.
 
 ---
 
@@ -195,5 +195,5 @@ Conteo de suites/tests desde `app/build/test-results/testDebugUnitTest/*.xml`. L
 - **Cambio de reglas compartido:** §4 afecta `students`, que también usan Fase 1 y 2. Hay que correr los tests de esas fases después de publicar.
 - **Cuentas temporales:** si la contraseña temporal se usa una vez y Firebase obliga a cambiarla, hay que documentar el paso en el high-five al "padre" antes de la prueba en vivo.
 - **Sin feriados ni sustituciones:** ya quedó decidido en Fase 1/2; no se reabre acá.
-- **Nombre del docente en el chat del tutor:** la regla de `users` sólo abre el perfil a su dueño y al directivo, así que el tutor ve "Docente de 3° B" hasta que ese docente inicie el chat. Mostrar el nombre real exige abrir `users/{uid}` a los tutores de sus grupos; es una decisión de reglas que queda pendiente.
+- **Privacidad de `users` para tutores (hecho en 3.7, a revisar):** el tutor puede hacer `get` del perfil de un docente de los grupos de sus hijos porque la hoja de chat necesita un nombre para distinguir dos docentes del mismo grupo. Eso expone también `email` y `phone`, porque las reglas son por documento y no por campo. Si se quiere limitar, la alternativa es denormalizar `teacherNames` en `groups/{id}` y cerrar esta rama.
 - **Fase 4** (`PLAN.md:280`) queda para después: Hosting y Test Lab. Test Lab tiene cuota gratuita limitada; verificar dispositivos antes de usarlo.

@@ -29,9 +29,9 @@ data class ChatConversation(
  *
  * Built from the data each role may read. The teacher takes it from the roster:
  * a docente cannot read a tutor's `users/{uid}`, so the name comes from the child
- * — "Tutor de Mariana Gómez". The family takes it from its child's group: the
- * teacher's name comes from `users/{uid}`, which the rules allow a tutor to read
- * only for the teachers of their own children's groups.
+ * — "Tutor de Mariana Gómez". The family takes it from its child's group and
+ * then reads the teacher's profile, which the rules open to the tutors of that
+ * teacher's groups.
  */
 data class ChatContact(
     val otherUid: String,
@@ -95,6 +95,29 @@ fun chatConversationSubtitle(
 fun otherParticipant(conversationId: String, myUid: String): String? =
     conversationId.split(SEPARATOR)
         .firstOrNull { it.isNotBlank() && it != myUid }
+
+/**
+ * The name the family sees for a teacher.
+ *
+ * A group can have more than one teacher, so the label has to tell them apart:
+ * when the profile is readable it is the real name, and when it is not (offline,
+ * or a legacy group) the fallback names the titular instead of printing
+ * "Docente de 4° D" twice on the same screen.
+ */
+fun chatTeacherLabel(
+    fullName: String?,
+    groupLabel: String,
+    titular: Boolean,
+): String {
+    val name = fullName?.trim().orEmpty()
+    if (name.isNotEmpty()) return name
+
+    return when {
+        groupLabel.isBlank() -> "Docente"
+        titular -> "Docente titular de $groupLabel"
+        else -> "Docente de $groupLabel"
+    }
+}
 
 private const val SEPARATOR = "__"
 

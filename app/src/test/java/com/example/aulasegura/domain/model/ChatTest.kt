@@ -55,4 +55,21 @@ class ChatTest {
         assertEquals("Docente", chatConversationSubtitle(ROLE_DOCENTE, "", null))
         assertEquals("Tutor", chatConversationSubtitle(ROLE_TUTOR, "", "3° B"))
     }
+
+    @Test
+    fun `the teacher label tells two teachers of the same group apart when the profile is unreadable`() {
+        assertEquals(
+            "Ricardo Salinas Ortega",
+            chatTeacherLabel("Ricardo Salinas Ortega", "4° D", titular = false),
+        )
+        assertEquals(
+            "Docente titular de 4° D",
+            chatTeacherLabel(null, "4° D", titular = true),
+        )
+        assertEquals(
+            "Docente de 4° D",
+            chatTeacherLabel("   ", "4° D", titular = false),
+        )
+        assertEquals("Docente", chatTeacherLabel(null, "", titular = true))
+    }
 }

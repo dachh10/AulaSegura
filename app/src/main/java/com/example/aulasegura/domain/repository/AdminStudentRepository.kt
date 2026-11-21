@@ -34,6 +34,17 @@ interface AdminStudentRepository {
     suspend fun setActive(studentId: String, active: Boolean): AdminStudentResult
 
     /**
+     * Assigns grade and group to several students in ONE batch, incrementing the
+     * target group's studentCount by the number assigned. Used by "Alumnos sin grupo".
+     */
+    suspend fun assignGroup(
+        studentIds: List<String>,
+        groupId: String,
+        grado: Int,
+        grupo: String,
+    ): AdminStudentResult
+
+    /**
      * Approves the QR of a tutor: creates the student with the tutor linked and
      * moves the tutor's `vinculacion` to `vinculado`. Both writes belong to the
      * director, so they go in one batch.

@@ -242,6 +242,47 @@ class FirestoreAdminStudentRepository(
         }
     }
 
+    override suspend fun assignGroup(
+        studentIds: List<String>,
+        groupId: String,
+        grado: Int,
+        grupo: String,
+    ): AdminStudentResult {
+        if (auth.currentUser == null) {
+            return AdminStudentResult.Failure(AdminStudentError.NO_SESSION)
+        }
+        if (studentIds.isEmpty() || groupId.isBlank()) {
+            return AdminStudentResult.Failure(AdminStudentError.UNKNOWN)
+        }
+
+        return try {
+            val batch = firestore.batch()
+            studentIds.forEach { id ->
+                batch.update(
+                    firestore.collection(AdminStudentFields.COLLECTION).document(id),
+                    mapOf(
+                        AdminStudentFields.GROUP_ID to groupId,
+                        AdminStudentFields.GRUPO to grupo,
+                        AdminStudentFields.GRADO to grado.toString(),
+                        AdminStudentFields.UPDATED_AT to FieldValue.serverTimestamp(),
+                    ),
+                )
+            }
+            batch.update(
+                firestore.collection(AdminStudentFields.GROUP_COLLECTION).document(groupId),
+                mapOf(
+                    AdminGroupFields.STUDENT_COUNT to FieldValue.increment(studentIds.size.toLong()),
+                    AdminGroupFields.UPDATED_AT to FieldValue.serverTimestamp(),
+                ),
+            )
+            withTimeout(WRITE_TIMEOUT_MILLIS) { batch.commit().await() }
+            AdminStudentResult.Success
+        } catch (error: Exception) {
+            val mapped = mapError(error)
+            AdminStudentResult.Failure(mapped.reason, mapped.detail)
+        }
+    }
+
     override suspend fun createLinkingCode(studentId: String): LinkingCodeResult {
         val user = auth.currentUser
             ?: return LinkingCodeResult.Failure(AdminStudentError.NO_SESSION)

@@ -141,6 +141,12 @@ private open class BaseStudents : AdminStudentRepository by object : AdminStuden
         com.example.aulasegura.domain.repository.LinkingCodeResult.Failure(
             com.example.aulasegura.domain.repository.AdminStudentError.UNKNOWN)
     override suspend fun getLinkingCode(studentId: String): String? = null
+    override suspend fun assignGroup(
+        studentIds: List<String>,
+        groupId: String,
+        grado: Int,
+        grupo: String,
+    ) = com.example.aulasegura.domain.repository.AdminStudentResult.Success
 }
 
 private class TestStudents : BaseStudents() {

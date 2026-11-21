@@ -30,6 +30,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -401,6 +402,12 @@ fun AccountReviewScreen(
     onRefresh: () -> Unit = {},
     onSignOut: () -> Unit = {},
 ) {
+    // On entry, self-heal the verified-email flag: a teacher may confirm the
+    // link while the app is already on this screen. refreshState() re-persists
+    // the flag via markEmailVerified() (fresh token), so the director sees them
+    // without the user having to discover the "Actualizar estado" button.
+    LaunchedEffect(Unit) { onRefresh() }
+
     AccessScaffold(
         title = if (rejected) "Solicitud rechazada" else "Tu cuenta está en revisión",
         subtitle = if (rejected) {

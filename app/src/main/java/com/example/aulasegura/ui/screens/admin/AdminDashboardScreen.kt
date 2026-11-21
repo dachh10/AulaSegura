@@ -23,6 +23,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.QrCodeScanner
 import androidx.compose.material.icons.filled.Badge
 import androidx.compose.material.icons.filled.CloudOff
 import androidx.compose.material.icons.filled.Error
@@ -42,6 +43,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
@@ -51,7 +53,6 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.aulasegura.di.rememberAppContainer
 import com.example.aulasegura.ui.components.AdminBottomBar
 import com.example.aulasegura.ui.components.AdminTab
-import com.example.aulasegura.ui.components.PillButton
 import com.example.aulasegura.ui.screens.access.Reveal
 import com.example.aulasegura.ui.theme.BrandCream
 import com.example.aulasegura.ui.theme.BricolageGrotesque
@@ -59,6 +60,7 @@ import com.example.aulasegura.ui.theme.DmSans
 import com.example.aulasegura.ui.theme.JetBrainsMono
 import com.example.aulasegura.ui.theme.OnPrimary
 import com.example.aulasegura.ui.theme.OnSurface
+import com.example.aulasegura.ui.theme.PillShape
 import com.example.aulasegura.ui.theme.Outline
 import com.example.aulasegura.ui.theme.OutlineVariant
 import com.example.aulasegura.ui.theme.Primary
@@ -113,7 +115,6 @@ fun AdminDashboardScreen(
             verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
             Reveal(0) { AdminTopBar(onNotificaciones = onNotificaciones) }
-            Reveal(30) { PillButton(text = "Escanear alumno", onClick = onEscanear) }
             Reveal(60) {
                 AttendanceTodayCard(
                     message = todayAttendanceMessage(
@@ -135,6 +136,36 @@ fun AdminDashboardScreen(
                 }
             }
             Reveal(240) { AttentionRequired() }
+        }
+
+        // Floating "Escanear alumno" button above the bottom bar (Stitch 07).
+        Box(
+            modifier = Modifier
+                .align(Alignment.BottomEnd)
+                .padding(end = 16.dp, bottom = 92.dp)
+                .shadow(elevation = 6.dp, shape = PillShape)
+                .clip(PillShape)
+                .background(Primary)
+                .clickable(onClick = onEscanear)
+                .padding(horizontal = 16.dp, vertical = 12.dp),
+            contentAlignment = Alignment.Center,
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(
+                    Icons.Outlined.QrCodeScanner,
+                    contentDescription = null,
+                    tint = SurfaceContainerLowest,
+                    modifier = Modifier.size(20.dp),
+                )
+                Spacer(Modifier.width(8.dp))
+                Text(
+                    text = "Escanear alumno",
+                    color = SurfaceContainerLowest,
+                    fontFamily = DmSans,
+                    fontWeight = FontWeight.SemiBold,
+                    fontSize = 13.sp,
+                )
+            }
         }
 
         AdminBottomBar(

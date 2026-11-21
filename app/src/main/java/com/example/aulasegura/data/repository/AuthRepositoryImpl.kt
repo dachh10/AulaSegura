@@ -7,9 +7,12 @@ import com.example.aulasegura.data.mapper.profilePhotoUpdate
 import com.example.aulasegura.data.mapper.profileUpdate
 import com.example.aulasegura.domain.model.AppUser
 import com.example.aulasegura.domain.model.UserRole
+import com.example.aulasegura.domain.repository.AccountRegistrationInput
+import com.example.aulasegura.domain.repository.AccountRegistrationResult
 import com.example.aulasegura.domain.repository.AuthFailure
 import com.example.aulasegura.domain.repository.AuthRepository
 import com.example.aulasegura.domain.repository.AuthResult
+import com.example.aulasegura.domain.repository.RegistrationKind
 import com.example.aulasegura.domain.repository.PasswordChangeError
 import com.example.aulasegura.domain.repository.PasswordChangeResult
 import com.example.aulasegura.domain.repository.PasswordResetResult
@@ -192,6 +195,105 @@ class AuthRepositoryImpl(
             TutorRegistrationResult.Failed
         }
     }
+
+    override suspend fun registerAccount(
+        input: AccountRegistrationInput,
+    ): AccountRegistrationResult {
+        val isTutor = input.kind == RegistrationKind.TUTOR
+        suspend fun reject(result: AccountRegistrationResult): AccountRegistrationResult {
+            discardHalfRegisteredAccount()
+            return result
+        }
+
+        return try {
+            val created = auth.createUserWithEmailAndPassword(
+                input.email.trim(), input.password,
+            ).await()
+            val uid = created.user?.uid ?: return reject(AccountRegistrationResult.Failed)
+            runCatching { created.user?.sendEmailVerification()?.await() }
+
+            val (firstName, lastName) = splitName(input.fullName)
+            val roleValue = if (isTutor) "tutor" else "docente"
+            val stateValue = if (isTutor) "activo" else "pendiente"
+            val now = FieldValue.serverTimestamp()
+            val userData = mutableMapOf<String, Any>(
+                "uid" to uid,
+                FIELD_EMAIL to input.email.trim(),
+                // `role` is kept as a compatibility alias while the rest of the
+                // app migrates; `rol` is the contract described in the .md.
+                FIELD_ROLE to roleValue,
+                FIELD_ROL to roleValue,
+                FIELD_ESTADO to stateValue,
+                FIELD_NOMBRE to input.fullName.trim(),
+                FIELD_CORREO to input.email.trim(),
+                "firstName" to firstName,
+                "lastName" to lastName,
+                FIELD_FULL_NAME to input.fullName.trim(),
+                "phone" to input.phone.trim(),
+                FIELD_TELEFONO to input.phone.trim(),
+                FIELD_SCHOOL_ID to DEFAULT_SCHOOL_ID,
+                FIELD_ACTIVE to true,
+                FIELD_FECHA_SOLICITUD to now,
+                "createdAt" to now,
+                "updatedAt" to now,
+            )
+            if (isTutor) {
+                userData[FIELD_VINCULACION] = "pendiente"
+                userData[FIELD_HIJO_SOLICITADO] = input.childName.trim()
+            } else {
+                userData[FIELD_SUBJECTS] = listOf(input.subject.trim())
+            }
+
+            withTimeout(WRITE_TIMEOUT_MILLIS) {
+                firestore.collection(USERS).document(uid).set(userData).await()
+            }
+
+            val user = AppUser(
+                uid = uid,
+                email = input.email.trim(),
+                role = if (isTutor) UserRole.TUTOR else UserRole.TEACHER,
+                fullName = input.fullName.trim(),
+                schoolId = DEFAULT_SCHOOL_ID,
+                active = true,
+                estado = stateValue,
+                vinculacion = if (isTutor) "pendiente" else "",
+                hijoSolicitado = if (isTutor) input.childName.trim() else "",
+            )
+            currentUser = user
+            runCatching { profileDao.upsert(user.toCachedEntity(System.currentTimeMillis())) }
+            analytics.log(AnalyticsEvent.LoginSuccess(user.role))
+            AccountRegistrationResult.Success(user)
+        } catch (e: FirebaseAuthUserCollisionException) {
+            AccountRegistrationResult.EmailInUse
+        } catch (e: FirebaseAuthWeakPasswordException) {
+            AccountRegistrationResult.WeakPassword
+        } catch (e: FirebaseNetworkException) {
+            reject(AccountRegistrationResult.NetworkError)
+        } catch (e: FirebaseFirestoreException) {
+            reject(
+                if (e.code == FirebaseFirestoreException.Code.PERMISSION_DENIED) {
+                    AccountRegistrationResult.Rejected
+                } else {
+                    AccountRegistrationResult.Failed
+                },
+            )
+        } catch (e: Exception) {
+            reject(AccountRegistrationResult.Failed)
+        }
+    }
+
+    override suspend fun isEmailVerified(): Boolean {
+        val user = auth.currentUser ?: return false
+        return runCatching {
+            user.reload()
+            user.isEmailVerified
+        }.getOrDefault(false)
+    }
+
+    override suspend fun resendVerificationEmail(): Result<Unit> =
+        runCatching { auth.currentUser?.sendEmailVerification()?.await() ?: Unit }
+
+    override suspend fun refreshProfile(): AuthResult = resolveProfile()
 
     /**
      * A half-registered account is worse than a failed one: the email stays
@@ -405,6 +507,9 @@ class AuthRepositoryImpl(
             photoUrl = snapshot.getString(FIELD_PHOTO_URL),
             subjects = (snapshot.get(FIELD_SUBJECTS) as? List<*>)?.filterIsInstance<String>()
                 ?: emptyList(),
+            estado = snapshot.getString(FIELD_ESTADO).orEmpty(),
+            vinculacion = snapshot.getString(FIELD_VINCULACION).orEmpty(),
+            hijoSolicitado = snapshot.getString(FIELD_HIJO_SOLICITADO).orEmpty(),
         )
 
         // Cached only after the profile is fully valid: a rejected account must
@@ -453,6 +558,15 @@ class AuthRepositoryImpl(
         const val FIELD_ACTIVE = "active"
         const val FIELD_PHOTO_URL = "photoUrl"
         const val FIELD_SUBJECTS = "subjects"
+        const val FIELD_ROL = "rol"
+        const val FIELD_ESTADO = "estado"
+        const val FIELD_NOMBRE = "nombre"
+        const val FIELD_CORREO = "correo"
+        const val FIELD_TELEFONO = "telefono"
+        const val FIELD_VINCULACION = "vinculacion"
+        const val FIELD_HIJO_SOLICITADO = "hijoSolicitado"
+        const val FIELD_FECHA_SOLICITUD = "fechaSolicitud"
+        const val DEFAULT_SCHOOL_ID = "sch-benito-juarez"
 
         fun splitName(full: String): Pair<String, String> {
             val parts = full.trim().split(Regex("\\s+"), limit = 2)

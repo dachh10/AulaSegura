@@ -42,7 +42,13 @@ import com.example.aulasegura.location.rememberSchoolSite
 import com.example.aulasegura.location.toSessionLocation
 import com.example.aulasegura.ui.components.ParentTab
 import com.example.aulasegura.ui.components.TeacherTab
+import com.example.aulasegura.domain.model.UserRole
+import com.example.aulasegura.domain.repository.RegistrationKind
+import com.example.aulasegura.ui.screens.access.AccessStateUiState
+import com.example.aulasegura.ui.screens.access.AccessStateViewModel
+import com.example.aulasegura.ui.screens.access.AccountReviewScreen
 import com.example.aulasegura.ui.screens.access.ForgotPasswordScreen
+import com.example.aulasegura.ui.screens.access.LinkChildScreen
 import com.example.aulasegura.ui.screens.access.LoginScreen
 import com.example.aulasegura.ui.screens.access.LoginViewModel
 import com.example.aulasegura.ui.screens.access.OnboardingScreen
@@ -52,6 +58,8 @@ import com.example.aulasegura.ui.screens.access.RegisterViewModel
 import com.example.aulasegura.ui.screens.access.SessionState
 import com.example.aulasegura.ui.screens.access.SessionViewModel
 import com.example.aulasegura.ui.screens.access.SplashScreen
+import com.example.aulasegura.ui.screens.access.VerifyEmailScreen
+import com.example.aulasegura.ui.screens.access.nextRoute
 import com.example.aulasegura.ui.screens.admin.AdminDashboardScreen
 import com.example.aulasegura.ui.screens.admin.AdminCampusScreen
 import com.example.aulasegura.ui.screens.admin.AdminGroupsScreen
@@ -218,12 +226,19 @@ fun AulaSeguraNavHost(
         }
         composable(Routes.LOGIN) {
             val uiState by loginViewModel.uiState.collectAsState()
+            val container = rememberAppContainer()
 
             LaunchedEffect(uiState.authenticatedRole) {
                 val role = uiState.authenticatedRole ?: return@LaunchedEffect
-                sessionViewModel.onSignedIn(role)
+                val verified = container.authRepository.isEmailVerified()
                 loginViewModel.consumeNavigation()
-                navController.navigate(role.homeRoute()) {
+                sessionViewModel.onSignedIn(role)
+                val target = if (!verified) {
+                    Routes.VERIFY_EMAIL
+                } else {
+                    container.authRepository.currentUser?.destinationRoute() ?: role.homeRoute()
+                }
+                navController.navigate(target) {
                     popUpTo(Routes.LOGIN) { inclusive = true }
                 }
             }
@@ -241,18 +256,21 @@ fun AulaSeguraNavHost(
                 viewModel(factory = rememberAppContainer().viewModelFactory)
             val registerUi by registerViewModel.uiState.collectAsState()
 
-            LaunchedEffect(registerUi.registeredRole) {
-                val role = registerUi.registeredRole ?: return@LaunchedEffect
+            LaunchedEffect(registerUi.succeeded) {
+                if (!registerUi.succeeded) return@LaunchedEffect
                 registerViewModel.consumeNavigation()
+                val role = when (registerUi.kind) {
+                    RegistrationKind.TUTOR -> UserRole.TUTOR
+                    RegistrationKind.DOCENTE -> UserRole.TEACHER
+                }
                 sessionViewModel.onSignedIn(role)
-                navController.navigate(role.homeRoute()) {
+                navController.navigate(Routes.VERIFY_EMAIL) {
                     popUpTo(Routes.LOGIN) { inclusive = true }
                 }
             }
 
             RegisterScreen(
                 onBack = { navController.popBackStack() },
-                onSkip = { navController.popBackStack() },
                 onCreated = registerViewModel::submit,
                 onLogin = {
                     navController.navigate(Routes.LOGIN) {
@@ -260,15 +278,100 @@ fun AulaSeguraNavHost(
                     }
                 },
                 ui = registerUi,
+                onKindChange = registerViewModel::setKind,
                 onFullNameChange = registerViewModel::setFullName,
                 onEmailChange = registerViewModel::setEmail,
                 onPhoneChange = registerViewModel::setPhone,
                 onPasswordChange = registerViewModel::setPassword,
                 onConfirmPasswordChange = registerViewModel::setConfirmPassword,
-                onCodeChange = registerViewModel::setCode,
+                onChildNameChange = registerViewModel::setChildName,
+                onSubjectChange = registerViewModel::setSubject,
                 onAcceptedChange = registerViewModel::setAccepted,
                 isLoading = registerUi.isLoading,
                 errorMessage = registerUi.errorMessage,
+            )
+        }
+        composable(Routes.VERIFY_EMAIL) {
+            val container = rememberAppContainer()
+            val vm: AccessStateViewModel = viewModel(factory = container.viewModelFactory)
+            val ui by vm.uiState.collectAsState()
+
+            LaunchedEffect(ui.proceed) {
+                if (!ui.proceed) return@LaunchedEffect
+                vm.consumeProceed()
+                val target = container.authRepository.currentUser?.destinationRoute()
+                    ?: ui.nextRoute()
+                navController.navigate(target) {
+                    popUpTo(Routes.VERIFY_EMAIL) { inclusive = true }
+                }
+            }
+
+            VerifyEmailScreen(
+                email = ui.email,
+                message = ui.message,
+                isLoading = ui.isLoading,
+                onBack = { navController.popBackStack() },
+                onChecked = vm::checkEmail,
+                onResend = vm::resend,
+                onSignOut = {
+                    sessionViewModel.signOut()
+                    navController.navigate(Routes.LOGIN) {
+                        popUpTo(Routes.VERIFY_EMAIL) { inclusive = true }
+                    }
+                },
+            )
+        }
+        composable(Routes.ACCOUNT_REVIEW) {
+            val container = rememberAppContainer()
+            val vm: AccessStateViewModel = viewModel(factory = container.viewModelFactory)
+            val ui by vm.uiState.collectAsState()
+
+            LaunchedEffect(ui.proceed) {
+                if (!ui.proceed) return@LaunchedEffect
+                vm.consumeProceed()
+                navController.navigate(ui.nextRoute()) {
+                    popUpTo(Routes.ACCOUNT_REVIEW) { inclusive = true }
+                }
+            }
+
+            AccountReviewScreen(
+                rejected = ui.isRejected,
+                isLoading = ui.isLoading,
+                onBack = { navController.popBackStack() },
+                onRefresh = vm::refreshState,
+                onSignOut = {
+                    sessionViewModel.signOut()
+                    navController.navigate(Routes.LOGIN) {
+                        popUpTo(Routes.ACCOUNT_REVIEW) { inclusive = true }
+                    }
+                },
+            )
+        }
+        composable(Routes.LINK_CHILD) {
+            val container = rememberAppContainer()
+            val vm: AccessStateViewModel = viewModel(factory = container.viewModelFactory)
+            val ui by vm.uiState.collectAsState()
+
+            LaunchedEffect(ui.proceed) {
+                if (!ui.proceed) return@LaunchedEffect
+                vm.consumeProceed()
+                navController.navigate(Routes.PARENT_HOME) {
+                    popUpTo(Routes.LINK_CHILD) { inclusive = true }
+                }
+            }
+
+            LinkChildScreen(
+                childName = ui.childName,
+                rejected = ui.vinculacion == "rechazada",
+                isLoading = ui.isLoading,
+                onBack = { navController.popBackStack() },
+                onRefresh = vm::refreshState,
+                onSignOut = {
+                    sessionViewModel.signOut()
+                    navController.navigate(Routes.LOGIN) {
+                        popUpTo(Routes.LINK_CHILD) { inclusive = true }
+                    }
+                },
             )
         }
         composable(Routes.FORGOT_PASSWORD) {

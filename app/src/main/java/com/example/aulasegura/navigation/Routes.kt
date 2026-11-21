@@ -13,6 +13,9 @@ object Routes {
     const val REGISTER = "register"
     const val FORGOT_PASSWORD = "forgot_password"
     const val CHECK_EMAIL = "check_email"
+    const val VERIFY_EMAIL = "verify_email"
+    const val ACCOUNT_REVIEW = "account_review"
+    const val LINK_CHILD = "link_child"
     const val PERMISSIONS = "permissions"
 
     // ---- Parent / tutor ----

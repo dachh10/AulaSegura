@@ -194,7 +194,27 @@ service cloud.firestore {
           && request.resource.data.firstName is string
           && request.resource.data.lastName is string
           && request.resource.data.fullName is string
-          && request.resource.data.createdAt is timestamp);
+          && request.resource.data.createdAt is timestamp)
+        ||
+        // Code-free registration (new flow). The user creates only their own
+        // profile and cannot choose a privileged role or an approved state.
+        // `role` is kept as a compatibility alias of `rol` during the migration.
+        (isSignedIn()
+          && request.auth.uid == uid
+          && request.resource.data.uid == uid
+          && request.resource.data.rol in ['tutor', 'docente']
+          && request.resource.data.role == request.resource.data.rol
+          && request.resource.data.estado in ['activo', 'pendiente']
+          && request.resource.data.correo == request.auth.token.email
+          && request.resource.data.email == request.auth.token.email
+          && request.resource.data.nombre is string
+          && request.resource.data.fullName is string
+          && request.resource.data.schoolId is string
+          && request.resource.data.active == true
+          && request.resource.data.createdAt is timestamp
+          && (request.resource.data.rol == 'docente'
+            || (request.resource.data.vinculacion == 'pendiente'
+              && request.resource.data.hijoSolicitado is string)));
       allow delete: if false;
 
       // Self-service edits and principal-managed edits share this rule, but

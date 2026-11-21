@@ -23,8 +23,8 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.ArrowForward
-import androidx.compose.material.icons.automirrored.outlined.ArrowBack
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.School
@@ -57,6 +57,7 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.aulasegura.domain.repository.RegistrationKind
 import com.example.aulasegura.ui.components.AulaField
 import com.example.aulasegura.ui.components.PillButton
 import com.example.aulasegura.ui.components.ShieldPattern
@@ -67,7 +68,6 @@ import com.example.aulasegura.ui.theme.DmSans
 import com.example.aulasegura.ui.theme.Error
 import com.example.aulasegura.ui.theme.JetBrainsMono
 import com.example.aulasegura.ui.theme.OnSecondaryFixed
-import com.example.aulasegura.ui.theme.OnSurface
 import com.example.aulasegura.ui.theme.OnSurfaceVariant
 import com.example.aulasegura.ui.theme.Outline
 import com.example.aulasegura.ui.theme.OutlineVariant
@@ -84,30 +84,31 @@ import com.example.aulasegura.ui.theme.SurfaceVariant
 import com.example.aulasegura.ui.theme.TertiaryContainer
 
 /**
- * 1.7 — Registro de Familias.
- * Ported 1:1 from Stitch screen `4ed8ecd6ef044004bce46d44e15fc520`.
+ * Registro (Tutor / Docente), ported from Stitch screens `88ef2e7c` and
+ * `8325cdd3`. There is no student code: the role is chosen with a segmented
+ * control and the extra field depends on it.
  */
 @Composable
 fun RegisterScreen(
     onBack: () -> Unit,
-    onSkip: () -> Unit,
     onCreated: () -> Unit,
     onLogin: () -> Unit,
     ui: RegisterUiState = RegisterUiState(),
+    onKindChange: (RegistrationKind) -> Unit = {},
     onFullNameChange: (String) -> Unit = {},
     onEmailChange: (String) -> Unit = {},
     onPhoneChange: (String) -> Unit = {},
     onPasswordChange: (String) -> Unit = {},
     onConfirmPasswordChange: (String) -> Unit = {},
-    onCodeChange: (String) -> Unit = {},
+    onChildNameChange: (String) -> Unit = {},
+    onSubjectChange: (String) -> Unit = {},
     onAcceptedChange: (Boolean) -> Unit = {},
     isLoading: Boolean = false,
     errorMessage: String? = null,
 ) {
-    // Visibility is local UI state; every value that matters to the account
-    // lives in RegisterUiState so the ViewModel can validate and submit it.
     var passwordVisible by remember { mutableStateOf(false) }
     var confirmVisible by remember { mutableStateOf(false) }
+    val isTutor = ui.kind == RegistrationKind.TUTOR
 
     Box(
         modifier = Modifier
@@ -121,10 +122,7 @@ fun RegisterScreen(
         )
 
         Column(modifier = Modifier.fillMaxSize()) {
-            RegisterTopBar(
-                onBack = onBack,
-                onSkip = onSkip,
-            )
+            RegisterTopBar(onBack = onBack)
 
             Column(
                 modifier = Modifier
@@ -133,8 +131,14 @@ fun RegisterScreen(
                     .padding(horizontal = 16.dp)
                     .padding(top = 8.dp, bottom = 132.dp),
             ) {
-                Reveal(delayMillis = 40) {
-                    RegisterHeading()
+                Reveal(delayMillis = 40) { RegisterHeading() }
+
+                Reveal(delayMillis = 70) {
+                    KindSelector(
+                        kind = ui.kind,
+                        onKindChange = onKindChange,
+                        modifier = Modifier.padding(bottom = 16.dp),
+                    )
                 }
 
                 Reveal(delayMillis = 90) {
@@ -156,14 +160,24 @@ fun RegisterScreen(
                             keyboardType = KeyboardType.Text,
                         )
 
-                        AulaField(
-                            value = ui.email,
-                            onValueChange = onEmailChange,
-                            placeholder = "ejemplo@correo.com",
-                            leadingIcon = Icons.Outlined.Mail,
-                            label = "Correo electrónico",
-                            keyboardType = KeyboardType.Email,
-                        )
+                        Column {
+                            AulaField(
+                                value = ui.email,
+                                onValueChange = onEmailChange,
+                                placeholder = "ejemplo@correo.com",
+                                leadingIcon = Icons.Outlined.Mail,
+                                label = "Correo electrónico",
+                                keyboardType = KeyboardType.Email,
+                            )
+                            Text(
+                                text = "Usa un correo real: te enviaremos un enlace de verificación.",
+                                color = OnSurfaceVariant,
+                                fontFamily = DmSans,
+                                fontSize = 11.sp,
+                                lineHeight = 15.sp,
+                                modifier = Modifier.padding(start = 4.dp, top = 6.dp),
+                            )
+                        }
 
                         AulaField(
                             value = ui.phone,
@@ -194,6 +208,7 @@ fun RegisterScreen(
                                 },
                             )
                             PasswordStrength(
+                                strength = ui.strength,
                                 modifier = Modifier.padding(top = 6.dp),
                             )
                         }
@@ -217,49 +232,42 @@ fun RegisterScreen(
 
                         Column {
                             AulaField(
-                                value = ui.code,
-                                onValueChange = { onCodeChange(it.uppercase()) },
-                                placeholder = "ABC123",
+                                value = if (isTutor) ui.childName else ui.subject,
+                                onValueChange = if (isTutor) onChildNameChange else onSubjectChange,
+                                placeholder = if (isTutor) "Nombre completo de tu hijo" else "Ej. Matemáticas, 3° grado",
                                 leadingIcon = Icons.Outlined.Badge,
-                                label = "Código del alumno",
+                                label = if (isTutor) "Nombre completo de tu hijo" else "Materia o grado que impartes",
                                 keyboardType = KeyboardType.Text,
-                                textStyle = AulaTextStyles.dataMonoMd,
                                 labelTrailing = {
-                                    Text(
-                                        text = "Requerido por plantel",
-                                        color = PrimaryContainer,
-                                        fontFamily = DmSans,
-                                        fontWeight = FontWeight.Medium,
-                                        fontSize = 11.sp,
-                                    )
+                                    if (isTutor) {
+                                        Text(
+                                            text = "Para tu código QR",
+                                            color = PrimaryContainer,
+                                            fontFamily = DmSans,
+                                            fontWeight = FontWeight.Medium,
+                                            fontSize = 11.sp,
+                                        )
+                                    }
                                 },
                             )
-                            Row(
-                                modifier = Modifier.padding(start = 4.dp, top = 6.dp),
-                                verticalAlignment = Alignment.CenterVertically,
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Outlined.Info,
-                                    contentDescription = null,
-                                    tint = TertiaryContainer,
-                                    modifier = Modifier.size(14.dp),
-                                )
-                                Spacer(Modifier.width(6.dp))
-                                Text(
-                                    text = buildAnnotatedString {
-                                        append("Te lo proporciona la escuela • ")
-                                        withStyle(
-                                            SpanStyle(
-                                                color = Primary,
-                                                fontWeight = FontWeight.Medium,
-                                            ),
-                                        ) {
-                                            append("Ej. ABC123")
-                                        }
-                                    },
-                                    color = OnSurfaceVariant,
-                                    style = AulaTextStyles.dataMonoSm,
-                                )
+                            if (!isTutor) {
+                                Row(
+                                    modifier = Modifier.padding(start = 4.dp, top = 6.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Outlined.Info,
+                                        contentDescription = null,
+                                        tint = TertiaryContainer,
+                                        modifier = Modifier.size(14.dp),
+                                    )
+                                    Spacer(Modifier.width(6.dp))
+                                    Text(
+                                        text = "Tu cuenta será revisada por la directora.",
+                                        color = OnSurfaceVariant,
+                                        style = AulaTextStyles.dataMonoSm,
+                                    )
+                                }
                             }
                         }
 
@@ -274,6 +282,7 @@ fun RegisterScreen(
         }
 
         RegisterBottomBar(
+            label = if (isTutor) "Crear cuenta" else "Enviar solicitud",
             onCreated = onCreated,
             onLogin = onLogin,
             isLoading = isLoading,
@@ -284,19 +293,14 @@ fun RegisterScreen(
 }
 
 @Composable
-private fun RegisterTopBar(
-    onBack: () -> Unit,
-    onSkip: () -> Unit,
-) {
+private fun RegisterTopBar(onBack: () -> Unit) {
     val statusBarTop = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
-
     Row(
         modifier = Modifier
             .fillMaxWidth()
             .padding(horizontal = 16.dp)
             .padding(top = statusBarTop + 16.dp, bottom = 8.dp),
         verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.SpaceBetween,
     ) {
         Box(
             modifier = Modifier
@@ -308,13 +312,13 @@ private fun RegisterTopBar(
             contentAlignment = Alignment.Center,
         ) {
             Icon(
-                imageVector = Icons.AutoMirrored.Outlined.ArrowBack,
+                imageVector = Icons.AutoMirrored.Filled.ArrowBack,
                 contentDescription = "Regresar",
                 tint = PrimaryContainer,
                 modifier = Modifier.size(20.dp),
             )
         }
-
+        Spacer(Modifier.width(12.dp))
         Row(
             modifier = Modifier
                 .clip(PillShape)
@@ -339,19 +343,6 @@ private fun RegisterTopBar(
                 letterSpacing = (-0.2).sp,
             )
         }
-
-        Text(
-            text = "Omitir",
-            color = Primary,
-            fontFamily = DmSans,
-            fontWeight = FontWeight.Medium,
-            fontSize = 12.sp,
-            letterSpacing = 0.2.sp,
-            modifier = Modifier
-                .clip(RoundedCornerShape(8.dp))
-                .clickable(onClick = onSkip)
-                .padding(horizontal = 4.dp, vertical = 4.dp),
-        )
     }
 }
 
@@ -381,9 +372,7 @@ private fun RegisterHeading() {
                 letterSpacing = 0.3.sp,
             )
         }
-
         Spacer(Modifier.height(8.dp))
-
         Text(
             text = "Crea tu cuenta",
             color = Primary,
@@ -393,11 +382,9 @@ private fun RegisterHeading() {
             lineHeight = 34.sp,
             letterSpacing = (-0.6).sp,
         )
-
         Spacer(Modifier.height(8.dp))
-
         Text(
-            text = "Para dar seguimiento a la vida escolar de tus hijos de manera clara y protegida.",
+            text = "Regístrate como tutor o docente para formar parte de la comunidad escolar.",
             color = OnSurfaceVariant,
             fontFamily = DmSans,
             fontSize = 14.sp,
@@ -407,11 +394,45 @@ private fun RegisterHeading() {
 }
 
 @Composable
-private fun AvatarPicker(modifier: Modifier = Modifier) {
-    Column(
-        modifier = modifier,
-        horizontalAlignment = Alignment.CenterHorizontally,
+private fun KindSelector(
+    kind: RegistrationKind,
+    onKindChange: (RegistrationKind) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Row(
+        modifier = modifier
+            .fillMaxWidth()
+            .clip(PillShape)
+            .background(SurfaceContainerLow)
+            .border(1.dp, OutlineVariant.copy(alpha = 0.40f), PillShape)
+            .padding(4.dp),
     ) {
+        RegistrationKind.entries.forEach { option ->
+            val selected = option == kind
+            Box(
+                modifier = Modifier
+                    .weight(1f)
+                    .clip(PillShape)
+                    .background(if (selected) PrimaryContainer else Color.Transparent)
+                    .clickable { onKindChange(option) }
+                    .padding(vertical = 10.dp),
+                contentAlignment = Alignment.Center,
+            ) {
+                Text(
+                    text = if (option == RegistrationKind.TUTOR) "Tutor" else "Docente",
+                    color = if (selected) SurfaceContainerLowest else OnSurfaceVariant,
+                    fontFamily = DmSans,
+                    fontWeight = FontWeight.SemiBold,
+                    fontSize = 13.sp,
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun AvatarPicker(modifier: Modifier = Modifier) {
+    Column(modifier = modifier, horizontalAlignment = Alignment.CenterHorizontally) {
         Box(modifier = Modifier.size(88.dp)) {
             Box(
                 modifier = Modifier
@@ -428,7 +449,6 @@ private fun AvatarPicker(modifier: Modifier = Modifier) {
                     modifier = Modifier.size(48.dp),
                 )
             }
-
             Box(
                 modifier = Modifier
                     .align(Alignment.BottomEnd)
@@ -447,9 +467,7 @@ private fun AvatarPicker(modifier: Modifier = Modifier) {
                 )
             }
         }
-
         Spacer(Modifier.height(8.dp))
-
         Text(
             text = "Agregar foto (opcional)",
             color = OnSurfaceVariant,
@@ -462,10 +480,7 @@ private fun AvatarPicker(modifier: Modifier = Modifier) {
 }
 
 @Composable
-private fun PasswordToggle(
-    visible: Boolean,
-    onToggle: () -> Unit,
-) {
+private fun PasswordToggle(visible: Boolean, onToggle: () -> Unit) {
     Box(
         modifier = Modifier
             .size(32.dp)
@@ -474,11 +489,7 @@ private fun PasswordToggle(
         contentAlignment = Alignment.Center,
     ) {
         Icon(
-            imageVector = if (visible) {
-                Icons.Outlined.VisibilityOff
-            } else {
-                Icons.Outlined.Visibility
-            },
+            imageVector = if (visible) Icons.Outlined.VisibilityOff else Icons.Outlined.Visibility,
             contentDescription = if (visible) "Ocultar contraseña" else "Mostrar contraseña",
             tint = Outline,
             modifier = Modifier.size(20.dp),
@@ -487,7 +498,14 @@ private fun PasswordToggle(
 }
 
 @Composable
-private fun PasswordStrength(modifier: Modifier = Modifier) {
+private fun PasswordStrength(strength: Int, modifier: Modifier = Modifier) {
+    val label = when (strength) {
+        0 -> "SIN CONTRASEÑA"
+        1 -> "DÉBIL"
+        2 -> "MEDIA"
+        3 -> "FUERTE"
+        else -> "MUY FUERTE"
+    }
     Column(modifier = modifier.padding(horizontal = 4.dp)) {
         Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
             repeat(4) { index ->
@@ -497,14 +515,16 @@ private fun PasswordStrength(modifier: Modifier = Modifier) {
                         .height(6.dp)
                         .clip(PillShape)
                         .background(
-                            if (index < 2) SecondaryContainer else SurfaceVariant,
+                            if (index < strength) {
+                                if (strength <= 2) SecondaryContainer else TertiaryContainer
+                            } else {
+                                SurfaceVariant
+                            },
                         ),
                 )
             }
         }
-
         Spacer(Modifier.height(6.dp))
-
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween,
@@ -519,7 +539,7 @@ private fun PasswordStrength(modifier: Modifier = Modifier) {
                 letterSpacing = 0.3.sp,
             )
             Text(
-                text = "SEGURIDAD MEDIA",
+                text = label,
                 color = Secondary,
                 fontFamily = JetBrainsMono,
                 fontWeight = FontWeight.Medium,
@@ -540,10 +560,7 @@ private fun TermsRow(
     onToggle: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    Row(
-        modifier = modifier.fillMaxWidth(),
-        verticalAlignment = Alignment.Top,
-    ) {
+    Row(modifier = modifier.fillMaxWidth(), verticalAlignment = Alignment.Top) {
         Box(
             modifier = Modifier
                 .padding(top = 1.dp)
@@ -567,21 +584,15 @@ private fun TermsRow(
                 )
             }
         }
-
         Spacer(Modifier.width(12.dp))
-
         Text(
             text = buildAnnotatedString {
                 append("Acepto el ")
-                withStyle(
-                    SpanStyle(color = Secondary, fontWeight = FontWeight.SemiBold),
-                ) {
+                withStyle(SpanStyle(color = Secondary, fontWeight = FontWeight.SemiBold)) {
                     append("aviso de privacidad")
                 }
                 append(" y los ")
-                withStyle(
-                    SpanStyle(color = Secondary, fontWeight = FontWeight.SemiBold),
-                ) {
+                withStyle(SpanStyle(color = Secondary, fontWeight = FontWeight.SemiBold)) {
                     append("términos de uso")
                 }
                 append(" de la plataforma escolar.")
@@ -596,6 +607,7 @@ private fun TermsRow(
 
 @Composable
 private fun RegisterBottomBar(
+    label: String,
     onCreated: () -> Unit,
     onLogin: () -> Unit,
     isLoading: Boolean = false,
@@ -629,9 +641,8 @@ private fun RegisterBottomBar(
                 modifier = Modifier.padding(bottom = 6.dp),
             )
         }
-
         PillButton(
-            text = if (isLoading) "Creando cuenta…" else "Crear cuenta",
+            text = if (isLoading) "Enviando…" else label,
             onClick = { if (!isLoading) onCreated() },
             containerColor = SecondaryContainer,
             contentColor = SurfaceContainerLowest,
@@ -639,9 +650,7 @@ private fun RegisterBottomBar(
             trailingIcon = Icons.AutoMirrored.Filled.ArrowForward,
             shadowColor = SecondaryContainer.copy(alpha = 0.25f),
         )
-
         Spacer(Modifier.height(10.dp))
-
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text(
                 text = "¿Ya tienes cuenta? ",

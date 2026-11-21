@@ -257,13 +257,13 @@ fun LoginScreen(
                             verticalAlignment = Alignment.CenterVertically,
                         ) {
                             Text(
-                                text = "¿Eres familia? ",
+                                text = "¿No tienes cuenta? ",
                                 color = Outline,
                                 fontFamily = DmSans,
                                 fontSize = 13.sp,
                             )
                             Text(
-                                text = "Crea tu cuenta",
+                                text = "Regístrate como tutor o docente",
                                 color = BrandCoral,
                                 fontFamily = DmSans,
                                 fontWeight = FontWeight.SemiBold,

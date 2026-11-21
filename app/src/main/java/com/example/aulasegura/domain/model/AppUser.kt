@@ -23,4 +23,10 @@ data class AppUser(
     val photoPublicId: String? = null,
     /** Subjects a teacher teaches. Empty for every other role. */
     val subjects: List<String> = emptyList(),
+    /** Account state: `activo` for tutors, `pendiente`/`aprobado`/`rechazado` for teachers. */
+    val estado: String = "",
+    /** Tutor linking state: `pendiente`, `vinculado` or `rechazada`. */
+    val vinculacion: String = "",
+    /** Name the tutor typed for their child, shown in the QR while pending. */
+    val hijoSolicitado: String = "",
 )

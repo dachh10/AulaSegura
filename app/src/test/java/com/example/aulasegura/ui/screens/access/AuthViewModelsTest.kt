@@ -2,6 +2,8 @@ package com.example.aulasegura.ui.screens.access
 
 import com.example.aulasegura.domain.model.AppUser
 import com.example.aulasegura.domain.model.UserRole
+import com.example.aulasegura.domain.repository.AccountRegistrationInput
+import com.example.aulasegura.domain.repository.AccountRegistrationResult
 import com.example.aulasegura.domain.repository.AuthFailure
 import com.example.aulasegura.domain.repository.AuthRepository
 import com.example.aulasegura.domain.repository.AuthResult
@@ -10,6 +12,7 @@ import com.example.aulasegura.domain.repository.PasswordResetResult
 import com.example.aulasegura.domain.repository.ProfilePhotoResult
 import com.example.aulasegura.domain.repository.ProfileUpdateResult
 import com.example.aulasegura.domain.repository.PushTokenRepository
+import com.example.aulasegura.domain.repository.RegistrationKind
 import com.example.aulasegura.domain.repository.TutorRegistrationInput
 import com.example.aulasegura.domain.repository.TutorRegistrationResult
 import kotlinx.coroutines.Dispatchers
@@ -26,6 +29,7 @@ import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
 
@@ -54,6 +58,9 @@ private class FakeAuthRepository(
     var registerResult: TutorRegistrationResult =
         TutorRegistrationResult.Success(user(UserRole.TUTOR))
     var lastRegistration: TutorRegistrationInput? = null
+    var accountRegisterResult: AccountRegistrationResult =
+        AccountRegistrationResult.Success(user(UserRole.TUTOR))
+    var lastAccountRegistration: AccountRegistrationInput? = null
 
     override val currentUserId: String? = null
 
@@ -68,6 +75,13 @@ private class FakeAuthRepository(
     override suspend fun registerTutor(input: TutorRegistrationInput): TutorRegistrationResult {
         lastRegistration = input
         return registerResult
+    }
+
+    override suspend fun registerAccount(
+        input: AccountRegistrationInput,
+    ): AccountRegistrationResult {
+        lastAccountRegistration = input
+        return accountRegisterResult
     }
 
     override suspend fun restoreSession(): AuthResult = restoreResult
@@ -342,22 +356,22 @@ class RegisterViewModelTest {
         vm.setPhone("55 1234 5678")
         vm.setPassword("AulaSegura#2024")
         vm.setConfirmPassword("AulaSegura#2024")
-        vm.setCode("ABC123")
+        vm.setChildName("Mariana Gómez Ruiz")
         vm.setAccepted(true)
         return vm
     }
 
     @Test
-    fun `a bad code is rejected before any account is created`() = runTest(dispatcher) {
+    fun `a missing child name is rejected before any account is created`() = runTest(dispatcher) {
         val repo = FakeAuthRepository()
         val vm = viewModel(repo)
-        vm.setCode("ALU-2024")
+        vm.setChildName("")
 
         vm.submit()
 
-        assertEquals("Escribe el código de 6 caracteres que te dio la escuela.",
+        assertEquals("Escribe el nombre completo de tu hijo.",
             vm.uiState.value.errorMessage)
-        assertNull(repo.lastRegistration)
+        assertNull(repo.lastAccountRegistration)
     }
 
     @Test
@@ -370,33 +384,52 @@ class RegisterViewModelTest {
 
         assertEquals("Acepta el aviso de privacidad y los términos de uso.",
             vm.uiState.value.errorMessage)
-        assertNull(repo.lastRegistration)
+        assertNull(repo.lastAccountRegistration)
     }
 
     @Test
-    fun `a successful registration emits the tutor role`() = runTest(dispatcher) {
+    fun `a successful tutor registration carries the child name`() = runTest(dispatcher) {
         val repo = FakeAuthRepository()
         val vm = viewModel(repo)
 
         vm.submit()
         advanceUntilIdle()
 
-        assertEquals(UserRole.TUTOR, vm.uiState.value.registeredRole)
-        assertEquals("ABC123", repo.lastRegistration?.code)
+        assertTrue(vm.uiState.value.succeeded)
+        assertEquals(RegistrationKind.TUTOR, repo.lastAccountRegistration?.kind)
+        assertEquals("Mariana Gómez Ruiz", repo.lastAccountRegistration?.childName)
+        assertEquals("", repo.lastAccountRegistration?.subject)
         assertFalse(vm.uiState.value.isLoading)
     }
 
     @Test
-    fun `a used code explains why and emits no role`() = runTest(dispatcher) {
+    fun `a teacher registration carries the subject and no child`() = runTest(dispatcher) {
         val repo = FakeAuthRepository()
-        repo.registerResult = TutorRegistrationResult.CodeAlreadyUsed
+        val vm = viewModel(repo)
+        vm.setKind(RegistrationKind.DOCENTE)
+        vm.setChildName("")
+        vm.setSubject("Matemáticas")
+
+        vm.submit()
+        advanceUntilIdle()
+
+        assertTrue(vm.uiState.value.succeeded)
+        assertEquals(RegistrationKind.DOCENTE, repo.lastAccountRegistration?.kind)
+        assertEquals("Matemáticas", repo.lastAccountRegistration?.subject)
+        assertEquals("", repo.lastAccountRegistration?.childName)
+    }
+
+    @Test
+    fun `an email already in use explains why and emits no success`() = runTest(dispatcher) {
+        val repo = FakeAuthRepository()
+        repo.accountRegisterResult = AccountRegistrationResult.EmailInUse
         val vm = viewModel(repo)
 
         vm.submit()
         advanceUntilIdle()
 
-        assertNull(vm.uiState.value.registeredRole)
-        assertEquals("Ese código ya fue usado. Pide uno nuevo a la escuela.",
+        assertFalse(vm.uiState.value.succeeded)
+        assertEquals("Ya existe una cuenta con ese correo. Inicia sesión.",
             vm.uiState.value.errorMessage)
     }
 }

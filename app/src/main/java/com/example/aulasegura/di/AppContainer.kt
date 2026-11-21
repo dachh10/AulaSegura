@@ -92,6 +92,7 @@ import com.example.aulasegura.sync.SyncScheduler
 import com.example.aulasegura.sync.UploadIncidentMediaHandler
 import com.example.aulasegura.sync.UploadTaskAttachmentHandler
 import com.example.aulasegura.ui.screens.access.ForgotPasswordViewModel
+import com.example.aulasegura.ui.screens.access.AccessStateViewModel
 import com.example.aulasegura.ui.screens.access.LoginViewModel
 import com.example.aulasegura.ui.screens.access.RegisterViewModel
 import com.example.aulasegura.ui.screens.access.SessionViewModel
@@ -695,6 +696,9 @@ class AppViewModelFactory(
 
         modelClass.isAssignableFrom(RegisterViewModel::class.java) ->
             RegisterViewModel(container.authRepository)
+
+        modelClass.isAssignableFrom(AccessStateViewModel::class.java) ->
+            AccessStateViewModel(container.authRepository)
 
         modelClass.isAssignableFrom(SessionViewModel::class.java) ->
             SessionViewModel(

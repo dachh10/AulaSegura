@@ -35,6 +35,24 @@ interface AuthRepository {
      */
     suspend fun registerTutor(input: TutorRegistrationInput): TutorRegistrationResult
 
+    /**
+     * New code-free registration. Creates the Auth account, sends the
+     * verification email and writes `users/{uid}` with `rol`, `estado`,
+     * `vinculacion` and `hijoSolicitado` or `fechaSolicitud` as appropriate.
+     */
+    suspend fun registerAccount(input: AccountRegistrationInput): AccountRegistrationResult =
+        AccountRegistrationResult.Failed
+
+    /** `true` when the current Auth user has confirmed their email. */
+    suspend fun isEmailVerified(): Boolean = true
+
+    /** Re-sends the verification link to the current Auth user. */
+    suspend fun resendVerificationEmail(): Result<Unit> = Result.success(Unit)
+
+    /** Re-reads `users/{uid}` so a pending approval or linking takes effect. */
+    suspend fun refreshProfile(): AuthResult =
+        AuthResult.Failure(AuthFailure.NO_SESSION)
+
     /** Resolves the persisted session, if any. Used by Splash. */
     suspend fun restoreSession(): AuthResult
 

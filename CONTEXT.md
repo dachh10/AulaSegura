@@ -704,7 +704,7 @@ Cuotas gratuitas relevantes (verificar en la consola antes de la entrega):
 1. Firebase Console → **AI Services → AI Logic → Get started**.
 2. Elegir **Gemini Developer API**. La consola habilita las APIs y crea una Gemini API key asociada al proyecto.
 3. **No** copiar esa key al código ni a `local.properties`: el SDK de AI Logic la resuelve desde el proyecto. Si se filtra al repo, hay que rotarla.
-4. App Check obligatorio (Play Integrity en release, debug provider en desarrollo).
+4. App Check obligatorio (Play Integrity en release, debug provider en desarrollo). En desarrollo, cada dispositivo de pruebas necesita su **token de depuración** registrado en la consola (App Check → Apps → Administrar tokens de depuración); sin ese registro AI Logic rechaza la petición y el fallo se ve igual que una mala configuración del cliente.
 
 **Modelo:** elegir un modelo **de texto estable** disponible en el free tier desde la consola. Quedan prohibidos por costo:
 
@@ -726,6 +726,7 @@ porque trae cuota por minuto más alta y menor latencia.
 
 - Responde preguntas sobre asistencia, tareas, avisos e incidentes **de sus propios hijos**.
 - El contexto se arma en el cliente antes del prompt: resumen de asistencia de los últimos 30 días, tareas pendientes y avisos vigentes de esos alumnos.
+- El modelo responde **sólo** con los datos del contexto; si el dato no está, dice "sin registro". Lo fijan la instrucción de sistema y el prompt determinista, no la buena voluntad del modelo.
 - **Nunca** se envían datos de otros alumnos, credenciales, CURP ni identificadores internos.
 - Historial de conversación solo en memoria del `ViewModel`; no se persiste en Firestore por privacidad.
 - Respuestas acotadas (`maxOutputTokens` bajo) y en español.
@@ -740,9 +741,14 @@ porque trae cuota por minuto más alta y menor latencia.
 **Ubicación en el código:**
 
 ```
-data/remote/ai/AiAssistantDataSource.kt   → instancia de GenerativeModel y envío del prompt
-domain/usecase/AskAssistantUseCase.kt     → arma el contexto desde Firestore y valida el rol
-ui/screens/parent/ParentAIScreen.kt       → estado de UI (idle, loading, respuesta, error)
+data/remote/ai/AiAssistantDataSource.kt         → GenerativeModel con instrucción de sistema, envío del prompt y mapeo de errores
+domain/model/AssistantContext.kt                → contexto permitido (hijos, contadores de 30 días, tareas, avisos, incidentes) sin ids
+domain/model/AssistantPrompt.kt                 → ASSISTANT_SYSTEM_INSTRUCTION y assistantPrompt(context, question), puro y testeable
+domain/usecase/LoadAssistantContextUseCase.kt   → arma el contexto con las lecturas del tutor; cierra ante cualquier fallo
+domain/usecase/AskAssistantUseCase.kt           → flag de Remote Config, analytics, timeout y composición del prompt
+ui/screens/parent/ParentAIUi.kt                 → estado de UI, bienvenida, FAQ de respaldo y tarjetas de tareas
+ui/screens/parent/ParentAIViewModel.kt          → historial en memoria, envío y fallos tipados
+ui/screens/parent/ParentAIScreen.kt             → render del estado
 ```
 
 ### Eventos de Analytics

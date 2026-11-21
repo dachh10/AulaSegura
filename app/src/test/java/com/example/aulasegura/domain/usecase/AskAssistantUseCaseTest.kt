@@ -25,7 +25,7 @@ class AskAssistantUseCaseTest {
     fun `a disabled assistant answers without spending a request`() = runTest {
         val assistant = FakeAssistant(enabled = false)
         val events = mutableListOf<AnalyticsEvent>()
-        val useCase = AskAssistantUseCase(assistant) { events += it }
+        val useCase = AskAssistantUseCase(assistant, analytics = { events += it })
 
         val answer = useCase(UserRole.TUTOR, "¿Qué tareas tiene Mariana?")
 
@@ -38,7 +38,7 @@ class AskAssistantUseCaseTest {
     fun `a blank question never reaches the network`() = runTest {
         val assistant = FakeAssistant(enabled = true)
         val events = mutableListOf<AnalyticsEvent>()
-        val useCase = AskAssistantUseCase(assistant) { events += it }
+        val useCase = AskAssistantUseCase(assistant, analytics = { events += it })
 
         val answer = useCase(UserRole.TUTOR, "   ")
 
@@ -51,12 +51,15 @@ class AskAssistantUseCaseTest {
     fun `the question is trimmed and the role travels with the event`() = runTest {
         val assistant = FakeAssistant(enabled = true)
         val events = mutableListOf<AnalyticsEvent>()
-        val useCase = AskAssistantUseCase(assistant) { events += it }
+        val useCase = AskAssistantUseCase(assistant, analytics = { events += it })
 
         val answer = useCase(UserRole.TUTOR, "  ¿Cómo justifico una falta?  ")
 
         assertEquals(AiAnswer.Answer("respuesta"), answer)
-        assertEquals("¿Cómo justifico una falta?", assistant.lastPrompt)
+        assertTrue(
+            assistant.lastPrompt.orEmpty()
+                .contains("PREGUNTA DEL TUTOR: ¿Cómo justifico una falta?"),
+        )
         assertEquals(listOf(AnalyticsEvent.AiQuery(UserRole.TUTOR)), events)
     }
 
@@ -67,7 +70,7 @@ class AskAssistantUseCaseTest {
             answer = AiAnswer.Failure(AiFailure.RATE_LIMITED),
         )
         val events = mutableListOf<AnalyticsEvent>()
-        val useCase = AskAssistantUseCase(assistant) { events += it }
+        val useCase = AskAssistantUseCase(assistant, analytics = { events += it })
 
         val answer = useCase(UserRole.TUTOR, "¿Resumen del mes?")
 
@@ -81,7 +84,7 @@ class AskAssistantUseCaseTest {
         // must still end in a message the tutor can act on.
         val assistant = FakeAssistant(enabled = true, answer = null)
         val events = mutableListOf<AnalyticsEvent>()
-        val useCase = AskAssistantUseCase(assistant) { events += it }
+        val useCase = AskAssistantUseCase(assistant, analytics = { events += it })
 
         val answer = useCase(UserRole.TUTOR, "¿Resumen del mes?")
 

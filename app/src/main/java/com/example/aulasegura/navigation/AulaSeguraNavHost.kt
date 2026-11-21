@@ -68,6 +68,7 @@ import com.example.aulasegura.ui.screens.parent.ParentAIScreen
 import com.example.aulasegura.ui.screens.parent.ParentAttendanceScreen
 import com.example.aulasegura.ui.screens.parent.ParentAttendanceUiState
 import com.example.aulasegura.ui.screens.parent.ParentAttendanceViewModel
+import com.example.aulasegura.ui.screens.parent.ParentAIViewModel
 import com.example.aulasegura.ui.screens.parent.ParentChatScreen
 import com.example.aulasegura.ui.screens.parent.ParentChatViewModel
 import com.example.aulasegura.ui.screens.parent.ParentConversationScreen
@@ -548,7 +549,21 @@ fun AulaSeguraNavHost(
             )
         }
         composable(Routes.PARENT_AI) {
-            ParentAIScreen(onBack = { navController.popBackStack() })
+            val container = rememberAppContainer()
+            val aiViewModel: ParentAIViewModel = viewModel(factory = container.viewModelFactory)
+            val aiUi by aiViewModel.state.collectAsState()
+
+            ParentAIScreen(
+                ui = aiUi,
+                onBack = { navController.popBackStack() },
+                onDraftChange = aiViewModel::setDraft,
+                onSend = aiViewModel::send,
+                onAsk = aiViewModel::ask,
+                onRetry = aiViewModel::refresh,
+                onOpenTask = { taskId ->
+                    navController.navigate(Routes.parentTaskDetail(taskId))
+                },
+            )
         }
         composable(Routes.PARENT_NOTIFICATIONS) {
             ParentNotificationsScreen(onBack = { navController.popBackStack() })

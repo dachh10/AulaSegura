@@ -31,6 +31,7 @@ import com.example.aulasegura.data.repository.FirestoreAdminSchoolRepository
 import com.example.aulasegura.data.repository.FirestoreAdminStudentRepository
 import com.example.aulasegura.data.repository.FirestoreAdminUserRepository
 import com.example.aulasegura.data.repository.FirestoreIncidentHistoryRepository
+import com.example.aulasegura.domain.model.UserRole
 import com.example.aulasegura.domain.repository.IncidentHistoryRepository
 import com.example.aulasegura.data.repository.FirestoreAttendanceHistoryRepository
 import com.example.aulasegura.data.repository.FirestoreRosterRepository
@@ -74,6 +75,7 @@ import com.example.aulasegura.domain.repository.TaskRepository
 import com.example.aulasegura.domain.telemetry.AnalyticsLogger
 import com.example.aulasegura.domain.usecase.AskAssistantUseCase
 import com.example.aulasegura.domain.usecase.CreateIncidentUseCase
+import com.example.aulasegura.domain.usecase.LoadAssistantContextUseCase
 import com.example.aulasegura.domain.usecase.SaveRollCallUseCase
 import com.example.aulasegura.domain.usecase.StartRollCallUseCase
 import com.example.aulasegura.sync.AttendanceSyncHandler
@@ -104,6 +106,7 @@ import com.example.aulasegura.ui.screens.admin.AdminProfileViewModel
 import com.example.aulasegura.ui.screens.admin.AdminReportsViewModel
 import com.example.aulasegura.ui.screens.admin.AdminUsersViewModel
 import com.example.aulasegura.ui.screens.parent.ParentAttendanceViewModel
+import com.example.aulasegura.ui.screens.parent.ParentAIViewModel
 import com.example.aulasegura.ui.screens.parent.ParentChatViewModel
 import com.example.aulasegura.ui.screens.parent.ParentConversationViewModel
 import com.example.aulasegura.ui.screens.parent.ParentHomeViewModel
@@ -616,6 +619,16 @@ class AppContainer(context: Context) {
         AskAssistantUseCase(assistant = aiAssistant, analytics = analyticsLogger)
     }
 
+    /**
+     * The children's data the assistant is allowed to see.
+     *
+     * It reads through the same [parentRepository] the family screens use, so the
+     * assistant never asks Firestore for anything the tutor could not open.
+     */
+    val loadAssistantContextUseCase: LoadAssistantContextUseCase by lazy {
+        LoadAssistantContextUseCase(parents = parentRepository)
+    }
+
     // ---- ViewModels ---------------------------------------------------------
     val viewModelFactory: AppViewModelFactory by lazy { AppViewModelFactory(this) }
 }
@@ -789,6 +802,20 @@ class AppViewModelFactory(
             ParentConversationViewModel(
                 chat = container.chatRepository,
                 auth = container.authRepository,
+            )
+
+        modelClass.isAssignableFrom(ParentAIViewModel::class.java) ->
+            ParentAIViewModel(
+                currentUserName = { container.authRepository.currentUser?.fullName.orEmpty() },
+                loadContext = { container.loadAssistantContextUseCase() },
+                askAssistant = { question, context ->
+                    container.askAssistantUseCase(
+                        role = UserRole.TUTOR,
+                        question = question,
+                        context = context,
+                    )
+                },
+                isAvailable = { container.askAssistantUseCase.isAvailable() },
             )
 
         modelClass.isAssignableFrom(AdminDashboardViewModel::class.java) ->

@@ -1,6 +1,7 @@
 package com.example.aulasegura.data.remote.ai
 
 import com.example.aulasegura.data.remote.remoteconfig.RemoteConfigRepository
+import com.example.aulasegura.domain.model.ASSISTANT_SYSTEM_INSTRUCTION
 import com.example.aulasegura.domain.repository.AiAnswer
 import com.example.aulasegura.domain.repository.AiAssistant
 import com.example.aulasegura.domain.repository.AiFailure
@@ -19,6 +20,7 @@ import com.google.firebase.ai.type.RequestOptions
 import com.google.firebase.ai.type.RequestTimeoutException
 import com.google.firebase.ai.type.ServerException
 import com.google.firebase.ai.type.ServiceDisabledException
+import com.google.firebase.ai.type.content
 import java.io.IOException
 import kotlinx.coroutines.CancellationException
 
@@ -35,6 +37,12 @@ import kotlinx.coroutines.CancellationException
  */
 class AiAssistantDataSource(
     private val remoteConfig: RemoteConfigRepository,
+    /**
+     * The rules the model cannot break, sent with the model instead of the
+     * question: anything inside the user turn can be argued with, and this text
+     * is what keeps the answer inside the tutor's own children and data.
+     */
+    private val systemInstruction: String = ASSISTANT_SYSTEM_INSTRUCTION,
 ) : AiAssistant {
 
     /**
@@ -49,6 +57,7 @@ class AiAssistantDataSource(
                 .setTemperature(TEMPERATURE)
                 .setMaxOutputTokens(MAX_OUTPUT_TOKENS)
                 .build(),
+            systemInstruction = content { text(systemInstruction) },
             requestOptions = RequestOptions(timeoutInMillis = REQUEST_TIMEOUT_MILLIS),
         )
     }

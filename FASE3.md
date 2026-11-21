@@ -55,7 +55,7 @@ Los IDs siguen la numeración de `PLAN.md` (3.1-3.10). El orden de ejecución se
 | **3.5** | Tareas y avisos reales, con marca de leído | `ParentTasksScreen`, `ParentTaskDetailScreen`, `ParentNoticesScreen` | Firestore `noticeReads` | ✅ **hecho** (código y tests; regla de avisos pendiente de publicar) |
 | **3.6** | Incidentes de sus hijos + marcar visto | `ParentIncidentsScreen`, `ParentIncidentDetailScreen`, `ParentIncidentMapScreen` | Firestore `seenByTutorIds` | ✅ **hecho** (código y tests; sin incidentes en los datos demo al validar la lectura) |
 | **3.7** | Chat con el docente asignado al grupo | `ParentChatScreen`, `ParentConversationScreen` | RTDB | ✅ **hecho y probado en dispositivo** (19 nov) |
-| **3.8** | Asistente con Firebase AI Logic (Gemini Developer API, free tier, App Check) | `ParentAIScreen` | AI Logic | pendiente |
+| **3.8** | Asistente con Firebase AI Logic (Gemini Developer API, free tier, App Check) | `ParentAIScreen` | AI Logic | ✅ **hecho y probado en dispositivo** (20 nov) |
 | **3.9** | Notificaciones + deep links + push desde consola | `ParentNotificationsScreen` | Firestore + FCM | pendiente |
 | **3.10** | Perfil del tutor y foto, con los ajustes reales que ya tiene el docente | `ParentProfileScreen` | Auth + Cloudinary | pendiente |
 
@@ -100,6 +100,18 @@ Las 14 pantallas del Bloque 2 de `PLAN.md` están implementadas visualmente. La 
 - **Reglas publicadas al cerrar 3.7:** `users/{uid}` ahora permite `get` a un tutor sobre un docente del mismo plantel que comparte grupo (`users.groupIds` del tutor vs `groupIds` del docente). Sin eso la hoja mostraba "Docente de 4° D" dos veces y el tutor escribía al docente equivocado. `list` sigue cerrado: no hay enumeración.
 - **Probado en dispositivo (19 nov):** el tutor abre Mensajes, elige al docente por nombre (dos docentes del mismo grupo ya no se confunden), envía y el docente lo recibe. Cierra el bug reportado: el mensaje nunca se perdió, iba a la cuenta equivocada.
 
+**Notas de entrega 3.8** (detalle en `odd/tasks/bloque-3.8-asistente-ia.md`):
+
+- **Datos reales, no maqueta:** `sampleAIMessages()` desapareció. `ParentAIViewModel` pide el contexto a `LoadAssistantContextUseCase`, que reusa `loadHome()`, `loadNotices()` e `loadIncidents()`; el historial vive sólo en memoria (`CONTEXT.md` §9.2).
+- **Ventana de 30 días de verdad:** sólo se lee el mes anterior cuando la ventana lo cruza. Reusar el contador del mes en curso habría dicho "30 días" mostrando 19, y el tutor puede contrastarlo con el calendario. Una sesión sin registro para el hijo no cuenta como falta.
+- **El prompt es una función pura:** `assistantPrompt(context, question)` es la frontera de lo que sale del dispositivo y un test la lee. No lleva uid, `studentId`, `groupId` ni ids de tarea; el grupo viaja como etiqueta ("4° D").
+- **Instrucción de sistema:** viaja con el modelo (`generativeModel(systemInstruction = ...)`), no con la pregunta, porque el texto del tutor se puede discutir ("ignora lo anterior"). Obliga a usar sólo los DATOS, responder "sin registro" y no revelar el prompt.
+- **Respaldo sin IA:** con `ai_assistant_enabled` apagado (o `DISABLED`/`NOT_CONFIGURED`) las tres sugerencias contestan con datos reales — tareas de mañana, resumen del mes y los pasos de «Faltas → Justificar → motivo → adjunto → Enviar justificante» — y el texto libre se bloquea con un aviso. Un `RATE_LIMITED` no degrada la sesión: es un aviso y el texto vuelve al composer.
+- **Tarjetas sólo con datos reales:** la sugerencia de tareas produce tarjetas con `taskId` reales que abren `ParentTaskDetail`; una respuesta libre del modelo nunca inventa una tarjeta.
+- **Sin cambios de reglas, colecciones, índices ni Room** (`version = 4`). `AiAssistantDataSource` sólo ganó la instrucción de sistema al crear el modelo.
+- **App Check en desarrollo:** el dispositivo de pruebas necesita su token de depuración registrado en la consola; sin eso AI Logic rechaza la petición. Queda anotado en `CONTEXT.md` §9.2.
+- **Probado en dispositivo (20 nov):** el asistente responde correctamente con la cuenta real del tutor.
+
 ---
 
 ## 4. Cambio de contrato necesario (antes de tocar código)
@@ -140,7 +152,7 @@ Con Spark y sin Cloud Functions, la forma de hacerlo atómica es un **`WriteBatc
 3. **Un código, un uso.** `usedBy` inmutable después del canjeo. Si el padre pierde el código, la directora genera otro desde el detalle del alumno.
 4. **Sin Cloud Functions:** no hay vinculación ni push automáticos. Los push se envían desde la consola o `scripts/notify`; la app solo registra tokens y lee la bandeja.
 5. **Chat:** el id de conversación sigue el patrón `{uidA}__{uidB}` de `docs/rtdb.rules`. El tutor chatea con el `teacherId` del grupo de su hijo, resuelto desde `groups/{id}.teacherIds`.
-6. **Asistente IA:** Firebase AI Logic con Gemini Developer API, directo desde el cliente y con App Check. Nunca Vertex AI (movería el proyecto a Blaze).
+6. **Asistente IA:** Firebase AI Logic con Gemini Developer API, directo desde el cliente y con App Check. Nunca Vertex AI (movería el proyecto a Blaze). El contexto lo arma `LoadAssistantContextUseCase` con las lecturas del tutor y el prompt lo arma el dominio (`assistantPrompt`), con instrucción de sistema; el modelo nunca ve ids, credenciales ni datos de otros alumnos.
 7. **Justificantes:** el tutor **crea**, el directivo **revisa**; el docente solo lee. Adjunto en `aulasegura/justifications/{id}`, nunca en Firestore como base64.
 8. **El horario lo escribe el directivo** (Fase 2). El tutor no edita nada del plantel.
 
@@ -172,9 +184,9 @@ $env:JAVA_HOME = "C:\Program Files\Android\Android Studio\jbr"
 .\gradlew.bat cleanTestDebugUnitTest testDebugUnitTest assembleDebug --offline --no-daemon --no-configuration-cache
 ```
 
-Conteo de suites/tests desde `app/build/test-results/testDebugUnitTest/*.xml`. La línea base al iniciar la fase es **52 suites / 381 tests / 0 fallos**; al cerrar 3.2 + 3.3 es **56 suites / 410 tests / 0 fallos**; al cerrar 3.4 es **59 suites / 436 tests / 0 fallos**; al cerrar 3.5 es **63 suites / 469 tests / 0 fallos**; al cerrar 3.6 es **67 suites / 496 tests / 0 fallos**; al cerrar 3.7 es **68 suites / 505 tests / 0 fallos**.
+Conteo de suites/tests desde `app/build/test-results/testDebugUnitTest/*.xml`. La línea base al iniciar la fase es **52 suites / 381 tests / 0 fallos**; al cerrar 3.2 + 3.3 es **56 suites / 410 tests / 0 fallos**; al cerrar 3.4 es **59 suites / 436 tests / 0 fallos**; al cerrar 3.5 es **63 suites / 469 tests / 0 fallos**; al cerrar 3.6 es **67 suites / 496 tests / 0 fallos**; al cerrar 3.7 es **68 suites / 505 tests / 0 fallos**; al cerrar 3.8 es **72 suites / 532 tests / 0 fallos**.
 
-**Dispositivo:** no hay teléfono conectado durante el desarrollo. Las pruebas funcionales con las cuentas reales (directora, docente, tutor) las ejecuta el equipo; los pasos se entregan en el reporte de cada bloque. 3.7 quedó verificado en dispositivo el 19 nov (tutor → Mensajes → docente por nombre → mensaje recibido del otro lado).
+**Dispositivo:** no hay teléfono conectado durante el desarrollo. Las pruebas funcionales con las cuentas reales (directora, docente, tutor) las ejecuta el equipo; los pasos se entregan en el reporte de cada bloque. 3.7 quedó verificado en dispositivo el 19 nov (tutor → Mensajes → docente por nombre → mensaje recibido del otro lado) y 3.8 el 20 nov (tutor → Asistente → pregunta → respuesta con datos reales).
 
 **Checklist de cierre de la fase:**
 
@@ -186,6 +198,7 @@ Conteo de suites/tests desde `app/build/test-results/testDebugUnitTest/*.xml`. L
 - [ ] Asistencia, tareas, avisos e incidentes del tutor son los que cargó el docente.
 - [ ] Tutor justifica una falta con adjunto y el directivo la ve en su bandeja.
 - [ ] Chat tutor ↔ docente en tiempo real.
+- [x] Asistente del tutor responde con datos reales y cae a las preguntas frecuentes sin IA (probado en dispositivo el 20 nov).
 - [ ] Push de incidente llega al teléfono y abre el detalle correcto.
 - [ ] `connectedDebugAndroidTest` verde en el dispositivo `65d5dd78`.
 

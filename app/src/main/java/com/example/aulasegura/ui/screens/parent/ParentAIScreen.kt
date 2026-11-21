@@ -16,7 +16,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.navigationBarsPadding
-import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
@@ -30,10 +29,9 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.automirrored.outlined.ArrowBack
-import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.automirrored.outlined.Assignment
+import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.outlined.ChevronRight
-import androidx.compose.material.icons.outlined.Info
 import androidx.compose.material.icons.outlined.Mic
 import androidx.compose.material.icons.outlined.MoreVert
 import androidx.compose.material.icons.outlined.ThumbDown
@@ -45,9 +43,8 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.key
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -73,58 +70,32 @@ import com.example.aulasegura.ui.theme.PrimaryContainer
 import com.example.aulasegura.ui.theme.PrimaryFixed
 import com.example.aulasegura.ui.theme.SecondaryContainer
 import com.example.aulasegura.ui.theme.Surface
-import com.example.aulasegura.ui.theme.SurfaceContainerHigh
 import com.example.aulasegura.ui.theme.SurfaceContainerLowest
 import com.example.aulasegura.ui.theme.SurfaceVariant
 import com.example.aulasegura.ui.theme.TertiaryContainer
 import com.example.aulasegura.ui.theme.TertiaryFixed
-import java.text.SimpleDateFormat
-import java.util.Date
-import java.util.Locale
 
-/** 2.11 — Asistente IA. Ported from Stitch screen `bd8b739044634567b469e6d2fbcafedb`. */
-
-private data class AIMessage(
-    val id: Int,
-    val text: String,
-    val sent: Boolean,
-    val time: String,
-    val showTaskCard: Boolean = false,
-    val showFeedback: Boolean = false,
-)
-
-private fun sampleAIMessages(): List<AIMessage> = listOf(
-    AIMessage(
-        id = 1,
-        text = "¡Hola, Carlos! Soy tu asistente escolar. Puedo ayudarte con tareas, faltas y avisos de Mariana.",
-        sent = false,
-        time = "10:14 AM",
-    ),
-    AIMessage(
-        id = 2,
-        text = "¿Qué tareas tiene Mariana para mañana?",
-        sent = true,
-        time = "10:14 AM",
-    ),
-    AIMessage(
-        id = 3,
-        text = "Mariana tiene 1 tarea para mañana: Matemáticas, fracciones, ejercicios 1 al 10.",
-        sent = false,
-        time = "10:14 AM",
-        showTaskCard = true,
-        showFeedback = true,
-    ),
-)
-
+/**
+ * 2.11 — Asistente IA. Ported from Stitch screen `bd8b739044634567b469e6d2fbcafedb`.
+ *
+ * The screen is a render of [ParentAIUi]: the greeting, the history and the
+ * failures come from `ParentAIViewModel`. Nothing here invents a message — the
+ * sample conversation the visual block used is gone, and the suggestions answer
+ * with real data when the AI is off (`CONTEXT.md` §9.2).
+ */
 @Composable
 fun ParentAIScreen(
+    ui: ParentAIUi,
     onBack: () -> Unit,
+    onDraftChange: (String) -> Unit,
+    onSend: () -> Unit,
+    onAsk: (ParentAIQuestion) -> Unit,
+    onRetry: () -> Unit,
+    onOpenTask: (String) -> Unit,
 ) {
-    var draft by remember { mutableStateOf("") }
-    var messages by remember { mutableStateOf(sampleAIMessages()) }
     val scrollState = rememberScrollState()
 
-    LaunchedEffect(messages.size) {
+    LaunchedEffect(ui.messages.size, ui.sending, ui.notice) {
         scrollState.animateScrollTo(scrollState.maxValue)
     }
 
@@ -136,6 +107,21 @@ fun ParentAIScreen(
             .imePadding(),
     ) {
         AITopBar(onBack = onBack)
+
+        if (ui.faqOnly) {
+            AssistantBanner(
+                text = "El asistente no está disponible en este momento. " +
+                    "Las sugerencias responden con los datos de tus hijos.",
+            )
+        }
+
+        if (ui.contextError != null) {
+            AssistantBanner(
+                text = ui.contextError,
+                action = "Reintentar",
+                onAction = onRetry,
+            )
+        }
 
         Box(
             modifier = Modifier
@@ -156,34 +142,132 @@ fun ParentAIScreen(
                     .padding(top = 12.dp, bottom = 16.dp),
                 verticalArrangement = Arrangement.spacedBy(16.dp),
             ) {
-                WelcomeBubble()
+                Reveal(delayMillis = 0) {
+                    WelcomeBubble(text = ui.welcome.ifBlank {
+                        "¡Hola! Soy tu asistente escolar."
+                    })
+                }
+
                 ChipsRow(
-                    onChipSelected = { chip ->
-                        draft = chip
-                    },
+                    enabled = !ui.sending && !ui.loading,
+                    onChipSelected = onAsk,
                 )
-                messages.forEach { message ->
-                    AIMessageBubble(message = message)
+
+                if (ui.loading) {
+                    Reveal(delayMillis = 80) {
+                        ReceivedBubble(
+                            text = "Un momento: estoy leyendo los datos de tus hijos.",
+                        )
+                    }
+                }
+
+                ui.messages.forEachIndexed { index, message ->
+                    key(message.id) {
+                        Reveal(delayMillis = (index.coerceAtMost(MAX_STAGGERED) * 60)) {
+                            if (message.mine) {
+                                SentBubble(message = message)
+                            } else {
+                                ReceivedBubble(
+                                    text = message.text,
+                                    time = message.time,
+                                    showFeedback = true,
+                                    tasks = message.tasks,
+                                    onOpenTask = onOpenTask,
+                                )
+                            }
+                        }
+                    }
+                }
+
+                if (ui.sending) {
+                    ReceivedBubble(text = "Escribiendo…")
+                }
+
+                if (ui.notice != null) {
+                    NoticeRow(text = ui.notice)
                 }
             }
         }
 
         AIComposer(
-            draft = draft,
-            onDraftChange = { draft = it },
-            onSend = {
-                val text = draft.trim()
-                if (text.isNotEmpty()) {
-                    val now = SimpleDateFormat("hh:mm a", Locale.getDefault()).format(Date())
-                    messages = messages + AIMessage(
-                        id = (messages.maxOfOrNull { it.id } ?: 0) + 1,
-                        text = text,
-                        sent = true,
-                        time = now,
+            draft = ui.draft,
+            enabled = !ui.sending && !ui.faqOnly && !ui.loading,
+            blocked = ui.faqOnly,
+            onDraftChange = onDraftChange,
+            onSend = onSend,
+        )
+    }
+}
+
+/**
+ * One line above the conversation: the kill switch, a read failure with its retry,
+ * or nothing.
+ */
+@Composable
+private fun AssistantBanner(
+    text: String,
+    action: String? = null,
+    onAction: (() -> Unit)? = null,
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 8.dp)
+            .clip(RoundedCornerShape(12.dp))
+            .background(PrimaryFixed)
+            .padding(horizontal = 12.dp, vertical = 10.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(
+            text = text,
+            modifier = Modifier.weight(1f),
+            color = Primary,
+            fontFamily = DmSans,
+            fontSize = 12.sp,
+            lineHeight = 16.sp,
+        )
+
+        if (action != null && onAction != null) {
+            Spacer(Modifier.width(8.dp))
+            val (interaction, pressModifier) = rememberPressScale(0.95f)
+            Box(
+                modifier = pressModifier
+                    .clip(CircleShape)
+                    .clickable(
+                        interactionSource = interaction,
+                        indication = null,
+                        onClick = onAction,
                     )
-                    draft = ""
-                }
-            },
+                    .padding(horizontal = 10.dp, vertical = 6.dp),
+            ) {
+                Text(
+                    text = action,
+                    color = Primary,
+                    fontFamily = BricolageGrotesque,
+                    fontWeight = FontWeight.SemiBold,
+                    fontSize = 12.sp,
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun NoticeRow(text: String) {
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(12.dp))
+            .background(SurfaceContainerLowest)
+            .border(1.dp, SurfaceVariant, RoundedCornerShape(12.dp))
+            .padding(horizontal = 12.dp, vertical = 10.dp),
+    ) {
+        Text(
+            text = text,
+            color = OnSurfaceVariant,
+            fontFamily = DmSans,
+            fontSize = 12.sp,
+            lineHeight = 16.sp,
         )
     }
 }
@@ -296,7 +380,7 @@ private fun AITopBar(onBack: () -> Unit) {
 }
 
 @Composable
-private fun WelcomeBubble() {
+private fun WelcomeBubble(text: String) {
     Row(
         modifier = Modifier.fillMaxWidth(),
         verticalAlignment = Alignment.Top,
@@ -310,7 +394,7 @@ private fun WelcomeBubble() {
                 .padding(horizontal = 14.dp, vertical = 12.dp),
         ) {
             Text(
-                text = "¡Hola, Carlos! Soy tu asistente escolar. Puedo ayudarte con tareas, faltas y avisos de Mariana.",
+                text = text,
                 color = MaterialTheme.colorScheme.onSurface,
                 fontFamily = DmSans,
                 fontSize = 14.sp,
@@ -322,27 +406,23 @@ private fun WelcomeBubble() {
 
 @Composable
 private fun ChipsRow(
-    onChipSelected: (String) -> Unit,
+    enabled: Boolean,
+    onChipSelected: (ParentAIQuestion) -> Unit,
 ) {
-    val chips = listOf(
-        "¿Qué tareas tiene mañana?",
-        "¿Cómo justifico una falta?",
-        "Resumen de asistencia del mes",
-    )
-
     Row(
         modifier = Modifier
             .fillMaxWidth()
             .horizontalScroll(rememberScrollState()),
         horizontalArrangement = Arrangement.spacedBy(8.dp),
     ) {
-        chips.forEach { chip ->
+        ParentAIQuestion.entries.forEach { chip ->
             val (interaction, pressModifier) = rememberPressScale(0.95f)
             Box(
                 modifier = pressModifier
                     .clip(CircleShape)
                     .background(PrimaryFixed)
                     .clickable(
+                        enabled = enabled,
                         interactionSource = interaction,
                         indication = null,
                         onClick = { onChipSelected(chip) },
@@ -350,8 +430,8 @@ private fun ChipsRow(
                     .padding(horizontal = 12.dp, vertical = 8.dp),
             ) {
                 Text(
-                    text = chip,
-                    color = Primary,
+                    text = chip.label,
+                    color = Primary.copy(alpha = if (enabled) 1f else 0.5f),
                     fontFamily = DmSans,
                     fontWeight = FontWeight.Medium,
                     fontSize = 12.sp,
@@ -365,20 +445,13 @@ private fun ChipsRow(
 }
 
 @Composable
-private fun AIMessageBubble(message: AIMessage) {
-    Column(
-        modifier = Modifier.fillMaxWidth(),
-    ) {
-        if (message.sent) {
-            SentBubble(message)
-        } else {
-            ReceivedBubble(message)
-        }
-    }
-}
-
-@Composable
-private fun ReceivedBubble(message: AIMessage) {
+private fun ReceivedBubble(
+    text: String,
+    time: String = "",
+    showFeedback: Boolean = false,
+    tasks: List<ParentAITaskUi> = emptyList(),
+    onOpenTask: (String) -> Unit = {},
+) {
     Box(
         modifier = Modifier.fillMaxWidth(),
         contentAlignment = Alignment.CenterStart,
@@ -392,24 +465,26 @@ private fun ReceivedBubble(message: AIMessage) {
                 .padding(horizontal = 14.dp, vertical = 12.dp),
         ) {
             Text(
-                text = message.text,
+                text = text,
                 color = MaterialTheme.colorScheme.onSurface,
                 fontFamily = DmSans,
                 fontSize = 14.sp,
                 lineHeight = 20.sp,
             )
-            if (message.showTaskCard) {
-                TaskCard()
+
+            tasks.forEach { task ->
+                TaskCard(task = task, onOpenTask = onOpenTask)
             }
-            if (message.showFeedback) {
-                FeedbackRow(time = message.time)
+
+            if (showFeedback) {
+                FeedbackRow(time = time)
             }
         }
     }
 }
 
 @Composable
-private fun SentBubble(message: AIMessage) {
+private fun SentBubble(message: ParentAIMessageUi) {
     Box(
         modifier = Modifier.fillMaxWidth(),
         contentAlignment = Alignment.CenterEnd,
@@ -418,7 +493,8 @@ private fun SentBubble(message: AIMessage) {
             modifier = Modifier
                 .widthIn(max = 306.dp)
                 .clip(RoundedCornerShape(20.dp, 20.dp, 6.dp, 20.dp))
-                .background(PrimaryContainer),
+                .background(PrimaryContainer)
+                .padding(horizontal = 14.dp, vertical = 12.dp),
             horizontalAlignment = Alignment.End,
         ) {
             Text(
@@ -428,26 +504,46 @@ private fun SentBubble(message: AIMessage) {
                 fontSize = 14.sp,
                 lineHeight = 20.sp,
             )
-            Spacer(Modifier.height(4.dp))
-            Text(
-                text = message.time,
-                color = OnPrimary.copy(alpha = 0.7f),
-                fontFamily = JetBrainsMono,
-                fontSize = 10.sp,
-            )
+            if (message.time.isNotBlank()) {
+                Spacer(Modifier.height(4.dp))
+                Text(
+                    text = message.time,
+                    color = OnPrimary.copy(alpha = 0.7f),
+                    fontFamily = JetBrainsMono,
+                    fontSize = 10.sp,
+                )
+            }
         }
     }
 }
 
+/**
+ * "Ver tarea", drawn only when the app knows which task the answer is about.
+ *
+ * The design paints it inside the sample answer; a free-text answer from the model
+ * cannot produce a task id, so it never gets a card. The suggestion about
+ * tomorrow's tasks does, because those rows come from the same data the screen
+ * loaded and the id is real.
+ */
 @Composable
-private fun TaskCard() {
+private fun TaskCard(
+    task: ParentAITaskUi,
+    onOpenTask: (String) -> Unit,
+) {
+    val (interaction, pressModifier) = rememberPressScale(0.97f)
     Row(
-        modifier = Modifier
+        modifier = pressModifier
             .fillMaxWidth()
             .padding(top = 10.dp)
             .clip(RoundedCornerShape(12.dp))
             .background(SurfaceContainerLowest)
-            .border(1.dp, SurfaceVariant, RoundedCornerShape(12.dp)),
+            .border(1.dp, SurfaceVariant, RoundedCornerShape(12.dp))
+            .clickable(
+                interactionSource = interaction,
+                indication = null,
+                onClick = { onOpenTask(task.taskId) },
+            )
+            .padding(horizontal = 8.dp, vertical = 8.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Box(
@@ -475,6 +571,14 @@ private fun TaskCard() {
                 fontWeight = FontWeight.SemiBold,
                 fontSize = 16.sp,
                 lineHeight = 22.sp,
+                maxLines = 1,
+            )
+            Text(
+                text = "${task.subject} — ${task.title}",
+                color = OnSurfaceVariant,
+                fontFamily = DmSans,
+                fontSize = 12.sp,
+                lineHeight = 16.sp,
                 maxLines = 1,
             )
         }
@@ -509,19 +613,23 @@ private fun FeedbackRow(time: String) {
             tint = Outline,
             modifier = Modifier.size(16.dp),
         )
-        Spacer(Modifier.width(8.dp))
-        Text(
-            text = time,
-            color = Outline,
-            fontFamily = JetBrainsMono,
-            fontSize = 10.sp,
-        )
+        if (time.isNotBlank()) {
+            Spacer(Modifier.width(8.dp))
+            Text(
+                text = time,
+                color = Outline,
+                fontFamily = JetBrainsMono,
+                fontSize = 10.sp,
+            )
+        }
     }
 }
 
 @Composable
 private fun AIComposer(
     draft: String,
+    enabled: Boolean,
+    blocked: Boolean,
     onDraftChange: (String) -> Unit,
     onSend: () -> Unit,
 ) {
@@ -550,7 +658,7 @@ private fun AIComposer(
                     .background(SurfaceContainerLowest)
                     .border(
                         width = 1.dp,
-                        color = if (focused) PrimaryContainer else SurfaceVariant,
+                        color = if (focused && enabled) PrimaryContainer else SurfaceVariant,
                         shape = CircleShape,
                     )
                     .padding(horizontal = 14.dp),
@@ -567,6 +675,7 @@ private fun AIComposer(
                     value = draft,
                     onValueChange = onDraftChange,
                     modifier = Modifier.weight(1f),
+                    enabled = enabled,
                     textStyle = TextStyle(
                         color = MaterialTheme.colorScheme.onSurface,
                         fontFamily = DmSans,
@@ -580,7 +689,11 @@ private fun AIComposer(
                         Box {
                             if (draft.isEmpty()) {
                                 Text(
-                                    text = "Pregunta algo...",
+                                    text = if (blocked) {
+                                        "Usa una sugerencia"
+                                    } else {
+                                        "Pregunta algo..."
+                                    },
                                     color = Outline,
                                     fontFamily = DmSans,
                                     fontSize = 14.sp,
@@ -600,8 +713,9 @@ private fun AIComposer(
                     .size(44.dp)
                     .shadow(4.dp, CircleShape)
                     .clip(CircleShape)
-                    .background(SecondaryContainer)
+                    .background(SecondaryContainer.copy(alpha = if (enabled) 1f else 0.4f))
                     .clickable(
+                        enabled = enabled,
                         interactionSource = interaction,
                         indication = null,
                         onClick = onSend,
@@ -618,3 +732,6 @@ private fun AIComposer(
         }
     }
 }
+
+/** How many bubbles keep the entrance delay; later ones appear at once. */
+private const val MAX_STAGGERED = 5

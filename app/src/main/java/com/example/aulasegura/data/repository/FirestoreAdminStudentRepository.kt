@@ -4,6 +4,9 @@ import com.example.aulasegura.domain.model.AdminStudent
 import com.example.aulasegura.domain.model.groupIdFor
 import com.example.aulasegura.domain.model.groupNameFor
 import com.example.aulasegura.domain.model.isValidSection
+import com.example.aulasegura.domain.model.MAX_ROSTER_SIZE
+import com.example.aulasegura.domain.model.nextListNumber
+import com.example.aulasegura.domain.model.renumberRoster
 import com.example.aulasegura.domain.model.StudentListEntry
 import com.example.aulasegura.domain.model.orderStudentList
 import com.example.aulasegura.domain.model.toStudentListEntry
@@ -185,16 +188,12 @@ class FirestoreAdminStudentRepository(
                     section = section,
                     schoolId = schoolId,
                 ).toMutableMap().apply {
+                    // Single write per document: increment lives inside set(merge)
+                    // so the counter accumulates instead of resetting to 1.
+                    put(AdminGroupFields.STUDENT_COUNT, FieldValue.increment(1L))
                     put(AdminGroupFields.UPDATED_AT, FieldValue.serverTimestamp())
                 }
                 batch.set(groupRef, groupDoc, com.google.firebase.firestore.SetOptions.merge())
-                batch.update(
-                    groupRef,
-                    mapOf(
-                        AdminGroupFields.STUDENT_COUNT to FieldValue.increment(1L),
-                        AdminGroupFields.UPDATED_AT to FieldValue.serverTimestamp(),
-                    ),
-                )
             }
             // Keep the student document's group fields canonical too.
             if (hasGroup) {
@@ -305,10 +304,29 @@ class FirestoreAdminStudentRepository(
             section = grupo.trim().uppercase(),
             schoolId = schoolId,
         ).toMutableMap().apply {
+            // ONE write per document per batch. Put the increment INSIDE the
+            // set(merge) so the counter accumulates across assignments; a second
+            // batch.update on the same groupRef would be ignored/overwritten and
+            // leave the count stuck at 1.
+            put(AdminGroupFields.STUDENT_COUNT, FieldValue.increment(studentIds.size.toLong()))
             put(AdminGroupFields.UPDATED_AT, FieldValue.serverTimestamp())
         }
 
         return try {
+            // Read the group's current roster to hand each new student the next
+            // free list number (1..30). A full group cannot take more students.
+            val roster = withTimeout(READ_TIMEOUT_MILLIS) {
+                firestore.collection(AdminStudentFields.COLLECTION)
+                    .whereEqualTo(AdminStudentFields.GROUP_ID, resolvedId)
+                    .get(Source.SERVER).await()
+            }.documents.mapNotNull { snap ->
+                runCatching { AdminStudent.fromDocument(snap.id, snap.safeData()) }.getOrNull()
+            }
+            if (roster.size + studentIds.size > MAX_ROSTER_SIZE) {
+                return AdminStudentResult.Failure(AdminStudentError.UNKNOWN)
+            }
+            var next = nextListNumber(roster) ?: 1
+
             val batch = firestore.batch()
             // get-or-create of the classroom, idempotent on repeat.
             batch.set(groupRef, groupDocument, com.google.firebase.firestore.SetOptions.merge())
@@ -319,17 +337,44 @@ class FirestoreAdminStudentRepository(
                         AdminStudentFields.GROUP_ID to resolvedId,
                         AdminStudentFields.GRUPO to canonicalName,
                         AdminStudentFields.GRADO to grado.toString(),
+                        AdminStudentFields.LIST_NUMBER to next,
+                        AdminStudentFields.UPDATED_AT to FieldValue.serverTimestamp(),
+                    ),
+                )
+                next++
+            }
+            withTimeout(WRITE_TIMEOUT_MILLIS) { batch.commit().await() }
+            AdminStudentResult.Success
+        } catch (error: Exception) {
+            val mapped = mapError(error)
+            AdminStudentResult.Failure(mapped.reason, mapped.detail)
+        }
+    }
+
+    override suspend fun renumberRoster(groupId: String): AdminStudentResult {
+        if (auth.currentUser == null) {
+            return AdminStudentResult.Failure(AdminStudentError.NO_SESSION)
+        }
+        return try {
+            val snapshot = withTimeout(READ_TIMEOUT_MILLIS) {
+                firestore.collection(AdminStudentFields.COLLECTION)
+                    .whereEqualTo(AdminStudentFields.GROUP_ID, groupId)
+                    .get(Source.SERVER).await()
+            }
+            val roster = snapshot.documents.mapNotNull { snap ->
+                runCatching { AdminStudent.fromDocument(snap.id, snap.safeData()) }.getOrNull()
+            }
+            val numbered = renumberRoster(roster)
+            val batch = firestore.batch()
+            numbered.forEach { entry ->
+                batch.update(
+                    firestore.collection(AdminStudentFields.COLLECTION).document(entry.studentId),
+                    mapOf(
+                        AdminStudentFields.LIST_NUMBER to entry.listNumber,
                         AdminStudentFields.UPDATED_AT to FieldValue.serverTimestamp(),
                     ),
                 )
             }
-            batch.update(
-                groupRef,
-                mapOf(
-                    AdminGroupFields.STUDENT_COUNT to FieldValue.increment(studentIds.size.toLong()),
-                    AdminGroupFields.UPDATED_AT to FieldValue.serverTimestamp(),
-                ),
-            )
             withTimeout(WRITE_TIMEOUT_MILLIS) { batch.commit().await() }
             AdminStudentResult.Success
         } catch (error: Exception) {

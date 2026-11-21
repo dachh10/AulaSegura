@@ -147,6 +147,19 @@ class AdminGroupDetailViewModel(
         }
     }
 
+    /** Renumbers this group's roster 1..N by paternal surname. */
+    fun renumberStudents() {
+        val id = _state.value.groupId
+        viewModelScope.launch {
+            when (val result = students.renumberRoster(id)) {
+                is com.example.aulasegura.domain.repository.AdminStudentResult.Success -> load(id)
+                is com.example.aulasegura.domain.repository.AdminStudentResult.Failure -> _state.update {
+                    it.copy(error = "No se pudo asignar el número de lista.")
+                }
+            }
+        }
+    }
+
     fun addSlot() {
         _state.update {
             it.copy(

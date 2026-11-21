@@ -65,6 +65,7 @@ import com.example.aulasegura.ui.theme.SecondaryContainer
 import com.example.aulasegura.ui.theme.SurfaceContainerLow
 import com.example.aulasegura.ui.theme.SurfaceContainerLowest
 import com.example.aulasegura.ui.theme.TertiaryContainer
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -98,6 +99,9 @@ class AccessStateViewModel(
 
     /** True when the tutor was already linked on entry (visiting the QR again). */
     private val wasLinkedOnEntry: Boolean = auth.currentUser?.vinculacion == "vinculado"
+
+    /** Cancelled and replaced every time a new QR is generated in ADD mode. */
+    private var watcherJob: Job? = null
 
     init {
         val current = auth.currentUser
@@ -145,9 +149,12 @@ class AccessStateViewModel(
      */
     fun watchForNewChild(knownIds: Set<String>) {
         val repo = parents ?: return
-        viewModelScope.launch {
+        // A previous QR generation must not leave a second listener behind.
+        watcherJob?.cancel()
+        watcherJob = viewModelScope.launch {
+            val watcher = NewChildWatcher(knownIds)
             repo.observeMyChildren().collect { ids ->
-                if (ids.any { it !in knownIds }) {
+                if (watcher.hasNewChild(ids)) {
                     _uiState.update { it.copy(proceed = true) }
                     return@collect
                 }

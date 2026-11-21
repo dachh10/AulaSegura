@@ -50,7 +50,7 @@ Los IDs siguen la lista acordada en el logbook. El orden de ejecución se define
 | # | Tarea | Pantalla(s) | Servicios | Estado |
 |---|---|---|---|---|
 | **4.1 (T1)** | Migrar `students`/`users` y Room; reglas base; quitar el código obligatorio | sin pantalla nueva | Firestore, Room, reglas | ✅ **lista y mergeada en `main`** - `1ff8eea`, `d98e2ba`, `5b7da3f` (merge `8b6b982`) |
-| **4.2 (T2)** | QR del tutor: generación offline, corregir nombre, escucha en tiempo real | `LinkChildScreen` | `users/{uid}` | ✅ **lista, mergeada y probada en dispositivo** - `8cd167a`, `75e564f` (merge `43f46f0`) |
+| **4.2 (T2)** | QR del tutor: generación offline, corregir nombre, escucha en tiempo real | `LinkChildScreen` | `users/{uid}` | ✅ **lista, mergeada y probada; recuperación corregida en rama** - `8cd167a`, `75e564f` (merge `43f46f0`), fixes `c39dfa3`, `33e6ebb` |
 | **4.3 (T3)** | Escanear alumno: cámara, permiso, validación del QR | `ScanStudentScreen` | CameraX + ZXing | ✅ **lista, mergeada y en verificación en dispositivo** - `c24fefa`, `a26fa07`, fixes `15828eb`, `d43354b` (merge `74df0ca`) |
 | **4.4 (T4)** | Revisar alumno: grado/grupo, duplicados, segundo tutor, alta offline | nueva, directora | `students`, Room, WorkManager | ⬜ pendiente |
 | **4.5 (T5)** | Solicitudes de docentes: listar verificados, aceptar/rechazar, lote | nueva, directora | `users/{uid}.estado` | ⬜ pendiente |
@@ -130,7 +130,9 @@ Cada work unit lleva sus tests en el mismo commit y se verifica con `testDebugUn
 
 **Fallo reportado en dispositivo y corregido (T3):** el botón «Permitir cámara» parecía no hacer nada: el permiso `android.permission.CAMERA` no estaba declarado en `AndroidManifest.xml`, así que el launcher lo denegaba al instante (el log mostraba foreground/background del diálogo sin que se abriera la vista). Fix `15828eb`: declarar el permiso y sacar «Escanear alumno» del `Column` con scroll para dejarlo como botón flotante sobre la barra inferior. Nota: el HTML `docs/stitch/07-panel-directivo.html` ubica la isla centrada (`fixed bottom-[88px] ... justify-center`), no en la esquina; se sigue la ubicación que pidió el dueño (inferior derecha). Verificación: 82 suites / 582 tests / 0 fallos + `assembleDebug` verde. Falta que el dueño repita la prueba en dispositivo.
 
-**T3 (commits `c24fefa`, `a26fa07`, `15828eb`, sin mergear):** `ScanStudentUi.from` valida el payload y rechaza códigos ajenos con «QR no válido» sin escribir nada (2 tests JVM); `ScanStudentScreen` usa CameraX (vista, marco y línea del diseño, linterna y explicación si se niega el permiso) y entrega el payload a una ruta de revisión; botón «Escanear alumno» en el panel del director. CameraX 1.4.0 agregado desde Google Maven (Risk: dependencias nuevas). Verificación: 82 suites / 582 tests / 0 fallos + `assembleDebug` verde. Falta probar en dispositivo el permiso, el escaneo real del QR del tutor y la navegación a revisión.
+**Recuperación del QR y permiso directo (rama `feat/fase4-fix-qr-recovery`, sin mergear).** El dueño reportó que, tras registrarse y verificar, cerrar la app dejaba al tutor sin forma de volver al QR: el Splash navegaba con `role.homeRoute()` (siempre `PARENT_HOME`) y `SessionState.SignedIn` sólo guardaba el rol. Tres work units: `c39dfa3` (el estado lleva el `AppUser` completo y el Splash usa `destinationRoute()`), `b968325` (el botón flotante pide el permiso real de cámara al tocarlo; se eliminó la pantalla intermedia; si se niega hay mensaje corto y enlace a Ajustes cuando es permanente) y `33e6ebb` (caché offline de `estado`/`vinculacion`/`hijoSolicitado`/`fechaSolicitud` + migración Room 5→6, esquema 6 exportado). Verificación: 83 suites / 586 tests / 0 fallos + `assembleDebug` verde. Falta probar en dispositivo: cerrar y reabrir con el tutor pendiente debe mostrar el QR otra vez; tocar «Escanear alumno» debe abrir directo el diálogo del sistema.
+
+**T3 (commits `c24fefa`, `a26fa07`, `15828eb`, `d43354b`, merge `74df0ca`):** `ScanStudentUi.from` valida el payload y rechaza códigos ajenos con «QR no válido» sin escribir nada (2 tests JVM); `ScanStudentScreen` usa CameraX (vista, marco y línea del diseño, linterna y explicación si se niega el permiso) y entrega el payload a una ruta de revisión; botón «Escanear alumno» en el panel del director. CameraX 1.4.0 agregado desde Google Maven (Risk: dependencias nuevas). Verificación: 82 suites / 582 tests / 0 fallos + `assembleDebug` verde. Falta probar en dispositivo el permiso, el escaneo real del QR del tutor y la navegación a revisión.
 
 **Evidencia en dispositivo (T2, 21 nov 2026):** el dueño registró un tutor con correo real, verificó el correo y la app generó el QR del hijo correctamente. Falta el lado directora (T3/T4) para cerrar el ciclo de escaneo.
 
@@ -154,7 +156,7 @@ Cada work unit lleva sus tests en el mismo commit y se verifica con `testDebugUn
 ### Evidencia mínima esperada
 
 - [x] 4.1 - modelos y Room migrados sin borrar datos; reglas base adaptadas; tests y build en verde.
-- [x] 4.2 - QR del tutor generado offline con corrección de nombre y escucha en tiempo real (código y tests; prueba en dispositivo pendiente).
+- [x] 4.2 - QR del tutor generado offline con corrección de nombre y escucha en tiempo real (código y tests; prueba en dispositivo pendiente; recuperación al reabrir en rama, pendiente de merge).
 - [x] 4.3 - escáner con permiso y validación de QR (código y tests; prueba en dispositivo pendiente).
 - [ ] 4.4 - alta del alumno y vinculación, con duplicados y offline.
 - [ ] 4.5 - aprobación de docentes con correo verificado y lote.

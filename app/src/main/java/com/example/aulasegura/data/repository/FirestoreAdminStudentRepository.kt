@@ -10,6 +10,8 @@ import com.example.aulasegura.domain.repository.AdminStudentFields
 import com.example.aulasegura.domain.repository.AdminStudentInput
 import com.example.aulasegura.domain.repository.AdminStudentRepository
 import com.example.aulasegura.domain.repository.AdminStudentResult
+import com.example.aulasegura.domain.repository.ApproveStudentResult
+import com.example.aulasegura.domain.repository.ApprovedStudentInput
 import com.example.aulasegura.domain.repository.AuthRepository
 import com.example.aulasegura.domain.repository.CreateStudentResult
 import com.example.aulasegura.domain.repository.LinkingCodeResult
@@ -145,6 +147,67 @@ class FirestoreAdminStudentRepository(
         } catch (error: Exception) {
             val mapped = mapError(error)
             CreateStudentResult.Failure(mapped.reason, mapped.detail)
+        }
+    }
+
+    override suspend fun approveStudent(input: ApprovedStudentInput): ApproveStudentResult {
+        val schoolId = input.schoolId.ifBlank { auth.currentUser?.schoolId.orEmpty() }
+        if (schoolId.isBlank() || input.tutorUid.isBlank() || input.alumno.isBlank()) {
+            return ApproveStudentResult.Failure(AdminStudentError.UNKNOWN)
+        }
+        val parts = input.alumno.trim().split(Regex("\\s+"), limit = 2)
+        val studentId = "stu-qr-${UUID.randomUUID()}"
+        val document = AdminStudentFields.newStudentDocument(
+            input = AdminStudentInput(
+                firstName = parts.first(),
+                lastName = parts.getOrNull(1).orEmpty(),
+                curp = "",
+                groupId = input.groupId,
+            ),
+            schoolId = schoolId,
+            listNumber = 0,
+            createdBy = input.createdBy,
+        ).toMutableMap().apply {
+            put(AdminStudentFields.TUTOR_IDS, listOf(input.tutorUid))
+            put(AdminStudentFields.TUTORES, listOf(input.tutorUid))
+            put(AdminStudentFields.GRADO, input.grado)
+            put(AdminStudentFields.GRUPO, input.grupo)
+            put(AdminStudentFields.CREADO_POR, input.createdBy)
+            put("createdAt", FieldValue.serverTimestamp())
+            put("updatedAt", FieldValue.serverTimestamp())
+        }
+        return try {
+            val batch = firestore.batch()
+            if (input.duplicateStudentId.isNullOrBlank()) {
+                batch.set(
+                    firestore.collection(AdminStudentFields.COLLECTION).document(studentId),
+                    document,
+                )
+            } else {
+                // A second parent keeps the existing student and its history:
+                // only the tutor lists change.
+                val existing = firestore.collection(AdminStudentFields.COLLECTION)
+                    .document(input.duplicateStudentId)
+                batch.update(
+                    existing,
+                    mapOf(
+                        AdminStudentFields.TUTOR_IDS to FieldValue.arrayUnion(input.tutorUid),
+                        AdminStudentFields.TUTORES to FieldValue.arrayUnion(input.tutorUid),
+                        "updatedAt" to FieldValue.serverTimestamp(),
+                    ),
+                )
+            }
+            batch.update(
+                firestore.collection("users").document(input.tutorUid),
+                mapOf(
+                    "vinculacion" to "vinculado",
+                    "updatedAt" to FieldValue.serverTimestamp(),
+                ),
+            )
+            batch.commit().await()
+            ApproveStudentResult.Success(studentId)
+        } catch (e: Exception) {
+            ApproveStudentResult.Failure(mapError(e).reason)
         }
     }
 

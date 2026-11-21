@@ -33,6 +33,13 @@ interface AdminStudentRepository {
      */
     suspend fun setActive(studentId: String, active: Boolean): AdminStudentResult
 
+    /**
+     * Approves the QR of a tutor: creates the student with the tutor linked and
+     * moves the tutor's `vinculacion` to `vinculado`. Both writes belong to the
+     * director, so they go in one batch.
+     */
+    suspend fun approveStudent(input: ApprovedStudentInput): ApproveStudentResult
+
     /** Creates a one-use linking code for a tutor and returns it to the UI. */
     suspend fun createLinkingCode(studentId: String): LinkingCodeResult
 
@@ -54,6 +61,24 @@ data class AdminStudentInput(
     val curp: String,
     val groupId: String,
 )
+
+/** The director's approval of a scanned tutor QR. */
+data class ApprovedStudentInput(
+    val alumno: String,
+    val tutorUid: String,
+    val schoolId: String,
+    val createdBy: String,
+    val grado: String,
+    val grupo: String,
+    val groupId: String,
+    /** When a student with the same name already exists, add this tutor to it. */
+    val duplicateStudentId: String? = null,
+)
+
+sealed interface ApproveStudentResult {
+    data class Success(val studentId: String) : ApproveStudentResult
+    data class Failure(val reason: AdminStudentError) : ApproveStudentResult
+}
 
 /** Result of a create, carrying the id needed for the linking code. */
 sealed interface CreateStudentResult {

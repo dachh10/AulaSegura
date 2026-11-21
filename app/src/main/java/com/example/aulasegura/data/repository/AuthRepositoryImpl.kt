@@ -489,6 +489,24 @@ class AuthRepositoryImpl(
         awaitClose { registration.remove() }
     }
 
+    override suspend fun setTutorLinking(uid: String, vinculacion: String): Result<Unit> {
+        val director = currentUser
+            ?: return Result.failure(IllegalStateException("NO_SESSION"))
+        if (director.role != UserRole.ADMIN) {
+            return Result.failure(IllegalStateException("NOT_DIRECTOR"))
+        }
+        if (uid.isBlank() || vinculacion !in setOf("vinculado", "rechazada")) {
+            return Result.failure(IllegalArgumentException("INVALID_LINKING"))
+        }
+        return runCatching {
+            firestore.collection(USERS).document(uid)
+                .update(
+                    FIELD_VINCULACION, vinculacion,
+                    "updatedAt", FieldValue.serverTimestamp(),
+                ).await()
+        }
+    }
+
     override suspend fun updateChildName(name: String): Result<Unit> {
         val uid = auth.currentUser?.uid
             ?: return Result.failure(IllegalStateException("NO_SESSION"))

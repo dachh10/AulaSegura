@@ -78,6 +78,13 @@ fun observeLinkingState(): Flow<LinkingState> = emptyFlow()
 /** Corrects the child's name before a rejected QR is generated again. */
 suspend fun updateChildName(name: String): Result<Unit> = Result.success(Unit)
 
+/**
+ * Director-only: decides a tutor's linking after scanning their QR.
+ * The rules allow `vinculacion` only through the principal's whitelist.
+ */
+suspend fun setTutorLinking(uid: String, vinculacion: String): Result<Unit> =
+    Result.success(Unit)
+
     /**
      * Sends the password reset email.
      *

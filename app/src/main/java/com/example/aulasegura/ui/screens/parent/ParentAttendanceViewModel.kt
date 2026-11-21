@@ -6,6 +6,8 @@ import com.example.aulasegura.domain.model.ParentChild
 import com.example.aulasegura.domain.model.ParentMonthAttendance
 import com.example.aulasegura.domain.repository.ParentChildrenResult
 import com.example.aulasegura.domain.repository.ParentMonthResult
+import com.example.aulasegura.data.local.ChildSelection
+import com.example.aulasegura.data.local.indexForSelection
 import com.example.aulasegura.domain.repository.ParentRepository
 import com.example.aulasegura.util.AttendanceTimes
 import com.example.aulasegura.util.SchoolCalendar
@@ -25,6 +27,8 @@ import kotlinx.coroutines.launch
  */
 class ParentAttendanceViewModel(
     private val parents: ParentRepository,
+    private val selection: ChildSelection,
+    private val currentUid: () -> String? = { null },
     private val now: () -> Long = System::currentTimeMillis,
     private val zone: TimeZone = TimeZone.getDefault(),
 ) : ViewModel() {
@@ -62,6 +66,7 @@ class ParentAttendanceViewModel(
     fun cycleChild() {
         if (children.size <= 1) return
         selected = (selected + 1) % children.size
+        selection.select(currentUid().orEmpty(), children[selected].studentId)
         reload()
     }
 
@@ -74,7 +79,7 @@ class ParentAttendanceViewModel(
                     if (children.isEmpty()) {
                         _state.value = ParentAttendanceUiState.NoChildren
                     } else {
-                        if (selected !in children.indices) selected = 0
+                        selected = indexForSelection(selection.selectedId.value, children.map { it.studentId })
                         loadMonth()
                     }
                 }

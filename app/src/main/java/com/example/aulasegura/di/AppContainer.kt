@@ -172,6 +172,11 @@ class AppContainer(context: Context) {
     // ---- Storage ------------------------------------------------------------
     val database: AulaSeguraDatabase by lazy { DatabaseProvider.get(appContext) }
 
+    /** Persisted child selection shared by every parent tab. */
+    val selectedChildStore: com.example.aulasegura.data.local.SelectedChildStore by lazy {
+        com.example.aulasegura.data.local.SelectedChildStore(appContext)
+    }
+
     // ---- Telemetry ----------------------------------------------------------
     /**
      * One logger for the whole app.
@@ -721,7 +726,7 @@ class AppViewModelFactory(
             RegisterViewModel(container.authRepository)
 
         modelClass.isAssignableFrom(AccessStateViewModel::class.java) ->
-            AccessStateViewModel(container.authRepository)
+            AccessStateViewModel(container.authRepository, container.parentRepository)
 
         modelClass.isAssignableFrom(SessionViewModel::class.java) ->
             SessionViewModel(
@@ -813,16 +818,18 @@ class AppViewModelFactory(
             ParentHomeViewModel(
                 parents = container.parentRepository,
                 notifications = container.notificationRepository,
+                selection = container.selectedChildStore,
+                currentUid = { container.authRepository.currentUserId },
             )
 
         modelClass.isAssignableFrom(ParentAttendanceViewModel::class.java) ->
-            ParentAttendanceViewModel(parents = container.parentRepository)
+            ParentAttendanceViewModel(parents = container.parentRepository, selection = container.selectedChildStore, currentUid = { container.authRepository.currentUserId })
 
         modelClass.isAssignableFrom(ParentTasksViewModel::class.java) ->
-            ParentTasksViewModel(parents = container.parentRepository)
+            ParentTasksViewModel(parents = container.parentRepository, selection = container.selectedChildStore, currentUid = { container.authRepository.currentUserId })
 
         modelClass.isAssignableFrom(ParentNoticesViewModel::class.java) ->
-            ParentNoticesViewModel(parents = container.parentRepository)
+            ParentNoticesViewModel(parents = container.parentRepository, selection = container.selectedChildStore, currentUid = { container.authRepository.currentUserId })
 
         modelClass.isAssignableFrom(ParentNotificationsViewModel::class.java) ->
             ParentNotificationsViewModel(notifications = container.notificationRepository)
@@ -836,7 +843,7 @@ class AppViewModelFactory(
             )
 
         modelClass.isAssignableFrom(ParentIncidentsViewModel::class.java) ->
-            ParentIncidentsViewModel(parents = container.parentRepository)
+            ParentIncidentsViewModel(parents = container.parentRepository, selection = container.selectedChildStore, currentUid = { container.authRepository.currentUserId })
 
         modelClass.isAssignableFrom(ParentChatViewModel::class.java) ->
             ParentChatViewModel(chat = container.chatRepository)

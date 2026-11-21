@@ -5,6 +5,7 @@ import androidx.lifecycle.viewModelScope
 import com.example.aulasegura.domain.model.ParentNoticeItem
 import com.example.aulasegura.domain.repository.NoticeReadResult
 import com.example.aulasegura.domain.repository.ParentNoticesResult
+import com.example.aulasegura.data.local.ChildSelection
 import com.example.aulasegura.domain.repository.ParentRepository
 import java.util.TimeZone
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -22,6 +23,8 @@ import kotlinx.coroutines.launch
  */
 class ParentNoticesViewModel(
     private val parents: ParentRepository,
+    private val selection: ChildSelection,
+    private val currentUid: () -> String? = { null },
     private val now: () -> Long = System::currentTimeMillis,
     private val zone: TimeZone = TimeZone.getDefault(),
 ) : ViewModel() {
@@ -77,7 +80,18 @@ class ParentNoticesViewModel(
 
             when (val result = parents.loadNotices()) {
                 is ParentNoticesResult.Loaded -> {
-                    notices = result.notices
+                    // Filter to the selected child's group when we can resolve it.
+                    val children = when (val kids = parents.loadChildren()) {
+                        is com.example.aulasegura.domain.repository.ParentChildrenResult.Loaded -> kids.children
+                        else -> emptyList()
+                    }
+                    val selectedId = selection.ensureValid(currentUid().orEmpty(), children.map { it.studentId })
+                    val selectedGroup = children.firstOrNull { it.studentId == selectedId }?.groupId
+                    notices = if (selectedGroup.isNullOrBlank()) {
+                        result.notices
+                    } else {
+                        result.notices.filter { it.groupId.isBlank() || it.groupId == selectedGroup }
+                    }
                     publish()
                 }
 

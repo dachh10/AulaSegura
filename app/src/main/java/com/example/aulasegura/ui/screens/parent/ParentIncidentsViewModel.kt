@@ -6,6 +6,8 @@ import com.example.aulasegura.domain.model.ParentChild
 import com.example.aulasegura.domain.model.ParentIncident
 import com.example.aulasegura.domain.repository.ParentChildrenResult
 import com.example.aulasegura.domain.repository.ParentIncidentsResult
+import com.example.aulasegura.data.local.ChildSelection
+import com.example.aulasegura.data.local.indexForSelection
 import com.example.aulasegura.domain.repository.ParentRepository
 import java.util.TimeZone
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -21,6 +23,8 @@ import kotlinx.coroutines.launch
  */
 class ParentIncidentsViewModel(
     private val parents: ParentRepository,
+    private val selection: ChildSelection,
+    private val currentUid: () -> String? = { null },
     private val zone: TimeZone = TimeZone.getDefault(),
 ) : ViewModel() {
 
@@ -43,6 +47,7 @@ class ParentIncidentsViewModel(
     fun cycleChild() {
         if (children.size <= 1) return
         selected = (selected + 1) % children.size
+        selection.select(currentUid().orEmpty(), children[selected].studentId)
         publish()
     }
 
@@ -55,7 +60,7 @@ class ParentIncidentsViewModel(
                     if (children.isEmpty()) {
                         _state.value = ParentIncidentsUiState.NoChildren
                     } else {
-                        if (selected !in children.indices) selected = 0
+                        selected = indexForSelection(selection.selectedId.value, children.map { it.studentId })
                         loadIncidents()
                     }
                 }

@@ -86,7 +86,7 @@ class ParentTasksViewModelTest {
     @Test
     fun `changing the filter does not read the tasks again`() = runTest(dispatcher) {
         val parents = FakeParents(tasks = mapOf("grp-3b" to listOf(task("hoy", at(2026, 11, 18, 8)))))
-        val viewModel = ParentTasksViewModel(parents, now = { at(2026, 11, 18, 12) }, zone = zone)
+        val viewModel = ParentTasksViewModel(parents, selection = TestChildSelection(), now = { at(2026, 11, 18, 12) }, zone = zone)
         advanceUntilIdle()
 
         viewModel.selectFilter(ParentTaskFilter.All)
@@ -120,7 +120,7 @@ class ParentTasksViewModelTest {
     @Test
     fun `a single child cannot be switched`() = runTest(dispatcher) {
         val parents = FakeParents(tasks = mapOf("grp-3b" to emptyList()))
-        val viewModel = ParentTasksViewModel(parents, now = { at(2026, 11, 18, 12) }, zone = zone)
+        val viewModel = ParentTasksViewModel(parents, selection = TestChildSelection(), now = { at(2026, 11, 18, 12) }, zone = zone)
         advanceUntilIdle()
 
         viewModel.cycleChild()
@@ -143,7 +143,7 @@ class ParentTasksViewModelTest {
             tasks = mapOf("grp-3b" to listOf(task("hoy", at(2026, 11, 18, 8)))),
             failure = RosterFailure.OFFLINE,
         )
-        val viewModel = ParentTasksViewModel(parents, now = { at(2026, 11, 18, 12) }, zone = zone)
+        val viewModel = ParentTasksViewModel(parents, selection = TestChildSelection(), now = { at(2026, 11, 18, 12) }, zone = zone)
         advanceUntilIdle()
 
         assertEquals(
@@ -163,6 +163,7 @@ class ParentTasksViewModelTest {
         children: List<ParentChild> = listOf(CHILD),
         tasks: Map<String, List<ParentTaskItem>> = emptyMap(),
     ) = ParentTasksViewModel(
+        selection = TestChildSelection(),
         parents = FakeParents(children = children, tasks = tasks),
         now = { at(2026, 11, 18, 12) },
         zone = zone,

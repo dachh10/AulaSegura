@@ -78,6 +78,7 @@ class ParentNoticesViewModelTest {
             notices = listOf(notice("hoy", at(2026, 11, 18, 9))),
         )
         val viewModel = ParentNoticesViewModel(
+            selection = TestChildSelection(),
             parents = parents,
             now = { at(2026, 11, 18, 12) },
             zone = zone,
@@ -102,6 +103,7 @@ class ParentNoticesViewModelTest {
             readResult = NoticeReadResult.Failed(RosterFailure.OFFLINE),
         )
         val viewModel = ParentNoticesViewModel(
+            selection = TestChildSelection(),
             parents = parents,
             now = { at(2026, 11, 18, 12) },
             zone = zone,
@@ -165,6 +167,7 @@ class ParentNoticesViewModelTest {
         notices: List<ParentNoticeItem>,
         failure: RosterFailure? = null,
     ) = ParentNoticesViewModel(
+        selection = TestChildSelection(),
         parents = FakeNotices(notices = notices, failure = failure),
         now = { at(2026, 11, 18, 12) },
         zone = zone,

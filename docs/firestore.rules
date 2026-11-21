@@ -148,7 +148,10 @@ service cloud.firestore {
       return [
         'firstName', 'lastName', 'fullName', 'phone', 'photoUrl',
         'photoPublicId', 'subjects', 'groupIds', 'studentIds',
-        'preferences', 'active', 'updatedAt'
+        'preferences', 'active', 'updatedAt',
+        // Fase 4: the director decides teacher approval and tutor linking.
+        // A user can never write these about themselves (see the self whitelist).
+        'estado', 'vinculacion'
       ];
     }
 

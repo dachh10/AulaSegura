@@ -99,6 +99,7 @@ private val AttentionText = Color(0xFF92400E)
 @Composable
 fun AdminDashboardScreen(
     onNotificaciones: () -> Unit = {},
+    onSolicitudes: () -> Unit = {},
     onEscanear: () -> Unit = {},
     onUsuarios: () -> Unit = {},
     onGrupos: () -> Unit = {},
@@ -148,6 +149,31 @@ fun AdminDashboardScreen(
             verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
             Reveal(0) { AdminTopBar(onNotificaciones = onNotificaciones) }
+            Reveal(30) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(20.dp))
+                        .background(SurfaceContainerLowest)
+                        .clickable(onClick = onSolicitudes)
+                        .padding(16.dp),
+                ) {
+                    Text(
+                        text = "Solicitudes de docentes: ${uiState.pendingTeachers} pendientes",
+                        color = Primary,
+                        fontFamily = DmSans,
+                        fontWeight = FontWeight.SemiBold,
+                        fontSize = 14.sp,
+                    )
+                    Spacer(Modifier.height(8.dp))
+                    Text(
+                        text = "Revisar",
+                        color = BrandCoral,
+                        fontFamily = DmSans,
+                        fontSize = 13.sp,
+                    )
+                }
+            }
             Reveal(60) {
                 AttendanceTodayCard(
                     message = todayAttendanceMessage(

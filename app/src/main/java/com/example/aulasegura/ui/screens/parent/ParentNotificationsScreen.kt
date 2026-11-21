@@ -29,16 +29,12 @@ import androidx.compose.material.icons.automirrored.outlined.Assignment
 import androidx.compose.material.icons.automirrored.outlined.Chat
 import androidx.compose.material.icons.filled.Campaign
 import androidx.compose.material.icons.filled.DoneAll
-import androidx.compose.material.icons.filled.VerifiedUser
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material.icons.outlined.Inbox
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -49,6 +45,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.aulasegura.domain.model.NotificationType
 import com.example.aulasegura.ui.components.ShieldPattern
 import com.example.aulasegura.ui.components.rememberPressScale
 import com.example.aulasegura.ui.screens.access.Reveal
@@ -71,121 +68,15 @@ private val InkMuted = Color(0xFF8A8EA8)
 private val WarmBorder = Color(0xFFE6E1D8)
 private val Amber500 = Color(0xFFED8936)
 private val Sky500 = Color(0xFF3B82F6)
-private val Emerald500 = Color(0xFF10B981)
-
-private enum class NotificationFilter(val label: String) {
-    Todas("Todas"),
-    Asistencia("Asistencia"),
-    Tareas("Tareas"),
-    Avisos("Avisos"),
-    Mensajes("Mensajes"),
-}
-
-private enum class NotificationCategory {
-    Asistencia,
-    Tarea,
-    Aviso,
-    Mensaje,
-}
-
-private data class Notification(
-    val id: Int,
-    val title: String,
-    val body: String,
-    val time: String,
-    val category: NotificationCategory,
-    val section: String,
-    val urgent: Boolean,
-    val initiallyUnread: Boolean,
-)
-
-private fun sampleNotifications(): List<Notification> = listOf(
-    Notification(
-        id = 1,
-        title = "Falta registrada",
-        body = "Mariana no asistió hoy. Puedes justificarla.",
-        time = "09:15",
-        category = NotificationCategory.Asistencia,
-        section = "HOY",
-        urgent = true,
-        initiallyUnread = true,
-    ),
-    Notification(
-        id = 2,
-        title = "Nueva tarea de Matemáticas",
-        body = "Fracciones, ejercicios 1 al 10.",
-        time = "08:02",
-        category = NotificationCategory.Tarea,
-        section = "HOY",
-        urgent = false,
-        initiallyUnread = true,
-    ),
-    Notification(
-        id = 3,
-        title = "Mensaje del Prof. Salinas",
-        body = "Mariana tendrá examen el jueves, prepárate con las fracciones.",
-        time = "07:40",
-        category = NotificationCategory.Mensaje,
-        section = "HOY",
-        urgent = false,
-        initiallyUnread = true,
-    ),
-    Notification(
-        id = 4,
-        title = "Nuevo aviso de Dirección",
-        body = "Suspensión de clases el 17 de noviembre por junta de consejo técnico.",
-        time = "Lun",
-        category = NotificationCategory.Aviso,
-        section = "ANTERIORES",
-        urgent = false,
-        initiallyUnread = true,
-    ),
-    Notification(
-        id = 5,
-        title = "Falta justificada",
-        body = "El justificante del 31 de octubre fue aceptado.",
-        time = "Lun",
-        category = NotificationCategory.Asistencia,
-        section = "ANTERIORES",
-        urgent = false,
-        initiallyUnread = false,
-    ),
-    Notification(
-        id = 6,
-        title = "Taller de arte el viernes",
-        body = "Traer cartulina y plumones para la feria de ciencias.",
-        time = "Vie 31 oct",
-        category = NotificationCategory.Aviso,
-        section = "ANTERIORES",
-        urgent = false,
-        initiallyUnread = false,
-    ),
-)
-
-private fun notificationBadgeColor(notification: Notification): Color = when {
-    notification.urgent -> BrandCoral
-    notification.category == NotificationCategory.Asistencia -> BrandCoral
-    notification.category == NotificationCategory.Tarea -> Amber500
-    notification.category == NotificationCategory.Mensaje -> Sky500
-    else -> PrimaryContainer
-}
-
-private fun notificationBadgeIcon(notification: Notification): ImageVector = when {
-    notification.title.contains("justificada", ignoreCase = true) -> Icons.Filled.VerifiedUser
-    notification.category == NotificationCategory.Asistencia -> Icons.Filled.Warning
-    notification.category == NotificationCategory.Tarea -> Icons.AutoMirrored.Outlined.Assignment
-    notification.category == NotificationCategory.Mensaje -> Icons.AutoMirrored.Outlined.Chat
-    else -> Icons.Filled.Campaign
-}
 
 @Composable
-fun ParentNotificationsScreen(onBack: () -> Unit) {
-    var filter by remember { mutableStateOf(NotificationFilter.Todas) }
-    var readIds by remember { mutableStateOf(emptySet<Int>()) }
-    val notifications = remember { sampleNotifications() }
-
-    val unreadCount = notifications.count { it.initiallyUnread && it.id !in readIds }
-
+fun ParentNotificationsScreen(
+    onBack: () -> Unit,
+    ui: ParentNotificationsUi = ParentNotificationsUi(),
+    onFilterChange: (ParentNotificationFilter) -> Unit = {},
+    onMarkAllRead: () -> Unit = {},
+    onOpen: (ParentNotificationRowUi) -> Unit = {},
+) {
     Box(
         modifier = Modifier
             .fillMaxSize()
@@ -205,8 +96,8 @@ fun ParentNotificationsScreen(onBack: () -> Unit) {
         ) {
             Reveal(0) {
                 NotificationsTopBar(
-                    unreadCount = unreadCount,
-                    onMarkAllRead = { readIds = readIds + notifications.map { it.id } },
+                    unreadCount = ui.unread,
+                    onMarkAllRead = onMarkAllRead,
                     onBack = onBack,
                 )
             }
@@ -220,17 +111,24 @@ fun ParentNotificationsScreen(onBack: () -> Unit) {
             ) {
                 Reveal(60) {
                     NotificationFilters(
-                        selected = filter,
-                        onSelect = { filter = it },
+                        filters = ui.filters,
+                        selected = ui.activeFilter,
+                        onSelect = onFilterChange,
                     )
                 }
                 Reveal(120) {
-                    NotificationList(
-                        filter = filter,
-                        notifications = notifications,
-                        readIds = readIds,
-                        onOpen = { id -> readIds = readIds + id },
-                    )
+                    if (ui.groups.isEmpty()) {
+                        // Empty while loading is silence, not "no notifications":
+                        // the second one is a claim we cannot make yet.
+                        if (!ui.loading) {
+                            EmptyNotifications(notice = ui.notice)
+                        }
+                    } else {
+                        NotificationList(
+                            groups = ui.groups,
+                            onOpen = onOpen,
+                        )
+                    }
                 }
                 Spacer(Modifier.height(32.dp))
             }
@@ -349,8 +247,9 @@ private fun MarkAllReadButton(
 
 @Composable
 private fun NotificationFilters(
-    selected: NotificationFilter,
-    onSelect: (NotificationFilter) -> Unit,
+    filters: List<ParentNotificationFilter>,
+    selected: ParentNotificationFilter,
+    onSelect: (ParentNotificationFilter) -> Unit,
 ) {
     Row(
         modifier = Modifier
@@ -358,7 +257,7 @@ private fun NotificationFilters(
             .horizontalScroll(rememberScrollState()),
         horizontalArrangement = Arrangement.spacedBy(8.dp),
     ) {
-        NotificationFilter.entries.forEach { filter ->
+        filters.forEach { filter ->
             NotificationFilterChip(
                 label = filter.label,
                 selected = filter == selected,
@@ -414,52 +313,29 @@ private fun NotificationFilterChip(
 
 @Composable
 private fun NotificationList(
-    filter: NotificationFilter,
-    notifications: List<Notification>,
-    readIds: Set<Int>,
-    onOpen: (Int) -> Unit,
+    groups: List<ParentNotificationGroupUi>,
+    onOpen: (ParentNotificationRowUi) -> Unit,
 ) {
-    val visible = when (filter) {
-        NotificationFilter.Todas -> notifications
-        NotificationFilter.Asistencia ->
-            notifications.filter { it.category == NotificationCategory.Asistencia }
-        NotificationFilter.Tareas ->
-            notifications.filter { it.category == NotificationCategory.Tarea }
-        NotificationFilter.Avisos ->
-            notifications.filter { it.category == NotificationCategory.Aviso }
-        NotificationFilter.Mensajes ->
-            notifications.filter { it.category == NotificationCategory.Mensaje }
-    }
-
-    if (visible.isEmpty()) {
-        EmptyNotifications()
-        return
-    }
-
     Column(
         modifier = Modifier.fillMaxWidth(),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        listOf("HOY", "ANTERIORES").forEach { section ->
-            val sectionNotifications = visible.filter { it.section == section }
-            if (sectionNotifications.isNotEmpty()) {
-                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                    Text(
-                        text = section,
-                        color = OnSurfaceVariant,
-                        fontFamily = JetBrainsMono,
-                        fontWeight = FontWeight.SemiBold,
-                        fontSize = 11.sp,
-                        letterSpacing = 1.2.sp,
-                        modifier = Modifier.padding(horizontal = 4.dp),
+        groups.forEach { group ->
+            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Text(
+                    text = group.label,
+                    color = OnSurfaceVariant,
+                    fontFamily = JetBrainsMono,
+                    fontWeight = FontWeight.SemiBold,
+                    fontSize = 11.sp,
+                    letterSpacing = 1.2.sp,
+                    modifier = Modifier.padding(horizontal = 4.dp),
+                )
+                group.rows.forEach { notification ->
+                    NotificationCard(
+                        notification = notification,
+                        onClick = { onOpen(notification) },
                     )
-                    sectionNotifications.forEach { notification ->
-                        NotificationCard(
-                            notification = notification,
-                            unread = notification.initiallyUnread && notification.id !in readIds,
-                            onClick = { onOpen(notification.id) },
-                        )
-                    }
                 }
             }
         }
@@ -468,10 +344,10 @@ private fun NotificationList(
 
 @Composable
 private fun NotificationCard(
-    notification: Notification,
-    unread: Boolean,
+    notification: ParentNotificationRowUi,
     onClick: () -> Unit,
 ) {
+    val unread = !notification.read
     val (interaction, pressModifier) = rememberPressScale(0.99f)
     Row(
         modifier = pressModifier
@@ -488,11 +364,11 @@ private fun NotificationCard(
             modifier = Modifier
                 .size(44.dp)
                 .clip(CircleShape)
-                .background(notificationBadgeColor(notification)),
+                .background(notificationBadgeColor(notification.type)),
             contentAlignment = Alignment.Center,
         ) {
             Icon(
-                imageVector = notificationBadgeIcon(notification),
+                imageVector = notificationBadgeIcon(notification.type),
                 contentDescription = null,
                 tint = Color.White,
                 modifier = Modifier.size(21.dp),
@@ -579,7 +455,7 @@ private fun NotificationCard(
 }
 
 @Composable
-private fun EmptyNotifications() {
+private fun EmptyNotifications(notice: String?) {
     Column(
         modifier = Modifier
             .fillMaxWidth()
@@ -602,7 +478,7 @@ private fun EmptyNotifications() {
         }
         Spacer(Modifier.height(12.dp))
         Text(
-            text = "Sin notificaciones",
+            text = if (notice == null) "Sin notificaciones" else "No se pudieron cargar",
             color = InkPrimary,
             fontFamily = BricolageGrotesque,
             fontWeight = FontWeight.SemiBold,
@@ -610,10 +486,24 @@ private fun EmptyNotifications() {
         )
         Spacer(Modifier.height(4.dp))
         Text(
-            text = "Cuando haya novedades aparecerán aquí.",
+            text = notice ?: "Cuando haya novedades aparecerán aquí.",
             color = OnSurfaceVariant,
             fontFamily = DmSans,
             fontSize = 12.sp,
         )
     }
+}
+
+private fun notificationBadgeColor(type: NotificationType): Color = when (type) {
+    NotificationType.ASISTENCIA, NotificationType.INCIDENTE -> BrandCoral
+    NotificationType.TAREA -> Amber500
+    NotificationType.MENSAJE -> Sky500
+    NotificationType.AVISO, NotificationType.SISTEMA, NotificationType.OTRO -> PrimaryContainer
+}
+
+private fun notificationBadgeIcon(type: NotificationType): ImageVector = when (type) {
+    NotificationType.ASISTENCIA, NotificationType.INCIDENTE -> Icons.Filled.Warning
+    NotificationType.TAREA -> Icons.AutoMirrored.Outlined.Assignment
+    NotificationType.MENSAJE -> Icons.AutoMirrored.Outlined.Chat
+    NotificationType.AVISO, NotificationType.SISTEMA, NotificationType.OTRO -> Icons.Filled.Campaign
 }

@@ -86,6 +86,7 @@ import com.example.aulasegura.ui.screens.parent.ParentJustifyViewModel
 import com.example.aulasegura.ui.screens.parent.ParentNoticesScreen
 import com.example.aulasegura.ui.screens.parent.ParentNoticesViewModel
 import com.example.aulasegura.ui.screens.parent.ParentNotificationsScreen
+import com.example.aulasegura.ui.screens.parent.ParentNotificationsViewModel
 import com.example.aulasegura.ui.screens.parent.ParentProfileScreen
 import com.example.aulasegura.ui.screens.parent.ParentTaskDetailScreen
 import com.example.aulasegura.ui.screens.parent.ParentTaskDetailViewModel
@@ -307,6 +308,7 @@ fun AulaSeguraNavHost(
             val homeViewModel: ParentHomeViewModel =
                 viewModel(factory = rememberAppContainer().viewModelFactory)
             val homeState by homeViewModel.state.collectAsState()
+            val unreadNotifications by homeViewModel.unreadNotifications.collectAsState()
 
             ParentHomeScreen(
                 ui = homeState,
@@ -566,7 +568,30 @@ fun AulaSeguraNavHost(
             )
         }
         composable(Routes.PARENT_NOTIFICATIONS) {
-            ParentNotificationsScreen(onBack = { navController.popBackStack() })
+            val container = rememberAppContainer()
+            val notificationsViewModel: ParentNotificationsViewModel =
+                viewModel(factory = container.viewModelFactory)
+            val notificationsUi by notificationsViewModel.state.collectAsState()
+            val notificationDeepLink by notificationsViewModel.pendingDeepLink.collectAsState()
+
+            LaunchedEffect(notificationDeepLink) {
+                if (notificationDeepLink == null) return@LaunchedEffect
+                // The document comes from outside the app: the whitelist decides
+                // whether it opens anything. An unknown route is consumed too, or
+                // a later tap with the same value would never fire again.
+                resolveDeepLink(notificationDeepLink)?.let { route ->
+                    navController.navigate(route) { launchSingleTop = true }
+                }
+                notificationsViewModel.deepLinkHandled()
+            }
+
+            ParentNotificationsScreen(
+                onBack = { navController.popBackStack() },
+                ui = notificationsUi,
+                onFilterChange = notificationsViewModel::setFilter,
+                onMarkAllRead = notificationsViewModel::markAllRead,
+                onOpen = notificationsViewModel::open,
+            )
         }
         composable(Routes.PARENT_PROFILE) {
             ParentProfileScreen(

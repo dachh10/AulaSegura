@@ -56,7 +56,7 @@ Los IDs siguen la numeración de `PLAN.md` (3.1-3.10). El orden de ejecución se
 | **3.6** | Incidentes de sus hijos + marcar visto | `ParentIncidentsScreen`, `ParentIncidentDetailScreen`, `ParentIncidentMapScreen` | Firestore `seenByTutorIds` | ✅ **hecho** (código y tests; sin incidentes en los datos demo al validar la lectura) |
 | **3.7** | Chat con el docente asignado al grupo | `ParentChatScreen`, `ParentConversationScreen` | RTDB | ✅ **hecho y probado en dispositivo** (19 nov) |
 | **3.8** | Asistente con Firebase AI Logic (Gemini Developer API, free tier, App Check) | `ParentAIScreen` | AI Logic | ✅ **hecho y probado en dispositivo** (20 nov) |
-| **3.9** | Notificaciones + deep links + push desde consola | `ParentNotificationsScreen` | Firestore + FCM | pendiente |
+| **3.9** | Notificaciones + deep links + push desde consola | `ParentNotificationsScreen` | Firestore + FCM | ✅ **hecho** (pendiente prueba en dispositivo) |
 | **3.10** | Perfil del tutor y foto, con los ajustes reales que ya tiene el docente | `ParentProfileScreen` | Auth + Cloudinary | pendiente |
 
 Las 14 pantallas del Bloque 2 de `PLAN.md` están implementadas visualmente. La Fase 3 las conecta a datos reales una por una; no se rediseñan. Cada bloque cerrado tiene ViewModel, repositorio y tests propios (`ui/screens/parent/*Ui.kt`, `*ViewModel.kt`); la nota de entrega correspondiente indica el detalle.
@@ -111,6 +111,18 @@ Las 14 pantallas del Bloque 2 de `PLAN.md` están implementadas visualmente. La 
 - **Sin cambios de reglas, colecciones, índices ni Room** (`version = 4`). `AiAssistantDataSource` sólo ganó la instrucción de sistema al crear el modelo.
 - **App Check en desarrollo:** el dispositivo de pruebas necesita su token de depuración registrado en la consola; sin eso AI Logic rechaza la petición. Queda anotado en `CONTEXT.md` §9.2.
 - **Probado en dispositivo (20 nov):** el asistente responde correctamente con la cuenta real del tutor.
+
+**Notas de entrega 3.9** (detalle en `odd/tasks/bloque-3.9-notificaciones.md`):
+
+- **La maqueta se fue:** `ParentNotificationsScreen` ya no usa `sampleNotifications()`. `ParentNotificationsViewModel` lee `notifications` con `FirestoreNotificationRepository`, el mismo repositorio del docente y del directivo: la consulta ya filtra por `userId`, así que una copia por rol solo duplicaría la query.
+- **Bandeja viva:** el listener de Firestore actualiza la lista y el badge sin refrescar. La fila usa el `type` real del documento (`asistencia`, `incidente`, `tarea`, `aviso`, `mensaje`, `sistema`) y no el texto del título, que es texto libre escrito por la escuela.
+- **Chips honestos:** se dibujan los del diseño (Todas, Asistencia, Tareas, Avisos, Mensajes) y solo se agregan "Incidentes" y "Sistema" cuando hay filas de ese tipo. Se filtra por `type`, nunca por título.
+- **"Importante":** una falta o un incidente llevan la etiqueta; una tarea o un aviso no. El documento no tiene campo de severidad, así que se deriva del `type` y queda documentado.
+- **Badge real en la campana:** `ParentHomeViewModel.unreadNotifications` observa la misma colección y a cero no dibuja nada. Antes la campana mostraba "3" fijo con la bandeja vacía.
+- **Deep links:** tocar una fila marca `read` y entrega `notifications.deepLink` a la navegación; `resolveDeepLink` ya tenía en la whitelist las rutas del tutor (`parent/tasks/{id}`, `parent/incidents/{id}`, `parent/chat/{id}`, etc.). Un enlace desconocido se consume igual y no navega, para que un segundo toque con el mismo valor sí funcione.
+- **Quién crea las notificaciones:** las reglas solo dejan al destinatario cambiar `read`; el documento lo crea la consola o el Admin SDK. En Spark el push también sale de la consola, así que la bandeja se llena con esos documentos. Para probar: crear `notifications/{id}` con `userId` del tutor, `title`, `body`, `type`, `deepLink`, `read: false` y `createdAt`, y enviar el push al token del dispositivo.
+- **Sin cambios de reglas, colecciones ni índices:** el índice `userId + createdAt desc` ya existía. `NotificationRepository` y `FirestoreNotificationRepository` solo cambiaron comentarios.
+- **Pendiente en dispositivo:** recibir el push desde la consola y tocar la fila para abrir el detalle correcto.
 
 ---
 
@@ -184,7 +196,7 @@ $env:JAVA_HOME = "C:\Program Files\Android\Android Studio\jbr"
 .\gradlew.bat cleanTestDebugUnitTest testDebugUnitTest assembleDebug --offline --no-daemon --no-configuration-cache
 ```
 
-Conteo de suites/tests desde `app/build/test-results/testDebugUnitTest/*.xml`. La línea base al iniciar la fase es **52 suites / 381 tests / 0 fallos**; al cerrar 3.2 + 3.3 es **56 suites / 410 tests / 0 fallos**; al cerrar 3.4 es **59 suites / 436 tests / 0 fallos**; al cerrar 3.5 es **63 suites / 469 tests / 0 fallos**; al cerrar 3.6 es **67 suites / 496 tests / 0 fallos**; al cerrar 3.7 es **68 suites / 505 tests / 0 fallos**; al cerrar 3.8 es **72 suites / 532 tests / 0 fallos**.
+Conteo de suites/tests desde `app/build/test-results/testDebugUnitTest/*.xml`. La línea base al iniciar la fase es **52 suites / 381 tests / 0 fallos**; al cerrar 3.2 + 3.3 es **56 suites / 410 tests / 0 fallos**; al cerrar 3.4 es **59 suites / 436 tests / 0 fallos**; al cerrar 3.5 es **63 suites / 469 tests / 0 fallos**; al cerrar 3.6 es **67 suites / 496 tests / 0 fallos**; al cerrar 3.7 es **68 suites / 505 tests / 0 fallos**; al cerrar 3.8 es **72 suites / 532 tests / 0 fallos**; al cerrar 3.9 es **75 suites / 548 tests / 0 fallos**.
 
 **Dispositivo:** no hay teléfono conectado durante el desarrollo. Las pruebas funcionales con las cuentas reales (directora, docente, tutor) las ejecuta el equipo; los pasos se entregan en el reporte de cada bloque. 3.7 quedó verificado en dispositivo el 19 nov (tutor → Mensajes → docente por nombre → mensaje recibido del otro lado) y 3.8 el 20 nov (tutor → Asistente → pregunta → respuesta con datos reales).
 
@@ -199,7 +211,8 @@ Conteo de suites/tests desde `app/build/test-results/testDebugUnitTest/*.xml`. L
 - [ ] Tutor justifica una falta con adjunto y el directivo la ve en su bandeja.
 - [ ] Chat tutor ↔ docente en tiempo real.
 - [x] Asistente del tutor responde con datos reales y cae a las preguntas frecuentes sin IA (probado en dispositivo el 20 nov).
-- [ ] Push de incidente llega al teléfono y abre el detalle correcto.
+- [x] Bandeja de notificaciones del tutor con datos reales, filtros, marcado de lectura y badge real en la campana.
+- [ ] Push de incidente desde la consola llega al teléfono y abre el detalle correcto.
 - [ ] `connectedDebugAndroidTest` verde en el dispositivo `65d5dd78`.
 
 ---

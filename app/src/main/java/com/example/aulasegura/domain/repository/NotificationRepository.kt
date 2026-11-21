@@ -4,7 +4,10 @@ import com.example.aulasegura.domain.model.AppNotification
 import kotlinx.coroutines.flow.Flow
 
 /**
- * The teacher's notification tray.
+ * The signed-in user's notification tray.
+ *
+ * One document per recipient, so the same repository serves the tutor, the
+ * teacher and the principal: the query is always scoped to `userId`.
  *
  * Read-only except for `read`: the rules allow the recipient to flip that one
  * field and nothing else, because a client that could create its own

@@ -409,6 +409,8 @@ read       bool
 createdAt  timestamp
 ```
 
+Las reglas solo permiten al destinatario cambiar `read`; el documento lo crea la consola o el Admin SDK. Sin trigger en Spark, el push también se envía desde la consola. Las bandejas del tutor, del docente y del directivo leen la misma colección filtrada por `userId`.
+
 #### `linkingCodes/{code}`
 ```
 code        string   (= id del documento, 6 caracteres)
@@ -678,7 +680,7 @@ Consecuencias que el equipo debe asumir:
 |---|---|---|
 | Crear cuentas de docente/directivo | El cliente no puede (`createUserWithEmailAndPassword` cierra la sesión del directivo) | Script local `tools/seed` con Admin SDK + service account, o alta manual en la consola |
 | Enviar push cuando ocurre un evento | No hay trigger de Firestore | Enviar desde la consola de Firebase a un tema o a un token; la app solo recibe |
-| Escribir `notifications` | Sin trigger automático | El cliente que origina el evento escribe el documento (permitido por reglas) |
+| Escribir `notifications` | Sin trigger automático | Lo crea la consola o el Admin SDK; las reglas solo dejan al destinatario cambiar `read` |
 | Firma de subida a Cloudinary | No hay endpoint | Preset unsigned restringido por carpeta, formato y tamaño |
 | Vertex AI | Requiere Blaze | Se reemplaza por AI Logic con Gemini Developer API |
 

@@ -3,6 +3,7 @@ package com.example.aulasegura.ui.screens.teacher
 import com.example.aulasegura.ui.chat.chatTimeLabel
 import com.example.aulasegura.domain.model.AppNotification
 import com.example.aulasegura.domain.model.NotificationType
+import com.example.aulasegura.ui.notifications.splitByToday
 import java.util.TimeZone
 
 /**
@@ -71,38 +72,33 @@ fun notificationGroups(
     now: Long = System.currentTimeMillis(),
     zone: TimeZone = TimeZone.getDefault(),
 ): List<NotificationGroupUi> {
-    if (items.isEmpty()) return emptyList()
-
-    val rows = items.map { notification ->
-        NotificationRowUi(
-            id = notification.id,
-            title = notification.title,
-            body = notification.body,
-            time = chatTimeLabel(notification.createdAt, now, zone),
-            type = notification.type,
-            read = notification.read,
-            deepLink = notification.deepLink,
-        )
-    }
-
-    val todayFormat = java.text.SimpleDateFormat("yyyyMMdd", java.util.Locale.forLanguageTag("es-MX"))
-        .apply { timeZone = zone }
-    val today = todayFormat.format(java.util.Date(now))
-
-    val (fromToday, older) = rows.partition { row ->
-        val source = items.first { it.id == row.id }
-        todayFormat.format(java.util.Date(source.createdAt)) == today
-    }
+    val (fromToday, older) = splitByToday(items, now, zone)
 
     return listOfNotNull(
         fromToday.takeIf { it.isNotEmpty() }?.let {
-            NotificationGroupUi(label = NOTIFICATIONS_TODAY_LABEL, rows = it)
+            NotificationGroupUi(
+                label = NOTIFICATIONS_TODAY_LABEL,
+                rows = it.map { notification -> notification.toRowUi(now, zone) },
+            )
         },
         older.takeIf { it.isNotEmpty() }?.let {
-            NotificationGroupUi(label = NOTIFICATIONS_OLDER_LABEL, rows = it)
+            NotificationGroupUi(
+                label = NOTIFICATIONS_OLDER_LABEL,
+                rows = it.map { notification -> notification.toRowUi(now, zone) },
+            )
         },
     )
 }
+
+private fun AppNotification.toRowUi(now: Long, zone: TimeZone) = NotificationRowUi(
+    id = id,
+    title = title,
+    body = body,
+    time = chatTimeLabel(createdAt, now, zone),
+    type = type,
+    read = read,
+    deepLink = deepLink,
+)
 
 /** How many rows still count as unread. */
 fun unreadNotifications(items: List<AppNotification>): Int = items.count { !it.read }

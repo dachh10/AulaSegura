@@ -3,12 +3,17 @@ package com.example.aulasegura.ui.screens.parent
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.aulasegura.domain.model.ParentChildOverview
+import com.example.aulasegura.domain.repository.NotificationRepository
 import com.example.aulasegura.domain.repository.ParentHomeResult
 import com.example.aulasegura.domain.repository.ParentRepository
 import java.util.TimeZone
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.catch
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
 /**
@@ -21,12 +26,29 @@ import kotlinx.coroutines.launch
  */
 class ParentHomeViewModel(
     private val parents: ParentRepository,
+    notifications: NotificationRepository,
     private val now: () -> Long = System::currentTimeMillis,
     private val zone: TimeZone = TimeZone.getDefault(),
 ) : ViewModel() {
 
     private val _state = MutableStateFlow<ParentHomeUiState>(ParentHomeUiState.Loading)
     val state: StateFlow<ParentHomeUiState> = _state.asStateFlow()
+
+    /**
+     * Unread notifications for the bell.
+     *
+     * Live on purpose: a push that arrives while the home is open, or a row the
+     * tutor marks read in the tray, moves the badge without a manual refresh. A
+     * failed listener shows no badge instead of a number nobody can trust.
+     */
+    val unreadNotifications: StateFlow<Int> = notifications.observeMyNotifications()
+        .map { items -> items.count { !it.read } }
+        .catch { emit(0) }
+        .stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(STOP_MILLIS),
+            initialValue = 0,
+        )
 
     private var overviews: List<ParentChildOverview> = emptyList()
     private var selected = 0
@@ -69,5 +91,9 @@ class ParentHomeViewModel(
             selected = selected,
             tasks = overviews[selected].tasks.map { it.toUi(moment, zone) },
         )
+    }
+
+    private companion object {
+        const val STOP_MILLIS = 5_000L
     }
 }

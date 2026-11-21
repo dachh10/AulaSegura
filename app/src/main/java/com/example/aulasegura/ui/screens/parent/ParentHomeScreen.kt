@@ -90,6 +90,7 @@ fun ParentHomeScreen(
     onVerTareas: () -> Unit,
     onSelectChild: (Int) -> Unit,
     onSelectTab: (ParentTab) -> Unit,
+    unreadNotifications: Int = 0,
 ) {
     Box(
         modifier = Modifier
@@ -103,7 +104,13 @@ fun ParentHomeScreen(
                 .statusBarsPadding()
                 .padding(bottom = 104.dp),
         ) {
-            Reveal(0) { HomeTopBar(fullName = fullName, onNotifications = onNotifications) }
+            Reveal(0) {
+                HomeTopBar(
+                    fullName = fullName,
+                    onNotifications = onNotifications,
+                    unreadNotifications = unreadNotifications,
+                )
+            }
             when (ui) {
                 is ParentHomeUiState.Loaded -> {
                     Reveal(60) {
@@ -208,7 +215,11 @@ private fun HomeMessage(title: String, body: String) {
 }
 
 @Composable
-private fun HomeTopBar(fullName: String, onNotifications: () -> Unit) {
+private fun HomeTopBar(
+    fullName: String,
+    onNotifications: () -> Unit,
+    unreadNotifications: Int,
+) {
     val firstName = fullName.trim().substringBefore(' ')
 
     Row(
@@ -252,12 +263,12 @@ private fun HomeTopBar(fullName: String, onNotifications: () -> Unit) {
                 lineHeight = 16.sp,
             )
         }
-        NotificationBell(onClick = onNotifications)
+        NotificationBell(onClick = onNotifications, unread = unreadNotifications)
     }
 }
 
 @Composable
-private fun NotificationBell(onClick: () -> Unit) {
+private fun NotificationBell(onClick: () -> Unit, unread: Int) {
     val (interaction, pressModifier) = rememberPressScale(0.92f)
     Box(
         modifier = pressModifier
@@ -274,23 +285,26 @@ private fun NotificationBell(onClick: () -> Unit) {
             tint = Primary,
             modifier = Modifier.size(22.dp),
         )
-        Box(
-            modifier = Modifier
-                .align(Alignment.TopEnd)
-                .offset(x = (-1).dp, y = 1.dp)
-                .size(16.dp)
-                .clip(CircleShape)
-                .background(SecondaryContainer)
-                .border(2.dp, SurfaceContainerLowest, CircleShape),
-            contentAlignment = Alignment.Center,
-        ) {
-            Text(
-                text = "3",
-                color = OnPrimary,
-                fontFamily = JetBrainsMono,
-                fontWeight = FontWeight.Bold,
-                fontSize = 10.sp,
-            )
+        // No badge at zero: an empty tray with a "0" reads as a broken counter.
+        if (unread > 0) {
+            Box(
+                modifier = Modifier
+                    .align(Alignment.TopEnd)
+                    .offset(x = (-1).dp, y = 1.dp)
+                    .size(16.dp)
+                    .clip(CircleShape)
+                    .background(SecondaryContainer)
+                    .border(2.dp, SurfaceContainerLowest, CircleShape),
+                contentAlignment = Alignment.Center,
+            ) {
+                Text(
+                    text = if (unread > 9) "9+" else unread.toString(),
+                    color = OnPrimary,
+                    fontFamily = JetBrainsMono,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 10.sp,
+                )
+            }
         }
     }
 }

@@ -114,6 +114,7 @@ import com.example.aulasegura.ui.screens.parent.ParentIncidentDetailViewModel
 import com.example.aulasegura.ui.screens.parent.ParentIncidentsViewModel
 import com.example.aulasegura.ui.screens.parent.ParentJustifyViewModel
 import com.example.aulasegura.ui.screens.parent.ParentNoticesViewModel
+import com.example.aulasegura.ui.screens.parent.ParentNotificationsViewModel
 import com.example.aulasegura.ui.screens.parent.ParentTaskDetailViewModel
 import com.example.aulasegura.ui.screens.parent.ParentTasksViewModel
 import com.example.aulasegura.ui.screens.teacher.TeacherGroupDetailViewModel
@@ -781,7 +782,10 @@ class AppViewModelFactory(
             )
 
         modelClass.isAssignableFrom(ParentHomeViewModel::class.java) ->
-            ParentHomeViewModel(parents = container.parentRepository)
+            ParentHomeViewModel(
+                parents = container.parentRepository,
+                notifications = container.notificationRepository,
+            )
 
         modelClass.isAssignableFrom(ParentAttendanceViewModel::class.java) ->
             ParentAttendanceViewModel(parents = container.parentRepository)
@@ -791,6 +795,9 @@ class AppViewModelFactory(
 
         modelClass.isAssignableFrom(ParentNoticesViewModel::class.java) ->
             ParentNoticesViewModel(parents = container.parentRepository)
+
+        modelClass.isAssignableFrom(ParentNotificationsViewModel::class.java) ->
+            ParentNotificationsViewModel(notifications = container.notificationRepository)
 
         modelClass.isAssignableFrom(ParentIncidentsViewModel::class.java) ->
             ParentIncidentsViewModel(parents = container.parentRepository)

@@ -14,7 +14,7 @@ import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.tasks.await
 
 /**
- * The teacher's tray, straight from `notifications` ordered by recency.
+ * The signed-in user's tray, straight from `notifications` ordered by recency.
  *
  * No Room cache: a notification is a small document, the index
  * (`userId + createdAt desc`) already exists, and a tray that is stale by a day is

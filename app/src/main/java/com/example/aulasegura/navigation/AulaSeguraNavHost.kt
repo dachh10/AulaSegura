@@ -361,9 +361,13 @@ fun AulaSeguraNavHost(
             }
 
             LinkChildScreen(
+                uid = ui.uid,
                 childName = ui.childName,
                 rejected = ui.vinculacion == "rechazada",
                 isLoading = ui.isLoading,
+                message = ui.message,
+                onChildNameChange = vm::setChildName,
+                onSaveChildName = vm::saveChildName,
                 onBack = { navController.popBackStack() },
                 onRefresh = vm::refreshState,
                 onSignOut = {

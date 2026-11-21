@@ -110,6 +110,7 @@ dependencies {
     // Coil 2 remains for the teacher screens (coil.compose imports); the admin
     // screens use Coil 3 (coil3.compose). Both groups coexist without clashing.
     implementation(libs.coil2.compose)
+implementation(libs.zxing.core)
     testImplementation(libs.junit)
     testImplementation(libs.kotlinx.coroutines.test)
     androidTestImplementation(platform(libs.androidx.compose.bom))

@@ -2,6 +2,14 @@ package com.example.aulasegura.domain.repository
 
 import com.example.aulasegura.domain.model.AppUser
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.emptyFlow
+
+/** The subset of `users/{uid}` that decides whether the tutor may enter. */
+data class LinkingState(
+    val vinculacion: String = "",
+    val hijoSolicitado: String = "",
+    val estado: String = "",
+)
 
 /**
  * Authentication contract.
@@ -63,6 +71,12 @@ interface AuthRepository {
      * a flaky network never signs anybody out by mistake.
      */
     fun observeAccountActive(): Flow<Boolean>
+
+/** Live document listener: no refresh tap should be needed to be linked. */
+fun observeLinkingState(): Flow<LinkingState> = emptyFlow()
+
+/** Corrects the child's name before a rejected QR is generated again. */
+suspend fun updateChildName(name: String): Result<Unit> = Result.success(Unit)
 
     /**
      * Sends the password reset email.

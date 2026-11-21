@@ -53,8 +53,8 @@ Los IDs siguen la lista acordada en el logbook. El orden de ejecución se define
 | **4.2 (T2)** | QR del tutor: generación offline, corregir nombre, escucha en tiempo real | `LinkChildScreen` | `users/{uid}` | ✅ **lista, mergeada y verificada en dispositivo** - `8cd167a`, `75e564f` (merge `43f46f0`), fixes `c39dfa3`, `33e6ebb` (merge `fc3da5f`) |
 | **4.3 (T3)** | Escanear alumno: cámara, permiso, validación del QR | `ScanStudentScreen` | CameraX + ZXing | ✅ **lista, mergeada y en verificación en dispositivo** - `c24fefa`, `a26fa07`, fixes `15828eb`, `d43354b` (merge `74df0ca`) |
 | **4.4 (T4)** | Revisar alumno: grado/grupo, duplicados, segundo tutor, alta offline | `ReviewStudentScreen` | `students`, `users`, reglas | ⚠️ **online mergeado, desplegado y verificado en dispositivo** - `bc20574`, `a7de890`, `4a74526` (merge `8fc1fcf`), fixes `1bba1de`, `a842819`, `232937a`, `1883c2a`; falta T4b (offline) |
-| **4.5 (T5)** | Solicitudes de docentes: listar verificados, aceptar/rechazar, lote | `TeacherRequestsScreen` | `users/{uid}.estado` | ✅ **lista en rama** - `e9bccc3`, `3ddd414` (sin mergear) |
-| **4.6 (T6)** | Panel del director: tarjetas, FAB y navegación con badges | `AdminDashboardScreen` | - | ✅ **hecho según pedido del dueño** - dos cards de acción (Solicitudes con contador, Alumnos sin grupo) y hero con círculo de asistencia + leyenda - `c7bc139`; tabs se mantienen (decisión del dueño) |
+| **4.5 (T5)** | Solicitudes de docentes: listar verificados, aceptar/rechazar, lote | `TeacherRequestsScreen` | `users/{uid}.estado` | ✅ **mergeada y verificada en dispositivo** - `e9bccc3`, `3ddd414` (merge `cc3bfa9`); fixes de verificaci-on `f102d3e`, `734f826`, `000d7ef` |
+| **4.6 (T6)** | Panel del director: tarjetas, FAB y navegación con badges | `AdminDashboardScreen` | - | ✅ **hecho según pedido del dueño** - dos cards de acción (Solicitudes con contador, Alumnos sin grupo) y hero con círculo de asistencia + leyenda - `c7bc139`; tabs se mantienen (decisión del dueño) (merge `91eb762`; cards parejas `c299cd3`/merge `714b422`) |
 | **4.7 (T7)** | Alumnos sin grupo: búsqueda, selección y asignación en lote | nueva, directora | `students` | ⬜ pendiente |
 | **4.8 (T8)** | Inicio del tutor: «+ Agregar hijo», grupo por asignar, sin datos | `ParentHomeScreen` | `students` | ⬜ pendiente |
 | **4.9 (T9)** | Reglas completas: `email_verified`, director-only, lectura por tutor/grupo | sin pantalla | `docs/firestore.rules` | ⚠️ parcial |
@@ -174,12 +174,12 @@ Cada work unit lleva sus tests en el mismo commit y se verifica con `testDebugUn
 ### Evidencia mínima esperada
 
 - [x] 4.1 - modelos y Room migrados sin borrar datos; reglas base adaptadas; tests y build en verde.
-- [x] 4.2 - QR del tutor generado offline con corrección de nombre y escucha en tiempo real (código y tests; prueba en dispositivo pendiente; recuperación al reabrir en rama, pendiente de merge).
+- [x] 4.2 - QR del tutor generado offline con corrección de nombre y escucha en tiempo real (verificado en dispositivo: registro con correo real, verificación y QR generado; recuperación al reabrir también verificada).
 - [x] 4.3 - escáner con permiso y validación de QR (código y tests; prueba en dispositivo pendiente).
 - [x] 4.4 (online) - alta del alumno y vinculación, con duplicados: verificado en dispositivo.
 - [x] 4.4b (T4b) - aprobación sin conexión (verificada en dispositivo: modo avión → mensaje «Se vinculará al volver la señal» → al volver la red el alumno y los enlaces del tutor aparecen en Firestore y el tutor ve al hijo).
-- [ ] 4.5 - aprobación de docentes con correo verificado y lote.
-- [ ] 4.6 - panel del director con contadores.
+- [x] 4.5 - aprobación de docentes con correo verificado y lote (verificado en dispositivo: registro, verificación automática del flag, solicitud en la cola y aprobación; el docente entra a su menú).
+- [x] 4.6 - panel del director con contadores (dos cards de acción y hero con círculo de asistencia, según pedido del dueño; tabs se mantienen).
 - [ ] 4.7 - asignación de grupo en lote.
 - [ ] 4.8 - inicio del tutor con «Agregar hijo» y estado sin grupo.
 - [ ] 4.9 - reglas completas desplegadas.
@@ -191,3 +191,5 @@ Cada work unit lleva sus tests en el mismo commit y se verifica con `testDebugUn
 2. **Seguridad:** las reglas base ya están desplegadas, pero la aprobación/vinculación completas (4.9) y la prueba con cuentas reales siguen pendientes antes de cerrar la fase.
 3. **Permisos:** cámara y notificaciones; la negación del permiso debe explicarse, no bloquear la app.
 4. **Sin conexión:** la aprobación offline depende del outbox/WorkManager existente y de que la regla de correo verificado se compruebe al sincronizar.
+
+**Orden al 21 nov 2026 (antes de T7):** 4.1-4.6 completos y en main. 4.2, 4.4, 4.4b y 4.5 verificados en dispositivo; 4.3 con codigo y tests (escaneo real probado por el dueno); 4.6 con las dos cards y el círculo de asistencia segun pedido. Todo pusheado a origin/main. Siguiente: 4.7 (Alumnos sin grupo), luego 4.8, 4.9 y 4.10 para cerrar la fase.

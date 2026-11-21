@@ -63,20 +63,24 @@ class UngroupedStudentsUiTest {
     }
 
     @Test
-    fun `the selected grade and group resolve to the matching group id`() {
-        val groups = listOf(group("grp-3b", 3, "B"), group("grp-4a", 4, "A"))
-
-        val target = groupForAssignment(groups, grado = 3, grupo = "B")
+    fun `the selected grade and group resolve to a deterministic group`() {
+        val target = groupForAssignment(grado = 3, grupo = "B")
 
         assertNotNull(target)
         assertEquals("grp-3b", target!!.id)
+        assertEquals("3° B", target.name)
     }
 
     @Test
     fun `an unknown grade-group pair resolves to nothing`() {
-        val groups = listOf(group("grp-3b", 3, "B"))
+        assertNull(groupForAssignment(grado = 5, grupo = "F"))
+        assertNull(groupForAssignment(grado = 3, grupo = "E"))
+    }
 
-        assertNull(groupForAssignment(groups, grado = 5, grupo = "F"))
+    @Test
+    fun `the catalog is fixed even with no groups in the database`() {
+        assertEquals((1..6).toList(), assignableGrades)
+        assertEquals(listOf("A", "B", "C", "D"), assignableSections)
     }
 
     @Test

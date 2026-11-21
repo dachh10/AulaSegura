@@ -62,7 +62,7 @@ internal fun ParentChildOverview.toChildUi(): ParentChildUi {
     return ParentChildUi(
         studentId = child.studentId,
         name = name,
-        grade = child.groupLabel,
+        grade = childGradeLabel(child.groupId, child.groupLabel),
         initials = initialsOf(child.fullName),
         percent = month.counts.percent,
         mark = today?.mark,

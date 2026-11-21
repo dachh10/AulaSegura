@@ -441,6 +441,7 @@ fun AulaSeguraNavHost(
                 onQuickAsistente = { navController.navigate(Routes.PARENT_AI) },
                 onVerTareas = { navController.navigate(Routes.PARENT_TASKS) },
                 onSelectChild = homeViewModel::select,
+                onAddChild = { navController.navigate(Routes.LINK_CHILD) },
                 onSelectTab = { navController.openParentTab(it) },
             )
         }

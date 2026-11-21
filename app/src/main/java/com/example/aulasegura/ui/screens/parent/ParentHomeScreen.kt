@@ -23,6 +23,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Cancel
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.outlined.AutoAwesome
@@ -89,6 +90,7 @@ fun ParentHomeScreen(
     onQuickAsistente: () -> Unit,
     onVerTareas: () -> Unit,
     onSelectChild: (Int) -> Unit,
+    onAddChild: () -> Unit = {},
     onSelectTab: (ParentTab) -> Unit,
     unreadNotifications: Int = 0,
 ) {
@@ -118,6 +120,7 @@ fun ParentHomeScreen(
                             children = ui.children,
                             selected = ui.selected,
                             onSelect = onSelectChild,
+                            onAddChild = onAddChild,
                         )
                     }
                     Reveal(120) {
@@ -314,6 +317,7 @@ private fun ChildSelector(
     children: List<ParentChildUi>,
     selected: Int,
     onSelect: (Int) -> Unit,
+    onAddChild: () -> Unit,
 ) {
     Row(
         modifier = Modifier
@@ -362,6 +366,32 @@ private fun ChildSelector(
                     fontSize = 12.sp,
                 )
             }
+        }
+        // Always available: a tutor with one child can add another by generating
+        // a fresh QR (the name is corrected on the linking screen).
+        val (addInteraction, addPress) = rememberPressScale(0.95f)
+        Row(
+            modifier = addPress
+                .clip(CircleShape)
+                .border(1.dp, OutlineVariant.copy(alpha = 0.7f), CircleShape)
+                .clickable(interactionSource = addInteraction, indication = null) { onAddChild() }
+                .padding(horizontal = 14.dp, vertical = 6.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            Icon(
+                Icons.Filled.Add,
+                contentDescription = null,
+                tint = Primary,
+                modifier = Modifier.size(20.dp),
+            )
+            Text(
+                text = "Agregar hijo",
+                color = Primary,
+                fontFamily = DmSans,
+                fontWeight = FontWeight.Medium,
+                fontSize = 12.sp,
+            )
         }
     }
 }
@@ -453,7 +483,7 @@ private fun TodaySummary(child: ParentChildUi, todayLabel: String) {
                     strokeWidth = 5.dp,
                 ) {
                     Text(
-                        text = child.percent?.let { "$it%" } ?: "—",
+                        text = childAttendanceStatus(child.percent),
                         color = OnPrimary,
                         fontFamily = JetBrainsMono,
                         fontWeight = FontWeight.Bold,

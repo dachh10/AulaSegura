@@ -181,15 +181,15 @@ fun AulaSeguraNavHost(
         navController = navController,
         startDestination = Routes.SPLASH,
         enterTransition = {
-            fadeIn(animationSpec = tween(300)) +
-                slideInVertically(animationSpec = tween(300)) { height -> height / 40 }
+            fadeIn(animationSpec = tween(140)) +
+                slideInVertically(animationSpec = tween(140)) { height -> height / 40 }
         },
-        exitTransition = { fadeOut(animationSpec = tween(180)) },
+        exitTransition = { fadeOut(animationSpec = tween(100)) },
         popEnterTransition = {
-            fadeIn(animationSpec = tween(300)) +
-                slideInVertically(animationSpec = tween(300)) { height -> height / 40 }
+            fadeIn(animationSpec = tween(140)) +
+                slideInVertically(animationSpec = tween(140)) { height -> height / 40 }
         },
-        popExitTransition = { fadeOut(animationSpec = tween(180)) },
+        popExitTransition = { fadeOut(animationSpec = tween(100)) },
     ) {
         // ---- Access ----
         composable(Routes.SPLASH) {

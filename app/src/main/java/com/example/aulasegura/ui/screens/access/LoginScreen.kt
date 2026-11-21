@@ -58,6 +58,7 @@ import com.example.aulasegura.ui.components.AulaField
 import com.example.aulasegura.ui.components.GooglePillButton
 import com.example.aulasegura.ui.components.PillButton
 import com.example.aulasegura.ui.components.ShieldPattern
+import com.example.aulasegura.ui.components.rememberPressScale
 import com.example.aulasegura.ui.theme.BrandCoral
 import com.example.aulasegura.ui.theme.BrandCream
 import com.example.aulasegura.ui.theme.BricolageGrotesque
@@ -92,6 +93,7 @@ fun LoginScreen(
     var email by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
     var passwordVisible by remember { mutableStateOf(false) }
+    val (registerInteraction, registerPress) = rememberPressScale(0.94f)
 
     Box(
         modifier = Modifier
@@ -268,7 +270,11 @@ fun LoginScreen(
                                 fontFamily = DmSans,
                                 fontWeight = FontWeight.SemiBold,
                                 fontSize = 13.sp,
-                                modifier = Modifier.clickable(onClick = onRegister),
+                                modifier = registerPress.clickable(
+                                    interactionSource = registerInteraction,
+                                    indication = null,
+                                    onClick = onRegister,
+                                ),
                             )
                         }
                     }

@@ -31,4 +31,6 @@ data class AppUser(
     val hijoSolicitado: String = "",
     /** Server timestamp of the request; orders the principal's teacher queue. */
     val fechaSolicitud: Long = 0L,
+    /** Confirmed by the owner; the director only sees verified teachers. */
+    val emailVerified: Boolean = false,
 )

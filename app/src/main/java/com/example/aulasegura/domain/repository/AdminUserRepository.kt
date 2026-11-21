@@ -53,6 +53,22 @@ interface AdminUserRepository {
      * type with only two values: creating another directivo is not representable
      * through this contract, which is also what the Firestore rule enforces.
      */
+    /**
+     * Director-only: approves or rejects a teacher by writing their `estado`.
+     * The rules' principal whitelist allows this key; a user cannot change their
+     * own state.
+     */
+    suspend fun setTeacherStatus(
+        uid: String,
+        estado: String,
+    ): AdminUserUpdateResult
+
+    /**
+     * Approves every verified pending teacher in one Firestore batch. Returns
+     * how many were decided so the UI can refresh once with a real number.
+     */
+    suspend fun acceptAllPendingTeachers(): BatchResult
+
     suspend fun createAccount(
         email: String,
         password: String,
@@ -66,6 +82,11 @@ interface AdminUserRepository {
 }
 
 /** Typed outcome of a profile edit, so the UI never has to guess at an exception. */
+sealed interface BatchResult {
+    data class Success(val changed: Int) : BatchResult
+    data class Failure(val reason: AdminUserUpdateError) : BatchResult
+}
+
 sealed interface AdminUserUpdateResult {
     data object Success : AdminUserUpdateResult
 
@@ -165,6 +186,9 @@ object AdminUserFields {
         mapOf(PREFERENCES to mapOf(NOTIFICATIONS_ENABLED to enabled))
     const val CREATED_AT = "createdAt"
     const val UPDATED_AT = "updatedAt"
+    const val ESTADO = "estado"
+    const val EMAIL_VERIFIED = "emailVerified"
+    const val FECHA_SOLICITUD = "fechaSolicitud"
 
     /**
      * Marker used by the pure new-account document builder for a field Firestore

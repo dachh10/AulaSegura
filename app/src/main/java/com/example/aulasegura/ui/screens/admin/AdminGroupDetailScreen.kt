@@ -28,6 +28,7 @@ import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.PersonAdd
+import androidx.compose.material.icons.filled.FormatListNumbered
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
@@ -309,6 +310,7 @@ fun AdminGroupDetailScreen(
                                 students = ui.students,
                                 loading = ui.studentsLoading,
                                 onAddStudent = { onAddStudent(group.id) },
+                                onRenumber = { viewModel.renumberStudents() },
                             )
                             GroupTab.Docentes -> TeachersTab(
                                 query = query,
@@ -789,17 +791,18 @@ private fun StudentsTab(
     students: List<AdminStudent>,
     loading: Boolean,
     onAddStudent: () -> Unit,
+    onRenumber: () -> Unit,
 ) {
     val ordered = remember(students) { students.sortedBy { it.listNumber } }
     Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp)) {
-        Button(onClick = onAddStudent) {
+        Button(onClick = onRenumber) {
             Icon(
-                imageVector = Icons.Filled.PersonAdd,
+                imageVector = Icons.Filled.FormatListNumbered,
                 contentDescription = null,
                 modifier = Modifier.size(18.dp),
             )
             Spacer(modifier = Modifier.width(8.dp))
-            Text(text = "Agregar alumno", fontFamily = DmSans, fontSize = 13.sp)
+            Text(text = "Asignar N° de lista", fontFamily = DmSans, fontSize = 13.sp)
         }
 
         Spacer(modifier = Modifier.height(12.dp))

@@ -44,6 +44,9 @@ interface AdminStudentRepository {
         grupo: String,
     ): AdminStudentResult
 
+    /** Renumbers every student of a group 1..N by paternal surname (cap 30). */
+    suspend fun renumberRoster(groupId: String): AdminStudentResult = AdminStudentResult.Success
+
     /**
      * Approves the QR of a tutor: creates the student with the tutor linked and
      * moves the tutor's `vinculacion` to `vinculado`. Both writes belong to the

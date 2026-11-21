@@ -1,0 +1,468 @@
+<!DOCTYPE html><html class="h-full" lang="es"><head>
+<meta charset="utf-8">
+<meta content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" name="viewport">
+<title>AulaSegura - Portal de Padres</title>
+<!-- Material Symbols Outlined -->
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet">
+<!-- Typography Fonts -->
+<link href="https://fonts.googleapis.com" rel="preconnect">
+<link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect">
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;700;800&amp;family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&amp;family=JetBrains+Mono:wght@400;500;600;700&amp;display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet">
+<!-- Tailwind CSS CDN -->
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<script id="tailwind-config">
+    tailwind.config = {
+      darkMode: "class",
+      theme: {
+        extend: {
+          "colors": {
+            "secondary": "#ae3123",
+            "primary-container": "#2b2f77",
+            "surface-tint": "#5357a1",
+            "primary-fixed-dim": "#bfc2ff",
+            "on-tertiary-fixed-variant": "#00513f",
+            "secondary-fixed-dim": "#ffb4a8",
+            "tertiary-container": "#004031",
+            "on-secondary-fixed-variant": "#8c170e",
+            "secondary-container": "#fc6955",
+            "error-container": "#ffdad6",
+            "on-secondary-fixed": "#410000",
+            "outline-variant": "#c7c5d2",
+            "surface-container": "#f0ede9",
+            "on-secondary-container": "#690000",
+            "on-primary": "#ffffff",
+            "on-primary-fixed": "#0b0d5b",
+            "surface-dim": "#dcdad5",
+            "surface": "#fcf9f4",
+            "surface-bright": "#fcf9f4",
+            "on-primary-container": "#969ae9",
+            "tertiary-fixed": "#84f7d3",
+            "on-error-container": "#93000a",
+            "outline": "#777682",
+            "on-surface-variant": "#464651",
+            "error": "#ba1a1a",
+            "on-tertiary": "#ffffff",
+            "on-tertiary-fixed": "#002118",
+            "surface-container-high": "#ebe8e3",
+            "surface-container-low": "#f6f3ee",
+            "inverse-surface": "#31302d",
+            "surface-variant": "#e5e2dd",
+            "background": "#fcf9f4",
+            "on-background": "#1c1c19",
+            "on-tertiary-container": "#3ab492",
+            "on-error": "#ffffff",
+            "tertiary": "#00281e",
+            "on-secondary": "#ffffff",
+            "surface-container-lowest": "#ffffff",
+            "inverse-on-surface": "#f3f0eb",
+            "inverse-primary": "#bfc2ff",
+            "surface-container-highest": "#e5e2dd",
+            "primary": "#141761",
+            "on-surface": "#1c1c19",
+            "primary-fixed": "#e0e0ff",
+            "secondary-fixed": "#ffdad4",
+            "on-primary-fixed-variant": "#3b3f87",
+            "tertiary-fixed-dim": "#66dbb7"
+          },
+          "borderRadius": {
+            "DEFAULT": "1rem",
+            "lg": "2rem",
+            "xl": "3rem",
+            "full": "9999px"
+          },
+          "spacing": {
+            "space-sm": "0.5rem",
+            "gutter": "1rem",
+            "space-lg": "1.5rem",
+            "margin": "1rem",
+            "space-xl": "2rem",
+            "space-xs": "0.25rem",
+            "space-md": "1rem"
+          },
+          "fontFamily": {
+            "body-md": [
+              "DM Sans"
+            ],
+            "title-lg": [
+              "Bricolage Grotesque"
+            ],
+            "display-lg": [
+              "Bricolage Grotesque"
+            ],
+            "data-mono-sm": [
+              "JetBrains Mono"
+            ],
+            "label-md": [
+              "DM Sans"
+            ],
+            "headline-lg": [
+              "Bricolage Grotesque"
+            ],
+            "headline-md": [
+              "Bricolage Grotesque"
+            ],
+            "data-mono-md": [
+              "JetBrains Mono"
+            ],
+            "body-lg": [
+              "DM Sans"
+            ],
+            "label-sm": [
+              "DM Sans"
+            ],
+            "data-mono-lg": [
+              "JetBrains Mono"
+            ],
+            "title-md": [
+              "DM Sans"
+            ]
+          },
+          "fontSize": {
+            "body-md": [
+              "14px",
+              {
+                "lineHeight": "20px",
+                "letterSpacing": "0.01em",
+                "fontWeight": "400"
+              }
+            ],
+            "title-lg": [
+              "18px",
+              {
+                "lineHeight": "24px",
+                "letterSpacing": "-0.01em",
+                "fontWeight": "600"
+              }
+            ],
+            "display-lg": [
+              "32px",
+              {
+                "lineHeight": "38px",
+                "letterSpacing": "-0.02em",
+                "fontWeight": "700"
+              }
+            ],
+            "data-mono-sm": [
+              "11px",
+              {
+                "lineHeight": "14px",
+                "letterSpacing": "0em",
+                "fontWeight": "400"
+              }
+            ],
+            "label-md": [
+              "12px",
+              {
+                "lineHeight": "16px",
+                "letterSpacing": "0.02em",
+                "fontWeight": "500"
+              }
+            ],
+            "headline-lg": [
+              "24px",
+              {
+                "lineHeight": "30px",
+                "letterSpacing": "-0.015em",
+                "fontWeight": "700"
+              }
+            ],
+            "headline-md": [
+              "20px",
+              {
+                "lineHeight": "26px",
+                "letterSpacing": "-0.01em",
+                "fontWeight": "600"
+              }
+            ],
+            "data-mono-md": [
+              "13px",
+              {
+                "lineHeight": "18px",
+                "letterSpacing": "0em",
+                "fontWeight": "500"
+              }
+            ],
+            "body-lg": [
+              "16px",
+              {
+                "lineHeight": "24px",
+                "letterSpacing": "0em",
+                "fontWeight": "400"
+              }
+            ],
+            "label-sm": [
+              "11px",
+              {
+                "lineHeight": "14px",
+                "letterSpacing": "0.03em",
+                "fontWeight": "500"
+              }
+            ],
+            "data-mono-lg": [
+              "16px",
+              {
+                "lineHeight": "20px",
+                "letterSpacing": "-0.02em",
+                "fontWeight": "500"
+              }
+            ],
+            "title-md": [
+              "16px",
+              {
+                "lineHeight": "22px",
+                "letterSpacing": "0em",
+                "fontWeight": "600"
+              }
+            ]
+          }
+        },
+      },
+    }
+  </script>
+<style>
+    .material-symbols-outlined {
+      font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+      display: inline-block;
+      vertical-align: middle;
+      line-height: 1;
+    }
+    .material-symbols-outlined.fill-icon {
+      font-variation-settings: 'FILL' 1, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+    }
+    /* Hide scrollbar for smooth app feel */
+    ::-webkit-scrollbar {
+      display: none;
+    }
+    body {
+      -webkit-tap-highlight-color: transparent;
+      user-select: none;
+    }
+  </style>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+  </head>
+<body class="bg-surface text-on-surface min-h-screen flex justify-center items-start antialiased font-body-md text-body-md selection:bg-primary-fixed selection:text-primary">
+<!-- Mobile Android Viewport Shell (360px x 800px baseline frame) -->
+<div class="w-full max-w-[360px] min-h-[800px] bg-surface flex flex-col relative pb-28">
+<!-- Android Status Bar Placeholder (40dp) -->
+<div class="w-full h-10 px-4 flex justify-between items-center text-on-surface-variant z-20 select-none">
+<span class="font-data-mono-sm text-data-mono-sm font-semibold tracking-tight text-on-surface">09:41</span>
+<div class="flex items-center gap-1.5 text-on-surface">
+<span class="material-symbols-outlined text-[15px]" data-icon="signal_cellular_alt">signal_cellular_alt</span>
+<span class="material-symbols-outlined text-[15px]" data-icon="wifi">wifi</span>
+<span class="material-symbols-outlined text-[15px]" data-icon="battery_full">battery_full</span>
+</div>
+</div>
+<!-- ZONE 1 - Top Bar -->
+<header class="px-margin pt-1 pb-3 flex justify-between items-center w-full">
+<div class="flex items-center gap-3">
+<!-- Circular avatar initials "CG" in indigo -->
+<div class="w-11 h-11 rounded-full bg-primary-container text-on-primary flex items-center justify-center font-title-lg text-title-lg font-bold shadow-sm">
+          CG
+        </div>
+<div class="flex flex-col">
+<h1 class="font-headline-lg text-[22px] leading-tight text-primary font-bold tracking-tight">Hola, Carlos</h1>
+<p class="font-label-md text-label-md text-outline">Padre de familia</p>
+</div>
+</div>
+<!-- Round notification bell button with coral badge 3 -->
+<button aria-label="Notificaciones" class="relative w-11 h-11 rounded-full bg-surface-container-lowest border border-outline-variant/60 flex items-center justify-center text-primary active:scale-95 transition-transform duration-150" type="button">
+<span class="material-symbols-outlined text-[22px]" data-icon="notifications">notifications</span>
+<span class="absolute top-1 right-1 w-4 h-4 bg-secondary-container text-on-primary font-data-mono-sm text-[10px] font-bold rounded-full flex items-center justify-center border-2 border-surface-container-lowest">
+          3
+        </span>
+</button>
+</header>
+<!-- ZONE 2 - Child Selector -->
+<section class="px-margin my-3"><div class="flex items-center gap-2 overflow-x-auto no-scrollbar py-0.5">
+  <!-- Chip 1 (Selected): Luis -->
+  <button class="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-primary-container text-on-primary shadow-sm active:scale-95 transition-transform duration-150 shrink-0" type="button">
+    <div class="w-5 h-5 rounded-full bg-on-primary/20 flex items-center justify-center text-on-primary font-bold text-[11px]">
+      L
+    </div>
+    <span class="font-label-md text-label-md font-medium">Luis</span>
+  </button>
+  <!-- Chip 2 (Unselected): Ana -->
+  <button class="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-surface-container-lowest border border-outline-variant/70 text-primary active:scale-95 transition-transform duration-150 shrink-0" type="button">
+    <div class="w-5 h-5 rounded-full bg-surface-container text-on-surface-variant flex items-center justify-center font-bold text-[11px]">
+      A
+    </div>
+    <span class="font-label-md text-label-md font-medium">Ana</span>
+  </button>
+  <!-- Chip 3: + Agregar hijo -->
+  <button class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-surface-container-lowest border border-dashed border-outline-variant/70 text-on-surface-variant hover:text-primary active:scale-95 transition-transform duration-150 shrink-0" type="button">
+    <span class="material-symbols-outlined text-[16px]">add</span>
+    <span class="font-label-md text-label-md font-medium">Agregar hijo</span>
+  </button>
+</div></section>
+<!-- ZONE 3 - Today Summary Card -->
+<section class="px-margin my-3">
+<div class="relative overflow-hidden rounded-[24px] bg-primary-container text-on-primary p-5 shadow-sm">
+<!-- Subtle Vector Shield Geometric Motif at 6% Opacity -->
+<div class="absolute -right-6 -bottom-6 w-36 h-36 opacity-[0.06] pointer-events-none text-on-primary">
+<svg class="w-full h-full" fill="currentColor" viewBox="0 0 100 120">
+<path d="M50 0L0 20V60C0 92 50 120 50 120C50 120 100 92 100 60V20L50 0ZM42 85L20 63L28 55L42 69L72 39L80 47L42 85Z"></path>
+</svg>
+</div>
+<div class="relative z-10 flex items-start justify-between"><div class="flex-1 pr-2">
+  <!-- Small top label -->
+  <p class="font-data-mono-sm text-data-mono-sm text-on-primary/70 tracking-wider uppercase">
+    Hoy · Martes 3 de noviembre
+  </p>
+  <!-- Student name & badge -->
+  <div class="flex flex-wrap items-center gap-2 mt-1 mb-3">
+    <h2 class="font-headline-lg text-[22px] leading-tight font-bold text-on-primary">
+      Luis
+    </h2>
+    <span class="inline-flex items-center px-2 py-0.5 rounded-full bg-amber-100 text-amber-700 font-data-mono-sm text-[11px] font-semibold">
+      Grupo por asignar
+    </span>
+  </div>
+  <!-- Pending status chip -->
+  <div class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-on-primary/20 text-on-primary shadow-sm backdrop-blur-sm">
+    <span class="material-symbols-outlined text-[16px]" data-icon="schedule">schedule</span>
+    <span class="font-data-mono-sm text-data-mono-sm font-semibold">Sin registro hoy</span>
+  </div>
+</div>
+<!-- Empty circular progress indicator -->
+<div class="flex flex-col items-center justify-center shrink-0 pl-1">
+  <div class="relative w-16 h-16 flex items-center justify-center">
+    <svg class="w-16 h-16 -rotate-90" viewBox="0 0 64 64">
+      <circle cx="32" cy="32" fill="none" r="26" stroke="rgba(255, 255, 255, 0.15)" stroke-width="5"></circle>
+    </svg>
+    <div class="absolute inset-0 flex items-center justify-center">
+      <span class="font-data-mono-md text-data-mono-md font-bold text-on-primary/60">--</span>
+    </div>
+  </div>
+  <span class="font-label-sm text-[10px] text-on-primary/70 text-center leading-tight mt-1">
+    Sin datos aún
+  </span>
+</div></div>
+</div>
+</section>
+<!-- ZONE 4 - "Accesos rápidos" -->
+<section class="px-margin my-3">
+<h2 class="font-title-lg text-title-lg font-bold text-primary mb-3">
+        Accesos rápidos
+      </h2>
+<!-- 2x2 Grid of Cards -->
+<div class="grid grid-cols-2 gap-3">
+<!-- Card 1: Avisos -->
+<div class="bg-surface-container-lowest border border-outline-variant/60 rounded-[24px] p-4 flex flex-col justify-between active:scale-[0.98] transition-all duration-150">
+<div class="w-10 h-10 rounded-full bg-primary-fixed flex items-center justify-center text-primary-container mb-3">
+<span class="material-symbols-outlined text-[20px]" data-icon="campaign">campaign</span>
+</div>
+<div>
+<h3 class="font-title-md text-title-md font-bold text-primary leading-tight">Avisos</h3>
+<p class="font-label-md text-label-md text-secondary mt-0.5 font-medium">2 nuevos</p>
+</div>
+</div>
+<!-- Card 2: Incidentes -->
+<div class="bg-surface-container-lowest border border-outline-variant/60 rounded-[24px] p-4 flex flex-col justify-between active:scale-[0.98] transition-all duration-150">
+<div class="w-10 h-10 rounded-full bg-primary-fixed flex items-center justify-center text-primary-container mb-3">
+<span class="material-symbols-outlined text-[20px]" data-icon="shield">shield</span>
+</div>
+<div>
+<h3 class="font-title-md text-title-md font-bold text-primary leading-tight">Incidentes</h3>
+<p class="font-label-md text-label-md text-outline mt-0.5">Sin pendientes</p>
+</div>
+</div>
+<!-- Card 3: Justificar falta -->
+<div class="bg-surface-container-lowest border border-outline-variant/60 rounded-[24px] p-4 flex flex-col justify-between active:scale-[0.98] transition-all duration-150">
+<div class="w-10 h-10 rounded-full bg-primary-fixed flex items-center justify-center text-primary-container mb-3">
+<span class="material-symbols-outlined text-[20px]" data-icon="document_scanner">document_scanner</span>
+</div>
+<div>
+<h3 class="font-title-md text-title-md font-bold text-primary leading-tight">Justificar falta</h3>
+<p class="font-label-md text-label-md text-outline mt-0.5">Enviar comprobante</p>
+</div>
+</div>
+<!-- Card 4: Asistente IA -->
+<div class="bg-surface-container-lowest border border-outline-variant/60 rounded-[24px] p-4 flex flex-col justify-between active:scale-[0.98] transition-all duration-150 relative overflow-hidden">
+<div class="w-10 h-10 rounded-full bg-primary-fixed flex items-center justify-center text-secondary-container mb-3">
+<span class="material-symbols-outlined text-[20px]" data-icon="auto_awesome">auto_awesome</span>
+</div>
+<div>
+<h3 class="font-title-md text-title-md font-bold text-primary leading-tight">Asistente IA</h3>
+<p class="font-label-md text-label-md text-outline mt-0.5">Pregúntame lo que quieras</p>
+</div>
+</div>
+</div>
+</section>
+<!-- ZONE 5 - "Próximas tareas" -->
+<section class="px-margin my-3 pb-8">
+<div class="flex items-center justify-between mb-3">
+<h2 class="font-title-lg text-title-lg font-bold text-primary">
+          Próximas tareas
+        </h2>
+<a class="font-body-md text-[13px] font-medium text-secondary-container hover:opacity-80 active:opacity-60 transition-opacity" href="#ver-todas">
+          Ver todas
+        </a>
+</div>
+<div class="flex flex-col gap-2.5">
+<!-- Task Item 1 -->
+<div class="bg-surface-container-lowest border border-outline-variant/60 rounded-DEFAULT p-3.5 flex items-center justify-between gap-3 active:bg-surface-container-low transition-colors">
+<div class="flex items-center gap-2.5 min-w-0">
+<div class="w-2.5 h-2.5 rounded-full bg-secondary-container shrink-0"></div>
+<p class="font-body-md text-body-md text-on-surface font-medium truncate">
+              Matemáticas · Fracciones, ejercicios 1-10
+            </p>
+</div>
+<span class="inline-flex items-center px-2.5 py-0.5 rounded-full bg-amber-100 text-amber-700 font-data-mono-sm text-data-mono-sm font-semibold shrink-0">
+            Mañana
+          </span>
+</div>
+<!-- Task Item 2 -->
+<div class="bg-surface-container-lowest border border-outline-variant/60 rounded-DEFAULT p-3.5 flex items-center justify-between gap-3 active:bg-surface-container-low transition-colors">
+<div class="flex items-center gap-2.5 min-w-0">
+<div class="w-2.5 h-2.5 rounded-full bg-primary shrink-0"></div>
+<p class="font-body-md text-body-md text-on-surface font-medium truncate">
+              Español · Resumen del cuento
+            </p>
+</div>
+<span class="inline-flex items-center px-2.5 py-0.5 rounded-full bg-primary-fixed text-primary font-data-mono-sm text-data-mono-sm font-semibold shrink-0">
+            Vie 7 nov
+          </span>
+</div>
+</div>
+</section>
+<!-- FLOATING ISLAND BOTTOM NAVIGATION BAR -->
+<nav class="fixed bottom-4 left-4 right-4 mx-auto max-w-[328px] h-16 rounded-[28px] bg-surface-container-lowest/95 backdrop-blur-md border border-outline-variant/60 shadow-lg px-2 flex justify-around items-center z-50">
+<!-- 1. Inicio (Active) -->
+<a class="flex flex-col items-center justify-center bg-primary-fixed text-primary rounded-full px-3 py-1 active:scale-95 transition-all duration-200" href="#inicio">
+<span class="material-symbols-outlined text-[20px] fill-icon" data-icon="home" data-weight="fill" style="font-variation-settings: 'FILL' 1;">home</span>
+<span class="font-label-sm text-label-sm font-bold">Inicio</span>
+</a>
+<!-- 2. Asistencia -->
+<a class="flex flex-col items-center justify-center text-on-surface-variant px-2 py-1 active:scale-95 transition-all duration-200" href="#asistencia">
+<span class="material-symbols-outlined text-[20px]" data-icon="fact_check">fact_check</span>
+<span class="font-label-sm text-label-sm">Asistencia</span>
+</a>
+<!-- 3. Tareas -->
+<a class="flex flex-col items-center justify-center text-on-surface-variant px-2 py-1 active:scale-95 transition-all duration-200" href="#tareas">
+<span class="material-symbols-outlined text-[20px]" data-icon="assignment">assignment</span>
+<span class="font-label-sm text-label-sm">Tareas</span>
+</a>
+<!-- 4. Chat -->
+<a class="flex flex-col items-center justify-center text-on-surface-variant px-2 py-1 active:scale-95 transition-all duration-200" href="#chat">
+<span class="material-symbols-outlined text-[20px]" data-icon="chat">chat</span>
+<span class="font-label-sm text-label-sm">Chat</span>
+</a>
+<!-- 5. Perfil -->
+<a class="flex flex-col items-center justify-center text-on-surface-variant px-2 py-1 active:scale-95 transition-all duration-200" href="#perfil">
+<span class="material-symbols-outlined text-[20px]" data-icon="person">person</span>
+<span class="font-label-sm text-label-sm">Perfil</span>
+</a>
+</nav>
+<!-- Android System Navigation Gesture Bar Indicator -->
+<div class="fixed bottom-1 left-0 right-0 max-w-[360px] mx-auto flex justify-center pointer-events-none z-50">
+<div class="w-32 h-1 bg-on-surface/30 rounded-full"></div>
+</div>
+</div>
+
+
+</body></html>

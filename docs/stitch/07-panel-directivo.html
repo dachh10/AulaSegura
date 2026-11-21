@@ -1,0 +1,391 @@
+<!DOCTYPE html><html class="h-full" lang="es"><head>
+<meta charset="utf-8">
+<meta content="width=360, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" name="viewport">
+<title>Panel Directivo - Primaria Benito Juárez</title>
+<!-- Material Symbols Outlined -->
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet">
+<!-- Google Fonts: Bricolage Grotesque, DM Sans, JetBrains Mono -->
+<link href="https://fonts.googleapis.com" rel="preconnect">
+<link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect">
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;700;800&amp;family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&amp;family=JetBrains+Mono:wght@400;500;600;700&amp;display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet">
+<!-- Tailwind CSS -->
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<script id="tailwind-config">
+    tailwind.config = {
+      darkMode: "class",
+      theme: {
+        extend: {
+          "colors": {
+            "on-error": "#ffffff",
+            "surface-container-highest": "#e5e2dd",
+            "surface-variant": "#e5e2dd",
+            "tertiary": "#00281e",
+            "on-primary-container": "#969ae9",
+            "on-secondary-fixed-variant": "#8c170e",
+            "inverse-surface": "#31302d",
+            "surface-bright": "#fcf9f4",
+            "on-error-container": "#93000a",
+            "on-tertiary-fixed": "#002118",
+            "on-surface-variant": "#464651",
+            "on-primary": "#ffffff",
+            "tertiary-fixed": "#84f7d3",
+            "on-primary-fixed-variant": "#3b3f87",
+            "secondary": "#ae3123",
+            "surface-dim": "#dcdad5",
+            "tertiary-container": "#004031",
+            "inverse-primary": "#bfc2ff",
+            "secondary-fixed": "#ffdad4",
+            "on-secondary-container": "#690000",
+            "surface-tint": "#5357a1",
+            "primary": "#141761",
+            "surface-container-lowest": "#ffffff",
+            "on-secondary-fixed": "#410000",
+            "surface-container": "#f0ede9",
+            "secondary-container": "#fc6955",
+            "error": "#ba1a1a",
+            "on-tertiary": "#ffffff",
+            "background": "#fcf9f4",
+            "inverse-on-surface": "#f3f0eb",
+            "primary-fixed-dim": "#bfc2ff",
+            "tertiary-fixed-dim": "#66dbb7",
+            "primary-container": "#2b2f77",
+            "secondary-fixed-dim": "#ffb4a8",
+            "on-background": "#1c1c19",
+            "on-primary-fixed": "#0b0d5b",
+            "error-container": "#ffdad6",
+            "outline-variant": "#c7c5d2",
+            "on-secondary": "#ffffff",
+            "primary-fixed": "#e0e0ff",
+            "surface": "#fcf9f4",
+            "surface-container-high": "#ebe8e3",
+            "on-tertiary-fixed-variant": "#00513f",
+            "surface-container-low": "#f6f3ee",
+            "on-tertiary-container": "#3ab492",
+            "outline": "#777682",
+            "on-surface": "#1c1c19"
+          },
+          "borderRadius": {
+            "DEFAULT": "1rem",
+            "lg": "2rem",
+            "xl": "3rem",
+            "full": "9999px"
+          },
+          "spacing": {
+            "space-lg": "1.5rem",
+            "space-sm": "0.5rem",
+            "gutter": "1rem",
+            "space-md": "1rem",
+            "space-xs": "0.25rem",
+            "margin": "1rem",
+            "space-xl": "2rem"
+          },
+          "fontFamily": {
+            "body-lg": ["DM Sans"],
+            "data-mono-lg": ["JetBrains Mono"],
+            "data-mono-md": ["JetBrains Mono"],
+            "title-lg": ["Bricolage Grotesque"],
+            "display-lg": ["Bricolage Grotesque"],
+            "headline-md": ["Bricolage Grotesque"],
+            "label-md": ["DM Sans"],
+            "body-md": ["DM Sans"],
+            "label-sm": ["DM Sans"],
+            "headline-lg": ["Bricolage Grotesque"],
+            "data-mono-sm": ["JetBrains Mono"],
+            "title-md": ["DM Sans"]
+          },
+          "fontSize": {
+            "body-lg": ["16px", { "lineHeight": "24px", "letterSpacing": "0em", "fontWeight": "400" }],
+            "data-mono-lg": ["16px", { "lineHeight": "20px", "letterSpacing": "-0.02em", "fontWeight": "500" }],
+            "data-mono-md": ["13px", { "lineHeight": "18px", "letterSpacing": "0em", "fontWeight": "500" }],
+            "title-lg": ["18px", { "lineHeight": "24px", "letterSpacing": "-0.01em", "fontWeight": "600" }],
+            "display-lg": ["32px", { "lineHeight": "38px", "letterSpacing": "-0.02em", "fontWeight": "700" }],
+            "headline-md": ["20px", { "lineHeight": "26px", "letterSpacing": "-0.01em", "fontWeight": "600" }],
+            "label-md": ["12px", { "lineHeight": "16px", "letterSpacing": "0.02em", "fontWeight": "500" }],
+            "body-md": ["14px", { "lineHeight": "20px", "letterSpacing": "0.01em", "fontWeight": "400" }],
+            "label-sm": ["11px", { "lineHeight": "14px", "letterSpacing": "0.03em", "fontWeight": "500" }],
+            "headline-lg": ["24px", { "lineHeight": "30px", "letterSpacing": "-0.015em", "fontWeight": "700" }],
+            "data-mono-sm": ["11px", { "lineHeight": "14px", "letterSpacing": "0em", "fontWeight": "400" }],
+            "title-md": ["16px", { "lineHeight": "22px", "letterSpacing": "0em", "fontWeight": "600" }]
+          }
+        },
+      },
+    }
+  </script>
+<style>
+    .material-symbols-outlined {
+      font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+      display: inline-block;
+      vertical-align: middle;
+      line-height: 1;
+    }
+    
+    /* Watermark pattern based on institutional shield */
+    .bg-shield-pattern {
+      background-color: #FBF8F3;
+      background-image: radial-gradient(#2B2F77 0.75px, transparent 0.75px), radial-gradient(#2B2F77 0.75px, #FBF8F3 0.75px);
+      background-size: 32px 32px;
+      background-position: 0 0, 16px 16px;
+      background-blend-mode: soft-light;
+    }
+
+    /* Circular SVG Gauge Transition */
+    .progress-ring__circle {
+      transition: stroke-dashoffset 0.35s;
+      transform: rotate(-90deg);
+      transform-origin: 50% 50%;
+    }
+  </style>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+  </head>
+<body class="bg-surface text-on-surface antialiased select-none overflow-x-hidden m-0 p-0 flex justify-center bg-shield-pattern min-h-screen">
+<!-- Mobile Viewport Container 360 x 800 dp -->
+<div class="w-[360px] min-h-[800px] h-full flex flex-col relative bg-surface/95 backdrop-blur-[2px]">
+<!-- ANDROID NATIVE STATUS BAR (Height: 28dp) -->
+<header class="w-full h-7 px-4 pt-1 flex justify-between items-center text-on-surface z-40 select-none">
+<span class="font-data-mono-sm text-data-mono-sm font-semibold tracking-tight text-on-surface">08:15</span>
+<div class="flex items-center space-x-1.5 text-on-surface">
+<span class="material-symbols-outlined text-[15px]" data-icon="wifi">wifi</span>
+<span class="material-symbols-outlined text-[15px]" data-icon="signal_cellular_alt">signal_cellular_alt</span>
+<span class="material-symbols-outlined text-[16px]" data-icon="battery_full">battery_full</span>
+</div>
+</header>
+<!-- SCROLLABLE MAIN CANVAS -->
+<main class="flex-1 w-full px-4 pt-2.5 pb-[104px] overflow-y-auto space-y-4">
+<!-- ZONE 1: TOP BAR -->
+<section class="flex justify-between items-center w-full">
+<div class="flex items-center space-x-3">
+<!-- Leading Avatar: Initials PR -->
+<div aria-label="Avatar PR de la Directora Patricia" class="w-11 h-11 rounded-full bg-primary-fixed flex items-center justify-center border border-primary/10 shadow-xs">
+<span class="font-title-md text-title-md font-bold text-primary">PR</span>
+</div>
+<div class="flex flex-col">
+<h1 class="font-headline-md text-headline-md text-primary font-bold tracking-tight leading-tight">
+              Hola, directora Patricia
+            </h1>
+<span class="font-label-md text-label-md text-outline font-normal">
+              Primaria Benito Juárez
+            </span>
+</div>
+</div>
+<!-- Trailing Notifications Button -->
+<button aria-label="Notificaciones" class="relative w-11 h-11 rounded-full bg-surface-container-lowest flex items-center justify-center border border-outline-variant/50 shadow-sm active:scale-95 transition-all text-on-surface">
+<span class="material-symbols-outlined text-[22px] text-primary" data-icon="notifications">notifications</span>
+<span class="absolute top-1.5 right-1.5 w-4 h-4 bg-secondary-container text-on-secondary rounded-full flex items-center justify-center font-data-mono-sm text-[10px] font-bold ring-2 ring-surface-container-lowest">
+            4
+          </span>
+</button>
+</section><div class="grid grid-cols-2 gap-2.5"><div class="bg-surface-container-lowest rounded-[20px] p-3 border border-outline-variant/60 flex flex-col justify-between shadow-xs"><div class="flex items-center justify-between mb-2"><div class="w-9 h-9 rounded-full bg-secondary-fixed/50 flex items-center justify-center text-secondary"><span class="material-symbols-outlined text-[20px]" data-icon="mark_email_unread">mark_email_unread</span></div><span class="font-data-mono-sm text-[11px] font-bold text-secondary bg-secondary-fixed/50 px-2 py-0.5 rounded-full">4</span></div><div><span class="font-title-md text-[13px] font-bold text-on-surface block leading-tight mb-0.5">Solicitudes de docentes</span><span class="font-label-sm text-[11px] text-outline font-medium block mb-2.5">4 pendientes</span></div><button class="w-full py-1.5 px-3 bg-secondary text-on-secondary rounded-full font-label-sm text-[11px] font-semibold text-center shadow-xs active:scale-95 transition-all">Revisar</button></div><div class="bg-surface-container-lowest rounded-[20px] p-3 border border-outline-variant/60 flex flex-col justify-between shadow-xs"><div class="flex items-center justify-between mb-2"><div class="w-9 h-9 rounded-full bg-primary-fixed/60 flex items-center justify-center text-primary"><span class="material-symbols-outlined text-[20px]" data-icon="person_add">person_add</span></div><span class="font-data-mono-sm text-[11px] font-bold text-primary bg-primary-fixed/60 px-2 py-0.5 rounded-full">12</span></div><div><span class="font-title-md text-[13px] font-bold text-on-surface block leading-tight mb-0.5">Alumnos sin grupo</span><span class="font-label-sm text-[11px] text-outline font-medium block mb-2.5">12 sin asignar</span></div><button class="w-full py-1.5 px-3 bg-primary text-on-primary rounded-full font-label-sm text-[11px] font-semibold text-center shadow-xs active:scale-95 transition-all">Asignar</button></div></div>
+<!-- ZONE 2: HERO CARD (Asistencia de hoy) -->
+<section class="w-full relative overflow-hidden bg-primary-container text-on-primary rounded-[24px] p-4 shadow-sm border border-primary/20">
+<!-- Shield Watermark Motif (6% Opacity) -->
+<div class="absolute -right-8 -top-8 w-44 h-44 text-on-primary opacity-[0.06] pointer-events-none select-none flex items-center justify-center">
+<span class="material-symbols-outlined text-[170px]" data-icon="shield">shield</span>
+</div>
+<!-- Card Top Label -->
+<div class="flex items-center space-x-1.5 mb-3">
+<span class="font-data-mono-sm text-[11px] tracking-wider uppercase text-on-primary/70 font-medium">
+            ASISTENCIA DE HOY · MAR 3 NOV
+          </span>
+</div>
+<!-- Middle Content: Circular Ring & Metrics -->
+<div class="flex items-center justify-between py-1 relative z-10">
+<!-- Circular Progress Ring (93%) -->
+<div class="relative w-[88px] h-[88px] flex items-center justify-center">
+<svg class="w-full h-full" viewBox="0 0 88 88">
+<!-- Background Ring Track -->
+<circle class="text-on-primary/20" cx="44" cy="44" fill="transparent" r="36" stroke="currentColor" stroke-width="7"></circle>
+<!-- Progress Arc (Mint #5ED3B0) -->
+<circle class="progress-ring__circle text-tertiary-fixed-dim" cx="44" cy="44" fill="transparent" r="36" stroke="currentColor" stroke-dasharray="226.2" stroke-dashoffset="15.8" stroke-linecap="round" stroke-width="7.5"></circle>
+</svg>
+<div class="absolute inset-0 flex flex-col items-center justify-center">
+<span class="font-data-mono-lg text-[24px] font-bold text-on-primary tracking-tight">93%</span>
+<span class="font-label-sm text-[9px] uppercase tracking-wider text-on-primary/70 -mt-0.5">Total</span>
+</div>
+</div>
+<!-- Stacked Metrics -->
+<div class="flex flex-col space-y-1.5 pl-2 flex-1 justify-center max-w-[170px]">
+<!-- Metric 1: Presentes -->
+<div class="flex items-center space-x-2">
+<span class="w-2.5 h-2.5 rounded-full bg-[#5ED3B0] shrink-0"></span>
+<span class="font-body-md text-body-md text-on-primary font-medium tracking-tight">79 presentes</span>
+</div>
+<!-- Metric 2: Faltas -->
+<div class="flex items-center space-x-2">
+<span class="w-2.5 h-2.5 rounded-full bg-[#E5484D] shrink-0"></span>
+<span class="font-body-md text-body-md text-on-primary font-medium tracking-tight">4 faltas</span>
+</div>
+<!-- Metric 3: Retardos -->
+<div class="flex items-center space-x-2">
+<span class="w-2.5 h-2.5 rounded-full bg-[#F59E0B] shrink-0"></span>
+<span class="font-body-md text-body-md text-on-primary font-medium tracking-tight">2 retardos</span>
+</div>
+</div>
+</div>
+<!-- Bottom Row Status -->
+<div class="mt-3 pt-2.5 border-t border-on-primary/15 flex items-center space-x-1.5 text-on-primary/70">
+<span class="material-symbols-outlined text-[15px] text-[#5ED3B0]" data-icon="cloud_done">cloud_done</span>
+<span class="font-data-mono-sm text-[11px] font-normal">Actualizado hace 2 min</span>
+</div>
+</section>
+<!-- ZONE 3: PLANTEL EN NÚMEROS -->
+<section class="space-y-2.5">
+<h2 class="font-title-lg text-title-lg text-on-surface font-bold tracking-tight">
+          Plantel en números
+        </h2>
+<div class="grid grid-cols-2 gap-2.5">
+<!-- Tile 1: Alumnos -->
+<div class="bg-surface-container-lowest rounded-[20px] p-3 border border-outline-variant/60 flex flex-col justify-between shadow-xs">
+<div class="w-9 h-9 rounded-full bg-primary-fixed/60 flex items-center justify-center text-primary mb-2">
+<span class="material-symbols-outlined text-[20px]" data-icon="school">school</span>
+</div>
+<div>
+<span class="font-data-mono-lg text-[22px] font-bold text-on-surface block leading-tight">85</span>
+<span class="font-label-md text-label-md text-outline font-medium">Alumnos</span>
+</div>
+</div>
+<!-- Tile 2: Docentes -->
+<div class="bg-surface-container-lowest rounded-[20px] p-3 border border-outline-variant/60 flex flex-col justify-between shadow-xs">
+<div class="w-9 h-9 rounded-full bg-primary-fixed/60 flex items-center justify-center text-primary mb-2">
+<span class="material-symbols-outlined text-[20px]" data-icon="badge">badge</span>
+</div>
+<div>
+<span class="font-data-mono-lg text-[22px] font-bold text-on-surface block leading-tight">4</span>
+<span class="font-label-md text-label-md text-outline font-medium">Docentes</span>
+</div>
+</div>
+<!-- Tile 3: Grupos -->
+<div class="bg-surface-container-lowest rounded-[20px] p-3 border border-outline-variant/60 flex flex-col justify-between shadow-xs">
+<div class="w-9 h-9 rounded-full bg-primary-fixed/60 flex items-center justify-center text-primary mb-2">
+<span class="material-symbols-outlined text-[20px]" data-icon="groups">groups</span>
+</div>
+<div>
+<span class="font-data-mono-lg text-[22px] font-bold text-on-surface block leading-tight">3</span>
+<span class="font-label-md text-label-md text-outline font-medium">Grupos</span>
+</div>
+</div>
+<!-- Tile 4: Incidentes nuevos (Coral highlight) -->
+<div class="bg-surface-container-lowest rounded-[20px] p-3 border border-outline-variant/60 flex flex-col justify-between shadow-xs">
+<div class="w-9 h-9 rounded-full bg-secondary-fixed/50 flex items-center justify-center text-secondary mb-2">
+<span class="material-symbols-outlined text-[20px]" data-icon="warning">warning</span>
+</div>
+<div>
+<span class="font-data-mono-lg text-[22px] font-bold text-[#FF6B57] block leading-tight">2</span>
+<span class="font-label-md text-label-md text-outline font-medium">Incidentes nuevos</span>
+</div>
+</div>
+</div>
+</section>
+<!-- ZONE 4: GRUPOS HOY -->
+<section class="space-y-2.5">
+<div class="flex items-center justify-between">
+<h2 class="font-title-lg text-title-lg text-on-surface font-bold tracking-tight">
+            Grupos hoy
+          </h2>
+<span class="font-label-sm text-label-sm text-primary font-semibold">Ver detalles</span>
+</div>
+<div class="bg-surface-container-lowest rounded-[24px] border border-outline-variant/60 shadow-xs divide-y divide-outline-variant/40 overflow-hidden">
+<!-- Row 1: 3° B -->
+<div class="p-3.5 flex items-center justify-between">
+<div class="flex items-center space-x-3">
+<div class="w-10 h-10 rounded-xl bg-primary-fixed text-primary font-title-md text-title-md font-bold flex items-center justify-center">
+                3° B
+              </div>
+<div>
+<span class="font-body-md text-body-md font-semibold text-on-surface block leading-tight">Prof. Salinas</span>
+<div class="flex items-center space-x-2 mt-1">
+<div class="w-16 h-1.5 bg-surface-container rounded-full overflow-hidden">
+<div class="h-full bg-primary-container rounded-full" style="width: 94%;"></div>
+</div>
+<span class="font-data-mono-sm text-[11px] text-on-surface font-medium">94%</span>
+</div>
+</div>
+</div>
+<div class="inline-flex items-center space-x-1 px-2.5 py-1 rounded-full bg-[#EAF6F0] text-[#2E9E6B]">
+<span class="material-symbols-outlined text-[14px]" data-icon="check_circle" style="font-variation-settings: 'FILL' 1;">check_circle</span>
+<span class="font-label-sm text-[11px] font-semibold">Lista hecha</span>
+</div>
+</div>
+<!-- Row 2: 3° A -->
+<div class="p-3.5 flex items-center justify-between">
+<div class="flex items-center space-x-3">
+<div class="w-10 h-10 rounded-xl bg-primary-fixed text-primary font-title-md text-title-md font-bold flex items-center justify-center">
+                3° A
+              </div>
+<div>
+<span class="font-body-md text-body-md font-semibold text-on-surface block leading-tight">Profa. Mendoza</span>
+<div class="flex items-center space-x-2 mt-1">
+<div class="w-16 h-1.5 bg-surface-container rounded-full overflow-hidden">
+<div class="h-full bg-primary-container rounded-full" style="width: 91%;"></div>
+</div>
+<span class="font-data-mono-sm text-[11px] text-on-surface font-medium">91%</span>
+</div>
+</div>
+</div>
+<div class="inline-flex items-center space-x-1 px-2.5 py-1 rounded-full bg-[#EAF6F0] text-[#2E9E6B]">
+<span class="material-symbols-outlined text-[14px]" data-icon="check_circle" style="font-variation-settings: 'FILL' 1;">check_circle</span>
+<span class="font-label-sm text-[11px] font-semibold">Lista hecha</span>
+</div>
+</div>
+<!-- Row 3: 2° C (Pendiente) -->
+<div class="p-3.5 flex items-center justify-between">
+<div class="flex items-center space-x-3">
+<div class="w-10 h-10 rounded-xl bg-primary-fixed/50 text-primary/80 font-title-md text-title-md font-bold flex items-center justify-center">
+                2° C
+              </div>
+<div>
+<span class="font-body-md text-body-md font-semibold text-on-surface block leading-tight">Prof. Vega</span>
+<span class="font-data-mono-sm text-[11px] text-outline font-medium block mt-0.5">—</span>
+</div>
+</div>
+<div class="inline-flex items-center space-x-1 px-2.5 py-1 rounded-full bg-[#FEF3C7] text-[#D97706]">
+<span class="material-symbols-outlined text-[14px]" data-icon="schedule">schedule</span>
+<span class="font-label-sm text-[11px] font-semibold">Pendiente</span>
+</div>
+</div>
+</div>
+</section>
+<!-- ZONE 5: REQUIERE ATENCIÓN -->
+<section class="space-y-2.5">
+<h2 class="font-title-lg text-title-lg text-on-surface font-bold tracking-tight">
+          Requiere atención
+        </h2>
+<div class="bg-[#FFFBEB] rounded-[20px] border border-[#FDE68A] p-3 shadow-xs divide-y divide-[#FDE68A]/60">
+<!-- Attention Item 1 -->
+<div class="pb-2.5 flex items-center justify-between active:opacity-75 transition-opacity cursor-pointer">
+<div class="flex items-center space-x-2.5 pr-2">
+<span class="material-symbols-outlined text-[#D97706] text-[20px] shrink-0" data-icon="error">error</span>
+<p class="font-title-md text-[13px] leading-snug font-medium text-[#92400E]">
+                Alumnos con 3 o más faltas este mes: <span class="font-bold">3</span>
+</p>
+</div>
+<span class="material-symbols-outlined text-[#B45309] text-[20px] shrink-0" data-icon="chevron_right">chevron_right</span>
+</div>
+<!-- Attention Item 2 -->
+<div class="pt-2.5 flex items-center justify-between active:opacity-75 transition-opacity cursor-pointer">
+<div class="flex items-center space-x-2.5 pr-2">
+<span class="material-symbols-outlined text-[#D97706] text-[20px] shrink-0" data-icon="cloud_off">cloud_off</span>
+<p class="font-title-md text-[13px] leading-snug font-medium text-[#92400E]">
+                Registros sin sincronizar: <span class="font-bold">1</span>
+</p>
+</div>
+<span class="material-symbols-outlined text-[#B45309] text-[20px] shrink-0" data-icon="chevron_right">chevron_right</span>
+</div>
+</div>
+</section>
+</main>
+<!-- SHARED COMPONENT: FLOATING ISLAND BOTTOM NAVIGATION BAR -->
+<!-- Executing BottomNavBar exactly as specified with active style on "Panel" -->
+<div class="fixed bottom-[88px] left-0 right-0 z-40 flex justify-center pointer-events-none"><button class="pointer-events-auto flex items-center space-x-2 px-4 py-2.5 bg-primary text-on-primary rounded-full shadow-md active:scale-95 transition-all border border-primary/20 hover:bg-primary-container"><span class="material-symbols-outlined text-[20px] text-[#5ED3B0]" data-icon="qr_code_scanner">qr_code_scanner</span><span class="font-title-md text-[13px] font-bold tracking-tight text-on-primary">Escanear alumno</span></button></div><nav aria-label="Navegación principal" class="fixed bottom-3 left-0 right-0 z-50 flex justify-around items-center h-16 max-w-[344px] mx-auto px-2 bg-surface-container-lowest rounded-full border border-surface-variant shadow-md"><button aria-current="page" class="flex flex-col items-center justify-center bg-primary-fixed text-on-primary-fixed rounded-full px-2.5 py-1.5 transition-all active:scale-95"><span class="material-symbols-outlined text-[20px]" data-icon="dashboard" style="font-variation-settings: 'FILL' 1;">dashboard</span><span class="font-label-sm text-[10px] font-semibold mt-0.5">Panel</span></button><button class="relative flex flex-col items-center justify-center text-on-surface-variant hover:bg-surface-container rounded-full px-2 py-1.5 transition-all active:scale-95"><span class="material-symbols-outlined text-[20px]" data-icon="mark_email_unread">mark_email_unread</span><span class="absolute top-1 right-2 w-3.5 h-3.5 bg-secondary text-on-secondary rounded-full flex items-center justify-center font-data-mono-sm text-[9px] font-bold ring-1 ring-surface-container-lowest">4</span><span class="font-label-sm text-[10px] mt-0.5">Solicitudes</span></button><button class="flex flex-col items-center justify-center text-on-surface-variant hover:bg-surface-container rounded-full px-2.5 py-1.5 transition-all active:scale-95"><span class="material-symbols-outlined text-[20px]" data-icon="school">school</span><span class="font-label-sm text-[10px] mt-0.5">Alumnos</span></button><button class="flex flex-col items-center justify-center text-on-surface-variant hover:bg-surface-container rounded-full px-2.5 py-1.5 transition-all active:scale-95"><span class="material-symbols-outlined text-[20px]" data-icon="analytics">analytics</span><span class="font-label-sm text-[10px] mt-0.5">Reportes</span></button><button class="flex flex-col items-center justify-center text-on-surface-variant hover:bg-surface-container rounded-full px-2.5 py-1.5 transition-all active:scale-95"><span class="material-symbols-outlined text-[20px]" data-icon="settings">settings</span><span class="font-label-sm text-[10px] mt-0.5">Ajustes</span></button></nav>
+<!-- ANDROID GESTURE NAVIGATION PILL (Fixed at bottom edge) -->
+<div class="fixed bottom-0.5 left-0 right-0 flex justify-center items-center h-2 pointer-events-none z-50">
+<div class="w-28 h-1 bg-on-surface/30 rounded-full"></div>
+</div>
+</div>
+
+
+</body></html>

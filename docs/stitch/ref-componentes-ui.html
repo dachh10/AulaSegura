@@ -1,0 +1,539 @@
+<!DOCTYPE html>
+
+<html lang="es">
+<head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Componentes - AulaSegura</title>
+<link href="https://fonts.googleapis.com" rel="preconnect"/>
+<link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;700;800&amp;family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;1,9..40,400&amp;family=JetBrains+Mono:wght@400;500;600&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Rounded:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200" rel="stylesheet">
+<script src="https://cdn.tailwindcss.com"></script>
+<script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            'indigo-main': '#2B2F77',
+            'indigo-tint': '#E8E9F7',
+            'coral-accent': '#FF6B57',
+            'mint-tertiary': '#5ED3B0',
+            'cream-bg': '#FBF8F3',
+            'surface-card': '#FFFFFF',
+            'border-subtle': '#E6E1D8',
+            'text-primary': '#1B1D3A',
+            'text-secondary': '#6B6E8F',
+            'att-present': '#2E9E6B',
+            'att-absent': '#E5484D',
+            'att-late': '#F2A93B',
+            'att-justified': '#7C5CFC',
+          },
+          fontFamily: {
+            display: ['"Bricolage Grotesque"', 'sans-serif'],
+            sans: ['"DM Sans"', 'sans-serif'],
+            mono: ['"JetBrains Mono"', 'monospace'],
+          },
+          borderRadius: {
+            'card': '24px',
+            'input': '16px',
+            'island': '28px',
+          },
+          boxShadow: {
+            'island': '0 10px 25px -4px rgba(43, 47, 119, 0.12), 0 4px 10px -2px rgba(43, 47, 119, 0.06)',
+            'floating-btn': '0 8px 18px -2px rgba(255, 107, 87, 0.38)',
+            'dialog': '0 20px 30px -10px rgba(27, 29, 58, 0.18)',
+            'bottom-sheet': '0 -8px 24px -4px rgba(27, 29, 58, 0.12)',
+          }
+        }
+      }
+    }
+  </script>
+<style>
+    body {
+      background-color: #FBF8F3;
+      color: #1B1D3A;
+      font-family: 'DM Sans', sans-serif;
+    }
+    .material-symbols-rounded {
+      font-variation-settings: 'FILL' 1, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      line-height: 1;
+    }
+    .material-symbols-rounded.outlined {
+      font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+    }
+    /* Pattern background subtle shields */
+    .bg-pattern {
+      background-color: #FBF8F3;
+      background-image: url("data:image/svg+xml,%3Csvg width='48' height='48' viewBox='0 0 48 48' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M24 6c5.2 0 10 2.2 13 5.8 0 10.4-5.2 19.4-13 22.2C16.2 31.2 11 22.2 11 11.8 14 8.2 18.8 6 24 6z' fill='none' stroke='%232B2F77' stroke-width='1.5' stroke-opacity='0.05'/%3E%3Cpath d='M20 22l3 3 6-6' fill='none' stroke='%232B2F77' stroke-width='1.5' stroke-linecap='round' stroke-opacity='0.05'/%3E%3C/svg%3E");
+    }
+  </style>
+</link></head>
+<body class="bg-pattern min-h-screen py-8 px-4 flex justify-center selection:bg-coral-accent/20">
+<div class="w-full max-w-[440px] md:max-w-[480px] flex flex-col gap-6">
+<!-- Top Status / Header Spec Banner -->
+<header class="bg-surface-card rounded-card border border-border-subtle p-5 shadow-sm">
+<div class="flex items-center justify-between mb-3">
+<div class="flex items-center gap-2">
+<span class="inline-flex items-center justify-center w-8 h-8 rounded-full bg-indigo-tint text-indigo-main">
+<span class="material-symbols-rounded text-lg">widgets</span>
+</span>
+<span class="text-xs uppercase tracking-wider font-mono text-text-secondary font-medium">Guía de Componentes MD3</span>
+</div>
+<span class="bg-coral-accent/10 text-coral-accent text-[11px] font-mono font-semibold px-2.5 py-0.5 rounded-full border border-coral-accent/20">
+          v1.0 Oficial
+        </span>
+</div>
+<h1 class="text-2xl font-bold font-display text-indigo-main tracking-tight">Catálogo de UI</h1>
+<p class="text-sm text-text-secondary mt-1">Biblioteca visual estandarizada para pantallas de AulaSegura en Android (MD3).</p>
+</header>
+<!-- SECTION 6: TOP APP BAR (Shown prominently first as standard screen frame) -->
+<section class="bg-surface-card rounded-card border border-border-subtle p-5">
+<div class="flex items-center justify-between mb-3 border-b border-border-subtle/60 pb-2">
+<div class="flex items-center gap-2">
+<span class="w-2 h-2 rounded-full bg-indigo-main"></span>
+<h2 class="text-xs font-mono font-semibold uppercase tracking-wider text-text-secondary">6. Top App Bar (Barra Superior)</h2>
+</div>
+<span class="text-[10px] font-mono text-text-secondary">Large / Medium</span>
+</div>
+<!-- Live Top App Bar Demonstration -->
+<div class="bg-cream-bg rounded-2xl p-4 border border-border-subtle relative overflow-hidden">
+<div class="flex items-center justify-between mb-3">
+<button aria-label="Regresar" class="w-10 h-10 rounded-full flex items-center justify-center text-text-primary hover:bg-black/5 active:scale-95 transition-transform">
+<span class="material-symbols-rounded text-2xl">arrow_back</span>
+</button>
+<div class="flex items-center gap-1">
+<button aria-label="Notificaciones" class="w-10 h-10 rounded-full flex items-center justify-center text-text-primary hover:bg-black/5 active:scale-95 relative transition-transform">
+<span class="material-symbols-rounded text-2xl outlined">notifications</span>
+<!-- Coral Badge -->
+<span class="absolute top-2 right-2 w-2.5 h-2.5 bg-coral-accent rounded-full ring-2 ring-cream-bg"></span>
+</button>
+<button aria-label="Más opciones" class="w-10 h-10 rounded-full flex items-center justify-center text-text-primary hover:bg-black/5 active:scale-95 transition-transform">
+<span class="material-symbols-rounded text-2xl">more_vert</span>
+</button>
+</div>
+</div>
+<div>
+<span class="text-[11px] font-mono font-medium text-text-secondary tracking-wide uppercase">Grupo 3° Primaria</span>
+<h3 class="text-2xl font-bold font-display text-indigo-main tracking-tight mt-0.5">Control de Asistencia</h3>
+</div>
+</div>
+</section>
+<!-- SECTION 1: BUTTONS -->
+<section class="bg-surface-card rounded-card border border-border-subtle p-5">
+<div class="flex items-center justify-between mb-4 border-b border-border-subtle/60 pb-2">
+<div class="flex items-center gap-2">
+<span class="w-2 h-2 rounded-full bg-coral-accent"></span>
+<h2 class="text-xs font-mono font-semibold uppercase tracking-wider text-text-secondary">1. Botones (Pill &amp; FAB)</h2>
+</div>
+<span class="text-[10px] font-mono text-text-secondary">Full-Pill / 24dp</span>
+</div>
+<div class="flex flex-col gap-3">
+<!-- Primary Pill Button -->
+<div>
+<label class="block text-[11px] font-mono text-text-secondary mb-1.5">Primario (Filled Coral - Acción Clave)</label>
+<button class="w-full bg-coral-accent text-white font-medium text-sm py-3.5 px-6 rounded-full flex items-center justify-center gap-2 shadow-floating-btn hover:opacity-95 active:scale-[0.98] transition-all">
+<span>Continuar</span>
+<span class="material-symbols-rounded text-lg">arrow_forward</span>
+</button>
+</div>
+<!-- Secondary Filled Indigo Button -->
+<div>
+<label class="block text-[11px] font-mono text-text-secondary mb-1.5">Secundario (Filled Deep Índigo)</label>
+<button class="w-full bg-indigo-main text-white font-medium text-sm py-3.5 px-6 rounded-full flex items-center justify-center gap-2 hover:bg-opacity-95 active:scale-[0.98] transition-all">
+<span class="material-symbols-rounded text-lg">lock</span>
+<span>Iniciar Sesión</span>
+</button>
+</div>
+<!-- Outlined Button -->
+<div>
+<label class="block text-[11px] font-mono text-text-secondary mb-1.5">Bordeado (Outlined Índigo)</label>
+<button class="w-full bg-transparent border-2 border-indigo-main text-indigo-main font-semibold text-sm py-3 px-6 rounded-full flex items-center justify-center gap-2 hover:bg-indigo-tint/30 active:scale-[0.98] transition-all">
+<span class="material-symbols-rounded text-lg">file_download</span>
+<span>Descargar Reporte PDF</span>
+</button>
+</div>
+<!-- Text Button & Disabled Row -->
+<div class="grid grid-cols-2 gap-3 pt-1">
+<div>
+<label class="block text-[11px] font-mono text-text-secondary mb-1.5">Botón de Texto</label>
+<button class="w-full text-indigo-main font-semibold text-sm py-3 px-4 rounded-full flex items-center justify-center gap-1.5 hover:bg-indigo-tint/40 active:scale-[0.98] transition-all">
+<span>Cancelar</span>
+</button>
+</div>
+<div>
+<label class="block text-[11px] font-mono text-text-secondary mb-1.5">Deshabilitado</label>
+<button class="w-full bg-[#E6E1D8] text-[#9A9BAE] font-medium text-sm py-3 px-4 rounded-full flex items-center justify-center gap-1.5 cursor-not-allowed opacity-80" disabled="">
+<span class="material-symbols-rounded text-base">block</span>
+<span>Guardando</span>
+</button>
+</div>
+</div>
+<!-- Round Floating Action Button (FAB) -->
+<div class="pt-2 flex items-center justify-between bg-cream-bg/70 p-3.5 rounded-2xl border border-border-subtle">
+<div>
+<div class="text-xs font-semibold text-text-primary">Floating Action Button (FAB)</div>
+<div class="text-[11px] text-text-secondary">Coral con icono "+" centrado (56×56 dp)</div>
+</div>
+<button aria-label="Agregar" class="w-14 h-14 rounded-full bg-coral-accent text-white flex items-center justify-center shadow-floating-btn hover:scale-105 active:scale-95 transition-transform">
+<span class="material-symbols-rounded text-3xl">add</span>
+</button>
+</div>
+</div>
+</section>
+<!-- SECTION 2: TEXT FIELDS -->
+<section class="bg-surface-card rounded-card border border-border-subtle p-5">
+<div class="flex items-center justify-between mb-4 border-b border-border-subtle/60 pb-2">
+<div class="flex items-center gap-2">
+<span class="w-2 h-2 rounded-full bg-mint-tertiary"></span>
+<h2 class="text-xs font-mono font-semibold uppercase tracking-wider text-text-secondary">2. Campos de Texto (Input 16dp)</h2>
+</div>
+<span class="text-[10px] font-mono text-text-secondary">Filled / Radio 16dp</span>
+</div>
+<div class="flex flex-col gap-4">
+<!-- Default State -->
+<div>
+<label class="block text-xs font-medium text-text-secondary mb-1.5">Por Defecto</label>
+<div class="relative bg-surface-card border border-border-subtle rounded-input px-4 py-3 flex items-center gap-3 focus-within:border-indigo-main transition-colors shadow-xs">
+<span class="material-symbols-rounded text-text-secondary text-xl">person</span>
+<input class="w-full bg-transparent text-sm text-text-primary placeholder:text-text-secondary/60 focus:outline-none" placeholder="Nombre completo del alumno" readonly="" type="text" value="Mateo Fernández Ruiz"/>
+</div>
+</div>
+<!-- Focused State with 2dp Indigo Border & Floating Label -->
+<div>
+<label class="block text-xs font-medium text-indigo-main mb-1.5 font-semibold">Enfocado (Borde 2dp Índigo)</label>
+<div class="relative bg-surface-card border-2 border-indigo-main rounded-input px-4 pt-2.5 pb-2.5 flex items-center gap-3 ring-4 ring-indigo-tint/40 shadow-xs">
+<span class="material-symbols-rounded text-indigo-main text-xl">mail</span>
+<div class="w-full">
+<span class="block text-[10px] font-medium text-indigo-main leading-tight font-mono uppercase tracking-wider">Correo Institucional</span>
+<input class="w-full bg-transparent text-sm text-text-primary focus:outline-none font-medium" readonly="" type="text" value="direccion@colegio.edu.mx"/>
+</div>
+<span class="material-symbols-rounded text-att-present text-lg">check_circle</span>
+</div>
+</div>
+<!-- Error State -->
+<div>
+<label class="block text-xs font-medium text-att-absent mb-1.5 font-semibold">Error de Validación</label>
+<div class="relative bg-surface-card border-2 border-att-absent rounded-input px-4 py-3 flex items-center gap-3 bg-red-50/20">
+<span class="material-symbols-rounded text-att-absent text-xl">alternate_email</span>
+<input class="w-full bg-transparent text-sm text-text-primary focus:outline-none" readonly="" type="text" value="usuario.invalido@com"/>
+<span class="material-symbols-rounded text-att-absent text-xl">error</span>
+</div>
+<p class="text-[11px] text-att-absent font-medium mt-1.5 flex items-center gap-1 pl-1">
+<span class="material-symbols-rounded text-xs">info</span>
+<span>Correo no válido</span>
+</p>
+</div>
+<!-- Password Field with Show/Hide -->
+<div>
+<label class="block text-xs font-medium text-text-secondary mb-1.5">Contraseña con Visibilidad</label>
+<div class="relative bg-surface-card border border-border-subtle rounded-input px-4 py-3 flex items-center gap-3 shadow-xs">
+<span class="material-symbols-rounded text-text-secondary text-xl">vpn_key</span>
+<input class="w-full bg-transparent text-sm text-text-primary font-mono focus:outline-none" readonly="" type="password" value="••••••••••••"/>
+<button aria-label="Mostrar contraseña" class="text-text-secondary hover:text-indigo-main focus:outline-none">
+<span class="material-symbols-rounded text-xl">visibility</span>
+</button>
+</div>
+</div>
+</div>
+</section>
+<!-- SECTION 3: CARDS -->
+<section class="bg-surface-card rounded-card border border-border-subtle p-5">
+<div class="flex items-center justify-between mb-4 border-b border-border-subtle/60 pb-2">
+<div class="flex items-center gap-2">
+<span class="w-2 h-2 rounded-full bg-indigo-main"></span>
+<h2 class="text-xs font-mono font-semibold uppercase tracking-wider text-text-secondary">3. Tarjetas (Cards 24dp)</h2>
+</div>
+<span class="text-[10px] font-mono text-text-secondary">Radio 24dp / 1dp border</span>
+</div>
+<div class="flex flex-col gap-4">
+<!-- 3.1 Standard White Card -->
+<div class="bg-white rounded-card border border-border-subtle p-4">
+<div class="flex items-center justify-between mb-2">
+<span class="text-[11px] font-mono text-text-secondary uppercase">Tarjeta Estándar</span>
+<span class="bg-cream-bg text-text-secondary text-[11px] px-2.5 py-0.5 rounded-full font-mono">24dp</span>
+</div>
+<h4 class="font-display font-bold text-base text-text-primary">Aviso de Exámenes Bimestrales</h4>
+<p class="text-xs text-text-secondary mt-1 leading-relaxed">
+            Las evaluaciones del segundo periodo iniciarán el próximo lunes 18 de noviembre para nivel básico.
+          </p>
+<div class="flex items-center gap-2 mt-3 pt-3 border-t border-border-subtle/60 text-xs text-text-secondary font-mono">
+<span class="material-symbols-rounded text-sm text-indigo-main">calendar_today</span>
+<span>12 Nov 2024 · Dirección Académica</span>
+</div>
+</div>
+<!-- 3.2 Highlighted Card with Indigo Tint #E8E9F7 -->
+<div class="bg-indigo-tint/70 rounded-card border border-indigo-main/20 p-4 relative overflow-hidden">
+<div class="flex items-start justify-between">
+<div class="flex items-center gap-2.5">
+<div class="w-10 h-10 rounded-2xl bg-indigo-main text-white flex items-center justify-center shadow-xs">
+<span class="material-symbols-rounded text-xl">smart_toy</span>
+</div>
+<div>
+<span class="text-[10px] font-mono font-semibold uppercase text-indigo-main bg-white/70 px-2 py-0.5 rounded-full">
+                  Destacada · Tint #E8E9F7
+                </span>
+<h4 class="font-display font-bold text-base text-indigo-main mt-0.5">Asistente IA AulaSegura</h4>
+</div>
+</div>
+</div>
+<p class="text-xs text-indigo-main/80 mt-2.5 leading-relaxed font-sans">
+            "Tienes 3 tareas pendientes por revisar y una justificación médica por autorizar en 3° B."
+          </p>
+<div class="mt-3 flex items-center gap-2">
+<button class="bg-indigo-main text-white text-xs font-semibold px-4 py-2 rounded-full flex items-center gap-1.5 active:scale-95 transition-transform">
+<span>Consultar reporte</span>
+<span class="material-symbols-rounded text-sm">arrow_forward</span>
+</button>
+</div>
+</div>
+<!-- 3.3 List Item Card with Avatar, Title, Subtitle and Chevron -->
+<div class="bg-white rounded-card border border-border-subtle p-3.5 flex items-center justify-between hover:bg-cream-bg/40 transition-colors cursor-pointer">
+<div class="flex items-center gap-3">
+<div class="w-12 h-12 rounded-full bg-indigo-main text-white flex items-center justify-center font-display font-bold text-base ring-2 ring-indigo-tint">
+              SR
+            </div>
+<div>
+<div class="flex items-center gap-1.5">
+<h4 class="font-bold text-sm text-text-primary">Prof. Sergio Ramos</h4>
+<span class="w-2 h-2 rounded-full bg-att-present" title="En línea"></span>
+</div>
+<p class="text-xs text-text-secondary mt-0.5">Matemáticas Avanzadas · Grupo A</p>
+<div class="flex items-center gap-2 mt-1 text-[11px] font-mono text-indigo-main">
+<span class="material-symbols-rounded text-xs">chat_bubble</span>
+<span>Último mensaje: 10:24 hrs</span>
+</div>
+</div>
+</div>
+<div class="w-8 h-8 rounded-full bg-cream-bg flex items-center justify-center text-text-secondary">
+<span class="material-symbols-rounded text-lg">chevron_right</span>
+</div>
+</div>
+</div>
+</section>
+<!-- SECTION 4: CHIPS -->
+<section class="bg-surface-card rounded-card border border-border-subtle p-5">
+<div class="flex items-center justify-between mb-4 border-b border-border-subtle/60 pb-2">
+<div class="flex items-center gap-2">
+<span class="w-2 h-2 rounded-full bg-att-present"></span>
+<h2 class="text-xs font-mono font-semibold uppercase tracking-wider text-text-secondary">4. Chips (Semántica &amp; Filtros)</h2>
+</div>
+<span class="text-[10px] font-mono text-text-secondary">Pill / Icon + Label</span>
+</div>
+<!-- 4.1 Attendance Status Chips with Required Colors and Icons -->
+<div class="mb-4">
+<label class="block text-xs font-mono font-medium text-text-secondary mb-2">Semántica de Asistencia (Icono + Color)</label>
+<div class="grid grid-cols-2 gap-2">
+<!-- Presente (#2E9E6B, check) -->
+<div class="flex items-center gap-2 bg-[#2E9E6B]/10 text-att-present border border-[#2E9E6B]/25 px-3 py-2 rounded-full">
+<span class="material-symbols-rounded text-lg">check_circle</span>
+<span class="text-xs font-bold font-sans">Presente</span>
+<span class="ml-auto text-[10px] font-mono font-medium">92%</span>
+</div>
+<!-- Falta (#E5484D, close) -->
+<div class="flex items-center gap-2 bg-[#E5484D]/10 text-att-absent border border-[#E5484D]/25 px-3 py-2 rounded-full">
+<span class="material-symbols-rounded text-lg">cancel</span>
+<span class="text-xs font-bold font-sans">Falta</span>
+<span class="ml-auto text-[10px] font-mono font-medium">4%</span>
+</div>
+<!-- Retardo (#F2A93B, clock) -->
+<div class="flex items-center gap-2 bg-[#F2A93B]/10 text-att-late border border-[#F2A93B]/25 px-3 py-2 rounded-full">
+<span class="material-symbols-rounded text-lg">schedule</span>
+<span class="text-xs font-bold font-sans">Retardo</span>
+<span class="ml-auto text-[10px] font-mono font-medium">3%</span>
+</div>
+<!-- Justificada (#7C5CFC, document) -->
+<div class="flex items-center gap-2 bg-[#7C5CFC]/10 text-att-justified border border-[#7C5CFC]/25 px-3 py-2 rounded-full">
+<span class="material-symbols-rounded text-lg">description</span>
+<span class="text-xs font-bold font-sans">Justificada</span>
+<span class="ml-auto text-[10px] font-mono font-medium">1%</span>
+</div>
+</div>
+</div>
+<!-- 4.2 Filter Chips (Selected / Unselected) -->
+<div>
+<label class="block text-xs font-mono font-medium text-text-secondary mb-2">Chips de Filtro (Seleccionado / No seleccionado)</label>
+<div class="flex flex-wrap items-center gap-2">
+<!-- Selected Chip -->
+<div class="inline-flex items-center gap-1.5 bg-indigo-main text-white px-3.5 py-1.5 rounded-full text-xs font-medium shadow-xs">
+<span class="material-symbols-rounded text-sm">check</span>
+<span>Todos los alumnos</span>
+</div>
+<!-- Unselected Chips -->
+<div class="inline-flex items-center gap-1.5 bg-cream-bg border border-border-subtle text-text-secondary hover:text-text-primary px-3.5 py-1.5 rounded-full text-xs font-medium cursor-pointer">
+<span>Solo Faltas</span>
+</div>
+<div class="inline-flex items-center gap-1.5 bg-cream-bg border border-border-subtle text-text-secondary hover:text-text-primary px-3.5 py-1.5 rounded-full text-xs font-medium cursor-pointer">
+<span>3° Grado</span>
+</div>
+<div class="inline-flex items-center gap-1.5 bg-cream-bg border border-border-subtle text-text-secondary hover:text-text-primary px-3.5 py-1.5 rounded-full text-xs font-medium cursor-pointer">
+<span class="material-symbols-rounded text-sm">tune</span>
+<span>Más filtros</span>
+</div>
+</div>
+</div>
+</section>
+<!-- SECTION 8: AVATARS -->
+<section class="bg-surface-card rounded-card border border-border-subtle p-5">
+<div class="flex items-center justify-between mb-4 border-b border-border-subtle/60 pb-2">
+<div class="flex items-center gap-2">
+<span class="w-2 h-2 rounded-full bg-coral-accent"></span>
+<h2 class="text-xs font-mono font-semibold uppercase tracking-wider text-text-secondary">8. Avatares &amp; Badges</h2>
+</div>
+<span class="text-[10px] font-mono text-text-secondary">Circular / 48-56dp</span>
+</div>
+<div class="grid grid-cols-3 gap-3 text-center">
+<!-- 8.1 Initials Avatar -->
+<div class="bg-cream-bg rounded-2xl p-3 border border-border-subtle flex flex-col items-center">
+<div class="w-14 h-14 rounded-full bg-indigo-main text-white flex items-center justify-center font-display font-bold text-lg shadow-xs ring-4 ring-white">
+            CL
+          </div>
+<span class="text-xs font-semibold text-text-primary mt-2">Iniciales</span>
+<span class="text-[10px] font-mono text-text-secondary">Carmen Lara</span>
+</div>
+<!-- 8.2 Photo Avatar -->
+<div class="bg-cream-bg rounded-2xl p-3 border border-border-subtle flex flex-col items-center">
+<div class="relative w-14 h-14 rounded-full overflow-hidden ring-4 ring-white shadow-xs">
+<img alt="Foto Alumno" class="w-full h-full object-cover" src="https://www.gstatic.com/labs-code/stitch/stitch-placeholder-300x300.svg"/>
+</div>
+<span class="text-xs font-semibold text-text-primary mt-2">Con Fotografía</span>
+<span class="text-[10px] font-mono text-text-secondary">Sofía Medina</span>
+</div>
+<!-- 8.3 Photo Avatar with Camera Badge -->
+<div class="bg-cream-bg rounded-2xl p-3 border border-border-subtle flex flex-col items-center">
+<div class="relative w-14 h-14 rounded-full ring-4 ring-white shadow-xs">
+<img alt="Profesor" class="w-full h-full rounded-full object-cover" src="https://www.gstatic.com/labs-code/stitch/stitch-placeholder-300x300.svg"/>
+<!-- Camera Badge for "change photo" -->
+<button class="absolute -bottom-1 -right-1 w-6 h-6 rounded-full bg-coral-accent text-white flex items-center justify-center shadow-xs ring-2 ring-white active:scale-90 transition-transform" title="Cambiar foto">
+<span class="material-symbols-rounded text-xs">photo_camera</span>
+</button>
+</div>
+<span class="text-xs font-semibold text-text-primary mt-2">Editar Foto</span>
+<span class="text-[10px] font-mono text-text-secondary">Badge de cámara</span>
+</div>
+</div>
+</section>
+<!-- SECTION 7: DIALOG & BOTTOM SHEET -->
+<section class="bg-surface-card rounded-card border border-border-subtle p-5">
+<div class="flex items-center justify-between mb-4 border-b border-border-subtle/60 pb-2">
+<div class="flex items-center gap-2">
+<span class="w-2 h-2 rounded-full bg-indigo-main"></span>
+<h2 class="text-xs font-mono font-semibold uppercase tracking-wider text-text-secondary">7. Diálogo de Confirmación &amp; Bottom Sheet</h2>
+</div>
+<span class="text-[10px] font-mono text-text-secondary">Superficies modales</span>
+</div>
+<div class="flex flex-col gap-4">
+<!-- Confirmation Dialog -->
+<div class="bg-cream-bg rounded-card p-4 border border-border-subtle">
+<span class="text-[10px] font-mono uppercase text-text-secondary font-semibold block mb-2">Diálogo de Confirmación (Alert Dialog)</span>
+<div class="bg-white rounded-card p-5 border border-border-subtle shadow-dialog">
+<div class="w-10 h-10 rounded-full bg-coral-accent/15 text-coral-accent flex items-center justify-center mb-3">
+<span class="material-symbols-rounded text-2xl">help</span>
+</div>
+<h4 class="font-display font-bold text-lg text-text-primary">¿Guardar asistencia?</h4>
+<p class="text-xs text-text-secondary mt-1.5 leading-relaxed">
+              Se registrarán 28 asistencias, 2 faltas y 1 justificación para el Grupo 3° B. Se enviará notificación inmediata a los tutores.
+            </p>
+<div class="flex items-center justify-end gap-2 mt-5">
+<button class="px-4 py-2 rounded-full text-xs font-semibold text-text-secondary hover:text-indigo-main hover:bg-cream-bg transition-colors">
+                Cancelar
+              </button>
+<button class="px-5 py-2.5 rounded-full text-xs font-semibold bg-coral-accent text-white shadow-floating-btn hover:opacity-95 active:scale-95 transition-transform flex items-center gap-1.5">
+<span class="material-symbols-rounded text-sm">check</span>
+<span>Guardar</span>
+</button>
+</div>
+</div>
+</div>
+<!-- Bottom Sheet with Drag Handle -->
+<div class="bg-cream-bg rounded-card p-4 border border-border-subtle">
+<span class="text-[10px] font-mono uppercase text-text-secondary font-semibold block mb-2">Bottom Sheet con Manija (Drag Handle)</span>
+<div class="bg-white rounded-t-card rounded-b-xl p-4 border border-border-subtle shadow-bottom-sheet relative">
+<!-- Drag Handle -->
+<div class="w-12 h-1.5 bg-border-subtle rounded-full mx-auto mb-3"></div>
+<div class="flex items-center justify-between mb-3">
+<h4 class="font-display font-bold text-base text-text-primary">Justificar Inasistencia</h4>
+<span class="text-xs font-mono text-indigo-main bg-indigo-tint px-2 py-0.5 rounded-full">Folio #982</span>
+</div>
+<p class="text-xs text-text-secondary leading-relaxed mb-3">
+              Adjunte comprobante médico o documento oficial avalado por la dirección.
+            </p>
+<div class="border border-dashed border-border-subtle rounded-2xl p-3 text-center bg-cream-bg/60">
+<span class="material-symbols-rounded text-text-secondary text-2xl">upload_file</span>
+<span class="block text-xs font-medium text-text-primary mt-1">Arrastre o toque para subir receta médica</span>
+<span class="text-[10px] font-mono text-text-secondary">PDF, JPG o PNG (Máx 5MB)</span>
+</div>
+<div class="mt-3 flex gap-2">
+<button class="w-full bg-indigo-main text-white text-xs font-medium py-2.5 rounded-full">
+                Confirmar Justificante
+              </button>
+</div>
+</div>
+</div>
+</div>
+</section>
+<!-- SECTION 5: FLOATING BOTTOM NAVIGATION BAR (ISLAND STYLE) -->
+<section class="bg-surface-card rounded-card border border-border-subtle p-5">
+<div class="flex items-center justify-between mb-4 border-b border-border-subtle/60 pb-2">
+<div class="flex items-center gap-2">
+<span class="w-2 h-2 rounded-full bg-coral-accent"></span>
+<h2 class="text-xs font-mono font-semibold uppercase tracking-wider text-text-secondary">5. Barra de Navegación Inferior Flotante</h2>
+</div>
+<span class="text-[10px] font-mono text-text-secondary">Isla Flotante / Radio 28dp</span>
+</div>
+<div class="bg-cream-bg rounded-card p-4 border border-border-subtle">
+<p class="text-xs text-text-secondary mb-3">
+          Diseño en isla despegada de bordes, con indicador en pastilla tintada (<span class="font-mono text-indigo-main">#E8E9F7</span>) e icono/texto en Deep Índigo (<span class="font-mono text-indigo-main">#2B2F77</span>).
+        </p>
+<!-- Simulated Screen Footer Container -->
+<div class="relative py-2 flex items-center justify-center">
+<!-- Floating Bottom Nav Bar Island -->
+<nav class="w-full bg-white rounded-island border border-border-subtle shadow-island px-3 py-2 flex items-center justify-between">
+<!-- 1. Inicio (Selected) -->
+<button class="flex flex-col items-center justify-center flex-1 py-1 group">
+<div class="w-14 h-8 rounded-full bg-indigo-tint text-indigo-main flex items-center justify-center transition-all group-active:scale-95">
+<span class="material-symbols-rounded text-xl">home</span>
+</div>
+<span class="text-[11px] font-bold text-indigo-main mt-1 tracking-tight">Inicio</span>
+</button>
+<!-- 2. Tareas -->
+<button class="flex flex-col items-center justify-center flex-1 py-1 group text-text-secondary hover:text-indigo-main">
+<div class="w-14 h-8 rounded-full flex items-center justify-center transition-all group-active:scale-95 group-hover:bg-cream-bg">
+<span class="material-symbols-rounded text-xl outlined">assignment</span>
+</div>
+<span class="text-[11px] font-medium text-text-secondary group-hover:text-indigo-main mt-1 tracking-tight">Tareas</span>
+</button>
+<!-- 3. Chat -->
+<button class="flex flex-col items-center justify-center flex-1 py-1 group text-text-secondary hover:text-indigo-main relative">
+<div class="w-14 h-8 rounded-full flex items-center justify-center transition-all group-active:scale-95 group-hover:bg-cream-bg relative">
+<span class="material-symbols-rounded text-xl outlined">forum</span>
+<!-- Chat Unread Indicator -->
+<span class="absolute top-1.5 right-3 w-2 h-2 rounded-full bg-coral-accent ring-2 ring-white"></span>
+</div>
+<span class="text-[11px] font-medium text-text-secondary group-hover:text-indigo-main mt-1 tracking-tight">Chat</span>
+</button>
+<!-- 4. Perfil -->
+<button class="flex flex-col items-center justify-center flex-1 py-1 group text-text-secondary hover:text-indigo-main">
+<div class="w-14 h-8 rounded-full flex items-center justify-center transition-all group-active:scale-95 group-hover:bg-cream-bg">
+<span class="material-symbols-rounded text-xl outlined">account_circle</span>
+</div>
+<span class="text-[11px] font-medium text-text-secondary group-hover:text-indigo-main mt-1 tracking-tight">Perfil</span>
+</button>
+</nav>
+</div>
+</div>
+</section>
+<!-- Bottom Footer Token Reference -->
+<footer class="text-center py-4 border-t border-border-subtle/80 text-xs text-text-secondary">
+<div class="flex items-center justify-center gap-2 mb-1">
+<span class="w-2 h-2 rounded-full bg-att-present"></span>
+<span class="font-mono font-medium">AulaSegura MD3 UI Kit · 360×800 dp Standard</span>
+</div>
+<p class="text-[11px]">Material You · Bricolage Grotesque · DM Sans · JetBrains Mono</p>
+</footer>
+</div>
+</body>
+</html>

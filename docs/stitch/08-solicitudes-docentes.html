@@ -1,0 +1,270 @@
+<!DOCTYPE html>
+
+<html lang="es"><head><meta charset="utf-8"/><meta content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" name="viewport"/><meta content="mobile_tab" name="shell-type"/><link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;700&amp;family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;1,9..40,400&amp;family=JetBrains+Mono:wght@400;500&amp;display=swap" rel="stylesheet"/><link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/><script src="https://cdn.tailwindcss.com"></script><script id="tailwind-config">tailwind.config = { darkMode: "class", theme: { extend: { colors: { "primary": "#141761", "outline-variant": "#c7c5d2", "on-error": "#ffffff", "on-background": "#1c1c19", "surface-tint": "#5357a1", "surface-container-lowest": "#ffffff", "on-surface": "#1c1c19", "surface-container": "#f0ede9", "primary-fixed-dim": "#bfc2ff", "error": "#ba1a1a", "on-primary": "#ffffff", "on-tertiary": "#ffffff", "surface-bright": "#fcf9f4", "on-secondary": "#ffffff", "inverse-surface": "#31302d", "secondary-fixed-dim": "#ffb4a8", "on-secondary-fixed": "#410000", "on-error-container": "#93000a", "surface": "#fcf9f4", "primary-container": "#2b2f77", "surface-dim": "#dcdad5", "surface-container-low": "#f6f3ee", "tertiary-fixed-dim": "#66dbb7", "surface-variant": "#e5e2dd", "surface-container-highest": "#e5e2dd", "on-primary-container": "#969ae9", "surface-container-high": "#ebe8e3", "on-secondary-container": "#690000", "secondary-fixed": "#ffdad4", "secondary": "#ae3123", "on-primary-fixed-variant": "#3b3f87", "on-tertiary-container": "#3ab492", "on-primary-fixed": "#0b0d5b", "inverse-on-surface": "#f3f0eb", "tertiary-container": "#004031", "outline": "#777682", "on-surface-variant": "#464651", "on-secondary-fixed-variant": "#8c170e", "tertiary": "#00281e", "on-tertiary-fixed-variant": "#00513f", "background": "#fcf9f4", "tertiary-fixed": "#84f7d3", "secondary-container": "#fc6955", "on-tertiary-fixed": "#002118", "primary-fixed": "#e0e0ff", "error-container": "#ffdad6", "inverse-primary": "#bfc2ff" }, borderRadius: { "DEFAULT": "1rem", "lg": "2rem", "xl": "3rem", "full": "9999px" }, spacing: { "space-lg": "1.5rem", "space-md": "1rem", "space-xs": "0.25rem", "gutter": "1rem", "margin": "1rem", "space-sm": "0.5rem", "space-xl": "2rem" }, fontFamily: { "title-md": ["DM Sans"], "headline-md": ["Bricolage Grotesque"], "display-lg": ["Bricolage Grotesque"], "data-mono-md": ["JetBrains Mono"], "label-md": ["DM Sans"], "data-mono-lg": ["JetBrains Mono"], "data-mono-sm": ["JetBrains Mono"], "body-md": ["DM Sans"], "title-lg": ["Bricolage Grotesque"], "headline-lg": ["Bricolage Grotesque"], "body-lg": ["DM Sans"], "label-sm": ["DM Sans"] }, fontSize: { "title-md": ["16px", { "lineHeight": "22px", "letterSpacing": "0em", "fontWeight": "600" }], "headline-md": ["20px", { "lineHeight": "26px", "letterSpacing": "-0.01em", "fontWeight": "600" }], "display-lg": ["32px", { "lineHeight": "38px", "letterSpacing": "-0.02em", "fontWeight": "700" }], "data-mono-md": ["13px", { "lineHeight": "18px", "letterSpacing": "0em", "fontWeight": "500" }], "label-md": ["12px", { "lineHeight": "16px", "letterSpacing": "0.02em", "fontWeight": "500" }], "data-mono-lg": ["16px", { "lineHeight": "20px", "letterSpacing": "-0.02em", "fontWeight": "500" }], "data-mono-sm": ["11px", { "lineHeight": "14px", "letterSpacing": "0em", "fontWeight": "400" }], "body-md": ["14px", { "lineHeight": "20px", "letterSpacing": "0.01em", "fontWeight": "400" }], "title-lg": ["18px", { "lineHeight": "24px", "letterSpacing": "-0.01em", "fontWeight": "600" }], "headline-lg": ["24px", { "lineHeight": "30px", "letterSpacing": "-0.015em", "fontWeight": "700" }], "body-lg": ["16px", { "lineHeight": "24px", "letterSpacing": "0em", "fontWeight": "400" }], "label-sm": ["11px", { "lineHeight": "14px", "letterSpacing": "0.03em", "fontWeight": "500" }] } } } };</script><style>@layer base{html,body{width:100%;margin:0;padding:0;background-color:#fcf9f4;color:#1c1c19;overscroll-behavior-y:none;-webkit-tap-highlight-color:transparent;}.pb-safe{padding-bottom:env(safe-area-inset-bottom,0px);}.pt-safe{padding-top:env(safe-area-inset-top,0px);}.shield-pattern{background-image:radial-gradient(circle at 50% 50%,rgba(43,47,119,0.035) 1px,transparent 1px),radial-gradient(circle at 0 0,rgba(43,47,119,0.02) 1px,transparent 1px);background-size:24px 24px;}}::-webkit-scrollbar{display:none;}</style><style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+  </head><body class="bg-surface font-body-md text-body-md text-on-surface antialiased flex flex-col min-h-screen relative shield-pattern"><header class="fixed top-0 w-full z-50 pt-safe bg-surface/85 backdrop-blur-xl shadow-[0_1px_8px_rgba(20,23,97,0.04)]"><div class="h-16 px-margin flex items-center justify-between gap-space-sm"><div class="flex items-center gap-space-sm min-w-0"><img alt="Brand logo. - Primary color: #2b2f77
+- Font: bricolageGrotesque
+- Mode: light
+- Roundness: rounded-full
+" class="h-8 w-auto object-contain shrink-0" src="https://lh3.googleusercontent.com/aida/ALJJyrDD0fDgbhAGaJXOvgTjWw1LN5NTNXMPHOiVb3Wdt1aBi2BXgCfDedUlblwAawkgu5QH1UgIyOLE7P4uLW1RPsI07kYJ4ZJswxDtnz8hbu2A4wHAY_SW_KPbxIoXiaNImu9_HwzdgY8C7elbR3vcL0UVlCii3F3qEI1uqCC7TKYCO0fz49LJ0TK9HOcqHaG92stKHNR5F1ghlb_9bv5RMUZQQ9FJoLXwEGpizkfED2sQ"/><div class="flex flex-col min-w-0"><span class="text-[10px] font-data-mono-sm text-outline tracking-wider uppercase leading-tight">AulaSegura</span><h1 class="font-headline-lg text-headline-lg text-primary truncate leading-tight">Solicitudes</h1></div></div><div class="flex items-center gap-space-sm shrink-0"><button class="min-h-[44px] px-space-sm flex items-center justify-center font-title-md text-title-md text-secondary hover:text-secondary-container transition-colors active:scale-95" type="button">Aceptar todas</button><div class="w-8 h-8 rounded-full bg-primary flex items-center justify-center shrink-0"><span class="material-symbols-outlined text-on-primary text-[18px]">person</span></div></div></div></header><main class="flex flex-col relative w-full px-margin pt-16 pb-32 bg-surface min-h-screen"><div class="flex flex-col w-full">
+<!-- Status & Quick Action Overview -->
+<div class="flex items-center justify-between gap-space-sm pt-space-xs pb-space-sm">
+<!-- Filter Chips Carousel -->
+<div aria-label="Filtrar solicitudes" class="flex items-center gap-space-xs overflow-x-auto no-scrollbar py-0.5" role="tablist">
+<button aria-selected="true" class="h-8 px-space-md rounded-full bg-primary-container text-on-primary font-title-md text-[13px] flex items-center gap-1.5 shadow-sm shrink-0 transition-transform active:scale-95" role="tab" type="button">
+<span class="material-symbols-outlined text-[16px]" style="font-variation-settings: 'FILL' 1;">check</span>
+<span>Pendientes (4)</span>
+</button>
+<button aria-selected="false" class="h-8 px-space-md rounded-full bg-surface-container-low text-on-surface-variant font-title-md text-[13px] flex items-center gap-1.5 shrink-0 hover:bg-surface-container transition-colors active:scale-95" role="tab" type="button">
+<span>Aceptadas</span>
+</button>
+<button aria-selected="false" class="h-8 px-space-md rounded-full bg-surface-container-low text-on-surface-variant font-title-md text-[13px] flex items-center gap-1.5 shrink-0 hover:bg-surface-container transition-colors active:scale-95" role="tab" type="button">
+<span>Rechazadas</span>
+</button>
+</div>
+</div>
+<!-- Subtle Informative Summary Bar -->
+<div class="flex items-center justify-between px-space-xs mb-space-sm">
+<div class="flex items-center gap-1.5 text-on-surface-variant">
+<span class="material-symbols-outlined text-[16px] text-primary">verified_user</span>
+<p class="font-body-md text-[13px] leading-tight text-on-surface-variant">
+<strong class="font-title-md text-primary">4 docentes</strong> esperan validación de credenciales
+      </p>
+</div>
+<span class="font-data-mono-sm text-[11px] text-outline uppercase tracking-wider">Ciclo 24-25</span>
+</div>
+<!-- Request Cards Stream -->
+<div class="flex flex-col gap-3 pb-8" id="requests-list">
+<!-- Teacher Card 1 -->
+<article class="bg-surface-container-lowest rounded-lg p-space-md shadow-[0_2px_12px_rgba(20,23,97,0.04)] flex flex-col gap-3 transition-all duration-300 relative overflow-hidden" data-applicant="1">
+<div class="flex items-start gap-3">
+<!-- Avatar Photo Placeholder -->
+<div class="w-12 h-12 rounded-full overflow-hidden shrink-0 bg-primary-fixed flex items-center justify-center relative shadow-sm">
+<img class="w-full h-full object-cover" data-alt="Warm studio portrait of Ricardo, a friendly male Mexican elementary mathematics teacher in his late thirties with glasses and a navy sweater, soft natural lighting and warm neutral background" src="https://lh3.googleusercontent.com/aida-public/AB6AXuDci5qHpCQbwNTgrjmMbt2mBwhpoQoA7x3JJkWxTJtdKBYCXrbm4Fjh_rjxLVnglJxF-Dgh5kfOzGNMcK4FoIhpZCwDeBm33cg5Rid_1xlrCirG--yAppRBh6FNJpSHLu1PLkP9CPSjkbNISEAnX8OoteXA8HUxs-tk_1KLy6n6x8-ZNXEbpqf74a9S9JtlotBO0HQDEeuwXcyu_2jUgwdmLMabKpkel9MXCWz1uGY"/>
+<span class="absolute bottom-0 right-0 w-3 h-3 bg-tertiary-container rounded-full border border-surface-container-lowest" title="Institución verificada"></span>
+</div>
+<div class="flex flex-col min-w-0 flex-1">
+<div class="flex items-center justify-between gap-1">
+<h2 class="font-title-lg text-title-md text-primary font-headline-md truncate">Prof. Ricardo Salinas Mendoza</h2>
+</div>
+<!-- Email & Badge -->
+<div class="flex items-center gap-1.5 mt-0.5 flex-wrap">
+<span class="font-data-mono-sm text-data-mono-sm text-on-surface-variant truncate">r.salinas@colegio.edu.mx</span>
+<span class="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full bg-tertiary-fixed/40 text-tertiary-container font-label-sm text-[10px]">
+<span class="material-symbols-outlined text-[12px]" style="font-variation-settings: 'FILL' 1;">verified</span>
+              Dominio SEP
+            </span>
+</div>
+<!-- Class Tag & Time -->
+<div class="flex items-center justify-between gap-2 mt-2 pt-2 bg-surface-container-low/60 rounded-DEFAULT px-2.5 py-1.5">
+<div class="flex items-center gap-1.5 min-w-0 text-on-surface">
+<span class="material-symbols-outlined text-primary text-[15px]">calculate</span>
+<span class="font-body-md text-[12px] font-medium truncate">Matemáticas · 3° Primaria</span>
+</div>
+<span class="font-data-mono-sm text-data-mono-sm text-outline shrink-0 flex items-center gap-1">
+<span class="material-symbols-outlined text-[12px]">schedule</span>2h
+            </span>
+</div>
+</div>
+</div>
+<!-- Action Buttons -->
+<div class="flex items-center gap-2 pt-1">
+<button class="flex-1 h-10 px-3 rounded-full bg-surface-container-low hover:bg-secondary-fixed/50 text-secondary font-title-md text-[13px] flex items-center justify-center gap-1.5 transition-colors active:scale-95" onclick="handleCardAction(this, 'rechazada', 'Prof. Ricardo Salinas')" type="button">
+<span class="material-symbols-outlined text-[17px]">close</span>
+<span>Rechazar</span>
+</button>
+<button class="flex-1 h-10 px-3 rounded-full bg-primary-container hover:bg-primary text-on-primary font-title-md text-[13px] flex items-center justify-center gap-1.5 shadow-sm transition-transform active:scale-95" onclick="handleCardAction(this, 'aceptada', 'Prof. Ricardo Salinas')" type="button">
+<span class="material-symbols-outlined text-[17px]" style="font-variation-settings: 'FILL' 1;">check_circle</span>
+<span>Aceptar</span>
+</button>
+</div>
+</article>
+<!-- Teacher Card 2 -->
+<article class="bg-surface-container-lowest rounded-lg p-space-md shadow-[0_2px_12px_rgba(20,23,97,0.04)] flex flex-col gap-3 transition-all duration-300 relative overflow-hidden" data-applicant="2">
+<div class="flex items-start gap-3">
+<!-- Avatar Photo Placeholder -->
+<div class="w-12 h-12 rounded-full overflow-hidden shrink-0 bg-secondary-fixed flex items-center justify-center relative shadow-sm">
+<img class="w-full h-full object-cover" data-alt="Portrait of Sofia, an enthusiastic Latina female literature teacher in her early thirties, smiling warmly with a patterned scarf and soft warm classroom ambient lighting" src="https://lh3.googleusercontent.com/aida-public/AB6AXuB4cxByrVHfBLm3nvTIYn--s7Rv7-F005ebz-4mG09I9D_pFPfGRNE7D5a_Cuf2Q-k4HQ_oC2np-qhpXjblJTREsxi_CCPPlJM8G3YczmlYnj-Fi4ug-ZihJfS_Ck-gE4POB0MoU4SnLBTX0TFKLSS7i0GgOWR9-I1uUxintg3-E6syzThHmS8zvBdgmztsv8wkkCZqMDjiped9mXmd2zyBBCNZRUplfqpWDoG0ahE"/>
+<span class="absolute bottom-0 right-0 w-3 h-3 bg-tertiary-container rounded-full border border-surface-container-lowest" title="Institución verificada"></span>
+</div>
+<div class="flex flex-col min-w-0 flex-1">
+<div class="flex items-center justify-between gap-1">
+<h2 class="font-title-lg text-title-md text-primary font-headline-md truncate">Mtra. Sofía Morales Ruiz</h2>
+</div>
+<!-- Email & Badge -->
+<div class="flex items-center gap-1.5 mt-0.5 flex-wrap">
+<span class="font-data-mono-sm text-data-mono-sm text-on-surface-variant truncate">sofia.morales@colegio.edu.mx</span>
+<span class="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full bg-tertiary-fixed/40 text-tertiary-container font-label-sm text-[10px]">
+<span class="material-symbols-outlined text-[12px]" style="font-variation-settings: 'FILL' 1;">verified</span>
+              Dominio SEP
+            </span>
+</div>
+<!-- Class Tag & Time -->
+<div class="flex items-center justify-between gap-2 mt-2 pt-2 bg-surface-container-low/60 rounded-DEFAULT px-2.5 py-1.5">
+<div class="flex items-center gap-1.5 min-w-0 text-on-surface">
+<span class="material-symbols-outlined text-primary text-[15px]">auto_stories</span>
+<span class="font-body-md text-[12px] font-medium truncate">Lengua y Literatura · 2° Primaria</span>
+</div>
+<span class="font-data-mono-sm text-data-mono-sm text-outline shrink-0 flex items-center gap-1">
+<span class="material-symbols-outlined text-[12px]">schedule</span>3h
+            </span>
+</div>
+</div>
+</div>
+<!-- Action Buttons -->
+<div class="flex items-center gap-2 pt-1">
+<button class="flex-1 h-10 px-3 rounded-full bg-surface-container-low hover:bg-secondary-fixed/50 text-secondary font-title-md text-[13px] flex items-center justify-center gap-1.5 transition-colors active:scale-95" onclick="handleCardAction(this, 'rechazada', 'Mtra. Sofía Morales')" type="button">
+<span class="material-symbols-outlined text-[17px]">close</span>
+<span>Rechazar</span>
+</button>
+<button class="flex-1 h-10 px-3 rounded-full bg-primary-container hover:bg-primary text-on-primary font-title-md text-[13px] flex items-center justify-center gap-1.5 shadow-sm transition-transform active:scale-95" onclick="handleCardAction(this, 'aceptada', 'Mtra. Sofía Morales')" type="button">
+<span class="material-symbols-outlined text-[17px]" style="font-variation-settings: 'FILL' 1;">check_circle</span>
+<span>Aceptar</span>
+</button>
+</div>
+</article>
+<!-- Teacher Card 3 -->
+<article class="bg-surface-container-lowest rounded-lg p-space-md shadow-[0_2px_12px_rgba(20,23,97,0.04)] flex flex-col gap-3 transition-all duration-300 relative overflow-hidden" data-applicant="3">
+<div class="flex items-start gap-3">
+<!-- Avatar Photo Placeholder -->
+<div class="w-12 h-12 rounded-full overflow-hidden shrink-0 bg-primary-fixed flex items-center justify-center relative shadow-sm">
+<img class="w-full h-full object-cover" data-alt="Professional headshot of Alejandro, a robotics and science teacher in his forties with a friendly demeanor, wearing a clean collared polo shirt, well-lit modern educational backdrop" src="https://lh3.googleusercontent.com/aida-public/AB6AXuABcusAE9wElDwqTeFpqi2_SeqMN0mdHOnItbo1GHcrv_TMpTgEpjV1hsRoiEtbi8TMnfTFbU6ZQ3cL6YzF0b4uD7L_MINymEahNHGw3X82Gh97w2kwSUb4k76Sna7b8MCTJZyMB_xAEHcB4RwXw-h4RVN2rZUh6orsBsGZbiMH-LePXwHPbt1dVUbwHK_3FctqQU-4ol8t7lSaAQyd_oxKXDax--CJh4CiznsU6Bw"/>
+<span class="absolute bottom-0 right-0 w-3 h-3 bg-tertiary-container rounded-full border border-surface-container-lowest" title="Institución verificada"></span>
+</div>
+<div class="flex flex-col min-w-0 flex-1">
+<div class="flex items-center justify-between gap-1">
+<h2 class="font-title-lg text-title-md text-primary font-headline-md truncate">Prof. Alejandro Valdés Cruz</h2>
+</div>
+<!-- Email & Badge -->
+<div class="flex items-center gap-1.5 mt-0.5 flex-wrap">
+<span class="font-data-mono-sm text-data-mono-sm text-on-surface-variant truncate">a.valdes@colegio.edu.mx</span>
+<span class="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full bg-tertiary-fixed/40 text-tertiary-container font-label-sm text-[10px]">
+<span class="material-symbols-outlined text-[12px]" style="font-variation-settings: 'FILL' 1;">verified</span>
+              Dominio SEP
+            </span>
+</div>
+<!-- Class Tag & Time -->
+<div class="flex items-center justify-between gap-2 mt-2 pt-2 bg-surface-container-low/60 rounded-DEFAULT px-2.5 py-1.5">
+<div class="flex items-center gap-1.5 min-w-0 text-on-surface">
+<span class="material-symbols-outlined text-primary text-[15px]">smart_toy</span>
+<span class="font-body-md text-[12px] font-medium truncate">Ciencias y Robótica · 4° Primaria</span>
+</div>
+<span class="font-data-mono-sm text-data-mono-sm text-outline shrink-0 flex items-center gap-1">
+<span class="material-symbols-outlined text-[12px]">schedule</span>5h
+            </span>
+</div>
+</div>
+</div>
+<!-- Action Buttons -->
+<div class="flex items-center gap-2 pt-1">
+<button class="flex-1 h-10 px-3 rounded-full bg-surface-container-low hover:bg-secondary-fixed/50 text-secondary font-title-md text-[13px] flex items-center justify-center gap-1.5 transition-colors active:scale-95" onclick="handleCardAction(this, 'rechazada', 'Prof. Alejandro Valdés')" type="button">
+<span class="material-symbols-outlined text-[17px]">close</span>
+<span>Rechazar</span>
+</button>
+<button class="flex-1 h-10 px-3 rounded-full bg-primary-container hover:bg-primary text-on-primary font-title-md text-[13px] flex items-center justify-center gap-1.5 shadow-sm transition-transform active:scale-95" onclick="handleCardAction(this, 'aceptada', 'Prof. Alejandro Valdés')" type="button">
+<span class="material-symbols-outlined text-[17px]" style="font-variation-settings: 'FILL' 1;">check_circle</span>
+<span>Aceptar</span>
+</button>
+</div>
+</article>
+<!-- Teacher Card 4 -->
+<article class="bg-surface-container-lowest rounded-lg p-space-md shadow-[0_2px_12px_rgba(20,23,97,0.04)] flex flex-col gap-3 transition-all duration-300 relative overflow-hidden" data-applicant="4">
+<div class="flex items-start gap-3">
+<!-- Avatar Photo Placeholder -->
+<div class="w-12 h-12 rounded-full overflow-hidden shrink-0 bg-secondary-fixed flex items-center justify-center relative shadow-sm">
+<img class="w-full h-full object-cover" data-alt="Portrait of Claudia, an energetic female physical education teacher in athletic activewear, hair neatly tied back, warm sunshine and bright outdoor track court setting" src="https://lh3.googleusercontent.com/aida-public/AB6AXuA42WQwzIBRf1yq8nFAbMztg14LrLX9zSpBRV2LAI7BwZB4Rdrqm6lRlfldLlQWC_Wtk7qBG9WYWFqTX3MRYbPzkinudzM_vxLlQ5iWIq4DTKAeRfFLv8XRYEUQnKSX38Uuccz38gNcLQXjrO2kDbzOvP0jntZa0zBjpnRGWAzcEinPtUnAxzz6_ssQaxvkHdiSP4YzU0023NtIpzfJW0Hkbk2tK9ur0GdJAyDUYrk"/>
+<span class="absolute bottom-0 right-0 w-3 h-3 bg-tertiary-container rounded-full border border-surface-container-lowest" title="Institución verificada"></span>
+</div>
+<div class="flex flex-col min-w-0 flex-1">
+<div class="flex items-center justify-between gap-1">
+<h2 class="font-title-lg text-title-md text-primary font-headline-md truncate">Mtra. Claudia Estrada Peña</h2>
+</div>
+<!-- Email & Badge -->
+<div class="flex items-center gap-1.5 mt-0.5 flex-wrap">
+<span class="font-data-mono-sm text-data-mono-sm text-on-surface-variant truncate">claudia.estrada@colegio.edu.mx</span>
+<span class="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full bg-tertiary-fixed/40 text-tertiary-container font-label-sm text-[10px]">
+<span class="material-symbols-outlined text-[12px]" style="font-variation-settings: 'FILL' 1;">verified</span>
+              Dominio SEP
+            </span>
+</div>
+<!-- Class Tag & Time -->
+<div class="flex items-center justify-between gap-2 mt-2 pt-2 bg-surface-container-low/60 rounded-DEFAULT px-2.5 py-1.5">
+<div class="flex items-center gap-1.5 min-w-0 text-on-surface">
+<span class="material-symbols-outlined text-primary text-[15px]">sports_soccer</span>
+<span class="font-body-md text-[12px] font-medium truncate">Educación Física · 1° a 6°</span>
+</div>
+<span class="font-data-mono-sm text-data-mono-sm text-outline shrink-0 flex items-center gap-1">
+<span class="material-symbols-outlined text-[12px]">schedule</span>1d
+            </span>
+</div>
+</div>
+</div>
+<!-- Action Buttons -->
+<div class="flex items-center gap-2 pt-1">
+<button class="flex-1 h-10 px-3 rounded-full bg-surface-container-low hover:bg-secondary-fixed/50 text-secondary font-title-md text-[13px] flex items-center justify-center gap-1.5 transition-colors active:scale-95" onclick="handleCardAction(this, 'rechazada', 'Mtra. Claudia Estrada')" type="button">
+<span class="material-symbols-outlined text-[17px]">close</span>
+<span>Rechazar</span>
+</button>
+<button class="flex-1 h-10 px-3 rounded-full bg-primary-container hover:bg-primary text-on-primary font-title-md text-[13px] flex items-center justify-center gap-1.5 shadow-sm transition-transform active:scale-95" onclick="handleCardAction(this, 'aceptada', 'Mtra. Claudia Estrada')" type="button">
+<span class="material-symbols-outlined text-[17px]" style="font-variation-settings: 'FILL' 1;">check_circle</span>
+<span>Aceptar</span>
+</button>
+</div>
+</article>
+</div>
+<!-- Reassurance Micro-banner -->
+<div class="rounded-lg bg-surface-container-low p-space-md flex items-center gap-3 mb-6">
+<div class="w-10 h-10 rounded-full bg-tertiary-fixed flex items-center justify-center text-tertiary-container shrink-0">
+<span class="material-symbols-outlined text-[20px]" style="font-variation-settings: 'FILL' 1;">shield_with_heart</span>
+</div>
+<div class="flex flex-col min-w-0">
+<span class="font-title-md text-[13px] text-primary">Protocolo de Seguridad AulaSegura</span>
+<p class="font-body-md text-[12px] text-on-surface-variant leading-tight mt-0.5">
+        Al aceptar a un docente, se asignan permisos biométricos y se sincroniza su rol con la lista oficial del plantel.
+      </p>
+</div>
+</div>
+<!-- Toast Notification Overlay -->
+<div class="fixed bottom-24 left-1/2 -translate-x-1/2 z-50 pointer-events-none transition-all duration-300 opacity-0 translate-y-3 flex items-center gap-2 px-4 py-2.5 rounded-full bg-inverse-surface text-inverse-on-surface shadow-lg text-[13px] font-title-md max-w-[90vw]" id="toast">
+<span class="material-symbols-outlined text-tertiary-fixed text-[18px]" id="toast-icon">check_circle</span>
+<span id="toast-text">Solicitud procesada correctamente</span>
+</div>
+</div>
+<script>
+  function handleCardAction(btn, type, name) {
+    const card = btn.closest('article');
+    if (!card) return;
+    
+    // Animate removal smoothly
+    card.style.transform = type === 'aceptada' ? 'scale(0.96) translateX(12px)' : 'scale(0.96) translateX(-12px)';
+    card.style.opacity = '0';
+    
+    setTimeout(() => {
+      card.style.display = 'none';
+      showToast(type === 'aceptada' ? `${name} asignado al plantel` : `Solicitud de ${name} archivada`, type);
+    }, 280);
+  }
+
+  function showToast(message, type) {
+    const toast = document.getElementById('toast');
+    const toastText = document.getElementById('toast-text');
+    const toastIcon = document.getElementById('toast-icon');
+    if (!toast || !toastText) return;
+
+    toastText.textContent = message;
+    toastIcon.textContent = type === 'aceptada' ? 'check_circle' : 'remove_done';
+    toastIcon.className = `material-symbols-outlined text-[18px] ${type === 'aceptada' ? 'text-tertiary-fixed' : 'text-secondary-fixed'}`;
+
+    toast.classList.remove('opacity-0', 'translate-y-3');
+    toast.classList.add('opacity-100', 'translate-y-0');
+
+    setTimeout(() => {
+      toast.classList.remove('opacity-100', 'translate-y-0');
+      toast.classList.add('opacity-0', 'translate-y-3');
+    }, 2400);
+  }
+</script></main><div class="fixed bottom-0 w-full z-50 pb-safe pointer-events-none px-margin"><nav class="pointer-events-auto mx-auto max-w-[340px] mb-3 h-16 bg-surface-container-lowest/95 backdrop-blur-xl rounded-full shadow-[0px_8px_24px_rgba(27,29,58,0.10)] flex items-center justify-around px-space-xs" data-active-classes="text-primary font-bold [&amp;_.nav-pill]:bg-primary-fixed [&amp;_.nav-icon]:text-primary"><a class="group flex flex-col items-center justify-center min-w-[56px] min-h-[48px] text-on-surface-variant hover:text-primary transition-all" data-path="panel" href="#"><div class="nav-pill w-12 h-7 rounded-full flex items-center justify-center transition-all"><span class="material-symbols-outlined nav-icon text-[22px]">dashboard</span></div><span class="font-label-sm text-label-sm mt-0.5">Panel</span></a><a aria-current="page" class="group relative flex flex-col items-center justify-center min-w-[56px] min-h-[48px] transition-all text-primary font-bold [&amp;_.nav-pill]:bg-primary-fixed [&amp;_.nav-icon]:text-primary" data-path="solicitudes" href="#"><div class="nav-pill w-12 h-7 rounded-full flex items-center justify-center transition-all relative"><span class="material-symbols-outlined nav-icon text-[22px]">person_add</span><span class="absolute -top-1 -right-1 min-w-[18px] h-[18px] px-1 bg-secondary text-on-secondary font-data-mono-sm text-[10px] font-bold rounded-full flex items-center justify-center shadow-sm">4</span></div><span class="font-label-sm text-label-sm mt-0.5">Solicitudes</span></a><a class="group flex flex-col items-center justify-center min-w-[56px] min-h-[48px] text-on-surface-variant hover:text-primary transition-all" data-path="alumnos" href="#"><div class="nav-pill w-12 h-7 rounded-full flex items-center justify-center transition-all"><span class="material-symbols-outlined nav-icon text-[22px]">school</span></div><span class="font-label-sm text-label-sm mt-0.5">Alumnos</span></a><a class="group flex flex-col items-center justify-center min-w-[56px] min-h-[48px] text-on-surface-variant hover:text-primary transition-all" data-path="reportes" href="#"><div class="nav-pill w-12 h-7 rounded-full flex items-center justify-center transition-all"><span class="material-symbols-outlined nav-icon text-[22px]">assessment</span></div><span class="font-label-sm text-label-sm mt-0.5">Reportes</span></a><a class="group flex flex-col items-center justify-center min-w-[56px] min-h-[48px] text-on-surface-variant hover:text-primary transition-all" data-path="ajustes" href="#"><div class="nav-pill w-12 h-7 rounded-full flex items-center justify-center transition-all"><span class="material-symbols-outlined nav-icon text-[22px]">settings</span></div><span class="font-label-sm text-label-sm mt-0.5">Ajustes</span></a></nav><div class="w-32 h-1 bg-on-surface/20 rounded-full mx-auto mb-1.5"></div></div></body></html>

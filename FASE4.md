@@ -50,7 +50,7 @@ Los IDs siguen la lista acordada en el logbook. El orden de ejecución se define
 | # | Tarea | Pantalla(s) | Servicios | Estado |
 |---|---|---|---|---|
 | **4.1 (T1)** | Migrar `students`/`users` y Room; reglas base; quitar el código obligatorio | sin pantalla nueva | Firestore, Room, reglas | ✅ **lista y mergeada en `main`** - `1ff8eea`, `d98e2ba`, `5b7da3f` (merge `8b6b982`) |
-| **4.2 (T2)** | QR del tutor: generación offline, corregir nombre, escucha en tiempo real | `LinkChildScreen` | `users/{uid}` | ✅ **lista en rama** - `8cd167a`, `75e564f` (sin mergear) |
+| **4.2 (T2)** | QR del tutor: generación offline, corregir nombre, escucha en tiempo real | `LinkChildScreen` | `users/{uid}` | ✅ **lista, mergeada y probada en dispositivo** - `8cd167a`, `75e564f` (merge `43f46f0`) |
 | **4.3 (T3)** | Escanear alumno: cámara, permiso, validación del QR | nueva, directora | cámara | ⬜ pendiente |
 | **4.4 (T4)** | Revisar alumno: grado/grupo, duplicados, segundo tutor, alta offline | nueva, directora | `students`, Room, WorkManager | ⬜ pendiente |
 | **4.5 (T5)** | Solicitudes de docentes: listar verificados, aceptar/rechazar, lote | nueva, directora | `users/{uid}.estado` | ⬜ pendiente |
@@ -126,7 +126,9 @@ Cada work unit lleva sus tests en el mismo commit y se verifica con `testDebugUn
 5. **Perfil y sesión:** iniciar y cerrar sesión con tutor, docente y directora; verificar que cada uno cae en su pantalla y que el docente pendiente sigue en «Cuenta en revisión».
 6. **Aún no se puede probar:** el QR, el escáner, la aprobación por QR, el segundo tutor y la asignación en lote llegan con 4.2-4.7.
 
-**T2 (ramas `8cd167a`, `75e564f`, sin mergear):** payload versionado `{"v":1,"uid":"...","alumno":"..."}` validado por 3 tests JVM; ZXing `core:3.5.3` agregado al catálogo y resuelto desde Maven Central (Risk: dependencia nueva); `QrCodeImage` dibuja el código sin red; el nombre rechazado se corrige y guarda en `users/{uid}.hijoSolicitado`; `observeLinkingState()` escucha el documento en tiempo real y el ViewModel pone `proceed` cuando llega `vinculado` (2 tests JVM nuevos). Verificación: 81 suites / 580 tests / 0 fallos + `assembleDebug` verde. Falta probar en dispositivo que el QR es legible y que el salto ocurre solo.
+**Evidencia en dispositivo (T2, 21 nov 2026):** el dueño registró un tutor con correo real, verificó el correo y la app generó el QR del hijo correctamente. Falta el lado directora (T3/T4) para cerrar el ciclo de escaneo.
+
+**T2 (commits `8cd167a`, `75e564f`, merge `43f46f0`):** payload versionado `{"v":1,"uid":"...","alumno":"..."}` validado por 3 tests JVM; ZXing `core:3.5.3` agregado al catálogo y resuelto desde Maven Central (Risk: dependencia nueva); `QrCodeImage` dibuja el código sin red; el nombre rechazado se corrige y guarda en `users/{uid}.hijoSolicitado`; `observeLinkingState()` escucha el documento en tiempo real y el ViewModel pone `proceed` cuando llega `vinculado` (2 tests JVM nuevos). Verificación: 81 suites / 580 tests / 0 fallos + `assembleDebug` verde. Falta probar en dispositivo que el QR es legible y que el salto ocurre solo.
 
 **Evidencia observada (21 nov 2026, dispositivo):** Run desde `main` con T1 mergeada. Cold start sin `FATAL EXCEPTION` ni `IllegalStateException` de Room; `FirebaseApp initialization successful`; login de la directora exitoso (notificación de token de FirebaseAuth y FCM token recibido); `WM-WorkerWrapper: Worker result SUCCESS` para `SyncWorker`. No aparece `PERMISSION_DENIED` de Firestore. Los mensajes `E` del log corresponden al sistema OEM (Oplus/Play Services), no a la app. Queda pendiente confirmar en pantalla que el panel carga datos bajo las reglas nuevas -el log no prueba lecturas de Firestore- y ejecutar la migración 4→5 con una base v4 real cuando vuelva a haber datos.
 

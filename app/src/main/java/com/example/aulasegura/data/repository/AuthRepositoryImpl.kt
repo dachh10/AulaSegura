@@ -489,6 +489,19 @@ class AuthRepositoryImpl(
         awaitClose { registration.remove() }
     }
 
+    override suspend fun markEmailVerified(): Result<Unit> {
+        val uid = auth.currentUser?.uid
+            ?: return Result.failure(IllegalStateException("NO_SESSION"))
+        return runCatching {
+            firestore.collection(USERS).document(uid)
+                .update(
+                    "emailVerified", true,
+                    "updatedAt", FieldValue.serverTimestamp(),
+                ).await()
+            currentUser = currentUser?.copy(emailVerified = true)
+        }
+    }
+
     override suspend fun setTutorLinking(uid: String, vinculacion: String): Result<Unit> {
         val director = currentUser
             ?: return Result.failure(IllegalStateException("NO_SESSION"))

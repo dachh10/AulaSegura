@@ -74,6 +74,7 @@ import com.example.aulasegura.ui.screens.admin.ReportPdfExporter
 import com.example.aulasegura.ui.screens.admin.AdminUsersScreen
 import com.example.aulasegura.ui.screens.admin.ReviewStudentScreen
 import com.example.aulasegura.ui.screens.admin.ScanStudentScreen
+import com.example.aulasegura.ui.screens.admin.TeacherRequestsScreen
 import com.example.aulasegura.ui.screens.parent.ParentAIScreen
 import com.example.aulasegura.ui.screens.parent.ParentAttendanceScreen
 import com.example.aulasegura.ui.screens.parent.ParentAttendanceUiState
@@ -1097,6 +1098,7 @@ fun AulaSeguraNavHost(
         composable(Routes.ADMIN_DASHBOARD) {
             AdminDashboardScreen(
                 onNotificaciones = { navController.navigate(Routes.ADMIN_NOTIFICATIONS) },
+                onSolicitudes = { navController.navigate(Routes.ADMIN_TEACHER_REQUESTS) },
                 onEscanear = { navController.navigate(Routes.ADMIN_SCAN_STUDENT) },
                 onUsuarios = { navController.navigate(Routes.ADMIN_USERS) },
                 onGrupos = { navController.navigate(Routes.ADMIN_GROUPS) },
@@ -1126,6 +1128,9 @@ fun AulaSeguraNavHost(
                 alumno = entry.arguments?.getString("alumno").orEmpty(),
                 onBack = { navController.popBackStack() },
             )
+        }
+        composable(Routes.ADMIN_TEACHER_REQUESTS) {
+            TeacherRequestsScreen(onBack = { navController.popBackStack() })
         }
         composable(Routes.ADMIN_USERS) {
             AdminUsersScreen(

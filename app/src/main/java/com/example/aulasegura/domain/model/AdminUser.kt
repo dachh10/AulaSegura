@@ -27,6 +27,12 @@ data class AdminUser(
     val photoPublicId: String? = null,
     /** The directora's own notifications preference, defaulting to on when absent. */
     val notificationsEnabled: Boolean = true,
+    /** Written when the account owner confirms their email; gates the request queue. */
+    val emailVerified: Boolean = false,
+    /** When the teacher sent the access request; orders the director's queue. */
+    val fechaSolicitud: Long = 0L,
+    /** Account state: pendiente, aprobado or rechazado for teachers. */
+    val estado: String = "",
 ) {
     companion object {
         /**

@@ -79,6 +79,13 @@ fun observeLinkingState(): Flow<LinkingState> = emptyFlow()
 suspend fun updateChildName(name: String): Result<Unit> = Result.success(Unit)
 
 /**
+ * Persists `emailVerified = true` on the signed-in user's document after the
+ * owner confirms the verification email. The director's request queue reads
+ * this flag to decide which teachers may be approved.
+ */
+suspend fun markEmailVerified(): Result<Unit> = Result.success(Unit)
+
+/**
  * Director-only: decides a tutor's linking after scanning their QR.
  * The rules allow `vinculacion` only through the principal's whitelist.
  */

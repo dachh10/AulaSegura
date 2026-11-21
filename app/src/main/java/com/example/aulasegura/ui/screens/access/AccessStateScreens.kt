@@ -166,6 +166,9 @@ class AccessStateViewModel(
                 }
                 return@launch
             }
+            // Persist the confirmation so the director's queue can tell verified
+            // teachers apart; the flag cannot be read from another user's Auth.
+            runCatching { auth.markEmailVerified() }
             val refreshed = auth.refreshProfile()
             val user = (refreshed as? AuthResult.Success)?.user ?: auth.currentUser
             val canProceed = when (user?.role ?: UserRole.TUTOR) {

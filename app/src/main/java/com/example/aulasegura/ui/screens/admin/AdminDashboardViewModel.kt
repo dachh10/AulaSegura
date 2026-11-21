@@ -1,6 +1,7 @@
 package com.example.aulasegura.ui.screens.admin
 
 import androidx.lifecycle.ViewModel
+import com.example.aulasegura.domain.repository.pendingTeacherCount
 import androidx.lifecycle.viewModelScope
 import com.example.aulasegura.domain.repository.AdminDashboardRepository
 import com.example.aulasegura.domain.repository.AdminDashboardResult
@@ -22,6 +23,7 @@ import kotlinx.coroutines.launch
 class AdminDashboardViewModel(
     private val dashboard: AdminDashboardRepository,
     private val reports: AdminReportRepository,
+    private val users: com.example.aulasegura.domain.repository.AdminUserRepository? = null,
 ) : ViewModel() {
 
     private val _state = MutableStateFlow(AdminDashboardUiState())
@@ -32,6 +34,7 @@ class AdminDashboardViewModel(
     }
 
     fun refresh() {
+        refreshPendingTeachers()
         _state.update {
             it.copy(
                 loading = true,
@@ -61,6 +64,16 @@ class AdminDashboardViewModel(
                     it.copy(todayLoading = false, todayError = result.reason.toMessage())
                 }
             }
+        }
+    }
+
+    private fun refreshPendingTeachers() {
+        val repo = users ?: return
+        viewModelScope.launch {
+            val count = runCatching { repo.getUsers() }
+                .getOrDefault(emptyList())
+                .let { pendingTeacherCount(it) }
+            _state.update { it.copy(pendingTeachers = count) }
         }
     }
 }

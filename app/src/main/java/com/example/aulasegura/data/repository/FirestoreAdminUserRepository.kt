@@ -2,6 +2,7 @@ package com.example.aulasegura.data.repository
 
 import android.content.Context
 import com.example.aulasegura.domain.model.AdminUser
+import com.example.aulasegura.domain.repository.acceptAllTeacherUids
 import com.example.aulasegura.domain.model.AppUser
 import com.example.aulasegura.domain.model.UserRole
 import com.example.aulasegura.domain.repository.AccountCreationError
@@ -10,6 +11,7 @@ import com.example.aulasegura.domain.repository.AdminUserFields
 import com.example.aulasegura.domain.repository.AdminUserRepository
 import com.example.aulasegura.domain.repository.AdminUserUpdateError
 import com.example.aulasegura.domain.repository.AdminUserUpdateResult
+import com.example.aulasegura.domain.repository.BatchResult
 import com.example.aulasegura.domain.repository.AuthRepository
 import com.example.aulasegura.domain.repository.CreateAccountResult
 import com.example.aulasegura.domain.repository.orphanedAfterCleanup
@@ -226,6 +228,43 @@ class FirestoreAdminUserRepository(
             else -> AccountCreationError.UNKNOWN
         }
 
+    override suspend fun setTeacherStatus(
+        uid: String,
+        estado: String,
+    ): AdminUserUpdateResult {
+        if (estado !in setOf("aprobado", "rechazado")) {
+            return AdminUserUpdateResult.Failure(AdminUserUpdateError.UNKNOWN)
+        }
+        return applyUpdate(
+            uid,
+            mapOf(
+                AdminUserFields.ESTADO to estado,
+                AdminUserFields.UPDATED_AT to FieldValue.serverTimestamp(),
+            ),
+        )
+    }
+
+    override suspend fun acceptAllPendingTeachers(): BatchResult {
+        val pending = getUsers().let { acceptAllTeacherUids(it) }
+        if (pending.isEmpty()) return BatchResult.Success(0)
+        return try {
+            val batch = firestore.batch()
+            pending.forEach { uid ->
+                batch.update(
+                    firestore.collection(COLLECTION).document(uid),
+                    mapOf(
+                        AdminUserFields.ESTADO to "aprobado",
+                        AdminUserFields.UPDATED_AT to FieldValue.serverTimestamp(),
+                    ),
+                )
+            }
+            withTimeout(WRITE_TIMEOUT_MILLIS) { batch.commit().await() }
+            BatchResult.Success(pending.size)
+        } catch (error: Exception) {
+            BatchResult.Failure(AdminUserUpdateError.UNKNOWN)
+        }
+    }
+
     /** Single write path, so both profile writes classify Firestore failures alike. */
     private suspend fun applyUpdate(
         uid: String,
@@ -279,6 +318,10 @@ class FirestoreAdminUserRepository(
         notificationsEnabled = AdminUserFields.notificationsEnabledFrom(
             get(AdminUserFields.PREFERENCES),
         ),
+        emailVerified = getBoolean(AdminUserFields.EMAIL_VERIFIED) ?: false,
+        fechaSolicitud = (get(AdminUserFields.FECHA_SOLICITUD) as? com.google.firebase.Timestamp)
+            ?.toDate()?.time ?: 0L,
+        estado = getString(AdminUserFields.ESTADO).orEmpty(),
     )
 
     /** Cached-session fallback: only fields the session actually carries are set. */
@@ -296,6 +339,9 @@ class FirestoreAdminUserRepository(
         studentIds = emptyList(),
         active = active,
         photoUrl = AdminUser.photoField(photoUrl),
+        emailVerified = emailVerified,
+        estado = estado,
+        fechaSolicitud = fechaSolicitud,
     )
 
     private fun DocumentSnapshot.stringList(field: String): List<String> =

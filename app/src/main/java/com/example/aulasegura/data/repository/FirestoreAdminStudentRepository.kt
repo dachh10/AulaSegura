@@ -1,5 +1,6 @@
 package com.example.aulasegura.data.repository
 
+import com.example.aulasegura.data.remote.tutorApprovalFirestoreUpdate
 import com.example.aulasegura.domain.model.AdminStudent
 import com.example.aulasegura.domain.model.groupIdFor
 import com.example.aulasegura.domain.model.groupNameFor
@@ -224,10 +225,14 @@ class FirestoreAdminStudentRepository(
                     ),
                 )
             }
-            val tutorUpdate = tutorProfileOnApproval(
-                studentId = input.duplicateStudentId ?: studentId,
-                groupId = resolvedGroupId,
-            ).toMutableMap()
+            // arrayUnion keeps every child's group; a plain list would replace
+            // the tutor's links and deny the first child's reads.
+            val tutorUpdate = tutorApprovalFirestoreUpdate(
+                tutorProfileOnApproval(
+                    studentId = input.duplicateStudentId ?: studentId,
+                    groupId = resolvedGroupId,
+                ),
+            )
             tutorUpdate["updatedAt"] = FieldValue.serverTimestamp()
             batch.update(
                 firestore.collection("users").document(input.tutorUid),

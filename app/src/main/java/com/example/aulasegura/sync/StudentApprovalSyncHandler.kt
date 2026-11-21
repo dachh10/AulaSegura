@@ -1,6 +1,7 @@
 package com.example.aulasegura.sync
 
 import com.example.aulasegura.data.local.dao.StudentDao
+import com.example.aulasegura.data.remote.tutorApprovalFirestoreUpdate
 import com.example.aulasegura.data.local.entity.OutboxEntity
 import com.example.aulasegura.data.local.entity.SyncState
 import com.example.aulasegura.domain.repository.approvedStudentDocument
@@ -50,10 +51,14 @@ class StudentApprovalSyncHandler(
                     ),
                 )
             }
-            val tutorUpdate = tutorProfileOnApproval(
-                studentId = approval.duplicateStudentId ?: studentId,
-                groupId = input.groupId,
-            ).toMutableMap()
+            // Same additive links as the online path: a replacement list here
+            // would silently drop the first child's group on replay too.
+            val tutorUpdate = tutorApprovalFirestoreUpdate(
+                tutorProfileOnApproval(
+                    studentId = approval.duplicateStudentId ?: studentId,
+                    groupId = input.groupId,
+                ),
+            )
             tutorUpdate["updatedAt"] = FieldValue.serverTimestamp()
             batch.update(firestore.collection("users").document(input.tutorUid), tutorUpdate)
             batch.commit().await()

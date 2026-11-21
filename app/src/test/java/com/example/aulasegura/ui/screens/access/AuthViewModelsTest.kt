@@ -7,6 +7,7 @@ import com.example.aulasegura.domain.repository.AccountRegistrationResult
 import com.example.aulasegura.domain.repository.AuthFailure
 import com.example.aulasegura.domain.repository.AuthRepository
 import com.example.aulasegura.domain.repository.AuthResult
+import com.example.aulasegura.domain.repository.LinkingState
 import com.example.aulasegura.domain.repository.PasswordChangeResult
 import com.example.aulasegura.domain.repository.PasswordResetResult
 import com.example.aulasegura.domain.repository.ProfilePhotoResult
@@ -18,6 +19,7 @@ import com.example.aulasegura.domain.repository.TutorRegistrationResult
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.emptyFlow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.test.StandardTestDispatcher
@@ -41,6 +43,7 @@ private class FakeAuthRepository(
     var signInResult: AuthResult = AuthResult.Failure(AuthFailure.UNKNOWN),
     var restoreResult: AuthResult = AuthResult.Failure(AuthFailure.NO_SESSION),
     var accountActive: Flow<Boolean> = emptyFlow(),
+    var linkingState: Flow<LinkingState> = emptyFlow(),
 ) : AuthRepository {
 
     var signInCalls = 0
@@ -87,6 +90,16 @@ private class FakeAuthRepository(
     override suspend fun restoreSession(): AuthResult = restoreResult
 
     override fun observeAccountActive(): Flow<Boolean> = accountActive
+
+    override fun observeLinkingState(): Flow<LinkingState> = linkingState
+
+    var lastChildName: String? = null
+    var childNameResult: Result<Unit> = Result.success(Unit)
+
+    override suspend fun updateChildName(name: String): Result<Unit> {
+        lastChildName = name
+        return childNameResult
+    }
 
     override suspend fun sendPasswordReset(email: String): PasswordResetResult =
         PasswordResetResult.Sent
@@ -431,5 +444,44 @@ class RegisterViewModelTest {
         assertFalse(vm.uiState.value.succeeded)
         assertEquals("Ya existe una cuenta con ese correo. Inicia sesión.",
             vm.uiState.value.errorMessage)
+    }
+
+    @Test
+    fun `a linked document moves the tutor on without a refresh tap`() = runTest(dispatcher) {
+        val state = MutableStateFlow(
+            LinkingState(vinculacion = "pendiente", hijoSolicitado = "Ana Pérez"),
+        )
+        val repo = FakeAuthRepository(linkingState = state)
+        repo.currentUser = user(UserRole.TUTOR)
+        val vm = AccessStateViewModel(repo)
+        advanceUntilIdle()
+
+        assertFalse(vm.uiState.value.proceed)
+
+        state.value = LinkingState(vinculacion = "vinculado", hijoSolicitado = "Ana Pérez")
+        advanceUntilIdle()
+
+        assertTrue(vm.uiState.value.proceed)
+        assertEquals("Ana Pérez", vm.uiState.value.childName)
+    }
+
+    @Test
+    fun `a rejected name can be corrected and saved`() = runTest(dispatcher) {
+        val state = MutableStateFlow(
+            LinkingState(vinculacion = "rechazada", hijoSolicitado = "Ana Pérez"),
+        )
+        val repo = FakeAuthRepository(linkingState = state)
+        repo.currentUser = user(UserRole.TUTOR)
+        val vm = AccessStateViewModel(repo)
+        advanceUntilIdle()
+
+        assertEquals("rechazada", vm.uiState.value.vinculacion)
+
+        vm.setChildName("  Ana Pérez Ruiz  ")
+        vm.saveChildName()
+        advanceUntilIdle()
+
+        assertEquals("Ana Pérez Ruiz", repo.lastChildName)
+        assertEquals("Ana Pérez Ruiz", vm.uiState.value.childName)
     }
 }

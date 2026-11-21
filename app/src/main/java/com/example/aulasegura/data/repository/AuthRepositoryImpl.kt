@@ -12,6 +12,7 @@ import com.example.aulasegura.domain.repository.AccountRegistrationResult
 import com.example.aulasegura.domain.repository.AuthFailure
 import com.example.aulasegura.domain.repository.AuthRepository
 import com.example.aulasegura.domain.repository.AuthResult
+import com.example.aulasegura.domain.repository.LinkingState
 import com.example.aulasegura.domain.repository.RegistrationKind
 import com.example.aulasegura.domain.repository.PasswordChangeError
 import com.example.aulasegura.domain.repository.PasswordChangeResult
@@ -463,6 +464,41 @@ class AuthRepositoryImpl(
             }
 
         awaitClose { registration.remove() }
+    }
+
+    override fun observeLinkingState(): Flow<LinkingState> = callbackFlow {
+        val uid = auth.currentUser?.uid
+        if (uid == null) {
+            close()
+            return@callbackFlow
+        }
+
+        val registration = firestore.collection(USERS).document(uid)
+            .addSnapshotListener { snapshot, error ->
+                // A failed or empty read is not a rejection: stay silent and keep
+                // the last known state, like the account-active listener does.
+                if (error != null || snapshot == null || !snapshot.exists()) return@addSnapshotListener
+                trySend(
+                    LinkingState(
+                        vinculacion = snapshot.getString(FIELD_VINCULACION).orEmpty(),
+                        hijoSolicitado = snapshot.getString(FIELD_HIJO_SOLICITADO).orEmpty(),
+                        estado = snapshot.getString(FIELD_ESTADO).orEmpty(),
+                    ),
+                )
+            }
+        awaitClose { registration.remove() }
+    }
+
+    override suspend fun updateChildName(name: String): Result<Unit> {
+        val uid = auth.currentUser?.uid
+            ?: return Result.failure(IllegalStateException("NO_SESSION"))
+        val trimmed = name.trim()
+        if (trimmed.isBlank()) return Result.failure(IllegalArgumentException("EMPTY_NAME"))
+        return runCatching {
+            firestore.collection(USERS).document(uid)
+                .update(FIELD_HIJO_SOLICITADO, trimmed).await()
+            currentUser = currentUser?.copy(hijoSolicitado = trimmed)
+        }
     }
 
     private suspend fun resolveProfile(): AuthResult {

@@ -27,9 +27,13 @@ import androidx.compose.material.icons.automirrored.outlined.ArrowBack
 import androidx.compose.material.icons.filled.Email
 import androidx.compose.material.icons.filled.VerifiedUser
 import androidx.compose.material3.Icon
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -43,9 +47,12 @@ import com.example.aulasegura.domain.model.AppUser
 import com.example.aulasegura.domain.model.UserRole
 import com.example.aulasegura.domain.repository.AuthRepository
 import com.example.aulasegura.domain.repository.AuthResult
+import com.example.aulasegura.domain.repository.ParentLinkQr
 import com.example.aulasegura.ui.components.PillButton
+import com.example.aulasegura.ui.components.QrCodeImage
 import com.example.aulasegura.ui.components.ShieldPattern
 import com.example.aulasegura.ui.theme.Background
+import com.example.aulasegura.ui.theme.BrandCoral
 import com.example.aulasegura.ui.theme.BricolageGrotesque
 import com.example.aulasegura.ui.theme.DmSans
 import com.example.aulasegura.ui.theme.Error
@@ -64,6 +71,7 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
 data class AccessStateUiState(
+    val uid: String = "",
     val email: String = "",
     val role: UserRole = UserRole.TUTOR,
     val estado: String = "pendiente",
@@ -89,12 +97,59 @@ class AccessStateViewModel(
         val current = auth.currentUser
         _uiState.update {
             it.copy(
+                uid = current?.uid.orEmpty(),
                 email = current?.email.orEmpty(),
                 role = current?.role ?: UserRole.TUTOR,
                 estado = current?.estado?.ifBlank { "pendiente" } ?: "pendiente",
                 vinculacion = current?.vinculacion?.ifBlank { "pendiente" } ?: "pendiente",
                 childName = current?.hijoSolicitado.orEmpty(),
             )
+        }
+        // The director approves on another device. A live listener is the only
+        // way the tutor sees it without having to guess when to tap "refresh".
+        viewModelScope.launch {
+            auth.observeLinkingState().collect { link ->
+                _uiState.update { ui ->
+                    val proceed = when (ui.role) {
+                        UserRole.TUTOR -> link.vinculacion == "vinculado"
+                        UserRole.TEACHER ->
+                            link.estado == "aprobado" || link.estado == "rechazado"
+                        else -> ui.proceed
+                    }
+                    ui.copy(
+                        vinculacion = link.vinculacion.ifBlank { ui.vinculacion },
+                        estado = link.estado.ifBlank { ui.estado },
+                        childName = link.hijoSolicitado.ifBlank { ui.childName },
+                        proceed = proceed,
+                    )
+                }
+            }
+        }
+    }
+
+    fun setChildName(value: String) = _uiState.update { it.copy(childName = value, message = null) }
+
+    fun saveChildName() {
+        if (_uiState.value.isLoading) return
+        val name = _uiState.value.childName.trim()
+        if (name.isBlank()) {
+            _uiState.update { it.copy(message = "Escribe el nombre del alumno.") }
+            return
+        }
+        _uiState.update { it.copy(isLoading = true, message = null) }
+        viewModelScope.launch {
+            val result = auth.updateChildName(name)
+            _uiState.update {
+                it.copy(
+                    isLoading = false,
+                    childName = name,
+                    message = if (result.isSuccess) {
+                        "Nombre actualizado. Muestra el código QR a la directora."
+                    } else {
+                        "No pudimos guardar el nombre. Inténtalo de nuevo."
+                    },
+                )
+            }
         }
     }
 
@@ -370,13 +425,21 @@ fun AccountReviewScreen(
 
 @Composable
 fun LinkChildScreen(
+    uid: String = "",
     childName: String,
     rejected: Boolean = false,
     isLoading: Boolean = false,
+    message: String? = null,
     onBack: () -> Unit = {},
     onRefresh: () -> Unit = {},
     onSignOut: () -> Unit = {},
+    onChildNameChange: (String) -> Unit = {},
+    onSaveChildName: () -> Unit = {},
 ) {
+    var editingName by remember { mutableStateOf(false) }
+    val payload = remember(uid, childName) { ParentLinkQr.encode(uid, childName) }
+    val canShowQr = uid.isNotBlank() && childName.isNotBlank()
+
     AccessScaffold(
         title = "Pendiente de vinculación",
         subtitle = if (rejected) {
@@ -400,7 +463,65 @@ fun LinkChildScreen(
                 fontSize = 13.sp,
             )
         }
-        Spacer(Modifier.height(28.dp))
+        Spacer(Modifier.height(24.dp))
+        if (canShowQr) {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(24.dp))
+                    .background(SurfaceContainerLowest)
+                    .padding(24.dp),
+                contentAlignment = Alignment.Center,
+            ) {
+                QrCodeImage(content = payload, modifier = Modifier.size(240.dp))
+            }
+            Spacer(Modifier.height(12.dp))
+            Text(
+                text = "Alumno: $childName",
+                color = Primary,
+                fontFamily = DmSans,
+                fontWeight = FontWeight.SemiBold,
+                fontSize = 16.sp,
+            )
+        }
+        Spacer(Modifier.height(24.dp))
+        Text(text = "1. Preséntate con la directora", color = OnSurfaceVariant,
+            fontFamily = DmSans, fontSize = 14.sp)
+        Spacer(Modifier.height(8.dp))
+        Text(text = "2. Muestra este código QR", color = OnSurfaceVariant,
+            fontFamily = DmSans, fontSize = 14.sp)
+        Spacer(Modifier.height(8.dp))
+        Text(text = "3. Ella lo escaneará y vincularemos a tu hijo", color = OnSurfaceVariant,
+            fontFamily = DmSans, fontSize = 14.sp)
+        Spacer(Modifier.height(20.dp))
+        Text(
+            text = "Corregir nombre del alumno",
+            color = BrandCoral,
+            fontFamily = DmSans,
+            fontWeight = FontWeight.SemiBold,
+            fontSize = 13.sp,
+            modifier = Modifier.clickable { editingName = !editingName },
+        )
+        if (editingName) {
+            Spacer(Modifier.height(12.dp))
+            OutlinedTextField(
+                value = childName,
+                onValueChange = onChildNameChange,
+                label = { Text("Nombre completo de tu hijo") },
+                singleLine = true,
+                modifier = Modifier.fillMaxWidth(),
+            )
+            Spacer(Modifier.height(12.dp))
+            PillButton(
+                text = if (isLoading) "Guardando." else "Guardar nombre",
+                onClick = { if (!isLoading) onSaveChildName() },
+            )
+        }
+        if (message != null) {
+            Spacer(Modifier.height(12.dp))
+            Text(text = message, color = Error, fontFamily = DmSans, fontSize = 13.sp)
+        }
+        Spacer(Modifier.height(24.dp))
         PillButton(
             text = if (isLoading) "Actualizando…" else "Ya fui vinculado",
             onClick = { if (!isLoading) onRefresh() },

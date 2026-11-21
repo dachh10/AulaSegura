@@ -25,15 +25,10 @@ data class UngroupedStudentsUiState(
 ) {
     val ungrouped: List<AdminStudent> get() = ungroupedStudents(students, query)
 
-    /** One row per grade available in the school's real groups. */
-    val grados: List<Int> get() = groups.map { it.grade }.distinct().sorted()
+    /** Fixed school catalog, available even when the database has no groups. */
+    val grados: List<Int> get() = assignableGrades
 
-    /** Sections offered for the chosen grade. */
-    val secciones: List<String> get() = groups
-        .filter { grado == null || it.grade == grado }
-        .map { it.section }
-        .distinct()
-        .sorted()
+    val secciones: List<String> get() = assignableSections
 }
 
 /** Drives the director's "Alumnos sin grupo" bulk-assignment screen. No Firebase types. */
@@ -95,7 +90,7 @@ class UngroupedStudentsViewModel(
     fun assign() {
         val current = _state.value
         if (current.loading || current.selected.isEmpty()) return
-        val target = groupForAssignment(current.groups, current.grado ?: 0, current.grupo)
+        val target = groupForAssignment(current.grado ?: 0, current.grupo)
         if (target == null) {
             _state.update { it.copy(error = "Elige un grado y un grupo válidos.") }
             return

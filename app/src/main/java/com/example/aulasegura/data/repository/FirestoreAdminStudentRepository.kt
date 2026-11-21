@@ -1,6 +1,9 @@
 package com.example.aulasegura.data.repository
 
 import com.example.aulasegura.domain.model.AdminStudent
+import com.example.aulasegura.domain.model.groupIdFor
+import com.example.aulasegura.domain.model.groupNameFor
+import com.example.aulasegura.domain.model.isValidSection
 import com.example.aulasegura.domain.model.StudentListEntry
 import com.example.aulasegura.domain.model.orderStudentList
 import com.example.aulasegura.domain.model.toStudentListEntry
@@ -164,6 +167,41 @@ class FirestoreAdminStudentRepository(
         }
         return try {
             val batch = firestore.batch()
+            // When the director assigned a grade+section at approval time, create
+            // the canonical group on demand with a deterministic id. Same classroom
+            // always maps to the same document, so it shows up in GRUPOS and a
+            // second approval to that classroom only increments its studentCount.
+            val gradeNumber = input.grado.toIntOrNull()
+            val section = input.grupo.trim().uppercase()
+            val hasGroup = gradeNumber != null && gradeNumber in 1..6 &&
+                section in listOf("A", "B", "C", "D")
+            val resolvedGroupId = if (hasGroup) groupIdFor(gradeNumber, section) else input.groupId
+            if (hasGroup) {
+                val groupRef = firestore.collection(AdminStudentFields.GROUP_COLLECTION)
+                    .document(resolvedGroupId)
+                val groupDoc = AdminGroupFields.newGroupDocument(
+                    name = groupNameFor(gradeNumber, section),
+                    grade = gradeNumber,
+                    section = section,
+                    schoolId = schoolId,
+                ).toMutableMap().apply {
+                    put(AdminGroupFields.UPDATED_AT, FieldValue.serverTimestamp())
+                }
+                batch.set(groupRef, groupDoc, com.google.firebase.firestore.SetOptions.merge())
+                batch.update(
+                    groupRef,
+                    mapOf(
+                        AdminGroupFields.STUDENT_COUNT to FieldValue.increment(1L),
+                        AdminGroupFields.UPDATED_AT to FieldValue.serverTimestamp(),
+                    ),
+                )
+            }
+            // Keep the student document's group fields canonical too.
+            if (hasGroup) {
+                document[AdminStudentFields.GROUP_ID] = resolvedGroupId
+                document[AdminStudentFields.GRUPO] = groupNameFor(gradeNumber, section)
+                document[AdminStudentFields.GRADO] = gradeNumber.toString()
+            }
             if (input.duplicateStudentId.isNullOrBlank()) {
                 batch.set(
                     firestore.collection(AdminStudentFields.COLLECTION).document(studentId),
@@ -185,7 +223,7 @@ class FirestoreAdminStudentRepository(
             }
             val tutorUpdate = tutorProfileOnApproval(
                 studentId = input.duplicateStudentId ?: studentId,
-                groupId = input.groupId,
+                groupId = resolvedGroupId,
             ).toMutableMap()
             tutorUpdate["updatedAt"] = FieldValue.serverTimestamp()
             batch.update(
@@ -248,28 +286,45 @@ class FirestoreAdminStudentRepository(
         grado: Int,
         grupo: String,
     ): AdminStudentResult {
-        if (auth.currentUser == null) {
-            return AdminStudentResult.Failure(AdminStudentError.NO_SESSION)
-        }
-        if (studentIds.isEmpty() || groupId.isBlank()) {
+        val director = auth.currentUser
+            ?: return AdminStudentResult.Failure(AdminStudentError.NO_SESSION)
+        if (studentIds.isEmpty() || !isValidSection(grupo)) {
             return AdminStudentResult.Failure(AdminStudentError.UNKNOWN)
+        }
+
+        // The grade+section is the source of truth; the group id is DERIVED, so
+        // the same classroom is always the same document. set(merge) creates it
+        // on first use and is a no-op afterwards — no duplicates, no transaction.
+        val resolvedId = groupIdFor(grado, grupo)
+        val canonicalName = groupNameFor(grado, grupo)
+        val schoolId = director.schoolId.ifBlank { auth.currentUser?.schoolId.orEmpty() }
+        val groupRef = firestore.collection(AdminStudentFields.GROUP_COLLECTION).document(resolvedId)
+        val groupDocument = AdminGroupFields.newGroupDocument(
+            name = canonicalName,
+            grade = grado,
+            section = grupo.trim().uppercase(),
+            schoolId = schoolId,
+        ).toMutableMap().apply {
+            put(AdminGroupFields.UPDATED_AT, FieldValue.serverTimestamp())
         }
 
         return try {
             val batch = firestore.batch()
+            // get-or-create of the classroom, idempotent on repeat.
+            batch.set(groupRef, groupDocument, com.google.firebase.firestore.SetOptions.merge())
             studentIds.forEach { id ->
                 batch.update(
                     firestore.collection(AdminStudentFields.COLLECTION).document(id),
                     mapOf(
-                        AdminStudentFields.GROUP_ID to groupId,
-                        AdminStudentFields.GRUPO to grupo,
+                        AdminStudentFields.GROUP_ID to resolvedId,
+                        AdminStudentFields.GRUPO to canonicalName,
                         AdminStudentFields.GRADO to grado.toString(),
                         AdminStudentFields.UPDATED_AT to FieldValue.serverTimestamp(),
                     ),
                 )
             }
             batch.update(
-                firestore.collection(AdminStudentFields.GROUP_COLLECTION).document(groupId),
+                groupRef,
                 mapOf(
                     AdminGroupFields.STUDENT_COUNT to FieldValue.increment(studentIds.size.toLong()),
                     AdminGroupFields.UPDATED_AT to FieldValue.serverTimestamp(),

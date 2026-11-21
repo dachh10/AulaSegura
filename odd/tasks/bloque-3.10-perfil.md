@@ -23,15 +23,15 @@ Pantalla: `ParentProfileScreen` (Stitch `7ad5b00011fe438390ac923e9e0d28e6`, bloq
 
 | ID | Spec | Tarea | Ruta | Estado |
 |---|---|---|---|---|
-| T1 | S1, S2 | Estado de la pantalla, mapeos de perfil e hijos | `ui/screens/parent/ParentProfileUi.kt` | pendiente |
-| T2 | S1, S2, S3, S4, S5 | ViewModel del tutor: hijos, avatar, nombre, contraseña | `ui/screens/parent/ParentProfileViewModel.kt` | pendiente |
-| T3 | S1, S2, S6 | Pantalla real sobre el diseño 2.13, sin maqueta | `ui/screens/parent/ParentProfileScreen.kt` | pendiente |
-| T4 | S3 | Formulario de editar perfil del tutor | `ui/screens/parent/ParentProfileSections.kt` | pendiente |
+| T1 | S1, S2 | Estado de la pantalla, mapeos de perfil e hijos | `ui/screens/parent/ParentProfileUi.kt` | ✅ |
+| T2 | S1, S2, S3, S4, S5 | ViewModel del tutor: hijos, avatar, nombre, contraseña | `ui/screens/parent/ParentProfileViewModel.kt` | ✅ |
+| T3 | S1, S2, S6 | Pantalla real sobre el diseño 2.13, sin maqueta | `ui/screens/parent/ParentProfileScreen.kt` | ✅ |
+| T4 | S3 | Formulario de editar perfil del tutor | `ui/screens/parent/ParentProfileSections.kt` | ✅ |
 | T5 | S4 | Reglas de cuenta y formulario de contraseña compartidos | `ui/profile/ProfileFormRules.kt`, `ui/profile/ProfileFormKit.kt`, `ui/profile/ChangePasswordScreen.kt` | ✅ |
 | T6 | S5 | Flujo de avatar compartido y compresor como interfaz | `ui/profile/ProfileAvatarUpload.kt`, `data/remote/cloudinary/ImageCompressor.kt` | ✅ |
-| T7 | S7 | Tests de UI, ViewModel y avatar | `ui/screens/parent/ParentProfileUiTest.kt`, `ParentProfileViewModelTest.kt`, `ui/profile/ProfileAvatarUploadTest.kt` | en curso (falta la parte del tutor) |
-| T8 | S1–S7 | Ruta con ViewModel y factory | `navigation/AulaSeguraNavHost.kt`, `di/AppContainer.kt` | pendiente |
-| T9 | S7 | Docs: fase, contexto y logbook | `FASE3.md`, `CONTEXT.md`, `odd/tasks/bloque-3.10-perfil.md` | en curso |
+| T7 | S7 | Tests de UI, ViewModel y avatar | `ui/screens/parent/ParentProfileUiTest.kt`, `ParentProfileViewModelTest.kt`, `ui/profile/ProfileAvatarUploadTest.kt` | ✅ (3 suites, 20 tests) |
+| T8 | S1–S7 | Ruta con ViewModel y factory | `navigation/AulaSeguraNavHost.kt`, `di/AppContainer.kt` | ✅ |
+| T9 | S7 | Docs: fase, contexto y logbook | `FASE3.md`, `CONTEXT.md`, `odd/tasks/bloque-3.10-perfil.md` | ✅ |
 
 ## Log
 
@@ -48,4 +48,10 @@ Pantalla: `ParentProfileScreen` (Stitch `7ad5b00011fe438390ac923e9e0d28e6`, bloq
 - **El diseño se respetó.** Header, «MIS HIJOS», tarjeta de ajustes, logout y versión siguen la maqueta 2.13 (crema, índigo, badge de sincronizado, tarjetas de hijos con dos tonos alternados). Lo que cambió fue de dónde salen los datos, no cómo se ven.
 - **Apareció un bug del docente al compartir el kit.** El dock del diseño (`StitchDock`) no tenía `clickable`: en la pantalla del docente, «Guardar cambios» y «Actualizar contraseña» no guardaban nada. Se arregló en el kit compartido y el guardián de `saving` evita el doble envío. El botón del tutor nunca habría funcionado sin ese arreglo.
 - **La tarjeta de un hijo dejó de fingir que es un botón.** Desde el perfil no hay un destino por hijo (la pantalla de asistencia elige el suyo), así que la tarjeta se ve igual pero no se hace pasar por control.
-- **El bloque se entrega en dos commits.** El verificador nativo (Gentle AI) exige que la evidencia completa de cada lente quepa en 200 KB; el diff del bloque entero daba 189 KB y no entraba. Se partió en (1) la base compartida de cuenta, que también migra al docente, y (2) el perfil del tutor. El árbol final es idéntico y nada estaba pusheado, así que sólo se reorganizó el historial local.
+
+**L3 — 20 nov 2026, verificación.**
+
+- **Tests nuevos (3 suites, 20 tests; total 78 suites / 568 tests / 0 fallos):** `ParentProfileUiTest` (5) — perfil de la sesión, foto ausente, nombre y grupo del hijo, nombre de reserva e inicial legible; `ParentProfileViewModelTest` (9) — hijos del roster, cuenta sin hijos, fallo de red, escritura del nombre sin tocar materias, nombre en blanco, escritura rechazada, contraseña débil, contraseña cambiada y contraseña incorrecta; `ProfileAvatarUploadTest` (6) — carpeta y archivo del avatar, escritura del `publicId`, foto ilegible, error de red, subida rechazada y escritura rechazada.
+- **El docente no se rompió:** `TeacherProfileUiTest` (12) sigue verde después de mover las reglas y la pantalla de contraseña a `ui/profile`.
+- **Build:** `cleanTestDebugUnitTest testDebugUnitTest assembleDebug` → **BUILD SUCCESSFUL**, `app-debug.apk` generado.
+- **Pendiente en dispositivo:** entrar con la cuenta real del tutor y comprobar que el nombre, el correo y los hijos son los de la cuenta; cambiar el nombre y ver que persiste al volver a abrir; subir una foto (cámara y galería) y ver que aparece en el header y sobrevive al reinicio; tocar «Notificaciones» y comprobar que pide el permiso o abre los ajustes; cambiar la contraseña y entrar de nuevo con la nueva.

@@ -57,7 +57,7 @@ Los IDs siguen la numeración de `PLAN.md` (3.1-3.10). El orden de ejecución se
 | **3.7** | Chat con el docente asignado al grupo | `ParentChatScreen`, `ParentConversationScreen` | RTDB | ✅ **hecho y probado en dispositivo** (19 nov) |
 | **3.8** | Asistente con Firebase AI Logic (Gemini Developer API, free tier, App Check) | `ParentAIScreen` | AI Logic | ✅ **hecho y probado en dispositivo** (20 nov) |
 | **3.9** | Notificaciones + deep links + push desde consola | `ParentNotificationsScreen` | Firestore + FCM | ✅ **hecho** (pendiente prueba en dispositivo) |
-| **3.10** | Perfil del tutor y foto, con los ajustes reales que ya tiene el docente | `ParentProfileScreen` | Auth + Cloudinary | pendiente |
+| **3.10** | Perfil del tutor y foto, con los ajustes reales que ya tiene el docente | `ParentProfileScreen` | Auth + Cloudinary | ✅ **hecho** (pendiente prueba en dispositivo) |
 
 Las 14 pantallas del Bloque 2 de `PLAN.md` están implementadas visualmente. La Fase 3 las conecta a datos reales una por una; no se rediseñan. Cada bloque cerrado tiene ViewModel, repositorio y tests propios (`ui/screens/parent/*Ui.kt`, `*ViewModel.kt`); la nota de entrega correspondiente indica el detalle.
 
@@ -123,6 +123,21 @@ Las 14 pantallas del Bloque 2 de `PLAN.md` están implementadas visualmente. La 
 - **Quién crea las notificaciones:** las reglas solo dejan al destinatario cambiar `read`; el documento lo crea la consola o el Admin SDK. En Spark el push también sale de la consola, así que la bandeja se llena con esos documentos. Para probar: crear `notifications/{id}` con `userId` del tutor, `title`, `body`, `type`, `deepLink`, `read: false` y `createdAt`, y enviar el push al token del dispositivo.
 - **Sin cambios de reglas, colecciones ni índices:** el índice `userId + createdAt desc` ya existía. `NotificationRepository` y `FirestoreNotificationRepository` solo cambiaron comentarios.
 - **Pendiente en dispositivo:** recibir el push desde la consola y tocar la fila para abrir el detalle correcto.
+
+**Notas de entrega 3.10** (detalle en `odd/tasks/bloque-3.10-perfil.md`):
+
+- **La maqueta se fue del perfil:** `ParentProfileScreen` ya no dibuja «Carlos Gómez Pérez», `carlos.gomez@familia.mx», la inicial «C» fija ni las tarjetas de «Mariana» y «Diego». `ParentProfileViewModel` resuelve el perfil de la sesión con `AuthRepository.currentUser` y los hijos con `ParentRepository.loadChildren()`, la misma lectura que usa el inicio del tutor.
+- **MIS HIJOS con tres estados honestos:** cargando, error de lectura con el mensaje del fallo (`homeFailureMessage`) y cuenta sin hijos vinculados. La tarjeta usa el nombre y el grupo reales; si hay más de dos hijos, el diseño se reparte en filas de dos sin inventar ninguno.
+- **Editar perfil escribe sólo el nombre:** el correo queda bloqueado (lo cambia la administración) y `updateProfile` viaja con `subjects` vacío, porque un tutor no tiene materias. Las reglas ya lo permitían: `users/{uid}` deja editar a cualquier usuario activo sobre sí mismo con `changedKeys().hasOnly(selfEditableUserKeys())` (`docs/firestore.rules:205-219`). No hubo cambios de reglas, colecciones ni índices.
+- **Una sola política de cuenta para los dos roles:** la validación de nombre, la política de contraseña, el checklist, los campos y la pantalla de contraseña se movieron a `ui/profile`, y el docente y el tutor los consumen. Lo que el tutor no tiene son las materias: su formulario edita sólo el nombre.
+- **La foto es la del docente:** `ImageCompressor` reduce la imagen, `CloudinaryUploader` la sube a `aulasegura/profiles/{uid}` y `updateProfilePhoto` escribe `photoUrl` y `photoPublicId`. La cámara usa el `FileProvider` y la caché propia (`perfil/`); la galería usa `GetContent`.
+- **Notificaciones es el permiso del sistema:** la fila ya no conserva un interruptor en memoria. Refleja `POST_NOTIFICATIONS` (Android 13+) o `areNotificationsEnabled()`, pide el permiso o abre los ajustes de la app al tocarla, y vuelve a leer el estado al volver a la pantalla.
+- **«Estado de sincronización» dejó de ser una fila muerta:** el chevron apuntaba a un `onOpenSyncStatus` sin ruta. Ahora es un dato con la insignia «Sincronizado», igual que en la pantalla del docente.
+- **El flujo de avatar se volvió testeable:** `uploadProfileAvatar` (`ui/profile`) recibe los bytes ya comprimidos y se ocupa de la subida y de la escritura del perfil, así que el `Uri` —que necesita un `Context` de Android— queda sólo en el ViewModel. `ImageCompressor` pasó a implementar la interfaz `PhotoCompressor`, igual que `CloudinaryUploader` lo era desde el principio.
+- **El botón de guardar estaba muerto (y se arregló):** el dock del diseño (`StitchDock`) no tenía `clickable`, así que ni en el docente ni en el tutor pasaba algo al tocar «Guardar cambios» o «Actualizar contraseña». El kit compartido en `ui/profile` ya lo ejecuta, y el guardián de `saving` evita el doble envío.
+- **La tarjeta de un hijo es informativa:** desde el perfil no hay un destino por hijo (la pantalla de asistencia tiene su propio selector), así que la tarjeta no se hace pasar por botón: se ve igual, pero sin prisa falsa al tocarla.
+- **Tests nuevos (3 suites, 20 tests; total 78 suites / 568 tests / 0 fallos):** `ParentProfileUiTest` (5), `ParentProfileViewModelTest` (9) y `ProfileAvatarUploadTest` (6). `TeacherProfileUiTest` (12) sigue verde después de compartir reglas y formulario de contraseña.
+- **Pendiente en dispositivo:** entrar con la cuenta real del tutor y comprobar nombre, correo e hijos; cambiar el nombre y ver que persiste; subir una foto (cámara y galería) y ver que aparece en el header y sobrevive al reinicio; tocar «Notificaciones» y comprobar que pide el permiso o abre los ajustes; cambiar la contraseña y entrar de nuevo con la nueva.
 
 ---
 
@@ -196,7 +211,7 @@ $env:JAVA_HOME = "C:\Program Files\Android\Android Studio\jbr"
 .\gradlew.bat cleanTestDebugUnitTest testDebugUnitTest assembleDebug --offline --no-daemon --no-configuration-cache
 ```
 
-Conteo de suites/tests desde `app/build/test-results/testDebugUnitTest/*.xml`. La línea base al iniciar la fase es **52 suites / 381 tests / 0 fallos**; al cerrar 3.2 + 3.3 es **56 suites / 410 tests / 0 fallos**; al cerrar 3.4 es **59 suites / 436 tests / 0 fallos**; al cerrar 3.5 es **63 suites / 469 tests / 0 fallos**; al cerrar 3.6 es **67 suites / 496 tests / 0 fallos**; al cerrar 3.7 es **68 suites / 505 tests / 0 fallos**; al cerrar 3.8 es **72 suites / 532 tests / 0 fallos**; al cerrar 3.9 es **75 suites / 548 tests / 0 fallos**.
+Conteo de suites/tests desde `app/build/test-results/testDebugUnitTest/*.xml`. La línea base al iniciar la fase es **52 suites / 381 tests / 0 fallos**; al cerrar 3.2 + 3.3 es **56 suites / 410 tests / 0 fallos**; al cerrar 3.4 es **59 suites / 436 tests / 0 fallos**; al cerrar 3.5 es **63 suites / 469 tests / 0 fallos**; al cerrar 3.6 es **67 suites / 496 tests / 0 fallos**; al cerrar 3.7 es **68 suites / 505 tests / 0 fallos**; al cerrar 3.8 es **72 suites / 532 tests / 0 fallos**; al cerrar 3.9 es **75 suites / 548 tests / 0 fallos**; al cerrar 3.10 es **78 suites / 568 tests / 0 fallos**.
 
 **Dispositivo:** no hay teléfono conectado durante el desarrollo. Las pruebas funcionales con las cuentas reales (directora, docente, tutor) las ejecuta el equipo; los pasos se entregan en el reporte de cada bloque. 3.7 quedó verificado en dispositivo el 19 nov (tutor → Mensajes → docente por nombre → mensaje recibido del otro lado) y 3.8 el 20 nov (tutor → Asistente → pregunta → respuesta con datos reales).
 

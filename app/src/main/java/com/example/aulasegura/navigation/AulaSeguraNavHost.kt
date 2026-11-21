@@ -88,6 +88,7 @@ import com.example.aulasegura.ui.screens.parent.ParentNoticesViewModel
 import com.example.aulasegura.ui.screens.parent.ParentNotificationsScreen
 import com.example.aulasegura.ui.screens.parent.ParentNotificationsViewModel
 import com.example.aulasegura.ui.screens.parent.ParentProfileScreen
+import com.example.aulasegura.ui.screens.parent.ParentProfileViewModel
 import com.example.aulasegura.ui.screens.parent.ParentTaskDetailScreen
 import com.example.aulasegura.ui.screens.parent.ParentTaskDetailViewModel
 import com.example.aulasegura.ui.screens.parent.ParentTasksScreen
@@ -594,10 +595,26 @@ fun AulaSeguraNavHost(
             )
         }
         composable(Routes.PARENT_PROFILE) {
+            val profileViewModel: ParentProfileViewModel =
+                viewModel(factory = rememberAppContainer().viewModelFactory)
+            val profileUi by profileViewModel.ui.collectAsState()
+            LaunchedEffect(Unit) { profileViewModel.refresh() }
             ParentProfileScreen(
+                ui = profileUi,
                 onSelectTab = { navController.openParentTab(it) },
                 onLogout = { sessionViewModel.signOut() },
+                onChangePhoto = profileViewModel::changePhoto,
+                onDismissMessage = profileViewModel::clearMessage,
+                onEditProfile = profileViewModel::openEditProfile,
+                onChangePassword = profileViewModel::openChangePassword,
                 onOpenPermissions = { navController.navigate(Routes.PERMISSIONS) },
+                onEditNameChange = profileViewModel::setEditName,
+                onSaveProfile = profileViewModel::saveProfile,
+                onCurrentPasswordChange = profileViewModel::setCurrentPassword,
+                onNewPasswordChange = profileViewModel::setNewPassword,
+                onConfirmPasswordChange = profileViewModel::setConfirmPassword,
+                onSavePassword = profileViewModel::savePassword,
+                onCloseDialog = profileViewModel::closeSection,
             )
         }
 

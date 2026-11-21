@@ -115,6 +115,7 @@ import com.example.aulasegura.ui.screens.parent.ParentIncidentsViewModel
 import com.example.aulasegura.ui.screens.parent.ParentJustifyViewModel
 import com.example.aulasegura.ui.screens.parent.ParentNoticesViewModel
 import com.example.aulasegura.ui.screens.parent.ParentNotificationsViewModel
+import com.example.aulasegura.ui.screens.parent.ParentProfileViewModel
 import com.example.aulasegura.ui.screens.parent.ParentTaskDetailViewModel
 import com.example.aulasegura.ui.screens.parent.ParentTasksViewModel
 import com.example.aulasegura.ui.screens.teacher.TeacherGroupDetailViewModel
@@ -798,6 +799,14 @@ class AppViewModelFactory(
 
         modelClass.isAssignableFrom(ParentNotificationsViewModel::class.java) ->
             ParentNotificationsViewModel(notifications = container.notificationRepository)
+
+        modelClass.isAssignableFrom(ParentProfileViewModel::class.java) ->
+            ParentProfileViewModel(
+                auth = container.authRepository,
+                parents = container.parentRepository,
+                compressor = container.imageCompressor,
+                uploader = container.cloudinaryUploader,
+            )
 
         modelClass.isAssignableFrom(ParentIncidentsViewModel::class.java) ->
             ParentIncidentsViewModel(parents = container.parentRepository)

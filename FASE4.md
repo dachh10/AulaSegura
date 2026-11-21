@@ -52,7 +52,7 @@ Los IDs siguen la lista acordada en el logbook. El orden de ejecución se define
 | **4.1 (T1)** | Migrar `students`/`users` y Room; reglas base; quitar el código obligatorio | sin pantalla nueva | Firestore, Room, reglas | ✅ **lista y mergeada en `main`** - `1ff8eea`, `d98e2ba`, `5b7da3f` (merge `8b6b982`) |
 | **4.2 (T2)** | QR del tutor: generación offline, corregir nombre, escucha en tiempo real | `LinkChildScreen` | `users/{uid}` | ✅ **lista, mergeada y verificada en dispositivo** - `8cd167a`, `75e564f` (merge `43f46f0`), fixes `c39dfa3`, `33e6ebb` (merge `fc3da5f`) |
 | **4.3 (T3)** | Escanear alumno: cámara, permiso, validación del QR | `ScanStudentScreen` | CameraX + ZXing | ✅ **lista, mergeada y en verificación en dispositivo** - `c24fefa`, `a26fa07`, fixes `15828eb`, `d43354b` (merge `74df0ca`) |
-| **4.4 (T4)** | Revisar alumno: grado/grupo, duplicados, segundo tutor, alta offline | `ReviewStudentScreen` | `students`, `users`, reglas | ⚠️ **online mergeado y reglas desplegadas** - `bc20574`, `a7de890`, `4a74526` (merge `8fc1fcf`); falta offline y prueba en dispositivo |
+| **4.4 (T4)** | Revisar alumno: grado/grupo, duplicados, segundo tutor, alta offline | `ReviewStudentScreen` | `students`, `users`, reglas | ⚠️ **online mergeado, desplegado y verificado en dispositivo** - `bc20574`, `a7de890`, `4a74526` (merge `8fc1fcf`), fixes `1bba1de`, `a842819`, `232937a`, `1883c2a`; falta T4b (offline) |
 | **4.5 (T5)** | Solicitudes de docentes: listar verificados, aceptar/rechazar, lote | nueva, directora | `users/{uid}.estado` | ⬜ pendiente |
 | **4.6 (T6)** | Panel del director: tarjetas, FAB y navegación con badges | `AdminDashboardScreen` | - | ⬜ pendiente |
 | **4.7 (T7)** | Alumnos sin grupo: búsqueda, selección y asignación en lote | nueva, directora | `students` | ⬜ pendiente |
@@ -130,6 +130,8 @@ Cada work unit lleva sus tests en el mismo commit y se verifica con `testDebugUn
 
 **Fallo reportado en dispositivo y corregido (T3):** el botón «Permitir cámara» parecía no hacer nada: el permiso `android.permission.CAMERA` no estaba declarado en `AndroidManifest.xml`, así que el launcher lo denegaba al instante (el log mostraba foreground/background del diálogo sin que se abriera la vista). Fix `15828eb`: declarar el permiso y sacar «Escanear alumno» del `Column` con scroll para dejarlo como botón flotante sobre la barra inferior. Nota: el HTML `docs/stitch/07-panel-directivo.html` ubica la isla centrada (`fixed bottom-[88px] ... justify-center`), no en la esquina; se sigue la ubicación que pidió el dueño (inferior derecha). Verificación: 82 suites / 582 tests / 0 fallos + `assembleDebug` verde. Falta que el dueño repita la prueba en dispositivo.
 
+**Evidencia en dispositivo (21 nov 2026):** ciclo completo verificado: escanear el QR del tutor → revisar → asignar grado/grupo → Aceptar → el alumno y sus datos aparecen correctamente en las pantallas del tutor (asistencia, tareas, avisos). Durante la prueba aparecieron y se corrigieron tres fallos: `PERMISSION_DENIED` en el write (alias `rol` del director, `1bba1de`), doble bind de cámara al volver (`a842819`) y `PERMISSION_DENIED` en las lecturas del tutor porque la aprobación no llenaba `studentIds`/`groupIds` en `users/{tutorUid}` (`1883c2a`; el `232937a` de `tutorIds` también quedó desplegado). Reglas desplegadas en cada paso.
+
 **T4 online desplegado (merge `8fc1fcf`):** reglas con el whitelist del director desplegadas en `aulasegu` (`rules file compiled successfully`, `uploading rules`, `Deploy complete!`). Verificación tras el merge: 84 suites / 590 tests / 0 fallos + `assembleDebug` verde. Falta probar en dispositivo el ciclo completo: escanear el QR del tutor → revisar → aceptar → el tutor pasa a su inicio; y rechazar → el tutor ve el mensaje. Sigue pendiente la aprobación offline (T4b).
 
 **T4 parcial (rama `feat/fase4-t4-revisar-alumno`, sin mergear):** `bc20574` decide el plan de aprobación sin I/O (4 tests: sin grupo deja grado y grupo vacíos, duplicado ofrece segundo tutor, nombre vacío se rechaza); `a7de890` agrega `approveStudent` (crea alumno + vincula tutor en un batch, o agrega segundo tutor a un alumno existente), `setTutorLinking` para rechazo y `estado`/`vinculacion` al whitelist del director en reglas; `4a74526` reemplaza el stub con el formulario real (chips de grado/grupo, sin grupo, aviso de duplicado, aceptar/rechazar) y su ViewModel. Verificación: 84 suites / 590 tests / 0 fallos + `assembleDebug` verde. **Falta:** aprobación offline (outbox/WorkManager, no existe operación de alumno) y desplegar las reglas. Sin el deploy, el batch de aprobación será rechazado por las reglas viejas.
@@ -164,7 +166,8 @@ Cada work unit lleva sus tests en el mismo commit y se verifica con `testDebugUn
 - [x] 4.1 - modelos y Room migrados sin borrar datos; reglas base adaptadas; tests y build en verde.
 - [x] 4.2 - QR del tutor generado offline con corrección de nombre y escucha en tiempo real (código y tests; prueba en dispositivo pendiente; recuperación al reabrir en rama, pendiente de merge).
 - [x] 4.3 - escáner con permiso y validación de QR (código y tests; prueba en dispositivo pendiente).
-- [ ] 4.4 - alta del alumno y vinculación, con duplicados y offline.
+- [x] 4.4 (online) - alta del alumno y vinculación, con duplicados: verificado en dispositivo.
+- [ ] 4.4b (T4b) - aprobación sin conexión (outbox/WorkManager; hoy no existe operación de alumno).
 - [ ] 4.5 - aprobación de docentes con correo verificado y lote.
 - [ ] 4.6 - panel del director con contadores.
 - [ ] 4.7 - asignación de grupo en lote.

@@ -2,6 +2,10 @@ package com.example.aulasegura.data.repository
 
 import android.content.Context
 import com.example.aulasegura.domain.model.AdminUser
+import com.example.aulasegura.domain.model.gradeSectionFromGroupId
+import com.example.aulasegura.domain.model.groupNameFor
+import com.example.aulasegura.domain.repository.AdminGroupFields
+import com.example.aulasegura.domain.repository.teacherApprovalPlan
 import com.example.aulasegura.domain.repository.acceptAllTeacherUids
 import com.example.aulasegura.domain.model.AppUser
 import com.example.aulasegura.domain.model.UserRole
@@ -22,10 +26,14 @@ import com.google.firebase.firestore.DocumentSnapshot
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.FirebaseFirestoreException
 import com.google.firebase.firestore.FieldValue
+import com.google.firebase.firestore.SetOptions
 import com.google.firebase.firestore.Source
 import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.tasks.await
 import kotlinx.coroutines.withTimeout
+
+/** The chosen subject is gone by the time the director approves. */
+private class SubjectTakenException : Exception()
 
 /**
  * The principal's user list, straight from `users` with one school filter.
@@ -235,34 +243,117 @@ class FirestoreAdminUserRepository(
         if (estado !in setOf("aprobado", "rechazado")) {
             return AdminUserUpdateResult.Failure(AdminUserUpdateError.UNKNOWN)
         }
-        return applyUpdate(
-            uid,
-            mapOf(
-                AdminUserFields.ESTADO to estado,
-                AdminUserFields.UPDATED_AT to FieldValue.serverTimestamp(),
-            ),
-        )
+        if (auth.currentUser == null) {
+            return AdminUserUpdateResult.Failure(AdminUserUpdateError.NO_SESSION)
+        }
+        if (estado == "rechazado") {
+            return applyUpdate(
+                uid,
+                mapOf(
+                    AdminUserFields.ESTADO to estado,
+                    AdminUserFields.UPDATED_AT to FieldValue.serverTimestamp(),
+                ),
+            )
+        }
+
+        // Approving a teacher also commits the group and subject they chose at
+        // registration. One transaction on the group document means two pending
+        // requests cannot take the same subject slot in the same classroom.
+        return try {
+            withTimeout(WRITE_TIMEOUT_MILLIS) {
+                firestore.runTransaction { tx ->
+                    val userRef = firestore.collection(COLLECTION).document(uid)
+                    val user = tx.get(userRef)
+                    if (!user.exists()) throw SubjectTakenException()
+                    val groupId = user.getString(AdminUserFields.REQUESTED_GROUP_ID)
+                        ?: throw SubjectTakenException()
+                    val groupRef = firestore.collection(AdminGroupFields.COLLECTION)
+                        .document(groupId)
+                    val group = tx.get(groupRef)
+
+                    @Suppress("UNCHECKED_CAST")
+                    val subjectTeachers = (group.get("subjectTeachers") as? Map<*, *>)
+                        ?.mapNotNull { (key, value) ->
+                            (key as? String)?.let { k ->
+                                (value as? String)?.let { v -> k to v }
+                            }
+                        }?.toMap() ?: emptyMap()
+
+                    val plan = teacherApprovalPlan(
+                        requestedGroupId = groupId,
+                        requestedSubject = user.getString(AdminUserFields.REQUESTED_SUBJECT),
+                        uid = uid,
+                        subjectTeachers = subjectTeachers,
+                    ) ?: throw SubjectTakenException()
+                    val (grade, section) = gradeSectionFromGroupId(plan.groupId)
+                        ?: throw SubjectTakenException()
+
+                    val groupPayload = mutableMapOf<String, Any>(
+                        "subjectTeachers.${plan.subjectId}" to uid,
+                        AdminGroupFields.TEACHER_IDS to FieldValue.arrayUnion(uid),
+                        AdminGroupFields.UPDATED_AT to FieldValue.serverTimestamp(),
+                    )
+                    if (group.exists()) {
+                        tx.update(groupRef, groupPayload)
+                    } else {
+                        val base = AdminGroupFields.newGroupDocument(
+                            name = groupNameFor(grade, section),
+                            grade = grade,
+                            section = section,
+                            schoolId = user.getString(AdminUserFields.SCHOOL_ID).orEmpty(),
+                        ).toMutableMap().apply { remove(AdminGroupFields.TEACHER_IDS) }
+                        base.putAll(groupPayload)
+                        tx.set(groupRef, base, SetOptions.merge())
+                    }
+
+                    tx.update(
+                        userRef,
+                        mapOf(
+                            AdminUserFields.GROUP_IDS to listOf(plan.groupId),
+                            AdminUserFields.SUBJECTS to listOf(plan.label),
+                            AdminUserFields.ESTADO to "aprobado",
+                            AdminUserFields.UPDATED_AT to FieldValue.serverTimestamp(),
+                        ),
+                    )
+                }.await()
+            }
+            AdminUserUpdateResult.Success
+        } catch (_: SubjectTakenException) {
+            AdminUserUpdateResult.Failure(AdminUserUpdateError.SUBJECT_TAKEN)
+        } catch (error: TimeoutCancellationException) {
+            AdminUserUpdateResult.Failure(AdminUserUpdateError.TIMEOUT)
+        } catch (error: FirebaseFirestoreException) {
+            AdminUserUpdateResult.Failure(
+                when (error.code) {
+                    FirebaseFirestoreException.Code.PERMISSION_DENIED,
+                    FirebaseFirestoreException.Code.UNAUTHENTICATED,
+                    -> AdminUserUpdateError.DENIED
+
+                    FirebaseFirestoreException.Code.UNAVAILABLE,
+                    FirebaseFirestoreException.Code.DEADLINE_EXCEEDED,
+                    -> AdminUserUpdateError.NETWORK
+
+                    else -> AdminUserUpdateError.UNKNOWN
+                },
+            )
+        } catch (error: Exception) {
+            AdminUserUpdateResult.Failure(AdminUserUpdateError.UNKNOWN)
+        }
     }
 
     override suspend fun acceptAllPendingTeachers(): BatchResult {
         val pending = getUsers().let { acceptAllTeacherUids(it) }
         if (pending.isEmpty()) return BatchResult.Success(0)
-        return try {
-            val batch = firestore.batch()
-            pending.forEach { uid ->
-                batch.update(
-                    firestore.collection(COLLECTION).document(uid),
-                    mapOf(
-                        AdminUserFields.ESTADO to "aprobado",
-                        AdminUserFields.UPDATED_AT to FieldValue.serverTimestamp(),
-                    ),
-                )
+        // Go through the single approval path so the chosen group and subject
+        // are committed here too, with the same conflict check.
+        var approved = 0
+        pending.forEach { uid ->
+            if (setTeacherStatus(uid, "aprobado") is AdminUserUpdateResult.Success) {
+                approved++
             }
-            withTimeout(WRITE_TIMEOUT_MILLIS) { batch.commit().await() }
-            BatchResult.Success(pending.size)
-        } catch (error: Exception) {
-            BatchResult.Failure(AdminUserUpdateError.UNKNOWN)
         }
+        return if (approved == 0) BatchResult.Failure(AdminUserUpdateError.SUBJECT_TAKEN)
+        else BatchResult.Success(approved)
     }
 
     /** Single write path, so both profile writes classify Firestore failures alike. */

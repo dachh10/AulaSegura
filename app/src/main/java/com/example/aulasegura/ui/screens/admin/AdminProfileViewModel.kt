@@ -318,6 +318,8 @@ class AdminProfileViewModel(
         -> "Sin conexión. El perfil no se guardó; inténtalo de nuevo."
 
         AdminUserUpdateError.DENIED -> "No tienes permiso para editar tu perfil."
+        AdminUserUpdateError.SUBJECT_TAKEN ->
+            "La materia ya tiene docente en ese grupo. No se pudo guardar el perfil."
         AdminUserUpdateError.UNKNOWN -> "No se pudo guardar el perfil."
     }
 
@@ -330,6 +332,8 @@ class AdminProfileViewModel(
             -> "Sin conexión. La foto no se guardó; inténtalo de nuevo."
 
             AdminUserUpdateError.DENIED -> "No tienes permiso para guardar la foto."
+            AdminUserUpdateError.SUBJECT_TAKEN ->
+                "La materia ya tiene docente en ese grupo. No se pudo guardar la foto."
             AdminUserUpdateError.UNKNOWN -> "No se pudo guardar la foto."
         }
     }

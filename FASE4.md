@@ -51,7 +51,7 @@ Los IDs siguen la lista acordada en el logbook. El orden de ejecución se define
 |---|---|---|---|---|
 | **4.1 (T1)** | Migrar `students`/`users` y Room; reglas base; quitar el código obligatorio | sin pantalla nueva | Firestore, Room, reglas | ✅ **lista y mergeada en `main`** - `1ff8eea`, `d98e2ba`, `5b7da3f` (merge `8b6b982`) |
 | **4.2 (T2)** | QR del tutor: generación offline, corregir nombre, escucha en tiempo real | `LinkChildScreen` | `users/{uid}` | ✅ **lista, mergeada y probada en dispositivo** - `8cd167a`, `75e564f` (merge `43f46f0`) |
-| **4.3 (T3)** | Escanear alumno: cámara, permiso, validación del QR | nueva, directora | cámara | ⬜ pendiente |
+| **4.3 (T3)** | Escanear alumno: cámara, permiso, validación del QR | `ScanStudentScreen` | CameraX + ZXing | ✅ **lista en rama** - `c24fefa`, `a26fa07` (sin mergear) |
 | **4.4 (T4)** | Revisar alumno: grado/grupo, duplicados, segundo tutor, alta offline | nueva, directora | `students`, Room, WorkManager | ⬜ pendiente |
 | **4.5 (T5)** | Solicitudes de docentes: listar verificados, aceptar/rechazar, lote | nueva, directora | `users/{uid}.estado` | ⬜ pendiente |
 | **4.6 (T6)** | Panel del director: tarjetas, FAB y navegación con badges | `AdminDashboardScreen` | - | ⬜ pendiente |
@@ -126,6 +126,8 @@ Cada work unit lleva sus tests en el mismo commit y se verifica con `testDebugUn
 5. **Perfil y sesión:** iniciar y cerrar sesión con tutor, docente y directora; verificar que cada uno cae en su pantalla y que el docente pendiente sigue en «Cuenta en revisión».
 6. **Aún no se puede probar:** el QR, el escáner, la aprobación por QR, el segundo tutor y la asignación en lote llegan con 4.2-4.7.
 
+**T3 (ramas `c24fefa`, `a26fa07`, sin mergear):** `ScanStudentUi.from` valida el payload y rechaza códigos ajenos con «QR no válido» sin escribir nada (2 tests JVM); `ScanStudentScreen` usa CameraX (vista, marco y línea del diseño, linterna y explicación si se niega el permiso) y entrega el payload a una ruta de revisión; botón «Escanear alumno» en el panel del director. CameraX 1.4.0 agregado desde Google Maven (Risk: dependencias nuevas). Verificación: 82 suites / 582 tests / 0 fallos + `assembleDebug` verde. Falta probar en dispositivo el permiso, el escaneo real del QR del tutor y la navegación a revisión.
+
 **Evidencia en dispositivo (T2, 21 nov 2026):** el dueño registró un tutor con correo real, verificó el correo y la app generó el QR del hijo correctamente. Falta el lado directora (T3/T4) para cerrar el ciclo de escaneo.
 
 **T2 (commits `8cd167a`, `75e564f`, merge `43f46f0`):** payload versionado `{"v":1,"uid":"...","alumno":"..."}` validado por 3 tests JVM; ZXing `core:3.5.3` agregado al catálogo y resuelto desde Maven Central (Risk: dependencia nueva); `QrCodeImage` dibuja el código sin red; el nombre rechazado se corrige y guarda en `users/{uid}.hijoSolicitado`; `observeLinkingState()` escucha el documento en tiempo real y el ViewModel pone `proceed` cuando llega `vinculado` (2 tests JVM nuevos). Verificación: 81 suites / 580 tests / 0 fallos + `assembleDebug` verde. Falta probar en dispositivo que el QR es legible y que el salto ocurre solo.
@@ -149,7 +151,7 @@ Cada work unit lleva sus tests en el mismo commit y se verifica con `testDebugUn
 
 - [x] 4.1 - modelos y Room migrados sin borrar datos; reglas base adaptadas; tests y build en verde.
 - [x] 4.2 - QR del tutor generado offline con corrección de nombre y escucha en tiempo real (código y tests; prueba en dispositivo pendiente).
-- [ ] 4.3 - escáner con permiso y validación de QR.
+- [x] 4.3 - escáner con permiso y validación de QR (código y tests; prueba en dispositivo pendiente).
 - [ ] 4.4 - alta del alumno y vinculación, con duplicados y offline.
 - [ ] 4.5 - aprobación de docentes con correo verificado y lote.
 - [ ] 4.6 - panel del director con contadores.

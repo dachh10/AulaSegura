@@ -208,7 +208,7 @@ fun AulaSeguraNavHost(
                 val target = when (val state = sessionState) {
                     SessionState.Resolving -> return@LaunchedEffect
                     SessionState.SignedOut -> Routes.ONBOARDING
-                    is SessionState.SignedIn -> state.role.homeRoute()
+                    is SessionState.SignedIn -> state.user.destinationRoute()
                 }
                 navController.navigate(target) {
                     popUpTo(Routes.SPLASH) { inclusive = true }
@@ -231,14 +231,16 @@ fun AulaSeguraNavHost(
             val container = rememberAppContainer()
 
             LaunchedEffect(uiState.authenticatedRole) {
-                val role = uiState.authenticatedRole ?: return@LaunchedEffect
+                if (uiState.authenticatedRole == null) return@LaunchedEffect
+                val signedUser = container.authRepository.currentUser
+                    ?: return@LaunchedEffect
                 val verified = container.authRepository.isEmailVerified()
                 loginViewModel.consumeNavigation()
-                sessionViewModel.onSignedIn(role)
+                sessionViewModel.onSignedIn(signedUser)
                 val target = if (!verified) {
                     Routes.VERIFY_EMAIL
                 } else {
-                    container.authRepository.currentUser?.destinationRoute() ?: role.homeRoute()
+                    signedUser.destinationRoute()
                 }
                 navController.navigate(target) {
                     popUpTo(Routes.LOGIN) { inclusive = true }
@@ -254,18 +256,17 @@ fun AulaSeguraNavHost(
             )
         }
         composable(Routes.REGISTER) {
+            val container = rememberAppContainer()
             val registerViewModel: RegisterViewModel =
-                viewModel(factory = rememberAppContainer().viewModelFactory)
+                viewModel(factory = container.viewModelFactory)
             val registerUi by registerViewModel.uiState.collectAsState()
 
             LaunchedEffect(registerUi.succeeded) {
                 if (!registerUi.succeeded) return@LaunchedEffect
                 registerViewModel.consumeNavigation()
-                val role = when (registerUi.kind) {
-                    RegistrationKind.TUTOR -> UserRole.TUTOR
-                    RegistrationKind.DOCENTE -> UserRole.TEACHER
-                }
-                sessionViewModel.onSignedIn(role)
+                val signedUser = container.authRepository.currentUser
+                    ?: return@LaunchedEffect
+                sessionViewModel.onSignedIn(signedUser)
                 navController.navigate(Routes.VERIFY_EMAIL) {
                     popUpTo(Routes.LOGIN) { inclusive = true }
                 }

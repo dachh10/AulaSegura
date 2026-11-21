@@ -2,6 +2,7 @@ package com.example.aulasegura.ui.screens.access
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.example.aulasegura.domain.model.AppUser
 import com.example.aulasegura.domain.model.UserRole
 import com.example.aulasegura.domain.repository.AuthRepository
 import com.example.aulasegura.domain.repository.AuthResult
@@ -17,7 +18,11 @@ import kotlinx.coroutines.withTimeoutOrNull
 sealed interface SessionState {
     data object Resolving : SessionState
     data object SignedOut : SessionState
-    data class SignedIn(val role: UserRole) : SessionState
+    /**
+     * Carries the whole user, not only the role: the splash has to decide
+     * between the home and the linking screen from `vinculacion`/`estado`.
+     */
+    data class SignedIn(val user: AppUser) : SessionState
 }
 
 /**
@@ -42,7 +47,7 @@ class SessionViewModel(
         viewModelScope.launch {
             when (val result = authRepository.restoreSession()) {
                 is AuthResult.Success -> {
-                    _state.value = SessionState.SignedIn(result.user.role)
+                    _state.value = SessionState.SignedIn(result.user)
                     syncPushToken()
                     watchAccountStatus()
                 }
@@ -66,9 +71,9 @@ class SessionViewModel(
         }
     }
 
-    /** Login succeeded: publish the role and start watching the account. */
-    fun onSignedIn(role: UserRole) {
-        _state.value = SessionState.SignedIn(role)
+    /** Login succeeded: publish the user and start watching the account. */
+    fun onSignedIn(user: AppUser) {
+        _state.value = SessionState.SignedIn(user)
         syncPushToken()
         watchAccountStatus()
     }

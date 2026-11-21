@@ -200,3 +200,16 @@ Cada work unit lleva sus tests en el mismo commit y se verifica con `testDebugUn
 **Fix: pantalla de "Agregar otro hijo" se abría y cerraba sola en la primera instalación:** `watchForNewChild` comparaba la primera emisión de `observeMyChildren()` contra `ui.knownChildIds`, que se llena asíncronamente en el `init` del ViewModel. En un arranque en frío ese estado todavía estaba vacío, así que el hijo ya existente se contaba como "nuevo", se ponía `proceed = true` y el NavHost volvía al inicio al instante. Al reabrir la app la caché de Firestore ya estaba caliente y el listener emitía antes del tap, por eso funcionaba. Fix: nuevo `NewChildWatcher` usa la primera emisión como baseline cuando no hay baseline provisto, ignora esa primera emisión, y cancela el collector anterior al generar otro QR. Test RED->GREEN: 3 tests nuevos (`NewChildWatcherTest`). Verificación: 101 suites / 650 tests / 0 fallos + assembleDebug verde. Falta probar en dispositivo con instalación limpia.
 
 **Fix definitivo: pantalla de "Agregar otro hijo" se cerraba sola al entrar:** la causa era `AccessStateViewModel.wasLinkedOnEntry`, calculado desde `auth.currentUser?.vinculacion`. Tras aprobar el primer hijo, `observeLinkingState()` actualizaba el `uiState` pero NO el perfil cacheado, así que al entrar en modo `add` el snapshot inicial (`vinculado`) activaba `shouldAutoProceed` y el NavHost volvía al inicio antes de poder escribir el nombre. Se reiniciaba la app → perfil restaurado → funcionaba. Fix: (1) `addMode` se pasa al ViewModel desde el destino `LINK_CHILD` y en ese modo el listener de vinculación NUNCA auto-navega ni limpia un `proceed` ya concedido por el watcher del QR; (2) el baseline de "ya venía vinculado" sale del primer snapshot de Firestore, no del perfil en memoria. Tests RED->GREEN: 2 tests nuevos en `RegisterViewModelTest`. Verificación: 101 suites / 652 tests / 0 fallos + assembleDebug verde. Falta prueba en dispositivo con instalación limpia.
+
+---
+
+### Cierre de las correcciones del tutor — verificado en dispositivo (2026-11-21)
+
+El usuario verificó en dispositivo, con instalación limpia y cuenta recreada desde cero, que:
+- se puede agregar un segundo hijo desde "+ Agregar hijo" (la pantalla ya no se abre y se cierra sola);
+- el hijo se selecciona desde el inicio y esa elección gobierna la información de todas las pestañas;
+- los grupos de ambos hijos quedan en `users/{uid}.groupIds` y no se produce `PERMISSION_DENIED`.
+
+Aclaración histórica: la nota anterior sobre `NewChildWatcher`/`watchForNewChild` fue un diagnóstico erróneo y NO fue la causa del cierre de la pantalla; ese rebote ocurre al entrar, antes de generar el QR. La causa real y su fix son los de la nota "`addMode` + baseline del primer snapshot". El `NewChildWatcher` se conserva porque evita un falso positivo cuando el listener tarda en emitir, pero no resolvía el síntoma reportado.
+
+Estado final: `main` en `cf72d43` (merge `fix/fase4-add-mode-auto-proceed`), sin commits pendientes de push. Verificación automatizada final: 101 suites / 652 tests / 0 fallos + `assembleDebug` verde. Quedan para cerrar la Fase 4: 4.9 (reglas completas) y 4.10 (ciclo completo en dispositivo).

@@ -29,4 +29,6 @@ data class AppUser(
     val vinculacion: String = "",
     /** Name the tutor typed for their child, shown in the QR while pending. */
     val hijoSolicitado: String = "",
+    /** Server timestamp of the request; orders the principal's teacher queue. */
+    val fechaSolicitud: Long = 0L,
 )

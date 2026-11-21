@@ -510,6 +510,7 @@ class AuthRepositoryImpl(
             estado = snapshot.getString(FIELD_ESTADO).orEmpty(),
             vinculacion = snapshot.getString(FIELD_VINCULACION).orEmpty(),
             hijoSolicitado = snapshot.getString(FIELD_HIJO_SOLICITADO).orEmpty(),
+            fechaSolicitud = snapshot.getTimestamp(FIELD_FECHA_SOLICITUD)?.toDate()?.time ?: 0L,
         )
 
         // Cached only after the profile is fully valid: a rejected account must

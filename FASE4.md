@@ -55,7 +55,7 @@ Los IDs siguen la lista acordada en el logbook. El orden de ejecución se define
 | **4.4 (T4)** | Revisar alumno: grado/grupo, duplicados, segundo tutor, alta offline | `ReviewStudentScreen` | `students`, `users`, reglas | ⚠️ **mergeado, desplegado y verificado en dispositivo** - `bc20574`, `a7de890`, `4a74526` (merge `8fc1fcf`), fixes `1bba1de`, `a842819`, `232937a`, `1883c2a`; T4b (offline) completado y verificado en `1f44c10`/`c333734` |
 | **4.5 (T5)** | Solicitudes de docentes: listar verificados, aceptar/rechazar, lote | `TeacherRequestsScreen` | `users/{uid}.estado` | ✅ **mergeada y verificada en dispositivo** - `e9bccc3`, `3ddd414` (merge `cc3bfa9`); fixes de verificaci-on `f102d3e`, `734f826`, `000d7ef` |
 | **4.6 (T6)** | Panel del director: tarjetas, FAB y navegación con badges | `AdminDashboardScreen` | - | ✅ **hecho según pedido del dueño** - dos cards de acción (Solicitudes con contador, Alumnos sin grupo) y hero con círculo de asistencia + leyenda - `c7bc139`; tabs se mantienen (decisión del dueño) (merge `91eb762`; cards parejas `c299cd3`/merge `714b422`) |
-| **4.7 (T7)** | Alumnos sin grupo: búsqueda, selección y asignación en lote | nueva, directora | `students` | ⬜ pendiente |
+| **4.7 (T7)** | Alumnos sin grupo: busqueda, seleccion y asignacion en lote | `UngroupedStudentsScreen` | `students` | OK mergeado en `3f8ff74`; prueba en dispositivo pendiente |
 | **4.8 (T8)** | Inicio del tutor: «+ Agregar hijo», grupo por asignar, sin datos | `ParentHomeScreen` | `students` | ⬜ pendiente |
 | **4.9 (T9)** | Reglas completas: `email_verified`, director-only, lectura por tutor/grupo | sin pantalla | `docs/firestore.rules` | ⚠️ parcial |
 | **4.10 (T10)** | Tests JVM por regla y flujo, build verde, prueba en dispositivo | todas | Gradle + device | ⬜ pendiente |
@@ -167,7 +167,7 @@ Cada work unit lleva sus tests en el mismo commit y se verifica con `testDebugUn
 - [x] 4.4b (T4b) - aprobación sin conexión (verificada en dispositivo: modo avión → mensaje «Se vinculará al volver la señal» → al volver la red el alumno y los enlaces del tutor aparecen en Firestore y el tutor ve al hijo).
 - [x] 4.5 - aprobación de docentes con correo verificado y lote (verificado en dispositivo: registro, verificación automática del flag, solicitud en la cola y aprobación; el docente entra a su menú).
 - [x] 4.6 - panel del director con contadores (dos cards de acción y hero con círculo de asistencia, según pedido del dueño; tabs se mantienen).
-- [ ] 4.7 - asignación de grupo en lote.
+- [x] 4.7 - asignación de grupo en lote (código y tests; prueba en dispositivo pendiente).
 - [ ] 4.8 - inicio del tutor con «Agregar hijo» y estado sin grupo.
 - [ ] 4.9 - reglas completas desplegadas.
 - [ ] 4.10 - ciclo completo probado en dispositivo.
@@ -181,4 +181,4 @@ Cada work unit lleva sus tests en el mismo commit y se verifica con `testDebugUn
 
 **Orden al 21 nov 2026 (antes de T7):** 4.1-4.6 completos y en main. 4.2, 4.4, 4.4b y 4.5 verificados en dispositivo; 4.3 verificado en dispositivo (escaneo real probado por el dueno); 4.6 con las dos cards y el círculo de asistencia segun pedido. Todo pusheado a origin/main. Siguiente: 4.7 (Alumnos sin grupo), luego 4.8, 4.9 y 4.10 para cerrar la fase.
 
-**T7 - Alumnos sin grupo (rama `feat/fase4-t7-alumnos-sin-grupo`, commits `e52ba67`, `8239c0f`, sin mergear):** pantalla del director con lista de alumnos sin grupo (sólo `groupId` vacío), búsqueda por alumno/tutor, "Seleccionar todos", selectores de grado/grupo derivados de los grupos reales de la escuela y "Asignar a mismo salón". `assignGroup` escribe `GROUP_ID`/`GRADO`/`GRUPO` e incrementa `studentCount` del grupo destino en un batch. La card del panel "Alumnos sin grupo" ahora abre esta ruta. Verificación: 92 suites / 617 tests / 0 fallos + `assembleDebug` verde. Falta merge y prueba en dispositivo: aprobar un alumno "sin grupo" desde el QR, verlo en la lista y asignarle grupo.
+**T7 - Alumnos sin grupo (rama `feat/fase4-t7-alumnos-sin-grupo`, commits `e52ba67`, `8239c0f`, merge `3f8ff74`):** pantalla del director con lista de alumnos sin grupo (sólo `groupId` vacío), búsqueda por alumno/tutor, "Seleccionar todos", selectores de grado/grupo derivados de los grupos reales de la escuela y "Asignar a mismo salón". `assignGroup` escribe `GROUP_ID`/`GRADO`/`GRUPO` e incrementa `studentCount` del grupo destino en un batch. La card del panel "Alumnos sin grupo" ahora abre esta ruta. Verificación: 92 suites / 617 tests / 0 fallos + `assembleDebug` verde. Falta prueba en dispositivo: aprobar un alumno "sin grupo" desde el QR, verlo en la lista y asignarle grupo.

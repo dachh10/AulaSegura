@@ -490,10 +490,16 @@ class AuthRepositoryImpl(
     }
 
     override suspend fun markEmailVerified(): Result<Unit> {
-        val uid = auth.currentUser?.uid
+        val user = auth.currentUser
             ?: return Result.failure(IllegalStateException("NO_SESSION"))
         return runCatching {
-            firestore.collection(USERS).document(uid)
+            // reload() refreshes the in-memory user, but the ID token Firestore
+            // reuses can still be cached WITHOUT the email_verified claim. Force
+            // a fresh token so the rule's request.auth.token.email_verified == true
+            // matches. This is why the write was denied even though isEmailVerified()
+            // had already returned true in the UI.
+            user.getIdToken(true).await()
+            firestore.collection(USERS).document(user.uid)
                 .update(
                     "emailVerified", true,
                     "updatedAt", FieldValue.serverTimestamp(),

@@ -85,6 +85,8 @@ import com.example.aulasegura.sync.NoticeSyncHandler
 import com.example.aulasegura.sync.TaskSyncHandler
 import com.example.aulasegura.sync.CrashlyticsSyncReporter
 import com.example.aulasegura.sync.OutboxRepository
+import com.example.aulasegura.sync.NetworkStatus
+import com.example.aulasegura.sync.StudentApprovalSyncHandler
 import com.example.aulasegura.sync.SyncFailureReporter
 import com.example.aulasegura.sync.SyncHandlerRegistry
 import com.example.aulasegura.sync.SyncOperation
@@ -494,6 +496,9 @@ class AppContainer(context: Context) {
     // ---- Sync ---------------------------------------------------------------
     val syncScheduler: SyncScheduler by lazy { SyncScheduler(appContext) }
 
+    /** Single source of truth for online/offline decisions in the UI. */
+    val networkStatus: NetworkStatus by lazy { NetworkStatus.from(appContext) }
+
     val syncFailureReporter: SyncFailureReporter = CrashlyticsSyncReporter
 
     val syncHandlers: SyncHandlerRegistry by lazy {
@@ -528,6 +533,10 @@ class AppContainer(context: Context) {
                     firestore = firestore,
                     uploader = cloudinaryUploader,
                     outboxDao = database.outboxDao(),
+                ),
+                SyncOperation.APPROVE_STUDENT to StudentApprovalSyncHandler(
+                    studentDao = database.studentDao(),
+                    firestore = firestore,
                 ),
             ),
         )
@@ -667,6 +676,8 @@ class AppViewModelFactory(
             auth = container.authRepository,
             tutorUid = uid,
             alumno = alumno,
+            isOnline = container.networkStatus::isAvailable,
+            enqueueApproval = container.outboxRepository::enqueueStudentApproval,
         )
 
     /**

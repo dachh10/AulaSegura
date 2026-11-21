@@ -15,6 +15,7 @@ enum class SyncOperation {
     UPSERT_TASK,
     UPLOAD_TASK_ATTACHMENT,
     UPSERT_NOTICE,
+    APPROVE_STUDENT,
     ;
 
     companion object {

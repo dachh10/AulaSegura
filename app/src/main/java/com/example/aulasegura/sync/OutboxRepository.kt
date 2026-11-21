@@ -8,6 +8,7 @@ import com.example.aulasegura.data.local.entity.IncidentDraftEntity
 import com.example.aulasegura.data.local.entity.IncidentMediaEntity
 import com.example.aulasegura.data.local.entity.NoticeEntity
 import com.example.aulasegura.data.local.entity.OutboxEntity
+import com.example.aulasegura.data.local.entity.StudentEntity
 import com.example.aulasegura.data.local.entity.SyncState
 import com.example.aulasegura.data.local.entity.TaskEntity
 import com.example.aulasegura.data.local.entity.UploadState
@@ -33,6 +34,30 @@ class OutboxRepository(
     private val scheduling: SyncScheduling,
     private val analytics: AnalyticsLogger = NoOpAnalyticsLogger,
 ) {
+
+    /**
+     * Queues a QR approval taken with no signal: the local student is stored as
+     * PENDING and the full payload travels in the outbox so the handler can
+     * reproduce both Firestore writes. Nothing is visible to the tutor until
+     * the sync succeeds.
+     */
+    suspend fun enqueueStudentApproval(
+        student: StudentEntity,
+        approval: PendingStudentApproval,
+    ) {
+        database.withTransaction {
+            database.studentDao().upsert(student.copy(syncStatus = SyncState.PENDING))
+            database.outboxDao().insert(
+                OutboxEntity(
+                    opType = SyncOperation.APPROVE_STUDENT.name,
+                    entityLocalId = approval.studentId,
+                    payloadJson = encodeStudentApproval(approval),
+                    createdAt = System.currentTimeMillis(),
+                ),
+            )
+        }
+        scheduling.schedule()
+    }
 
     suspend fun enqueueAttendanceSession(
         session: AttendanceSessionEntity,

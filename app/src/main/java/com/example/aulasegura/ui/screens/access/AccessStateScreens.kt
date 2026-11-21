@@ -196,6 +196,11 @@ class AccessStateViewModel(
         if (_uiState.value.isLoading) return
         _uiState.update { it.copy(isLoading = true, message = null) }
         viewModelScope.launch {
+            // Self-heal accounts that verified before the flag existed: the rule
+            // only accepts this write while Auth itself says the email is verified.
+            if (runCatching { auth.isEmailVerified() }.getOrDefault(false)) {
+                runCatching { auth.markEmailVerified() }
+            }
             val refreshed = auth.refreshProfile()
             val user = (refreshed as? AuthResult.Success)?.user ?: auth.currentUser
             _uiState.update {

@@ -256,6 +256,13 @@ service cloud.firestore {
           && request.resource.data.schoolId == resource.data.schoolId
           && request.resource.data.role == resource.data.role)
         ||
+        // A user may only record that their email is verified when FIREBASE AUTH
+        // says so. A client cannot mark itself verified without actually doing it;
+        // the director's request queue reads this denormalised flag.
+        (request.auth.uid == uid
+          && request.auth.token.email_verified == true
+          && changedKeys().hasOnly(['emailVerified', 'updatedAt']))
+        ||
         // The principal edits users of their own school. `changedKeys().hasOnly`
         // is what guarantees no identity field travels in the write.
         (isDirectivo()

@@ -48,7 +48,7 @@ import com.example.aulasegura.data.local.entity.TaskEntity
         ProfileEntity::class,
         SchoolEntity::class,
     ],
-    version = 4,
+    version = 5,
     exportSchema = true,
 )
 @TypeConverters(Converters::class)
@@ -132,6 +132,29 @@ abstract class AulaSeguraDatabase : RoomDatabase() {
             override fun migrate(db: SupportSQLiteDatabase) {
                 db.execSQL(
                     "ALTER TABLE `schools` ADD COLUMN `requireLocation` INTEGER NOT NULL DEFAULT 1",
+                )
+            }
+        }
+
+        /**
+         * Adds the linking-flow fields to the roster cache. Every column has a
+         * default matching the value those rows were written under, so existing
+         * students stay synced and stay visible to the teacher. Nothing is
+         * dropped and no other table is touched: the outbox survives the upgrade.
+         */
+        val MIGRATION_4_5: Migration = object : Migration(4, 5) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    "ALTER TABLE `students` ADD COLUMN `grado` TEXT NOT NULL DEFAULT ''",
+                )
+                db.execSQL(
+                    "ALTER TABLE `students` ADD COLUMN `grupo` TEXT NOT NULL DEFAULT ''",
+                )
+                db.execSQL(
+                    "ALTER TABLE `students` ADD COLUMN `creadoPor` TEXT NOT NULL DEFAULT ''",
+                )
+                db.execSQL(
+                    "ALTER TABLE `students` ADD COLUMN `syncStatus` TEXT NOT NULL DEFAULT 'SYNCED'",
                 )
             }
         }

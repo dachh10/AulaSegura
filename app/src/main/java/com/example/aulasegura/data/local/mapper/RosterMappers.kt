@@ -2,6 +2,7 @@ package com.example.aulasegura.data.local.mapper
 
 import com.example.aulasegura.data.local.entity.GroupEntity
 import com.example.aulasegura.data.local.entity.StudentEntity
+import com.example.aulasegura.data.local.entity.SyncState
 import com.example.aulasegura.domain.model.Group
 import com.example.aulasegura.domain.model.Student
 import com.google.firebase.Timestamp
@@ -39,9 +40,13 @@ fun groupEntityFrom(id: String, data: Map<String, Any?>): GroupEntity? {
 }
 
 fun studentEntityFrom(id: String, data: Map<String, Any?>): StudentEntity? {
-    val fullName = data["fullName"] as? String ?: return null
-    val groupId = data["groupId"] as? String ?: return null
+    val fullName = (data["nombre"] as? String).orEmpty()
+        .ifBlank { data["fullName"] as? String ?: "" }
+        .ifBlank { return null }
+    val rawGrupo = data["grupo"] as? String ?: ""
+    val groupId = (data["groupId"] as? String).orEmpty().ifBlank { rawGrupo }
     val schoolId = data["schoolId"] as? String ?: return null
+    val rawTutores = stringList(data["tutores"])
 
     return StudentEntity(
         studentId = id,
@@ -52,13 +57,26 @@ fun studentEntityFrom(id: String, data: Map<String, Any?>): StudentEntity? {
         listNumber = (data["listNumber"] as? Number)?.toInt() ?: 0,
         groupId = groupId,
         schoolId = schoolId,
-        tutorIds = stringList(data["tutorIds"]),
+        tutorIds = stringList(data["tutorIds"]).ifEmpty { rawTutores },
         photoUrl = data["photoUrl"] as? String,
         photoPublicId = data["photoPublicId"] as? String,
-        active = data["active"] as? Boolean ?: true,
+        active = data["active"] as? Boolean ?: data["activo"] as? Boolean ?: true,
         createdAt = millis(data["createdAt"]),
         updatedAt = millis(data["updatedAt"]),
+        grado = data["grado"] as? String ?: "",
+        grupo = rawGrupo.ifBlank { groupId },
+        creadoPor = data["creadoPor"] as? String ?: "",
+        syncStatus = syncStateFrom(data["syncStatus"]),
     )
+}
+
+/** The doc writes `PENDIENTE`; Room stores the existing enum name `PENDING`. */
+private fun syncStateFrom(value: Any?): SyncState = when (value) {
+    "PENDIENTE", "PENDING" -> SyncState.PENDING
+    "SYNCING" -> SyncState.SYNCING
+    "SYNCED" -> SyncState.SYNCED
+    "ERROR", "FAILED" -> SyncState.FAILED
+    else -> SyncState.SYNCED
 }
 
 fun GroupEntity.toDomain(): Group = Group(

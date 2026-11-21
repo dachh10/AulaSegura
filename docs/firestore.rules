@@ -88,9 +88,27 @@ service cloud.firestore {
         && studentId is string
         && studentId != ''
         && exists(/databases/$(database)/documents/students/$(studentId))
-        && request.auth.uid in get(
+        && (request.auth.uid in get(
           /databases/$(database)/documents/students/$(studentId)
-        ).data.get('tutorIds', []);
+        ).data.get('tutores', [])
+        || request.auth.uid in get(
+          /databases/$(database)/documents/students/$(studentId)
+        ).data.get('tutorIds', []));
+    }
+
+    // QR-linked students may be created without a schoolId or a group yet.
+    // The director is the only writer in either vocabulary; the legacy
+    // schoolId scope still applies to every student that already has one.
+    function newStudentHasValidScope() {
+      return request.resource.data.get('schoolId', '') == mySchool() ||
+        (request.resource.data.get('schoolId', '') == '' &&
+          request.resource.data.get('tutores', []) is list);
+    }
+
+    function storedStudentHasValidScope() {
+      return resource.data.get('schoolId', '') == mySchool() ||
+        (resource.data.get('schoolId', '') == '' &&
+          resource.data.get('tutores', []) is list);
     }
 
     function changedKeys() {
@@ -255,10 +273,12 @@ service cloud.firestore {
       allow read: if isActive() && (
         (isDirectivo() && resource.data.schoolId == mySchool()) ||
         (isDocente() && resource.data.groupId in myGroups()) ||
-        (isTutor() && request.auth.uid in resource.data.tutorIds)
+        (isTutor() && (
+          request.auth.uid in resource.data.get('tutores', []) ||
+          request.auth.uid in resource.data.get('tutorIds', [])
+        ))
       );
-      allow create: if isDirectivo()
-        && request.resource.data.schoolId == mySchool();
+      allow create: if isDirectivo() && newStudentHasValidScope();
       // A registering tutor may add only themselves, only once, and only when
       // the same batch created their account from the code for THIS student.
       // This branch goes FIRST on purpose: isDirectivo() would read the
@@ -275,8 +295,8 @@ service cloud.firestore {
           && getAfter(codeRef(getAfter(userRef(request.auth.uid)).data.registrationCode)).data.studentId == studentId
           && getAfter(userRef(request.auth.uid)).data.schoolId == resource.data.schoolId)
         ||
-        (isDirectivo() && request.resource.data.schoolId == mySchool());
-      allow delete: if isDirectivo() && resource.data.schoolId == mySchool();
+        (isDirectivo() && newStudentHasValidScope());
+      allow delete: if isDirectivo() && storedStudentHasValidScope();
     }
 
     // ---------------------------------------------------------------------

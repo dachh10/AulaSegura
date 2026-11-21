@@ -121,6 +121,16 @@ object AdminStudentFields {
     const val CREATED_AT = "createdAt"
     const val UPDATED_AT = "updatedAt"
 
+    // Linking-flow vocabulary from the requirement doc. Written alongside the
+    // legacy keys until every reader has moved, never instead of them.
+    const val NOMBRE = "nombre"
+    const val TUTORES = "tutores"
+    const val GRADO = "grado"
+    const val GRUPO = "grupo"
+    const val CREADO_POR = "creadoPor"
+    const val SYNC_STATUS = "syncStatus"
+    const val SYNCED = "SYNCED"
+
     // linkingCodes/{code}
     const val STUDENT_ID = "studentId"
     const val CREATED_BY = "createdBy"
@@ -151,19 +161,28 @@ object AdminStudentFields {
         input: AdminStudentInput,
         schoolId: String,
         listNumber: Int,
+        createdBy: String = "",
     ): Map<String, Any> {
         val firstName = input.firstName.trim()
         val lastName = input.lastName.trim()
+        val fullName = "$firstName $lastName".trim()
+        val group = input.groupId.trim()
         return mapOf(
             FIRST_NAME to firstName,
             LAST_NAME to lastName,
-            FULL_NAME to "$firstName $lastName".trim(),
+            FULL_NAME to fullName,
             CURP to input.curp.trim().uppercase(),
             LIST_NUMBER to listNumber,
-            GROUP_ID to input.groupId.trim(),
+            GROUP_ID to group,
             SCHOOL_ID to schoolId,
             TUTOR_IDS to emptyList<String>(),
             ACTIVE to true,
+            NOMBRE to fullName,
+            TUTORES to emptyList<String>(),
+            GRADO to "",
+            GRUPO to group,
+            CREADO_POR to createdBy,
+            SYNC_STATUS to SYNCED,
         )
     }
 }

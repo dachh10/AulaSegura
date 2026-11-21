@@ -48,6 +48,16 @@ private class FakeAuthRepository(
     var linkingState: Flow<LinkingState> = emptyFlow(),
 ) : AuthRepository {
 
+    var emailVerified: Boolean = false
+    var markEmailVerifiedCalls = 0
+
+    override suspend fun isEmailVerified(): Boolean = emailVerified
+
+    override suspend fun markEmailVerified(): Result<Unit> {
+        markEmailVerifiedCalls++
+        return Result.success(Unit)
+    }
+
     var signInCalls = 0
     var signOutCalls = 0
     var lastEmail: String? = null
@@ -187,6 +197,28 @@ class LoginViewModelTest {
 
         assertEquals("Correo o contraseña incorrectos", viewModel.uiState.value.errorMessage)
         assertNull(viewModel.uiState.value.authenticatedRole)
+    }
+
+    @Test
+    fun `a verified account is persisted on sign in without any button`() = runTest(dispatcher) {
+        val repo = FakeAuthRepository().apply { emailVerified = true }
+        val vm = LoginViewModel(repo)
+
+        val persisted = vm.persistEmailVerificationIfNeeded()
+
+        assertTrue(persisted)
+        assertEquals(1, repo.markEmailVerifiedCalls)
+    }
+
+    @Test
+    fun `an unverified account does not write the flag`() = runTest(dispatcher) {
+        val repo = FakeAuthRepository().apply { emailVerified = false }
+        val vm = LoginViewModel(repo)
+
+        val persisted = vm.persistEmailVerificationIfNeeded()
+
+        assertFalse(persisted)
+        assertEquals(0, repo.markEmailVerifiedCalls)
     }
 
     @Test

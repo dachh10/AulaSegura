@@ -53,6 +53,18 @@ class LoginViewModel(
         }
     }
 
+    /**
+     * Records the verified-email flag on the user's document right after sign-in.
+     * The director's request queue reads that flag, so a teacher who verifies in
+     * their mail and reopens the app must be visible WITHOUT discovering a button.
+     * [AuthRepository.markEmailVerified] forces a fresh token so the rules accept it.
+     */
+    suspend fun persistEmailVerificationIfNeeded(): Boolean {
+        if (!authRepository.isEmailVerified()) return false
+        authRepository.markEmailVerified()
+        return true
+    }
+
     fun consumeNavigation() {
         _uiState.update { it.copy(authenticatedRole = null) }
     }

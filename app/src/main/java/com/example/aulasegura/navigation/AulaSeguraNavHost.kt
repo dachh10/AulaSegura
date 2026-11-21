@@ -235,7 +235,10 @@ fun AulaSeguraNavHost(
                 if (uiState.authenticatedRole == null) return@LaunchedEffect
                 val signedUser = container.authRepository.currentUser
                     ?: return@LaunchedEffect
-                val verified = container.authRepository.isEmailVerified()
+                // Persist the verified-email flag here, not behind a button: a
+                // teacher who confirms their mail and reopens the app is picked
+                // up by the director's queue without any extra tap.
+                val verified = loginViewModel.persistEmailVerificationIfNeeded()
                 loginViewModel.consumeNavigation()
                 sessionViewModel.onSignedIn(signedUser)
                 val target = if (!verified) {

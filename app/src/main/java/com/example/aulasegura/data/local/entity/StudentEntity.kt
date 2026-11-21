@@ -29,4 +29,10 @@ data class StudentEntity(
     val active: Boolean = true,
     val createdAt: Long,
     val updatedAt: Long,
+    /** Linking-flow fields cached alongside the roster fields. */
+    val grado: String = "",
+    val grupo: String = "",
+    val creadoPor: String = "",
+    /** `PENDIENTE` in the requirement doc maps to [SyncState.PENDING]. */
+    val syncStatus: SyncState = SyncState.SYNCED,
 )

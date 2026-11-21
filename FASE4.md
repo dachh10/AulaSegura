@@ -51,7 +51,7 @@ Los IDs siguen la lista acordada en el logbook. El orden de ejecución se define
 |---|---|---|---|---|
 | **4.1 (T1)** | Migrar `students`/`users` y Room; reglas base; quitar el código obligatorio | sin pantalla nueva | Firestore, Room, reglas | ✅ **lista y mergeada en `main`** - `1ff8eea`, `d98e2ba`, `5b7da3f` (merge `8b6b982`) |
 | **4.2 (T2)** | QR del tutor: generación offline, corregir nombre, escucha en tiempo real | `LinkChildScreen` | `users/{uid}` | ✅ **lista, mergeada y probada en dispositivo** - `8cd167a`, `75e564f` (merge `43f46f0`) |
-| **4.3 (T3)** | Escanear alumno: cámara, permiso, validación del QR | `ScanStudentScreen` | CameraX + ZXing | ✅ **lista en rama** - `c24fefa`, `a26fa07`, fix `15828eb` (sin mergear) |
+| **4.3 (T3)** | Escanear alumno: cámara, permiso, validación del QR | `ScanStudentScreen` | CameraX + ZXing | ✅ **lista en rama** - `c24fefa`, `a26fa07`, fixes `15828eb`, `d43354b` (sin mergear) |
 | **4.4 (T4)** | Revisar alumno: grado/grupo, duplicados, segundo tutor, alta offline | nueva, directora | `students`, Room, WorkManager | ⬜ pendiente |
 | **4.5 (T5)** | Solicitudes de docentes: listar verificados, aceptar/rechazar, lote | nueva, directora | `users/{uid}.estado` | ⬜ pendiente |
 | **4.6 (T6)** | Panel del director: tarjetas, FAB y navegación con badges | `AdminDashboardScreen` | - | ⬜ pendiente |
@@ -125,6 +125,8 @@ Cada work unit lleva sus tests en el mismo commit y se verifica con `testDebugUn
 4. **Flujo existente (regresión):** con la cuenta de directora, crear un alumno por el alta individual de siempre; verificar que el docente lo ve en su grupo y que el tutor sigue viendo a su hijo en el inicio. Esto prueba que el doble vocabulario no rompió Fase 2/3.
 5. **Perfil y sesión:** iniciar y cerrar sesión con tutor, docente y directora; verificar que cada uno cae en su pantalla y que el docente pendiente sigue en «Cuenta en revisión».
 6. **Aún no se puede probar:** el QR, el escáner, la aprobación por QR, el segundo tutor y la asignación en lote llegan con 4.2-4.7.
+
+**Segundo fallo reportado en dispositivo y corregido (T3):** al escanear, la app moría con `FATAL EXCEPTION: pool-19-thread-1` → `UnsupportedOperationException: This luminance source does not support rotation by 90 degrees` en `decodeQr`. `PlanarYUVLuminanceSource` no soporta rotación y la llamada estaba fuera del `try`, así que la excepción escapaba del hilo del analyzer. Fix `d43354b`: `ImageProxy.toBitmap()` (CameraX ya aplica la rotación) + plano de luminancia puro (`QrLuminance`, 2 tests JVM) + `runCatching` en todo el analyzer. Verificación: 83 suites / 584 tests / 0 fallos + `assembleDebug` verde. Falta que el dueño repita la prueba.
 
 **Fallo reportado en dispositivo y corregido (T3):** el botón «Permitir cámara» parecía no hacer nada: el permiso `android.permission.CAMERA` no estaba declarado en `AndroidManifest.xml`, así que el launcher lo denegaba al instante (el log mostraba foreground/background del diálogo sin que se abriera la vista). Fix `15828eb`: declarar el permiso y sacar «Escanear alumno» del `Column` con scroll para dejarlo como botón flotante sobre la barra inferior. Nota: el HTML `docs/stitch/07-panel-directivo.html` ubica la isla centrada (`fixed bottom-[88px] ... justify-center`), no en la esquina; se sigue la ubicación que pidió el dueño (inferior derecha). Verificación: 82 suites / 582 tests / 0 fallos + `assembleDebug` verde. Falta que el dueño repita la prueba en dispositivo.
 

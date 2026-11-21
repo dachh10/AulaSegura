@@ -36,6 +36,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -83,49 +84,28 @@ fun ScanStudentScreen(
     val handled = remember { AtomicBoolean(false) }
     val analyzerExecutor = remember { Executors.newSingleThreadExecutor() }
 
-    var granted by remember {
-        mutableStateOf(
-            ContextCompat.checkSelfPermission(
-                context,
-                Manifest.permission.CAMERA,
-            ) == PackageManager.PERMISSION_GRANTED,
-        )
-    }
     var message by remember { mutableStateOf<String?>(null) }
     var cameraControl by remember { mutableStateOf<CameraControl?>(null) }
     var torchOn by remember { mutableStateOf(false) }
-
-    val permissionLauncher = rememberLauncherForActivityResult(
-        ActivityResultContracts.RequestPermission(),
-    ) { result -> granted = result }
 
     DisposableEffect(Unit) {
         onDispose { analyzerExecutor.shutdownNow() }
     }
 
+    // The dashboard asks for permission before navigating. If anything else
+    // opens this route, leave instead of binding a camera we cannot use.
+    LaunchedEffect(Unit) {
+        if (ContextCompat.checkSelfPermission(
+                context,
+                Manifest.permission.CAMERA,
+            ) != PackageManager.PERMISSION_GRANTED
+        ) {
+            onBack()
+        }
+    }
+
     Box(modifier = Modifier.fillMaxSize().padding(top = 28.dp)) {
-        if (!granted) {
-            Column(
-                modifier = Modifier.fillMaxSize().padding(24.dp),
-                verticalArrangement = Arrangement.Center,
-                horizontalAlignment = Alignment.CenterHorizontally,
-            ) {
-                Text(
-                    text = "Necesitamos la cámara para escanear el QR del tutor",
-                    fontFamily = DmSans,
-                    fontWeight = FontWeight.SemiBold,
-                    fontSize = 18.sp,
-                )
-                Spacer(Modifier.height(24.dp))
-                PillButton(
-                    text = "Permitir cámara",
-                    onClick = { permissionLauncher.launch(Manifest.permission.CAMERA) },
-                )
-                Spacer(Modifier.height(12.dp))
-                PillButton(text = "Ahora no", onClick = onBack)
-            }
-        } else {
-            AndroidView(
+        AndroidView(
                 factory = { ctx ->
                     PreviewView(ctx).apply {
                         implementationMode = PreviewView.ImplementationMode.COMPATIBLE
@@ -210,7 +190,6 @@ fun ScanStudentScreen(
                         .padding(bottom = 110.dp),
                 )
             }
-        }
 
         Row(
             modifier = Modifier

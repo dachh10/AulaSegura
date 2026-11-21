@@ -25,7 +25,7 @@ Fuentes: `AulaSegura-registro-vinculacion.md`, `AulaSegura-pantallas-actualizada
 
 | ID | Spec | Tarea | Ruta | Estado | Commit |
 |---|---|---|---|---|---|
-| T1 | S3, S4, S5, S8 | Migrar `students`/`users` y Room; reglas base; quitar código de alumno | `di`, `data`, `domain`, `docs/firestore.rules` | en curso | — |
+| T1 | S3, S4, S5, S8 | Migrar `students`/`users` y Room; reglas base; quitar código de alumno | `inline` (mapa delegado) | en curso — T1a lista | `1ff8eea` (rama T1) |
 | T2 | S1, S2, S6 | QR del tutor: generación offline, corregir nombre, escucha en tiempo real | `ui/screens/access`, `navigation` | pendiente | — |
 | T3 | S1, S5 | Escanear alumno: cámara, permiso, validación de QR | `ui/screens/admin`, `navigation` | pendiente | — |
 | T4 | S1, S4, S5, S6 | Revisar alumno: grado/grupo, duplicados, segundo tutor, alta offline | `ui/screens/admin`, `data` | pendiente | — |
@@ -43,3 +43,5 @@ Fuentes: `AulaSegura-registro-vinculacion.md`, `AulaSegura-pantallas-actualizada
 **L2 — 21 nov 2026, análisis del flujo.** El flujo completo es: login sin selección de rol → verificación de correo → por rol (docente en revisión, tutor con QR, director al panel); el tutor muestra el QR y la directora lo escanea, revisa, asigna grupo y acepta; el docente espera aprobación; el director aprueba en lote y asigna grupos en lote. La auditoría previa mostró que el cuello está en los datos: `students` sigue con `tutorIds`/`groupId`/`listNumber`/`schoolId` y las reglas con `registrationCode`, es decir, el modelo que este cambio elimina. Por eso T1 es el punto de partida: sin él, T2–T8 no pueden escribir datos reales.
 
 **L3 — 21 nov 2026, optimización previa ya entregada.** `0119288 perf(navigation): shorten route transitions and add press feedback` — transiciones 300/180 ms → 140/100 ms y respuesta táctil en el enlace de registro. Verificado: 78 suites / 569 tests / 0 fallos, `assembleDebug` verde. Ya en `origin/main`.
+
+**L4 — 21 nov 2026, T1a entregada en la rama de trabajo.** Decisión: los nombres del documento nuevo se escriben **junto a** los viejos y se leen con fallback simétrico, igual que el par `role`/`rol` que ya existía; no se migra ni se borra ningún dato almacenado. Work unit `1ff8eea`: `nombre/tutores/grupo/grado/creadoPor/syncStatus` mapeados en `AdminStudent`, doble escritura en `newStudentDocument` y `fechaSolicitud` leído en `AppUser`. RED por compilación fallida de los campos aún inexistentes; GREEN con 3 tests nuevos (`AdminStudentDocumentTest`). El test destapó un fallo real: con sólo `tutores`, el roster no veía los tutores; se corrigió con fallback en ambos sentidos. Verificación: `cleanTestDebugUnitTest testDebugUnitTest assembleDebug` → 79 suites / 572 tests / 0 fallos. Sin dispositivo: escenario runtime N/A. Falta T1b (migración Room y reglas de Firestore).

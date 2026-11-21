@@ -27,4 +27,9 @@ data class ProfileEntity(
     val photoUrl: String? = null,
     val subjects: List<String> = emptyList(),
     val updatedAt: Long,
+    /** Account state and tutor linking, cached so the QR survives an offline start. */
+    val estado: String = "",
+    val vinculacion: String = "",
+    val hijoSolicitado: String = "",
+    val fechaSolicitud: Long = 0L,
 )

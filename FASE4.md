@@ -49,7 +49,7 @@ Los IDs siguen la lista acordada en el logbook. El orden de ejecución se define
 
 | # | Tarea | Pantalla(s) | Servicios | Estado |
 |---|---|---|---|---|
-| **4.1 (T1)** | Migrar `students`/`users` y Room; reglas base; quitar el código obligatorio | sin pantalla nueva | Firestore, Room, reglas | ✅ **lista** - `1ff8eea`, `d98e2ba`, `5b7da3f` en `feat/registro-vinculacion-t1` |
+| **4.1 (T1)** | Migrar `students`/`users` y Room; reglas base; quitar el código obligatorio | sin pantalla nueva | Firestore, Room, reglas | ✅ **lista y mergeada en `main`** - `1ff8eea`, `d98e2ba`, `5b7da3f` (merge `8b6b982`) |
 | **4.2 (T2)** | QR del tutor: generación offline, corregir nombre, escucha en tiempo real | `LinkChildScreen` | `users/{uid}` | ⬜ pendiente |
 | **4.3 (T3)** | Escanear alumno: cámara, permiso, validación del QR | nueva, directora | cámara | ⬜ pendiente |
 | **4.4 (T4)** | Revisar alumno: grado/grupo, duplicados, segundo tutor, alta offline | nueva, directora | `students`, Room, WorkManager | ⬜ pendiente |

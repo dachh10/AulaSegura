@@ -66,6 +66,7 @@ object Routes {
     const val ADMIN_DASHBOARD = "admin/dashboard"
     const val ADMIN_USERS = "admin/users"
 const val ADMIN_TEACHER_REQUESTS = "admin/teacher-requests"
+const val ADMIN_UNGROUPED_STUDENTS = "admin/students/ungrouped"
     const val ADMIN_NEW_STUDENT = "admin/users/new"
 const val ADMIN_SCAN_STUDENT = "admin/students/scan"
 const val ADMIN_REVIEW_STUDENT = "admin/students/review?uid={uid}&alumno={alumno}"

@@ -75,6 +75,7 @@ import com.example.aulasegura.ui.screens.admin.AdminUsersScreen
 import com.example.aulasegura.ui.screens.admin.ReviewStudentScreen
 import com.example.aulasegura.ui.screens.admin.ScanStudentScreen
 import com.example.aulasegura.ui.screens.admin.TeacherRequestsScreen
+import com.example.aulasegura.ui.screens.admin.UngroupedStudentsScreen
 import com.example.aulasegura.ui.screens.parent.ParentAIScreen
 import com.example.aulasegura.ui.screens.parent.ParentAttendanceScreen
 import com.example.aulasegura.ui.screens.parent.ParentAttendanceUiState
@@ -1102,9 +1103,7 @@ fun AulaSeguraNavHost(
             AdminDashboardScreen(
                 onNotificaciones = { navController.navigate(Routes.ADMIN_NOTIFICATIONS) },
                 onSolicitudes = { navController.navigate(Routes.ADMIN_TEACHER_REQUESTS) },
-                // T7 (Alumnos sin grupo) will own this route; until then the
-                // tile opens the roster of students.
-                onAlumnosSinGrupo = { navController.navigate(Routes.ADMIN_USERS) },
+                onAlumnosSinGrupo = { navController.navigate(Routes.ADMIN_UNGROUPED_STUDENTS) },
                 onEscanear = { navController.navigate(Routes.ADMIN_SCAN_STUDENT) },
                 onUsuarios = { navController.navigate(Routes.ADMIN_USERS) },
                 onGrupos = { navController.navigate(Routes.ADMIN_GROUPS) },
@@ -1137,6 +1136,9 @@ fun AulaSeguraNavHost(
         }
         composable(Routes.ADMIN_TEACHER_REQUESTS) {
             TeacherRequestsScreen(onBack = { navController.popBackStack() })
+        }
+        composable(Routes.ADMIN_UNGROUPED_STUDENTS) {
+            UngroupedStudentsScreen(onBack = { navController.popBackStack() })
         }
         composable(Routes.ADMIN_USERS) {
             AdminUsersScreen(

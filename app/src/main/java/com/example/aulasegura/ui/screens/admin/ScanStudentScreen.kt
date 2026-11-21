@@ -89,7 +89,18 @@ fun ScanStudentScreen(
     var torchOn by remember { mutableStateOf(false) }
 
     DisposableEffect(Unit) {
-        onDispose { analyzerExecutor.shutdownNow() }
+        onDispose {
+            // The composable can be recreated (rotation, back stack). Release
+            // the camera before the next instance binds, otherwise CameraX sees
+            // two Preview+Analysis use cases and throws "No supported surface
+            // combination" on the main thread.
+            val release = ProcessCameraProvider.getInstance(context)
+            release.addListener(
+                { runCatching { release.get().unbindAll() } },
+                ContextCompat.getMainExecutor(context),
+            )
+            analyzerExecutor.shutdownNow()
+        }
     }
 
     // The dashboard asks for permission before navigating. If anything else

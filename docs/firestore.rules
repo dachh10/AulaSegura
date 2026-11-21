@@ -281,10 +281,11 @@ service cloud.firestore {
       allow read: if isActive() && (
         (isDirectivo() && resource.data.schoolId == mySchool()) ||
         (isDocente() && resource.data.groupId in myGroups()) ||
-        (isTutor() && (
-          request.auth.uid in resource.data.get('tutores', []) ||
-          request.auth.uid in resource.data.get('tutorIds', [])
-        ))
+        // The client queries `tutorIds` with whereArrayContains. Firestore can
+        // only prove an array-contains query against ONE field, so checking both
+        // vocabularies with `or` here makes every tutor read DENIED. The writer
+        // dual-writes both lists; this branch proves the query field.
+        (isTutor() && request.auth.uid in resource.data.get('tutorIds', []))
       );
       allow create: if isDirectivo() && newStudentHasValidScope();
       // A registering tutor may add only themselves, only once, and only when

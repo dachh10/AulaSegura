@@ -61,9 +61,7 @@ import com.example.aulasegura.ui.theme.OnSurfaceVariant
 import com.example.aulasegura.ui.theme.Primary
 import com.example.aulasegura.ui.theme.SurfaceContainerLowest
 import com.google.zxing.BinaryBitmap
-import com.google.zxing.NotFoundException
 import com.google.zxing.common.HybridBinarizer
-import com.google.zxing.PlanarYUVLuminanceSource
 import com.google.zxing.qrcode.QRCodeReader
 import java.util.concurrent.Executors
 import java.util.concurrent.atomic.AtomicBoolean
@@ -147,19 +145,20 @@ fun ScanStudentScreen(
                                     .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
                                     .build()
                                 analyzer.setAnalyzer(analyzerExecutor) { image ->
-                                    val raw = decodeQr(image)
-                                    image.close()
-                                    if (raw != null && handled.compareAndSet(false, true)) {
-                                        val result = ScanStudentUi.from(raw)
-                                        mainHandler.post {
-                                            if (result.found != null) {
-                                                onFound(result.found)
-                                            } else {
-                                                message = result.message
-                                                handled.set(false)
+                                    runCatching {
+                                        val raw = decodeQr(image)
+                                        if (raw != null && handled.compareAndSet(false, true)) {
+                                            val result = ScanStudentUi.from(raw)
+                                            mainHandler.post {
+                                                if (result.found != null) {
+                                                    onFound(result.found)
+                                                } else {
+                                                    message = result.message
+                                                    handled.set(false)
+                                                }
                                             }
                                         }
-                                    }
+                                    }.also { image.close() }
                                 }
                                 provider.bindToLifecycle(
                                     lifecycleOwner,
@@ -269,23 +268,29 @@ fun ScanStudentScreen(
 private fun Modifier.clickableTorch(onClick: () -> Unit): Modifier =
     this.then(Modifier.clickable(onClick = onClick))
 
-private fun decodeQr(image: ImageProxy): String? {
-    val buffer = image.planes[0].buffer
-    val bytes = ByteArray(buffer.remaining())
-    buffer.get(bytes)
-    val width = image.width
-    val height = image.height
-    var source: com.google.zxing.LuminanceSource =
-        PlanarYUVLuminanceSource(bytes, width, height, 0, 0, width, height, false)
-    when (image.imageInfo.rotationDegrees) {
-        90 -> source = source.rotateCounterClockwise()
-        270 -> source = source.rotateCounterClockwise().rotateCounterClockwise()
+/**
+ * Decodes one camera frame. CameraX's [ImageProxy.toBitmap] already applies the
+ * sensor rotation, so no manual LuminanceSource rotation is needed - a
+ * PlanarYUVLuminanceSource does not support it and threw off the analyzer
+ * thread. Everything is contained: a bad frame must never kill the process.
+ */
+private fun decodeQr(image: ImageProxy): String? = try {
+    val bitmap = image.toBitmap()
+    val width = bitmap.width
+    val height = bitmap.height
+    val pixels = IntArray(width * height)
+    bitmap.getPixels(pixels, 0, width, 0, 0, width, height)
+    val luma = luminanceFromArgb(pixels)
+    val source = object : com.google.zxing.LuminanceSource(width, height) {
+        override fun getRow(y: Int, row: ByteArray?): ByteArray {
+            val out = row ?: ByteArray(width)
+            System.arraycopy(luma, y * width, out, 0, width)
+            return out
+        }
+
+        override fun getMatrix(): ByteArray = luma
     }
-    return try {
-        QRCodeReader().decode(BinaryBitmap(HybridBinarizer(source))).text
-    } catch (_: NotFoundException) {
-        null
-    } catch (_: Exception) {
-        null
-    }
+    QRCodeReader().decode(BinaryBitmap(HybridBinarizer(source))).text
+} catch (_: Exception) {
+    null
 }

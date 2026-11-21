@@ -1,5 +1,13 @@
 package com.example.aulasegura.ui.screens.admin
 
+import android.Manifest
+import android.app.Activity
+import android.content.Intent
+import android.content.pm.PackageManager
+import android.net.Uri
+import android.provider.Settings
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -39,8 +47,12 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
@@ -49,14 +61,18 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.core.app.ActivityCompat
+import androidx.core.content.ContextCompat
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.aulasegura.di.rememberAppContainer
 import com.example.aulasegura.ui.components.AdminBottomBar
 import com.example.aulasegura.ui.components.AdminTab
 import com.example.aulasegura.ui.screens.access.Reveal
+import com.example.aulasegura.ui.theme.BrandCoral
 import com.example.aulasegura.ui.theme.BrandCream
 import com.example.aulasegura.ui.theme.BricolageGrotesque
 import com.example.aulasegura.ui.theme.DmSans
+import com.example.aulasegura.ui.theme.Error
 import com.example.aulasegura.ui.theme.JetBrainsMono
 import com.example.aulasegura.ui.theme.OnPrimary
 import com.example.aulasegura.ui.theme.OnSurface
@@ -93,6 +109,23 @@ fun AdminDashboardScreen(
         factory = rememberAppContainer().viewModelFactory,
     )
     val uiState by viewModel.state.collectAsState()
+    val context = LocalContext.current
+    var cameraDenied by remember { mutableStateOf(false) }
+    // Ask exactly when the button is tapped: the system dialog appears right
+    // away, with no extra screen between the button and the camera.
+    val cameraLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission(),
+    ) { granted ->
+        cameraDenied = !granted
+        if (granted) onEscanear()
+    }
+    val activity = context as? Activity
+    val cameraPermanentlyDenied = cameraDenied && activity != null &&
+        !ActivityCompat.shouldShowRequestPermissionRationale(
+            activity,
+            Manifest.permission.CAMERA,
+        )
+
     val error = uiState.error
     val cards = if (uiState.loading) loadingCards() else dashboardCards(uiState.dashboard)
     val summary = if (uiState.loading) {
@@ -146,7 +179,7 @@ fun AdminDashboardScreen(
                 .shadow(elevation = 6.dp, shape = PillShape)
                 .clip(PillShape)
                 .background(Primary)
-                .clickable(onClick = onEscanear)
+                .clickable { cameraLauncher.launch(Manifest.permission.CAMERA) }
                 .padding(horizontal = 16.dp, vertical = 12.dp),
             contentAlignment = Alignment.Center,
         ) {
@@ -165,6 +198,39 @@ fun AdminDashboardScreen(
                     fontWeight = FontWeight.SemiBold,
                     fontSize = 13.sp,
                 )
+            }
+        }
+
+        if (cameraDenied) {
+            Column(
+                modifier = Modifier
+                    .align(Alignment.BottomEnd)
+                    .padding(end = 16.dp, bottom = 152.dp),
+                horizontalAlignment = Alignment.End,
+            ) {
+                Text(
+                    text = "Se necesita la cámara para escanear el QR",
+                    color = Error,
+                    fontFamily = DmSans,
+                    fontSize = 12.sp,
+                )
+                if (cameraPermanentlyDenied) {
+                    Spacer(Modifier.height(4.dp))
+                    Text(
+                        text = "Abrir ajustes",
+                        color = BrandCoral,
+                        fontFamily = DmSans,
+                        fontSize = 12.sp,
+                        modifier = Modifier.clickable {
+                            val intent = Intent(
+                                Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
+                            ).apply {
+                                data = Uri.fromParts("package", context.packageName, null)
+                            }
+                            context.startActivity(intent)
+                        },
+                    )
+                }
             }
         }
 

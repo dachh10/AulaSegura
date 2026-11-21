@@ -20,6 +20,10 @@ fun AppUser.toCachedEntity(now: Long): ProfileEntity = ProfileEntity(
     photoUrl = photoUrl,
     subjects = subjects,
     updatedAt = now,
+    estado = estado,
+    vinculacion = vinculacion,
+    hijoSolicitado = hijoSolicitado,
+    fechaSolicitud = fechaSolicitud,
 )
 
 /**
@@ -42,5 +46,9 @@ fun ProfileEntity.toCachedUser(): AppUser? {
         active = active,
         photoUrl = photoUrl,
         subjects = subjects,
+        estado = estado,
+        vinculacion = vinculacion,
+        hijoSolicitado = hijoSolicitado,
+        fechaSolicitud = fechaSolicitud,
     )
 }

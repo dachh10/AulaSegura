@@ -48,7 +48,7 @@ import com.example.aulasegura.data.local.entity.TaskEntity
         ProfileEntity::class,
         SchoolEntity::class,
     ],
-    version = 5,
+    version = 6,
     exportSchema = true,
 )
 @TypeConverters(Converters::class)
@@ -142,6 +142,29 @@ abstract class AulaSeguraDatabase : RoomDatabase() {
          * students stay synced and stay visible to the teacher. Nothing is
          * dropped and no other table is touched: the outbox survives the upgrade.
          */
+        /**
+         * Caches the account state and the tutor's linking data. Without these
+         * columns an offline start rebuilt a user with no `vinculacion` and no
+         * `hijoSolicitado`, so the QR disappeared until the network came back.
+         * Defaults keep every existing row valid; nothing is dropped.
+         */
+        val MIGRATION_5_6: Migration = object : Migration(5, 6) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    "ALTER TABLE `profile` ADD COLUMN `estado` TEXT NOT NULL DEFAULT ''",
+                )
+                db.execSQL(
+                    "ALTER TABLE `profile` ADD COLUMN `vinculacion` TEXT NOT NULL DEFAULT ''",
+                )
+                db.execSQL(
+                    "ALTER TABLE `profile` ADD COLUMN `hijoSolicitado` TEXT NOT NULL DEFAULT ''",
+                )
+                db.execSQL(
+                    "ALTER TABLE `profile` ADD COLUMN `fechaSolicitud` INTEGER NOT NULL DEFAULT 0",
+                )
+            }
+        }
+
         val MIGRATION_4_5: Migration = object : Migration(4, 5) {
             override fun migrate(db: SupportSQLiteDatabase) {
                 db.execSQL(

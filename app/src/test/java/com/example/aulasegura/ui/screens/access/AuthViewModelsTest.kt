@@ -8,6 +8,8 @@ import com.example.aulasegura.domain.repository.AuthFailure
 import com.example.aulasegura.domain.repository.AuthRepository
 import com.example.aulasegura.domain.repository.AuthResult
 import com.example.aulasegura.domain.repository.LinkingState
+import com.example.aulasegura.navigation.Routes
+import com.example.aulasegura.navigation.destinationRoute
 import com.example.aulasegura.domain.repository.PasswordChangeResult
 import com.example.aulasegura.domain.repository.PasswordResetResult
 import com.example.aulasegura.domain.repository.ProfilePhotoResult
@@ -263,8 +265,26 @@ class SessionViewModelTest {
         viewModel.resolveSession()
         advanceUntilIdle()
 
-        assertEquals(SessionState.SignedIn(UserRole.ADMIN), viewModel.state.value)
+        assertEquals(SessionState.SignedIn(user(UserRole.ADMIN)), viewModel.state.value)
     }
+
+    @Test
+    fun `a pending tutor restores with the full user so the QR can be shown again`() =
+        runTest(dispatcher) {
+            val tutor = user(UserRole.TUTOR).copy(
+                vinculacion = "pendiente",
+                hijoSolicitado = "Ana Pérez",
+            )
+            val repo = FakeAuthRepository(restoreResult = AuthResult.Success(tutor))
+            val viewModel = session(repo)
+
+            viewModel.resolveSession()
+            advanceUntilIdle()
+
+            val state = viewModel.state.value as SessionState.SignedIn
+            assertEquals(tutor, state.user)
+            assertEquals(Routes.LINK_CHILD, state.user.destinationRoute())
+        }
 
     @Test
     fun `restoring without session signs out`() = runTest(dispatcher) {
@@ -346,7 +366,7 @@ class SessionViewModelTest {
         viewModel.resolveSession()
         advanceUntilIdle()
 
-        assertEquals(SessionState.SignedIn(UserRole.TEACHER), viewModel.state.value)
+        assertEquals(SessionState.SignedIn(user(UserRole.TEACHER)), viewModel.state.value)
         assertEquals(0, repo.signOutCalls)
     }
 }

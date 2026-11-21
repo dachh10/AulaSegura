@@ -42,6 +42,29 @@ class ProfileMappersTest {
     }
 
     @Test
+    fun `the linking state survives the offline cache so the QR can be recovered`() {
+        val pendingTutor = AppUser(
+            uid = "uid-tutor",
+            email = "tutor@aulasegura.com",
+            role = UserRole.TUTOR,
+            fullName = "Diego Prueba",
+            schoolId = "sch-benito-juarez",
+            active = true,
+            estado = "activo",
+            vinculacion = "pendiente",
+            hijoSolicitado = "Ana Pérez",
+            fechaSolicitud = 1_700_000_123_000L,
+        )
+
+        val cached = pendingTutor.toCachedEntity(now = 0L).toCachedUser()
+
+        assertEquals("pendiente", cached?.vinculacion)
+        assertEquals("Ana Pérez", cached?.hijoSolicitado)
+        assertEquals("activo", cached?.estado)
+        assertEquals(1_700_000_123_000L, cached?.fechaSolicitud)
+    }
+
+    @Test
     fun `a role the app cannot route yields no cached user`() {
         val entity = teacher.toCachedEntity(now = 0L).copy(role = "prefecto")
 

@@ -92,13 +92,19 @@ data class AccessStateUiState(
 class AccessStateViewModel(
     private val auth: AuthRepository,
     private val parents: com.example.aulasegura.domain.repository.ParentRepository? = null,
+    /** "Agregar otro hijo" must never auto-navigate on entry. */
+    private val addMode: Boolean = false,
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(AccessStateUiState())
     val uiState: StateFlow<AccessStateUiState> = _uiState.asStateFlow()
 
-    /** True when the tutor was already linked on entry (visiting the QR again). */
-    private val wasLinkedOnEntry: Boolean = auth.currentUser?.vinculacion == "vinculado"
+    /**
+     * The first Firestore linking snapshot decides whether this visit started
+     * already linked. auth.currentUser is stale right after the first approval
+     * (the listener updates the UI, not the cached profile).
+     */
+    private var linkingBaseline: String? = null
 
     /** Cancelled and replaced every time a new QR is generated in ADD mode. */
     private var watcherJob: Job? = null
@@ -124,11 +130,25 @@ class AccessStateViewModel(
         // way the tutor sees it without having to guess when to tap "refresh".
         viewModelScope.launch {
             auth.observeLinkingState().collect { link ->
+                val baseline = linkingBaseline
+                val startedLinked = if (baseline == null) {
+                    linkingBaseline = link.vinculacion
+                    link.vinculacion == "vinculado"
+                } else {
+                    baseline == "vinculado"
+                }
                 _uiState.update { ui ->
+                    // ADD mode never auto-navigates here: the only exit is the
+                    // roster watcher after a QR has actually been generated.
+                    // Never clear a proceed already granted by that watcher.
                     val proceed = when (ui.role) {
-                        UserRole.TUTOR -> shouldAutoProceed(wasLinkedOnEntry, link.vinculacion)
+                        UserRole.TUTOR -> if (addMode) {
+                            ui.proceed
+                        } else {
+                            ui.proceed || shouldAutoProceed(startedLinked, link.vinculacion)
+                        }
                         UserRole.TEACHER ->
-                            link.estado == "aprobado" || link.estado == "rechazado"
+                            ui.proceed || link.estado == "aprobado" || link.estado == "rechazado"
                         else -> ui.proceed
                     }
                     ui.copy(

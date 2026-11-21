@@ -66,6 +66,12 @@ object Routes {
     const val ADMIN_DASHBOARD = "admin/dashboard"
     const val ADMIN_USERS = "admin/users"
     const val ADMIN_NEW_STUDENT = "admin/users/new"
+const val ADMIN_SCAN_STUDENT = "admin/students/scan"
+const val ADMIN_REVIEW_STUDENT = "admin/students/review?uid={uid}&alumno={alumno}"
+
+fun reviewStudentRoute(uid: String, alumno: String): String =
+    "admin/students/review?uid=${android.net.Uri.encode(uid)}" +
+        "&alumno=${android.net.Uri.encode(alumno)}"
     const val ADMIN_NEW_STUDENT_FOR_GROUP = "admin/users/new/{groupId}"
     const val ADMIN_GROUPS = "admin/groups"
     const val ADMIN_GROUP_DETAIL = "admin/groups/{groupId}"

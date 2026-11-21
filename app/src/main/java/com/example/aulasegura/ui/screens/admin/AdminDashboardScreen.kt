@@ -51,6 +51,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.aulasegura.di.rememberAppContainer
 import com.example.aulasegura.ui.components.AdminBottomBar
 import com.example.aulasegura.ui.components.AdminTab
+import com.example.aulasegura.ui.components.PillButton
 import com.example.aulasegura.ui.screens.access.Reveal
 import com.example.aulasegura.ui.theme.BrandCream
 import com.example.aulasegura.ui.theme.BricolageGrotesque
@@ -80,6 +81,7 @@ private val AttentionText = Color(0xFF92400E)
 @Composable
 fun AdminDashboardScreen(
     onNotificaciones: () -> Unit = {},
+    onEscanear: () -> Unit = {},
     onUsuarios: () -> Unit = {},
     onGrupos: () -> Unit = {},
     onReportes: () -> Unit = {},
@@ -111,6 +113,7 @@ fun AdminDashboardScreen(
             verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
             Reveal(0) { AdminTopBar(onNotificaciones = onNotificaciones) }
+            Reveal(30) { PillButton(text = "Escanear alumno", onClick = onEscanear) }
             Reveal(60) {
                 AttendanceTodayCard(
                     message = todayAttendanceMessage(

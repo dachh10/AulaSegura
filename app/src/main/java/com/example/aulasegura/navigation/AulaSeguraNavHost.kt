@@ -72,6 +72,8 @@ import com.example.aulasegura.ui.screens.admin.AdminProfileScreen
 import com.example.aulasegura.ui.screens.admin.AdminReportsScreen
 import com.example.aulasegura.ui.screens.admin.ReportPdfExporter
 import com.example.aulasegura.ui.screens.admin.AdminUsersScreen
+import com.example.aulasegura.ui.screens.admin.ReviewStudentScreen
+import com.example.aulasegura.ui.screens.admin.ScanStudentScreen
 import com.example.aulasegura.ui.screens.parent.ParentAIScreen
 import com.example.aulasegura.ui.screens.parent.ParentAttendanceScreen
 import com.example.aulasegura.ui.screens.parent.ParentAttendanceUiState
@@ -1094,10 +1096,34 @@ fun AulaSeguraNavHost(
         composable(Routes.ADMIN_DASHBOARD) {
             AdminDashboardScreen(
                 onNotificaciones = { navController.navigate(Routes.ADMIN_NOTIFICATIONS) },
+                onEscanear = { navController.navigate(Routes.ADMIN_SCAN_STUDENT) },
                 onUsuarios = { navController.navigate(Routes.ADMIN_USERS) },
                 onGrupos = { navController.navigate(Routes.ADMIN_GROUPS) },
                 onReportes = { navController.navigate(Routes.ADMIN_REPORTS) },
                 onMas = { navController.navigate(Routes.ADMIN_MORE) },
+            )
+        }
+        composable(Routes.ADMIN_SCAN_STUDENT) {
+            ScanStudentScreen(
+                onBack = { navController.popBackStack() },
+                onFound = { qr ->
+                    navController.navigate(
+                        Routes.reviewStudentRoute(uid = qr.uid, alumno = qr.alumno),
+                    )
+                },
+            )
+        }
+        composable(
+            route = Routes.ADMIN_REVIEW_STUDENT,
+            arguments = listOf(
+                navArgument("uid") { type = NavType.StringType },
+                navArgument("alumno") { type = NavType.StringType },
+            ),
+        ) { entry ->
+            ReviewStudentScreen(
+                uid = entry.arguments?.getString("uid").orEmpty(),
+                alumno = entry.arguments?.getString("alumno").orEmpty(),
+                onBack = { navController.popBackStack() },
             )
         }
         composable(Routes.ADMIN_USERS) {

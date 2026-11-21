@@ -41,11 +41,16 @@ service cloud.firestore {
     // that document is how the client discovers `active == false` and signs
     // itself out. Everything else is gated behind isActive().
     function isActive() {
-      return isSignedIn() && profile().active == true;
+      // Director accounts are created manually in the Console and may omit the
+      // flag; a missing `active` means active, as it does for students.
+      return isSignedIn() && profile().get('active', true) == true;
     }
 
     function role() {
-      return profile().role;
+      // `registerAccount` writes both aliases, but a manually created director
+      // only has `rol`. Without this fallback isDirectivo() is always false and
+      // every director write is denied with PERMISSION_DENIED.
+      return profile().get('role', profile().get('rol', ''));
     }
 
     function isDirectivo() {

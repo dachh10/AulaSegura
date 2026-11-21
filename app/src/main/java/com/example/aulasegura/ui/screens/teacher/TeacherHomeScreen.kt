@@ -54,6 +54,7 @@ import androidx.compose.ui.unit.sp
 import com.example.aulasegura.ui.components.TeacherBottomBar
 import com.example.aulasegura.ui.components.TeacherTab
 import com.example.aulasegura.ui.components.rememberPressScale
+import com.example.aulasegura.ui.profile.profileInitials
 import com.example.aulasegura.ui.screens.access.Reveal
 import com.example.aulasegura.ui.theme.AulaTextStyles
 import com.example.aulasegura.ui.theme.BrandCoral

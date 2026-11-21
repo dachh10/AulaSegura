@@ -6,12 +6,18 @@ import androidx.lifecycle.viewModelScope
 import com.example.aulasegura.data.remote.cloudinary.CloudinaryFolder
 import com.example.aulasegura.data.remote.cloudinary.CloudinaryResult
 import com.example.aulasegura.data.remote.cloudinary.CloudinaryUploader
-import com.example.aulasegura.data.remote.cloudinary.ImageCompressor
+import com.example.aulasegura.data.remote.cloudinary.PhotoCompressor
 import com.example.aulasegura.domain.repository.AuthRepository
 import com.example.aulasegura.domain.repository.GroupRepository
 import com.example.aulasegura.domain.repository.PasswordChangeResult
 import com.example.aulasegura.domain.repository.ProfilePhotoResult
 import com.example.aulasegura.domain.repository.ProfileUpdateResult
+import com.example.aulasegura.ui.profile.AvatarUploadResult
+import com.example.aulasegura.ui.profile.passwordChangeError
+import com.example.aulasegura.ui.profile.passwordChangeMessage
+import com.example.aulasegura.ui.profile.profileEditError
+import com.example.aulasegura.ui.profile.profileUpdateMessage
+import com.example.aulasegura.ui.profile.uploadProfileAvatar
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -29,7 +35,7 @@ import kotlinx.coroutines.launch
 class TeacherProfileViewModel(
     private val auth: AuthRepository,
     private val groups: GroupRepository,
-    private val compressor: ImageCompressor,
+    private val compressor: PhotoCompressor,
     private val uploader: CloudinaryUploader,
 ) : ViewModel() {
 
@@ -64,50 +70,14 @@ class TeacherProfileViewModel(
 
         viewModelScope.launch {
             val bytes = compressor.compress(uri)
-            if (bytes == null) {
-                finishPhoto(message = "No se pudo leer la foto. Prueba con otra imagen.")
-                return@launch
-            }
-
-            val uploaded = uploader.uploadImage(
-                bytes = bytes,
-                fileName = "avatar-$uid.jpg",
-                folder = CloudinaryFolder.PROFILES,
-                scopeId = uid,
-            )
-
-            when (uploaded) {
-                is CloudinaryResult.Success -> {
-                    when (auth.updateProfilePhoto(uploaded.asset.url, uploaded.asset.publicId)) {
-                        ProfilePhotoResult.Saved -> {
-                            _ui.value = auth.currentUser?.toProfileUi()?.copy(
-                                saved = true,
-                                message = "Foto actualizada.",
-                            ) ?: _ui.value.copy(message = "Tu sesión expiró.")
-                        }
-                        ProfilePhotoResult.SignedOut -> finishPhoto(
-                            message = "Tu sesión expiró. Vuelve a iniciar sesión.",
-                        )
-                        ProfilePhotoResult.Rejected -> finishPhoto(
-                            message = "No se pudo guardar la foto en tu perfil.",
-                        )
-                        ProfilePhotoResult.Failed -> finishPhoto(
-                            message = "No se pudo guardar la foto. Vuelve a intentarlo.",
-                        )
-                    }
+            when (val result = uploadProfileAvatar(uid, bytes, uploader, auth)) {
+                is AvatarUploadResult.Uploaded -> {
+                    _ui.value = auth.currentUser?.toProfileUi()?.copy(
+                        saved = true,
+                        message = "Foto actualizada.",
+                    ) ?: _ui.value.copy(message = "Tu sesión expiró.")
                 }
-                CloudinaryResult.NetworkError -> finishPhoto(
-                    message = "Sin conexión. Vuelve a intentarlo cuando tengas red.",
-                )
-                CloudinaryResult.NotConfigured -> finishPhoto(
-                    message = "La subida de fotos no está configurada en esta app.",
-                )
-                is CloudinaryResult.Rejected -> finishPhoto(
-                    message = "Ese archivo no se pudo subir. Prueba con otra foto.",
-                )
-                is CloudinaryResult.ServerError -> finishPhoto(
-                    message = "El servicio de fotos no respondió. Vuelve a intentarlo.",
-                )
+                is AvatarUploadResult.Failed -> finishPhoto(message = result.message)
             }
         }
     }

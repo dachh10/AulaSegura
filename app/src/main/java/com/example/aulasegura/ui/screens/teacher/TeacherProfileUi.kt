@@ -1,14 +1,15 @@
 package com.example.aulasegura.ui.screens.teacher
 
 import com.example.aulasegura.domain.model.AppUser
-import com.example.aulasegura.domain.repository.PasswordChangeResult
-import com.example.aulasegura.domain.repository.ProfileUpdateResult
 
 /**
  * What the profile screen renders, already resolved from the session profile.
  *
  * The screen never reads Firebase or a repository: it renders this and calls a
  * callback. The same split as the incident and publication forms.
+ *
+ * The account rules and the password form itself live in `ui/profile`: they are
+ * identical for the tutor, so they are not duplicated per role.
  */
 data class TeacherProfileUi(
     val fullName: String = "",
@@ -48,19 +49,6 @@ internal fun AppUser.toProfileUi(): TeacherProfileUi = TeacherProfileUi(
     photoUrl = photoUrl,
 )
 
-/**
- * `Ricardo Salinas Ortega` → `RS`.
- *
- * The mockup used a fixed `RS`; deriving it keeps the fallback avatar honest for
- * every teacher, including a two-word name and the one whose name has not loaded.
- */
-fun profileInitials(fullName: String): String =
-    fullName.trim().split(Regex("\\s+"))
-        .filter { it.isNotBlank() }
-        .take(2)
-        .joinToString("") { it.first().uppercase() }
-        .ifEmpty { "?" }
-
 /** `Docente · Matemáticas`, or just `Docente` when the profile has no subjects. */
 fun profileSubtitle(subjects: List<String>): String =
     subjects.firstOrNull()?.takeIf { it.isNotBlank() }
@@ -82,67 +70,3 @@ fun parseSubjects(input: String): List<String> =
         .map { it.trim() }
         .filter { it.isNotBlank() }
         .distinct()
-
-/** `null` means the form is ready to save. */
-fun profileEditError(fullName: String): String? =
-    if (fullName.isBlank()) "Escribe tu nombre." else null
-
-/** `null` means the password can be changed. Same rules the checklist displays. */
-fun passwordChangeError(
-    current: String,
-    new: String,
-    confirmation: String,
-): String? = when {
-    current.isBlank() -> "Escribe tu contraseña actual."
-    new.isBlank() -> "Escribe la nueva contraseña."
-    new.length < MIN_PASSWORD_CHARS -> "La contraseña debe tener al menos $MIN_PASSWORD_CHARS caracteres."
-    new.none { it.isUpperCase() } -> "Incluye al menos una letra mayúscula."
-    new.none { it.isDigit() } -> "Incluye al menos un número."
-    new != confirmation -> "Las contraseñas no coinciden."
-    else -> null
-}
-
-/** A rule shown in the form. `met` comes from the same predicate as the error. */
-data class PasswordRuleUi(val label: String, val met: Boolean)
-
-/** The Stitch checklist, driven by what the app actually enforces. */
-fun passwordRules(new: String): List<PasswordRuleUi> = listOf(
-    PasswordRuleUi("Mínimo $MIN_PASSWORD_CHARS caracteres", new.length >= MIN_PASSWORD_CHARS),
-    PasswordRuleUi("Una letra mayúscula", new.any { it.isUpperCase() }),
-    PasswordRuleUi("Un número", new.any { it.isDigit() }),
-    PasswordRuleUi("Un símbolo (recomendado)", new.any { !it.isLetterOrDigit() }),
-)
-
-/** The "Coinciden" pill lives next to the field, not in the checklist. */
-fun passwordsMatch(new: String, confirmation: String): Boolean =
-    confirmation.isNotBlank() && new == confirmation
-
-/** How many of the four Stitch strength segments are lit. */
-fun passwordStrengthSteps(new: String): Int = passwordRules(new).count { it.met }
-
-/** Short strength readout shown next to the new-password field. */
-fun passwordStrengthLabel(new: String): String = when {
-    new.isBlank() -> ""
-    passwordStrengthSteps(new) >= 3 -> "Buena"
-    else -> "Puede mejorar"
-}
-
-fun profileUpdateMessage(result: ProfileUpdateResult): String = when (result) {
-    ProfileUpdateResult.Saved -> "Perfil actualizado."
-    ProfileUpdateResult.SignedOut -> "Tu sesión expiró. Vuelve a iniciar sesión."
-    ProfileUpdateResult.Rejected -> "No se pudo guardar el perfil. Revisa tu cuenta."
-    ProfileUpdateResult.Failed -> "No se pudo guardar. Vuelve a intentarlo."
-}
-
-fun passwordChangeMessage(result: PasswordChangeResult): String = when (result) {
-    PasswordChangeResult.Changed -> "Contraseña actualizada."
-    PasswordChangeResult.WrongPassword -> "La contraseña actual no es correcta."
-    PasswordChangeResult.WeakPassword -> "Esa contraseña es demasiado débil."
-    PasswordChangeResult.RequiresRecentLogin ->
-        "Vuelve a iniciar sesión para cambiar la contraseña."
-    PasswordChangeResult.SignedOut -> "Tu sesión expiró. Vuelve a iniciar sesión."
-    PasswordChangeResult.NetworkError -> "Sin conexión. Vuelve a intentarlo."
-    PasswordChangeResult.Failed -> "No se pudo cambiar la contraseña."
-}
-
-private const val MIN_PASSWORD_CHARS = 8

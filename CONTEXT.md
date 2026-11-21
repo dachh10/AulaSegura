@@ -128,11 +128,14 @@ com.example.aulasegura/
   ui/
     screens/{access,teacher,admin,parent}
     components/
+    profile/            piezas de cuenta compartidas por docente y tutor
     theme/
   navigation/
 ```
 
 La migración es incremental: los archivos de pantalla actuales se quedan donde están; solo se les quita el `sample…` cuando su rol entra en implementación.
+
+**`ui/profile` es la cuenta compartida.** El bloque 3.10 (perfil del tutor) quitó la copia que tenía el docente: la validación del nombre, la política de contraseña, el checklist, los campos, el dock de guardado y la pantalla de contraseña viven una sola vez en `ui/profile`, y las pantallas de ambos roles los consumen. La regla es simple: si una pieza de cuenta va a existir para dos roles, se escribe una vez y se parametriza; una copia por rol se desincroniza sin que nadie lo note. Lo que el tutor **no** tiene son las materias: su formulario edita sólo el nombre, y `updateProfile` viaja con `subjects` vacío.
 
 ### Navegación por rol
 
@@ -570,6 +573,15 @@ Siempre los mismos campos: `publicId`, `url` (`secure_url`), `thumbnailUrl` (tra
 | Evidencia en detalle | `w_1080,c_limit,q_auto,f_auto` |
 
 Coil apunta a la URL transformada; no se descarga el original para pintar una lista.
+
+### 7.5 Avatar de cualquier rol
+
+El avatar es la misma operación para el docente y para el tutor: `ImageCompressor` reduce la imagen, `CloudinaryUploader` la sube a `aulasegura/profiles/{uid}` y `AuthRepository.updateProfilePhoto` escribe `photoUrl` y `photoPublicId` en `users/{uid}`.
+
+Dos piezas existen para que eso no se duplique por rol:
+
+- **`PhotoCompressor` es una interfaz.** `ImageCompressor` la implementa porque necesita un `Context` de Android; el ViewModel depende de la interfaz, no de la clase. Es el mismo criterio que ya sigue `CloudinaryUploader`.
+- **`uploadProfileAvatar` (`ui/profile`) recibe los bytes ya comprimidos** y se ocupa de la subida y de la escritura del perfil. Así el `Uri` —que sólo existe en Android— queda en el ViewModel y el flujo completo se puede testear en la JVM.
 
 ---
 

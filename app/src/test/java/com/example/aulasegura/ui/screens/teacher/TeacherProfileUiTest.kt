@@ -4,6 +4,15 @@ import com.example.aulasegura.domain.model.AppUser
 import com.example.aulasegura.domain.model.UserRole
 import com.example.aulasegura.domain.repository.PasswordChangeResult
 import com.example.aulasegura.domain.repository.ProfileUpdateResult
+import com.example.aulasegura.ui.profile.passwordChangeError
+import com.example.aulasegura.ui.profile.passwordChangeMessage
+import com.example.aulasegura.ui.profile.passwordRules
+import com.example.aulasegura.ui.profile.passwordStrengthLabel
+import com.example.aulasegura.ui.profile.passwordStrengthSteps
+import com.example.aulasegura.ui.profile.passwordsMatch
+import com.example.aulasegura.ui.profile.profileEditError
+import com.example.aulasegura.ui.profile.profileInitials
+import com.example.aulasegura.ui.profile.profileUpdateMessage
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull

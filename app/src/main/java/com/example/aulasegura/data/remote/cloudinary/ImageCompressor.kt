@@ -18,6 +18,19 @@ import kotlinx.coroutines.withContext
 /**
  * Shrinks an image before it leaves the phone.
  *
+ * Kept as an interface for the same reason [CloudinaryUploader] is one: the
+ * profile ViewModel has to be testable without an Android [Context], and the
+ * compression is the one step of the avatar flow that needs one.
+ */
+interface PhotoCompressor {
+
+    /** Compresses the image behind [uri]. Returns `null` if it cannot be read. */
+    suspend fun compress(uri: Uri): ByteArray?
+}
+
+/**
+ * Shrinks an image before it leaves the phone.
+ *
  * Cloudinary's free plan is charged by stored bytes and traffic (CONTEXT §7.2),
  * so a 4 MB camera photo is money spent for nothing: the detail screen never
  * shows more than 1080 px anyway.
@@ -34,12 +47,12 @@ import kotlinx.coroutines.withContext
 class ImageCompressor(
     context: Context,
     private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO,
-) {
+) : PhotoCompressor {
 
     private val resolver = context.applicationContext.contentResolver
 
     /** Compresses the image behind [uri]. Returns `null` if it cannot be read. */
-    suspend fun compress(uri: Uri): ByteArray? = withContext(ioDispatcher) {
+    override suspend fun compress(uri: Uri): ByteArray? = withContext(ioDispatcher) {
         val raw = try {
             resolver.openInputStream(uri)?.use { it.readBytes() }
         } catch (e: IOException) {

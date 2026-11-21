@@ -83,6 +83,8 @@ import com.example.aulasegura.ui.components.TeacherBottomBar
 import com.example.aulasegura.ui.components.TeacherTab
 import com.example.aulasegura.ui.components.rememberPressScale
 import com.example.aulasegura.ui.components.shieldPattern
+import com.example.aulasegura.ui.profile.ChangePasswordScreen
+import com.example.aulasegura.ui.profile.profileInitials
 import com.example.aulasegura.ui.screens.access.Reveal
 import com.example.aulasegura.ui.theme.BrandCoral
 import com.example.aulasegura.ui.theme.BricolageGrotesque
@@ -273,8 +275,13 @@ fun TeacherProfileScreen(
                 onSave = onSaveProfile,
                 onDismissMessage = onDismissMessage,
             )
-            ProfileSection.ChangePassword -> TeacherChangePasswordScreen(
-                ui = ui,
+            ProfileSection.ChangePassword -> ChangePasswordScreen(
+                current = ui.currentPassword,
+                new = ui.newPassword,
+                confirmation = ui.confirmPassword,
+                saving = ui.saving,
+                saved = ui.saved,
+                message = ui.message,
                 onBack = onCloseDialog,
                 onCurrentChange = onCurrentPasswordChange,
                 onNewChange = onNewPasswordChange,

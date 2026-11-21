@@ -114,14 +114,14 @@ Cada work unit lleva sus tests en el mismo commit y se verifica con `testDebugUn
 
 - `cleanTestDebugUnitTest testDebugUnitTest assembleDebug` → **80 suites / 575 tests / 0 fallos**, `assembleDebug` verde.
 - Esquema Room 5 exportado en `app/schemas/.../5.json`.
-- Reglas: chequeo estructural (73/73 llaves, 382/382 paréntesis). **No se ejecutaron en emulador.**
+- Reglas: chequeo estructural (73/73 llaves, 382/382 paréntesis) y **despliegue realizado** el 21 nov 2026 con `firebase deploy --only firestore:rules --project aulasegu`: compilación sin errores y `Deploy complete!`. Aún no se ejecutaron con cuentas reales en el dispositivo.
 
 ### 7.2 Pasos en el dispositivo (a cargo del equipo)
 
 1. **Instalar la build:** `adb devices` y luego
    `adb -s <device> install -r app\build\outputs\apk\debug\app-debug.apk`.
-2. **Migración Room 4→5 (crítico):** abrir la app con una cuenta ya existente que tenga alumnos, asistencia y -si hay- operaciones pendientes de sincronizar. No debe salir el login ni perder el roster. Revisar `adb logcat | findstr /i "room migration"` y que no haya `IllegalStateException`.
-3. **Reglas:** el cambio en `docs/firestore.rules` es la fuente que apunta `firebase.json`; **no está desplegado**. Si querés probarlo, desplegalo vos con `firebase deploy --only firestore:rules` y confirma en Firebase Console que la regla de `students` acepta `tutores`. Sin ese paso, el dispositivo usa las reglas viejas.
+2. **Base limpia:** la base se borró y quedó sólo la cuenta de la directora en `users`, así que ya no hay alumnos/asistencia con los que probar la migración 4→5 con datos viejos. Instalar desde cero, iniciar con la directora y confirmar que la app abre sin `IllegalStateException` (`adb logcat | findstr /i "room migration"`). La migración con datos reales queda cubierta por el esquema exportado y los tests JVM; cuando vuelvan a existir alumnos, repetir la comprobación de roster/outbox.
+3. **Reglas:** ya están desplegadas en `aulasegu` (§7.1). Confirmá en Firebase Console → Firestore → Rules que la regla de `students` incluye `tutores` y que el alta individual de la directora sigue funcionando. Las reglas completas (4.9, `email_verified`) todavía no están.
 4. **Flujo existente (regresión):** con la cuenta de directora, crear un alumno por el alta individual de siempre; verificar que el docente lo ve en su grupo y que el tutor sigue viendo a su hijo en el inicio. Esto prueba que el doble vocabulario no rompió Fase 2/3.
 5. **Perfil y sesión:** iniciar y cerrar sesión con tutor, docente y directora; verificar que cada uno cae en su pantalla y que el docente pendiente sigue en «Cuenta en revisión».
 6. **Aún no se puede probar:** el QR, el escáner, la aprobación por QR, el segundo tutor y la asignación en lote llegan con 4.2-4.7.
@@ -155,6 +155,6 @@ Cada work unit lleva sus tests en el mismo commit y se verifica con `testDebugUn
 ## Riesgos anotados
 
 1. **Persistencia:** migración de esquema y formatos de documento; mitigada con defaults y doble escritura, pendiente de prueba en dispositivo.
-2. **Seguridad:** reglas de aprobación y vinculación; requieren despliegue y prueba con cuentas reales antes de dar por cerrada la fase.
+2. **Seguridad:** las reglas base ya están desplegadas, pero la aprobación/vinculación completas (4.9) y la prueba con cuentas reales siguen pendientes antes de cerrar la fase.
 3. **Permisos:** cámara y notificaciones; la negación del permiso debe explicarse, no bloquear la app.
 4. **Sin conexión:** la aprobación offline depende del outbox/WorkManager existente y de que la regla de correo verificado se compruebe al sincronizar.

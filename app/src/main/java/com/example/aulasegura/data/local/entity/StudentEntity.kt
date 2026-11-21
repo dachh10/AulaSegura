@@ -35,4 +35,41 @@ data class StudentEntity(
     val creadoPor: String = "",
     /** `PENDIENTE` in the requirement doc maps to [SyncState.PENDING]. */
     val syncStatus: SyncState = SyncState.SYNCED,
-)
+) {
+    companion object {
+        /**
+         * Local copy of a QR approval awaiting sync. The tutor's roster will not
+         * show it as linked until the handler writes the two Firestore documents.
+         */
+        fun fromApproval(
+            studentId: String,
+            alumno: String,
+            tutorUid: String,
+            groupId: String,
+            schoolId: String,
+            grado: String,
+            grupo: String,
+            creadoPor: String,
+            now: Long,
+        ): StudentEntity {
+            val parts = alumno.trim().split(Regex("\\s+"), limit = 2)
+            return StudentEntity(
+                studentId = studentId,
+                firstName = parts.first(),
+                lastName = parts.getOrNull(1).orEmpty(),
+                fullName = alumno.trim(),
+                listNumber = 0,
+                groupId = groupId,
+                schoolId = schoolId,
+                tutorIds = listOf(tutorUid),
+                active = true,
+                createdAt = now,
+                updatedAt = now,
+                grado = grado,
+                grupo = grupo,
+                creadoPor = creadoPor,
+                syncStatus = SyncState.PENDING,
+            )
+        }
+    }
+}

@@ -90,6 +90,37 @@ fun tutorProfileOnApproval(
     put("vinculacion", "vinculado")
 }
 
+/**
+ * The student document of a QR approval, shared by the online repository and
+ * the offline sync handler so both write byte-for-byte the same fields. Server
+ * timestamps are added at the Firestore boundary.
+ */
+fun approvedStudentDocument(
+    input: ApprovedStudentInput,
+    schoolId: String,
+): Map<String, Any> {
+    val parts = input.alumno.trim().split(Regex("\\s+"), limit = 2)
+    val firstName = parts.first()
+    val lastName = parts.getOrNull(1).orEmpty()
+    return AdminStudentFields.newStudentDocument(
+        input = AdminStudentInput(
+            firstName = firstName,
+            lastName = lastName,
+            curp = "",
+            groupId = input.groupId,
+        ),
+        schoolId = schoolId,
+        listNumber = 0,
+        createdBy = input.createdBy,
+    ).toMutableMap().apply {
+        put(AdminStudentFields.TUTOR_IDS, listOf(input.tutorUid))
+        put(AdminStudentFields.TUTORES, listOf(input.tutorUid))
+        put(AdminStudentFields.GRADO, input.grado)
+        put(AdminStudentFields.GRUPO, input.grupo)
+        put(AdminStudentFields.CREADO_POR, input.createdBy)
+    }
+}
+
 sealed interface ApproveStudentResult {
     data class Success(val studentId: String) : ApproveStudentResult
     data class Failure(val reason: AdminStudentError) : ApproveStudentResult

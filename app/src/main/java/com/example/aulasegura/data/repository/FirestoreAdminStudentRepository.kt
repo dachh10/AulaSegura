@@ -13,6 +13,7 @@ import com.example.aulasegura.domain.repository.AdminStudentResult
 import com.example.aulasegura.domain.repository.ApproveStudentResult
 import com.example.aulasegura.domain.repository.ApprovedStudentInput
 import com.example.aulasegura.domain.repository.AuthRepository
+import com.example.aulasegura.domain.repository.approvedStudentDocument
 import com.example.aulasegura.domain.repository.tutorProfileOnApproval
 import com.example.aulasegura.domain.repository.CreateStudentResult
 import com.example.aulasegura.domain.repository.LinkingCodeResult
@@ -156,24 +157,8 @@ class FirestoreAdminStudentRepository(
         if (schoolId.isBlank() || input.tutorUid.isBlank() || input.alumno.isBlank()) {
             return ApproveStudentResult.Failure(AdminStudentError.UNKNOWN)
         }
-        val parts = input.alumno.trim().split(Regex("\\s+"), limit = 2)
         val studentId = "stu-qr-${UUID.randomUUID()}"
-        val document = AdminStudentFields.newStudentDocument(
-            input = AdminStudentInput(
-                firstName = parts.first(),
-                lastName = parts.getOrNull(1).orEmpty(),
-                curp = "",
-                groupId = input.groupId,
-            ),
-            schoolId = schoolId,
-            listNumber = 0,
-            createdBy = input.createdBy,
-        ).toMutableMap().apply {
-            put(AdminStudentFields.TUTOR_IDS, listOf(input.tutorUid))
-            put(AdminStudentFields.TUTORES, listOf(input.tutorUid))
-            put(AdminStudentFields.GRADO, input.grado)
-            put(AdminStudentFields.GRUPO, input.grupo)
-            put(AdminStudentFields.CREADO_POR, input.createdBy)
+        val document = approvedStudentDocument(input, schoolId).toMutableMap().apply {
             put("createdAt", FieldValue.serverTimestamp())
             put("updatedAt", FieldValue.serverTimestamp())
         }

@@ -4,6 +4,7 @@ import androidx.room.Dao
 import androidx.room.Query
 import androidx.room.Upsert
 import com.example.aulasegura.data.local.entity.StudentEntity
+import com.example.aulasegura.data.local.entity.SyncState
 import kotlinx.coroutines.flow.Flow
 
 /**
@@ -25,6 +26,14 @@ interface StudentDao {
 
     @Upsert
     suspend fun upsert(student: StudentEntity)
+
+    /**
+     * Bookkeeping for an offline approval: PENDING while queued, SYNCING while
+     * the batch is in flight, then SYNCED/FAILED. A single-column update so a
+     * refresh that happens mid-flight cannot overwrite the whole row.
+     */
+    @Query("UPDATE students SET syncStatus = :state WHERE studentId = :studentId")
+    suspend fun updateSyncStatus(studentId: String, state: SyncState)
 
     @Upsert
     suspend fun upsertAll(students: List<StudentEntity>)

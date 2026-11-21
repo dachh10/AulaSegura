@@ -1,5 +1,7 @@
 package com.example.aulasegura.ui.screens.admin
 
+import com.example.aulasegura.domain.repository.approvedStudentDocument
+import com.example.aulasegura.domain.repository.ApprovedStudentInput
 import com.example.aulasegura.domain.repository.tutorProfileOnApproval
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -66,6 +68,30 @@ class ReviewStudentUiTest {
 
         assertEquals("stu-2a-01", plan.duplicateStudentId)
         assertFalse(plan.grupo.isBlank())
+    }
+
+    @Test
+    fun `the shared student document carries both tutor vocabularies`() {
+        val input = ApprovedStudentInput(
+            alumno = "Ana Pérez",
+            tutorUid = "tutor-42",
+            schoolId = "sch-1",
+            createdBy = "directora-1",
+            grado = "3",
+            grupo = "B",
+            groupId = "grp-3b",
+        )
+
+        val doc = approvedStudentDocument(input, schoolId = "sch-1")
+
+        assertEquals("Ana Pérez", doc["nombre"])
+        assertEquals(listOf("tutor-42"), doc["tutores"])
+        assertEquals(listOf("tutor-42"), doc["tutorIds"])
+        assertEquals("3", doc["grado"])
+        assertEquals("B", doc["grupo"])
+        assertEquals("grp-3b", doc["groupId"])
+        assertEquals("directora-1", doc["creadoPor"])
+        assertEquals("sch-1", doc["schoolId"])
     }
 
     @Test

@@ -1,6 +1,7 @@
 package com.example.aulasegura.domain.repository
 
 import com.example.aulasegura.domain.model.ParentChild
+import kotlinx.coroutines.flow.Flow
 import com.example.aulasegura.domain.model.ParentChildOverview
 import com.example.aulasegura.domain.model.ParentIncident
 import com.example.aulasegura.domain.model.ParentMonthAttendance
@@ -19,6 +20,9 @@ interface ParentRepository {
 
     /** The children linked to the open session, in school order. */
     suspend fun loadChildren(): ParentChildrenResult
+
+/** Live count/ids of the tutor's children, to notice a newly approved sibling. */
+fun observeMyChildren(): Flow<List<String>> = kotlinx.coroutines.flow.emptyFlow()
 
     /**
      * Sessions of [child]'s group in the given month, each with the child's own

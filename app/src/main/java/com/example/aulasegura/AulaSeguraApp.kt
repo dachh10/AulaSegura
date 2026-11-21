@@ -57,6 +57,7 @@ class AulaSeguraApp : Application() {
         configureFirestore()
 
         container = AppContainer(this)
+        appScope.launch { container.selectedChildStore.load() }
         container.syncScheduler.schedule()
         refreshRemoteConfig()
     }

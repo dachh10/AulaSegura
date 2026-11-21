@@ -385,6 +385,8 @@ fun AulaSeguraNavHost(
                 message = ui.message,
                 onChildNameChange = vm::setChildName,
                 onSaveChildName = vm::saveChildName,
+                knownChildIds = ui.knownChildIds,
+                onQrGenerated = { known -> vm.watchForNewChild(known) },
                 onBack = { navController.popBackStack() },
                 onRefresh = vm::refreshState,
                 onSignOut = {
@@ -434,6 +436,14 @@ fun AulaSeguraNavHost(
                 viewModel(factory = rememberAppContainer().viewModelFactory)
             val homeState by homeViewModel.state.collectAsState()
             val unreadNotifications by homeViewModel.unreadNotifications.collectAsState()
+            val homeLifecycle = androidx.compose.ui.platform.LocalLifecycleOwner.current
+            androidx.compose.runtime.DisposableEffect(homeLifecycle) {
+                val observer = androidx.lifecycle.LifecycleEventObserver { _, event ->
+                    if (event == androidx.lifecycle.Lifecycle.Event.ON_RESUME) homeViewModel.refresh()
+                }
+                homeLifecycle.lifecycle.addObserver(observer)
+                onDispose { homeLifecycle.lifecycle.removeObserver(observer) }
+            }
 
             ParentHomeScreen(
                 ui = homeState,

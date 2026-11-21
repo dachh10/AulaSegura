@@ -38,6 +38,9 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.channels.awaitClose
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.callbackFlow
 import kotlinx.coroutines.tasks.await
 import kotlinx.coroutines.withTimeout
 
@@ -73,6 +76,24 @@ class FirestoreParentRepository(
     private val now: () -> Long = System::currentTimeMillis,
     private val zone: TimeZone = TimeZone.getDefault(),
 ) : ParentRepository {
+
+
+    override fun observeMyChildren(): Flow<List<String>> = callbackFlow {
+        val uid = auth.currentUser?.uid
+        if (uid == null) {
+            close()
+            return@callbackFlow
+        }
+        // whereArrayContains("tutorIds", uid) is the query form the rules can
+        // prove for a tutor read; no extra filter that would deny the listener.
+        val registration = firestore.collection(STUDENTS)
+            .whereArrayContains(FIELD_TUTOR_IDS, uid)
+            .addSnapshotListener { snapshot, error ->
+                if (error != null || snapshot == null) return@addSnapshotListener
+                trySend(snapshot.documents.map { it.id })
+            }
+        awaitClose { registration.remove() }
+    }
 
     override suspend fun loadChildren(): ParentChildrenResult {
         val user = auth.currentUser ?: return ParentChildrenResult.SignedOut
@@ -449,7 +470,7 @@ class FirestoreParentRepository(
                 .await()
         }
         snapshot.documents.mapNotNull { document ->
-            document.data?.let { parentNoticeFrom(document.id, it, readIds, moment) }
+            document.data?.let { parentNoticeFrom(document.id, it, readIds, moment, groupId) }
         }
     } catch (_: Exception) {
         null
@@ -700,6 +721,7 @@ internal fun parentNoticeFrom(
     data: Map<String, Any?>,
     readIds: Set<String>,
     now: Long,
+    groupId: String = "",
 ): ParentNoticeItem? {
     val audience = data[FIELD_AUDIENCE] as? Map<*, *> ?: return null
     if (ROLE_TUTOR !in parentStringList(audience[FIELD_ROLES])) return null
@@ -719,6 +741,7 @@ internal fun parentNoticeFrom(
         createdAtMillis = parentEpochMillis(data[FIELD_CREATED_AT]),
         attachments = parentAttachmentsFrom(data[FIELD_ATTACHMENTS]),
         read = id in readIds,
+        groupId = groupId,
     )
 }
 

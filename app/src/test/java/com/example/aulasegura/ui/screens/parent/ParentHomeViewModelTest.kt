@@ -90,6 +90,7 @@ class ParentHomeViewModelTest {
 
     private fun viewModel(notifications: Flow<List<AppNotification>>): ParentHomeViewModel =
         ParentHomeViewModel(
+            selection = TestChildSelection(),
             parents = NoChildrenParents,
             notifications = FakeNotifications(notifications),
             now = { now },

@@ -5,6 +5,8 @@ import androidx.lifecycle.viewModelScope
 import com.example.aulasegura.domain.model.ParentChild
 import com.example.aulasegura.domain.model.ParentTaskItem
 import com.example.aulasegura.domain.repository.ParentChildrenResult
+import com.example.aulasegura.data.local.ChildSelection
+import com.example.aulasegura.data.local.indexForSelection
 import com.example.aulasegura.domain.repository.ParentRepository
 import com.example.aulasegura.domain.repository.ParentTasksResult
 import java.util.TimeZone
@@ -21,6 +23,8 @@ import kotlinx.coroutines.launch
  */
 class ParentTasksViewModel(
     private val parents: ParentRepository,
+    private val selection: ChildSelection,
+    private val currentUid: () -> String? = { null },
     private val now: () -> Long = System::currentTimeMillis,
     private val zone: TimeZone = TimeZone.getDefault(),
 ) : ViewModel() {
@@ -51,6 +55,7 @@ class ParentTasksViewModel(
     fun cycleChild() {
         if (children.size <= 1) return
         selected = (selected + 1) % children.size
+        selection.select(currentUid().orEmpty(), children[selected].studentId)
         loadTasks()
     }
 
@@ -63,7 +68,7 @@ class ParentTasksViewModel(
                     if (children.isEmpty()) {
                         _state.value = ParentTasksUiState.NoChildren
                     } else {
-                        if (selected !in children.indices) selected = 0
+                        selected = indexForSelection(selection.selectedId.value, children.map { it.studentId })
                         loadTasks()
                     }
                 }

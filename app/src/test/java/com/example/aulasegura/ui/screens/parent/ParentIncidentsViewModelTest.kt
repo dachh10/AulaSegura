@@ -82,7 +82,7 @@ class ParentIncidentsViewModelTest {
                 incident("c", studentId = "std-2"),
             ),
         )
-        val viewModel = ParentIncidentsViewModel(parents, zone)
+        val viewModel = ParentIncidentsViewModel(parents, TestChildSelection(), { "tutor-1" }, zone)
         advanceUntilIdle()
 
         viewModel.cycleChild()
@@ -119,7 +119,7 @@ class ParentIncidentsViewModelTest {
                 incidents = listOf(incident("a", studentId = "std-1")),
                 failure = RosterFailure.OFFLINE,
             )
-            val viewModel = ParentIncidentsViewModel(parents, zone)
+            val viewModel = ParentIncidentsViewModel(parents, TestChildSelection(), { "tutor-1" }, zone)
             advanceUntilIdle()
 
             assertEquals(
@@ -139,6 +139,7 @@ class ParentIncidentsViewModelTest {
         children: List<ParentChild> = listOf(INCIDENT_CHILD, INCIDENT_SIBLING),
         incidents: List<ParentIncident> = emptyList(),
     ) = ParentIncidentsViewModel(
+        selection = TestChildSelection(),
         parents = FakeIncidentParents(children = children, incidents = incidents),
         zone = zone,
     )

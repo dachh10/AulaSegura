@@ -82,6 +82,7 @@ data class AccessStateUiState(
     val isLoading: Boolean = false,
     /** Set once the app may move on; the NavHost resolves the exact route. */
     val proceed: Boolean = false,
+    val knownChildIds: Set<String> = emptySet(),
 ) {
     val isRejected: Boolean get() = estado == "rechazado"
 }
@@ -89,6 +90,7 @@ data class AccessStateUiState(
 /** Shared state for the "check your email", "account in review" and "link child" steps. */
 class AccessStateViewModel(
     private val auth: AuthRepository,
+    private val parents: com.example.aulasegura.domain.repository.ParentRepository? = null,
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(AccessStateUiState())
@@ -99,6 +101,11 @@ class AccessStateViewModel(
 
     init {
         val current = auth.currentUser
+        parents?.observeMyChildren()?.let { flow ->
+            viewModelScope.launch {
+                flow.collect { ids -> _uiState.update { it.copy(knownChildIds = ids.toSet()) } }
+            }
+        }
         _uiState.update {
             it.copy(
                 uid = current?.uid.orEmpty(),
@@ -126,6 +133,23 @@ class AccessStateViewModel(
                         childName = link.hijoSolicitado.ifBlank { ui.childName },
                         proceed = proceed,
                     )
+                }
+            }
+        }
+    }
+
+    /**
+     * After generating a QR for another child, watch the tutor's roster. When a
+     * NEW student id appears (the director scanned and approved), go back home.
+     * Only called in ADD mode, so it cannot cause the first-linking bounce.
+     */
+    fun watchForNewChild(knownIds: Set<String>) {
+        val repo = parents ?: return
+        viewModelScope.launch {
+            repo.observeMyChildren().collect { ids ->
+                if (ids.any { it !in knownIds }) {
+                    _uiState.update { it.copy(proceed = true) }
+                    return@collect
                 }
             }
         }
@@ -465,6 +489,8 @@ fun LinkChildScreen(
     onSignOut: () -> Unit = {},
     onChildNameChange: (String) -> Unit = {},
     onSaveChildName: () -> Unit = {},
+    onQrGenerated: (Set<String>) -> Unit = {},
+    knownChildIds: Set<String> = emptySet(),
 ) {
     // ADD mode keeps the new child's name LOCAL: the QR carries it and no profile
     // field is written (hijoSolicitado is not self-editable by the rules).
@@ -519,6 +545,7 @@ fun LinkChildScreen(
                     if (localName.isNotBlank()) {
                         localQrReady = true
                         editingName = false
+                        onQrGenerated(knownChildIds)
                     }
                 },
                 containerColor = Primary,

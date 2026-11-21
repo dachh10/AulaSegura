@@ -57,6 +57,8 @@ data class ParentNoticeItem(
     val attachments: List<ParentAttachment> = emptyList(),
     /** `true` when `users/{uid}/noticeReads/{noticeId}` exists. */
     val read: Boolean = false,
+    /** Group this notice was published to; used to filter by the selected child. */
+    val groupId: String = "",
 ) {
     val fromSchool: Boolean get() = category == CATEGORY_SCHOOL
 

@@ -2,6 +2,8 @@ package com.example.aulasegura.ui.screens.parent
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.example.aulasegura.data.local.ChildSelection
+import com.example.aulasegura.data.local.indexForSelection
 import com.example.aulasegura.domain.model.ParentChildOverview
 import com.example.aulasegura.domain.repository.NotificationRepository
 import com.example.aulasegura.domain.repository.ParentHomeResult
@@ -27,6 +29,8 @@ import kotlinx.coroutines.launch
 class ParentHomeViewModel(
     private val parents: ParentRepository,
     notifications: NotificationRepository,
+    private val selection: ChildSelection,
+    private val currentUid: () -> String? = { null },
     private val now: () -> Long = System::currentTimeMillis,
     private val zone: TimeZone = TimeZone.getDefault(),
 ) : ViewModel() {
@@ -55,6 +59,19 @@ class ParentHomeViewModel(
 
     init {
         refresh()
+        // Another tab can change the selected child; keep this screen in sync.
+        viewModelScope.launch {
+            selection.selectedId.collect { id ->
+                val ids = overviews.map { it.child.studentId }
+                if (ids.isNotEmpty()) {
+                    val target = indexForSelection(id, ids)
+                    if (target != selected) {
+                        selected = target
+                        _state.value = loaded()
+                    }
+                }
+            }
+        }
     }
 
     fun refresh() {
@@ -73,13 +90,16 @@ class ParentHomeViewModel(
     fun select(index: Int) {
         if (index !in overviews.indices || index == selected) return
         selected = index
+        selection.select(currentUid().orEmpty(), overviews[index].child.studentId)
         _state.value = loaded()
     }
 
     private fun show(children: List<ParentChildOverview>): ParentHomeUiState {
         overviews = children
         if (children.isEmpty()) return ParentHomeUiState.NoChildren
-        if (selected !in children.indices) selected = 0
+        val ids = children.map { it.child.studentId }
+        val resolved = selection.ensureValid(currentUid().orEmpty(), ids)
+        selected = indexForSelection(resolved, ids)
         return loaded()
     }
 

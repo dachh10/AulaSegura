@@ -1,8 +1,9 @@
 # AulaSegura — Plan de implementación
 
 **Fuente de verdad visual:** proyecto Stitch `AulaSegura Mobile Design System` (`projects/7677408035297541086`).
-**Fuente de verdad funcional:** `AulaSegura_resumen_mockups.md`.
+**Fuente de verdad funcional:** `AulaSegura_resumen_mockups.md` + `AulaSegura-registro-vinculacion.md` + `AulaSegura-pantallas-actualizadas-y-nuevas.md` (estos dos últimos mandan sobre el código cuando chocan).
 **Fuente de verdad técnica:** `CONTEXT.md` (arquitectura, modelo de datos, reglas del proyecto).
+**Referencias visuales del nuevo flujo:** `docs/stitch/*.html` (14 exportaciones literales del proyecto de Stitch, verificadas contra `download_file`).
 
 El proyecto tiene dos etapas:
 
@@ -323,3 +324,83 @@ Repo todavía no inicializado. Checklist:
 - [ ] Crear el repo remoto y agregar a Evelyn como colaboradora
 - [ ] Compartir `google-services.json` y `MAPS_API_KEY` por canal privado
 - [ ] Proteger `main`: PR obligatorio y build verde
+
+---
+
+# Etapa 3 (nueva) — Registro, aprobación y vinculación
+
+> Reemplaza la Fase 3.1 anterior (vinculación por código de 6 caracteres). El código desaparece: el correo verificado y la aprobación en persona de la directora son la seguridad.
+> Funcional: `AulaSegura-registro-vinculacion.md`. Pantallas: `AulaSegura-pantallas-actualizadas-y-nuevas.md` (11 pantallas, HTML en `docs/stitch/`).
+> Convención: el dominio Kotlin conserva `role: UserRole`; el contrato de Firestore pasa a `users.rol` con valores `tutor` / `docente` / `director`. Los nombres del `.md` (`rol`, `estado`, `vinculacion`, `tutores`) son los que se escriben en Firestore.
+
+## Estado
+
+| Bloque | Responsable | Estado |
+|---|---|---|
+| N0. Limpieza de datos y cuenta de la directora | Ambos | ✅ Hecho |
+| N1. Contrato de datos + Room + reglas | Diego | [~] usuarios y reglas listos; students/Room pendientes |
+| N2. Auth: verificación de correo y registro sin código | Diego | [~] flujo nuevo listo; code viejo aún en disco |
+| N3. Pantallas 1–4 (Login, Registro, Verificar correo, Cuenta en revisión) | Diego | [~] implementadas, `assembleDebug` verde, falta aprobación en teléfono |
+| N4. QR + cámara (pantallas 5 y 9) | Evelyn | [ ] |
+| N5. Revisar alumno (pantalla 10) + duplicados/segundo tutor | Evelyn | [ ] |
+| N6. Solicitudes de docentes (pantalla 8) + aprobación en lote | Evelyn | [ ] |
+| N7. Alumnos sin grupo (pantalla 11) + inicio/panel actualizados (6 y 7) | Evelyn | [ ] |
+| N8. Offline y sincronización de los escritos nuevos | Ambos | [ ] |
+
+## N0 — Limpieza (bloqueante)
+
+- [x] Vaciar Firestore conservando la cuenta de Auth de `directora@escuela.mx` y su `users/{uid}` (`EpIjqb4UTqO9SNudBDfpImnh5FV2`). Se borraron 290 documentos. No hay RTDB configurada en el cliente.
+- [x] Agregar `rol = director` y `estado = aprobado` al documento de la directora sin tocar correo ni contraseña (se conserva `role = directivo` como alias).
+- [x] Publicar las reglas nuevas (`firebase deploy --only firestore:rules`, compilación OK).
+- [ ] Recrear `schools/{sch-benito-juarez}` cuando se pruebe pase de lista con GPS.
+
+## N1 — Contrato de datos (Diego)
+
+- [x] `users/{uid}`: `rol`, `estado`, `nombre`, `telefono`, `correo`, `hijoSolicitado`, `vinculacion`, `fechaSolicitud` (conviven con `role`/`fullName` como alias de compatibilidad).
+- [ ] `students/{id}`: `nombre`, `tutores`, `grado`, `grupo`, `activo`, `creadoPor`, `syncStatus`, `updatedAt`. Salen `registrationCode`/`studentIds` y el código de 6 caracteres.
+- [ ] Room: entidades y migración v5 alineadas; `UserRole.ADMIN.firestoreValue = "director"`.
+- [x] `firestore.rules`: rama nueva de `create` para `tutor`/`docente` con estado inicial permitido; imposible autoaprobarse (rol y estado fijos por el cliente, `correo` igual al token). Falta exigir `email_verified` en las operaciones posteriores y la parte de `students`/`estado`/`vinculacion`.
+
+## N2 — Auth (Diego)
+
+- [x] `AuthRepository.registerAccount(...)`: un solo método con `RegistrationKind`, `sendEmailVerification()`, `rol`/`estado`/`vinculacion`/`hijoSolicitado` o `fechaSolicitud`.
+- [x] Verificación: `reload()` + `isEmailVerified`, reenviar correo, cerrar sesión, "Actualizar estado" y "Ya fui vinculado".
+- [x] Redirección de Login por `email_verified` → `estado` → `vinculacion` → `rol` (`AppUser.destinationRoute()`). Falta el splash.
+- [ ] Borrar o desactivar `TutorRegistration`, `registerTutor` viejo y `linkingCodes`.
+
+## N3 — Pantallas 1–4 (Diego)
+
+- [x] 1. Login sin chips de rol y con enlace a Registro (ya estaba alineado; ahora redirige por verificación/estado).
+- [x] 2. Registro con control segmentado Tutor | Docente, medidor de contraseña de 4 segmentos, foto opcional y aviso de privacidad (HTML `02-*`).
+- [x] 3. Verificar correo (`03-revisa-tu-correo.html`).
+- [x] 4. Cuenta en revisión / rechazada (`04-cuenta-en-revision.html`). Más pantalla 5 temporal sin QR hasta N4.
+- [x] `assembleDebug` y `testDebugUnitTest` en verde. [ ] Aprobación en teléfono antes de pasar a N4.
+
+## N4 — QR y cámara (Evelyn)
+
+- [ ] Dependencias de generación/lectura de QR y permiso `CAMERA` en el manifest.
+- [ ] 5. Vincular a mi hijo: QR con `{v, uid, alumno}`, escucha en tiempo real de `vinculacion` y opción de corregir nombre.
+- [ ] 9. Escanear alumno: vista de cámara, validación del QR y explicación del permiso.
+
+## N5 — Revisar alumno (Evelyn)
+
+- [ ] 10. Revisar alumno: tarjetas Alumno/Tutor, selectores grado y grupo, sin grupo, duplicado por nombre y "vincular como segundo tutor".
+- [ ] Aceptar crea el alumno y marca `vinculacion = vinculado`; rechazar marca `rechazada`.
+
+## N6 — Solicitudes de docentes (Evelyn)
+
+- [ ] 8. Lista de docentes con correo verificado, filtros Pendientes/Aceptadas/Rechazadas y "Aceptar todas" en lote.
+- [ ] El docente `pendiente` no puede leer datos escolares.
+
+## N7 — Inicio y panel (Evelyn)
+
+- [ ] 11. Alumnos sin grupo: búsqueda, selección múltiple y asignación en lote.
+- [ ] 6. Inicio del tutor: chips multi-hijo, "+ Agregar hijo" y "Grupo por asignar".
+- [ ] 7. Panel del director: tarjetas de solicitudes y alumnos sin grupo, FAB "Escanear alumno" y navegación con badges.
+
+## N8 — Offline (ambos)
+
+- [ ] Altas de alumnos y cambios de estado por Room con `syncStatus = PENDIENTE` y WorkManager.
+- [ ] Registro `ERROR` y aviso en pantalla cuando la regla de correo verificado falle al sincronizar.
+
+**Criterio de cierre de la Etapa 3:** un tutor se registra sin código, verifica su correo, muestra el QR; la directora lo escanea, asigna grupo y el tutor ve a su hijo en el inicio. Un docente se registra, la directora lo aprueba y entra a su menú. Todo con el teléfono y las reglas publicadas.

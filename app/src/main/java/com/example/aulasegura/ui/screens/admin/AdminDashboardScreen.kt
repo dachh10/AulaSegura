@@ -156,7 +156,10 @@ fun AdminDashboardScreen(
         ) {
             Reveal(0) { AdminTopBar(onNotificaciones = onNotificaciones) }
             Reveal(30) {
-                Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp),
+                ) {
                     ActionTile(
                         icon = Icons.Filled.Notifications,
                         count = uiState.pendingTeachers,
@@ -365,6 +368,7 @@ private fun ActionTile(
 ) {
     Column(
         modifier = modifier
+            .height(150.dp)
             .clip(RoundedCornerShape(20.dp))
             .background(SurfaceContainerLowest)
             .border(1.dp, Outline.copy(alpha = 0.4f), RoundedCornerShape(20.dp))
@@ -410,7 +414,7 @@ private fun ActionTile(
             fontWeight = FontWeight.Medium,
             fontSize = 11.sp,
         )
-        Spacer(modifier = Modifier.height(10.dp))
+        Spacer(modifier = Modifier.weight(1f))
         Text(
             text = action,
             color = Color.White,

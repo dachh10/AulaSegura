@@ -195,11 +195,15 @@ class FirestoreAdminStudentRepository(
                 }
                 batch.set(groupRef, groupDoc, com.google.firebase.firestore.SetOptions.merge())
             }
-            // Keep the student document's group fields canonical too.
+            // Keep the student document's group fields canonical and give them
+            // the next free roster number, so the number is assigned as students
+            // are approved rather than left at 0.
             if (hasGroup) {
                 document[AdminStudentFields.GROUP_ID] = resolvedGroupId
                 document[AdminStudentFields.GRUPO] = groupNameFor(gradeNumber, section)
                 document[AdminStudentFields.GRADO] = gradeNumber.toString()
+                val roster = getStudents().filter { it.groupId == resolvedGroupId }
+                document[AdminStudentFields.LIST_NUMBER] = nextListNumber(roster) ?: 1
             }
             if (input.duplicateStudentId.isNullOrBlank()) {
                 batch.set(
@@ -315,13 +319,9 @@ class FirestoreAdminStudentRepository(
         return try {
             // Read the group's current roster to hand each new student the next
             // free list number (1..30). A full group cannot take more students.
-            val roster = withTimeout(READ_TIMEOUT_MILLIS) {
-                firestore.collection(AdminStudentFields.COLLECTION)
-                    .whereEqualTo(AdminStudentFields.GROUP_ID, resolvedId)
-                    .get(Source.SERVER).await()
-            }.documents.mapNotNull { snap ->
-                runCatching { AdminStudent.fromDocument(snap.id, snap.safeData()) }.getOrNull()
-            }
+            // Reuse the provable school-wide query; filter by group in memory so
+            // the director read rule (schoolId == mySchool) is never denied.
+            val roster = getStudents().filter { it.groupId == resolvedId }
             if (roster.size + studentIds.size > MAX_ROSTER_SIZE) {
                 return AdminStudentResult.Failure(AdminStudentError.UNKNOWN)
             }
@@ -356,14 +356,10 @@ class FirestoreAdminStudentRepository(
             return AdminStudentResult.Failure(AdminStudentError.NO_SESSION)
         }
         return try {
-            val snapshot = withTimeout(READ_TIMEOUT_MILLIS) {
-                firestore.collection(AdminStudentFields.COLLECTION)
-                    .whereEqualTo(AdminStudentFields.GROUP_ID, groupId)
-                    .get(Source.SERVER).await()
-            }
-            val roster = snapshot.documents.mapNotNull { snap ->
-                runCatching { AdminStudent.fromDocument(snap.id, snap.safeData()) }.getOrNull()
-            }
+            // getStudents() is the one query the director read rule can prove
+            // (it filters by schoolId). Filter by group in memory instead of
+            // issuing a new groupId-only query that Firestore denies.
+            val roster = getStudents().filter { it.groupId == groupId }
             val numbered = renumberRoster(roster)
             val batch = firestore.batch()
             numbered.forEach { entry ->

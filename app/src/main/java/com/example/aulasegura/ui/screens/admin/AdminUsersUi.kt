@@ -253,6 +253,12 @@ private fun AdminUser.toRow(): AdminUserRowUi = AdminUserRowUi(
 
 private fun AdminUser.subtitleForRole(): String = when (role) {
     UserRole.TEACHER -> listOf(
+        when (estado) {
+            "pendiente" -> "Pendiente de aprobación"
+            "aprobado" -> "Aprobado"
+            "rechazado", "rechazada" -> "Rechazado"
+            else -> ""
+        },
         subjects.joinToString(", "),
         groupIds.joinToString(", "),
     ).filter { it.isNotBlank() }.joinToString(" · ").ifBlank { "Docente" }

@@ -171,13 +171,24 @@ class AccessStateViewModel(
             runCatching { auth.markEmailVerified() }
             val refreshed = auth.refreshProfile()
             val user = (refreshed as? AuthResult.Success)?.user ?: auth.currentUser
-            val canProceed = when (user?.role ?: UserRole.TUTOR) {
-                UserRole.TEACHER -> user?.estado == "aprobado" || user?.estado == "rechazado"
-                UserRole.TUTOR -> true
-                UserRole.ADMIN -> true
-                UserRole.UNKNOWN -> false
+            // Every verified account has somewhere to go. A pending teacher goes
+            // to "Cuenta en revisión" (nextRoute already maps estado), not back to
+            // login and not stuck here. Only an unknown role blocks navigation.
+            val current = _uiState.value
+            val target = current.copy(
+                role = user?.role ?: current.role,
+                estado = user?.estado ?: current.estado,
+                vinculacion = user?.vinculacion ?: current.vinculacion,
+            ).nextRoute()
+            _uiState.update {
+                it.copy(
+                    isLoading = false,
+                    role = user?.role ?: it.role,
+                    estado = user?.estado ?: it.estado,
+                    vinculacion = user?.vinculacion ?: it.vinculacion,
+                    proceed = target != "login",
+                )
             }
-            _uiState.update { it.copy(isLoading = false, proceed = canProceed) }
         }
     }
 

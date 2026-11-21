@@ -38,6 +38,7 @@ import androidx.compose.material.icons.filled.Error
 import androidx.compose.material.icons.filled.Groups
 import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.Schedule
+import androidx.compose.material.icons.filled.PersonAdd
 import androidx.compose.material.icons.filled.School
 import androidx.compose.material.icons.filled.Shield
 import androidx.compose.material.icons.filled.Warning
@@ -52,6 +53,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
@@ -65,11 +67,14 @@ import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.aulasegura.di.rememberAppContainer
+import com.example.aulasegura.domain.model.AdminReportRangeSummary
+
 import com.example.aulasegura.ui.components.AdminBottomBar
 import com.example.aulasegura.ui.components.AdminTab
 import com.example.aulasegura.ui.screens.access.Reveal
 import com.example.aulasegura.ui.theme.BrandCoral
 import com.example.aulasegura.ui.theme.BrandCream
+import com.example.aulasegura.ui.theme.BrandMint
 import com.example.aulasegura.ui.theme.BricolageGrotesque
 import com.example.aulasegura.ui.theme.DmSans
 import com.example.aulasegura.ui.theme.Error
@@ -100,6 +105,7 @@ private val AttentionText = Color(0xFF92400E)
 fun AdminDashboardScreen(
     onNotificaciones: () -> Unit = {},
     onSolicitudes: () -> Unit = {},
+    onAlumnosSinGrupo: () -> Unit = {},
     onEscanear: () -> Unit = {},
     onUsuarios: () -> Unit = {},
     onGrupos: () -> Unit = {},
@@ -150,27 +156,26 @@ fun AdminDashboardScreen(
         ) {
             Reveal(0) { AdminTopBar(onNotificaciones = onNotificaciones) }
             Reveal(30) {
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clip(RoundedCornerShape(20.dp))
-                        .background(SurfaceContainerLowest)
-                        .clickable(onClick = onSolicitudes)
-                        .padding(16.dp),
-                ) {
-                    Text(
-                        text = "Solicitudes de docentes: ${uiState.pendingTeachers} pendientes",
-                        color = Primary,
-                        fontFamily = DmSans,
-                        fontWeight = FontWeight.SemiBold,
-                        fontSize = 14.sp,
+                Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    ActionTile(
+                        icon = Icons.Filled.Notifications,
+                        count = uiState.pendingTeachers,
+                        title = "Solicitudes de docentes",
+                        subtitle = "${uiState.pendingTeachers} pendientes",
+                        action = "Revisar",
+                        tint = BrandCoral,
+                        onClick = onSolicitudes,
+                        modifier = Modifier.weight(1f),
                     )
-                    Spacer(Modifier.height(8.dp))
-                    Text(
-                        text = "Revisar",
-                        color = BrandCoral,
-                        fontFamily = DmSans,
-                        fontSize = 13.sp,
+                    ActionTile(
+                        icon = Icons.Filled.PersonAdd,
+                        count = 0,
+                        title = "Alumnos sin grupo",
+                        subtitle = "Sin asignar",
+                        action = "Asignar",
+                        tint = Primary,
+                        onClick = onAlumnosSinGrupo,
+                        modifier = Modifier.weight(1f),
                     )
                 }
             }
@@ -181,6 +186,7 @@ fun AdminDashboardScreen(
                         loading = uiState.todayLoading,
                         error = uiState.todayError,
                     ),
+                    summary = uiState.todaySummary,
                 )
             }
             if (error != null) {
@@ -347,7 +353,83 @@ private fun AdminTopBar(onNotificaciones: () -> Unit) {
  * read shows its own error and never a fake 0%.
  */
 @Composable
-private fun AttendanceTodayCard(message: String) {
+private fun ActionTile(
+    icon: ImageVector,
+    count: Int,
+    title: String,
+    subtitle: String,
+    action: String,
+    tint: Color,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Column(
+        modifier = modifier
+            .clip(RoundedCornerShape(20.dp))
+            .background(SurfaceContainerLowest)
+            .border(1.dp, Outline.copy(alpha = 0.4f), RoundedCornerShape(20.dp))
+            .clickable(onClick = onClick)
+            .padding(12.dp),
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Box(
+                modifier = Modifier
+                    .size(36.dp)
+                    .clip(CircleShape)
+                    .background(tint.copy(alpha = 0.12f)),
+                contentAlignment = Alignment.Center,
+            ) {
+                Icon(icon, contentDescription = null, tint = tint, modifier = Modifier.size(20.dp))
+            }
+            Spacer(modifier = Modifier.weight(1f))
+            Text(
+                text = "$count",
+                color = tint,
+                fontFamily = JetBrainsMono,
+                fontWeight = FontWeight.Bold,
+                fontSize = 11.sp,
+                modifier = Modifier
+                    .clip(RoundedCornerShape(20.dp))
+                    .background(tint.copy(alpha = 0.12f))
+                    .padding(horizontal = 8.dp, vertical = 2.dp),
+            )
+        }
+        Spacer(modifier = Modifier.height(8.dp))
+        Text(
+            text = title,
+            color = OnSurface,
+            fontFamily = DmSans,
+            fontWeight = FontWeight.Bold,
+            fontSize = 13.sp,
+            lineHeight = 16.sp,
+        )
+        Text(
+            text = subtitle,
+            color = Outline,
+            fontFamily = DmSans,
+            fontWeight = FontWeight.Medium,
+            fontSize = 11.sp,
+        )
+        Spacer(modifier = Modifier.height(10.dp))
+        Text(
+            text = action,
+            color = Color.White,
+            fontFamily = DmSans,
+            fontWeight = FontWeight.SemiBold,
+            fontSize = 11.sp,
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(PillShape)
+                .background(tint)
+                .clickable(onClick = onClick)
+                .padding(vertical = 6.dp),
+            textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+        )
+    }
+}
+
+@Composable
+private fun AttendanceTodayCard(message: String, summary: AdminReportRangeSummary?) {
     Box(
         modifier = Modifier
             .fillMaxWidth()
@@ -376,13 +458,90 @@ private fun AttendanceTodayCard(message: String) {
                 letterSpacing = 0.6.sp,
             )
             Spacer(modifier = Modifier.height(12.dp))
+
+            if (summary != null && !summary.empty) {
+                // Circular ring + real legend, from the Stitch "InicioAdmin".
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    AttendanceRing(percentage = summary.attendancePercentage)
+                    Spacer(modifier = Modifier.width(12.dp))
+                    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                        val legend = attendanceLegend(summary)
+                        val dotColors = listOf(BrandMint, Color(0xFFE5484D), Color(0xFFF59E0B))
+                        legend.zip(dotColors).forEach { (label, dot) ->
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(10.dp)
+                                        .clip(CircleShape)
+                                        .background(dot),
+                                )
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Text(
+                                    text = label,
+                                    color = OnPrimary,
+                                    fontFamily = DmSans,
+                                    fontSize = 13.sp,
+                                    fontWeight = FontWeight.Medium,
+                                )
+                            }
+                        }
+                    }
+                }
+            } else {
+                Text(
+                    text = message,
+                    color = OnPrimary,
+                    fontFamily = BricolageGrotesque,
+                    fontWeight = FontWeight.SemiBold,
+                    fontSize = 20.sp,
+                    lineHeight = 24.sp,
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun AttendanceRing(percentage: Int) {
+    val stroke = with(LocalDensity.current) { 7.5.dp.toPx() }
+    val radius = with(LocalDensity.current) { 36.dp.toPx() }
+    Box(modifier = Modifier.size(88.dp), contentAlignment = Alignment.Center) {
+        androidx.compose.foundation.Canvas(modifier = Modifier.fillMaxSize()) {
+            val cx = size.width / 2f
+            val cy = size.height / 2f
+            drawCircle(
+                color = OnPrimary.copy(alpha = 0.20f),
+                radius = radius,
+                center = androidx.compose.ui.geometry.Offset(cx, cy),
+                style = androidx.compose.ui.graphics.drawscope.Stroke(stroke),
+            )
+            // Progress arc: start at top, sweep the percentage of the circle.
+            drawArc(
+                color = BrandMint,
+                startAngle = -90f,
+                sweepAngle = percentage.coerceIn(0, 100) * 3.6f,
+                useCenter = false,
+                topLeft = androidx.compose.ui.geometry.Offset(cx - radius, cy - radius),
+                size = androidx.compose.ui.geometry.Size(radius * 2, radius * 2),
+                style = androidx.compose.ui.graphics.drawscope.Stroke(
+                    width = stroke,
+                    cap = androidx.compose.ui.graphics.StrokeCap.Round,
+                ),
+            )
+        }
+        Column(horizontalAlignment = Alignment.CenterHorizontally) {
             Text(
-                text = message,
+                text = "$percentage%",
                 color = OnPrimary,
-                fontFamily = BricolageGrotesque,
-                fontWeight = FontWeight.SemiBold,
-                fontSize = 20.sp,
-                lineHeight = 24.sp,
+                fontFamily = JetBrainsMono,
+                fontWeight = FontWeight.Bold,
+                fontSize = 22.sp,
+            )
+            Text(
+                text = "TOTAL",
+                color = OnPrimary.copy(alpha = 0.70f),
+                fontFamily = DmSans,
+                fontSize = 9.sp,
             )
         }
     }

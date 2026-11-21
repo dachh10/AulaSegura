@@ -1102,6 +1102,9 @@ fun AulaSeguraNavHost(
             AdminDashboardScreen(
                 onNotificaciones = { navController.navigate(Routes.ADMIN_NOTIFICATIONS) },
                 onSolicitudes = { navController.navigate(Routes.ADMIN_TEACHER_REQUESTS) },
+                // T7 (Alumnos sin grupo) will own this route; until then the
+                // tile opens the roster of students.
+                onAlumnosSinGrupo = { navController.navigate(Routes.ADMIN_USERS) },
                 onEscanear = { navController.navigate(Routes.ADMIN_SCAN_STUDENT) },
                 onUsuarios = { navController.navigate(Routes.ADMIN_USERS) },
                 onGrupos = { navController.navigate(Routes.ADMIN_GROUPS) },

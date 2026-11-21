@@ -94,6 +94,9 @@ class AccessStateViewModel(
     private val _uiState = MutableStateFlow(AccessStateUiState())
     val uiState: StateFlow<AccessStateUiState> = _uiState.asStateFlow()
 
+    /** True when the tutor was already linked on entry (visiting the QR again). */
+    private val wasLinkedOnEntry: Boolean = auth.currentUser?.vinculacion == "vinculado"
+
     init {
         val current = auth.currentUser
         _uiState.update {
@@ -112,7 +115,7 @@ class AccessStateViewModel(
             auth.observeLinkingState().collect { link ->
                 _uiState.update { ui ->
                     val proceed = when (ui.role) {
-                        UserRole.TUTOR -> link.vinculacion == "vinculado"
+                        UserRole.TUTOR -> shouldAutoProceed(wasLinkedOnEntry, link.vinculacion)
                         UserRole.TEACHER ->
                             link.estado == "aprobado" || link.estado == "rechazado"
                         else -> ui.proceed
@@ -564,6 +567,14 @@ fun LinkChildScreen(
         )
     }
 }
+
+/**
+ * Auto-navigation is for the FIRST linking only: a pending tutor is taken home
+ * the moment the director approves. A tutor who was already linked came back to
+ * look at/refresh their QR (e.g. "+ Agregar hijo") and must stay on this screen.
+ */
+internal fun shouldAutoProceed(wasLinkedOnEntry: Boolean, vinculacion: String): Boolean =
+    !wasLinkedOnEntry && vinculacion == "vinculado"
 
 /** Resolves where to go once the current account is allowed in. */
 fun AccessStateUiState.nextRoute(): String = when (role) {

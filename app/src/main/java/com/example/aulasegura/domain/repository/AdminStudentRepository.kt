@@ -75,6 +75,21 @@ data class ApprovedStudentInput(
     val duplicateStudentId: String? = null,
 )
 
+/**
+ * Fields added to the tutor's `users/{uid}` on approval. `studentIds` and
+ * `groupIds` are the denormalised links the Firestore rules read to decide
+ * which groups' attendance, tasks and notices the tutor may see. Without them
+ * the student document is visible but every other screen is DENIED.
+ */
+fun tutorProfileOnApproval(
+    studentId: String,
+    groupId: String,
+): Map<String, Any> = buildMap {
+    put("studentIds", listOf(studentId))
+    if (groupId.isNotBlank()) put("groupIds", listOf(groupId))
+    put("vinculacion", "vinculado")
+}
+
 sealed interface ApproveStudentResult {
     data class Success(val studentId: String) : ApproveStudentResult
     data class Failure(val reason: AdminStudentError) : ApproveStudentResult

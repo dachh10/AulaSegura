@@ -13,6 +13,7 @@ import com.example.aulasegura.domain.repository.AdminStudentResult
 import com.example.aulasegura.domain.repository.ApproveStudentResult
 import com.example.aulasegura.domain.repository.ApprovedStudentInput
 import com.example.aulasegura.domain.repository.AuthRepository
+import com.example.aulasegura.domain.repository.tutorProfileOnApproval
 import com.example.aulasegura.domain.repository.CreateStudentResult
 import com.example.aulasegura.domain.repository.LinkingCodeResult
 import com.google.firebase.Timestamp
@@ -197,12 +198,14 @@ class FirestoreAdminStudentRepository(
                     ),
                 )
             }
+            val tutorUpdate = tutorProfileOnApproval(
+                studentId = input.duplicateStudentId ?: studentId,
+                groupId = input.groupId,
+            ).toMutableMap()
+            tutorUpdate["updatedAt"] = FieldValue.serverTimestamp()
             batch.update(
                 firestore.collection("users").document(input.tutorUid),
-                mapOf(
-                    "vinculacion" to "vinculado",
-                    "updatedAt" to FieldValue.serverTimestamp(),
-                ),
+                tutorUpdate,
             )
             batch.commit().await()
             ApproveStudentResult.Success(studentId)

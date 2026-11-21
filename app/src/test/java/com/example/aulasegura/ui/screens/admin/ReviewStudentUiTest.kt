@@ -1,5 +1,6 @@
 package com.example.aulasegura.ui.screens.admin
 
+import com.example.aulasegura.domain.repository.tutorProfileOnApproval
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
@@ -65,6 +66,27 @@ class ReviewStudentUiTest {
 
         assertEquals("stu-2a-01", plan.duplicateStudentId)
         assertFalse(plan.grupo.isBlank())
+    }
+
+    @Test
+    fun `approval links the student and group into the tutor profile`() {
+        val update = tutorProfileOnApproval(
+            studentId = "stu-qr-1",
+            groupId = "grp-3b",
+        )
+
+        assertEquals(listOf("stu-qr-1"), update["studentIds"])
+        assertEquals(listOf("grp-3b"), update["groupIds"])
+        assertEquals("vinculado", update["vinculacion"])
+    }
+
+    @Test
+    fun `a student with no group does not add a bogus group id`() {
+        val update = tutorProfileOnApproval(studentId = "stu-qr-1", groupId = "")
+
+        assertEquals(listOf("stu-qr-1"), update["studentIds"])
+        assertFalse(update.containsKey("groupIds"))
+        assertEquals("vinculado", update["vinculacion"])
     }
 
     @Test

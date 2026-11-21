@@ -33,6 +33,8 @@ import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
+import androidx.lifecycle.viewmodel.initializer
+import androidx.lifecycle.viewmodel.viewModelFactory
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.aulasegura.di.rememberAppContainer
 import com.example.aulasegura.location.evaluateGeofence
@@ -365,7 +367,19 @@ fun AulaSeguraNavHost(
                 else -> LinkChildMode.PENDING
             }
             val container = rememberAppContainer()
-            val vm: AccessStateViewModel = viewModel(factory = container.viewModelFactory)
+            // ADD mode is known here, before the ViewModel is constructed: the
+            // linking listener must not bounce a tutor who came to add a child.
+            val vm: AccessStateViewModel = viewModel(
+                factory = viewModelFactory {
+                    initializer {
+                        AccessStateViewModel(
+                            auth = container.authRepository,
+                            parents = container.parentRepository,
+                            addMode = mode == LinkChildMode.ADD,
+                        )
+                    }
+                },
+            )
             val ui by vm.uiState.collectAsState()
 
             LaunchedEffect(ui.proceed) {

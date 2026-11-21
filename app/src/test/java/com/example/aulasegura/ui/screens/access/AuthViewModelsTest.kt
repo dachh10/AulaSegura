@@ -518,6 +518,37 @@ class RegisterViewModelTest {
     }
 
     @Test
+    fun `an already linked tutor entering add mode stays on the screen`() = runTest(dispatcher) {
+        // The in-memory profile is stale right after the first approval; the
+        // authoritative Firestore snapshot already says "vinculado".
+        val state = MutableStateFlow(
+            LinkingState(vinculacion = "vinculado", hijoSolicitado = "Ana Pérez"),
+        )
+        val repo = FakeAuthRepository(linkingState = state)
+        repo.currentUser = user(UserRole.TUTOR)
+        val vm = AccessStateViewModel(repo)
+        advanceUntilIdle()
+
+        assertFalse(vm.uiState.value.proceed)
+    }
+
+    @Test
+    fun `add mode never auto-proceeds even if the link changes`() = runTest(dispatcher) {
+        val state = MutableStateFlow(
+            LinkingState(vinculacion = "pendiente", hijoSolicitado = "Ana Pérez"),
+        )
+        val repo = FakeAuthRepository(linkingState = state)
+        repo.currentUser = user(UserRole.TUTOR)
+        val vm = AccessStateViewModel(repo, addMode = true)
+        advanceUntilIdle()
+
+        state.value = LinkingState(vinculacion = "vinculado", hijoSolicitado = "Ana Pérez")
+        advanceUntilIdle()
+
+        assertFalse(vm.uiState.value.proceed)
+    }
+
+    @Test
     fun `a rejected name can be corrected and saved`() = runTest(dispatcher) {
         val state = MutableStateFlow(
             LinkingState(vinculacion = "rechazada", hijoSolicitado = "Ana Pérez"),

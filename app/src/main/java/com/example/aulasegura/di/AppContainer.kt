@@ -102,6 +102,7 @@ import com.example.aulasegura.ui.screens.admin.AdminGroupDetailViewModel
 import com.example.aulasegura.ui.screens.admin.AdminGroupsViewModel
 import com.example.aulasegura.ui.screens.admin.AdminIncidentsViewModel
 import com.example.aulasegura.ui.screens.admin.AdminNewStudentViewModel
+import com.example.aulasegura.ui.screens.admin.ReviewStudentViewModel
 import com.example.aulasegura.ui.screens.admin.AdminNotificationsViewModel
 import com.example.aulasegura.ui.screens.admin.AdminProfileViewModel
 import com.example.aulasegura.ui.screens.admin.AdminReportsViewModel
@@ -657,6 +658,15 @@ class AppViewModelFactory(
             students = container.adminStudentRepository,
             groups = container.adminGroupRepository,
             presetGroupId = presetGroupId,
+        )
+
+    /** The QR review carries the tutor uid and the child's name from the route. */
+    fun reviewStudentViewModel(uid: String, alumno: String): ReviewStudentViewModel =
+        ReviewStudentViewModel(
+            students = container.adminStudentRepository,
+            auth = container.authRepository,
+            tutorUid = uid,
+            alumno = alumno,
         )
 
     /**

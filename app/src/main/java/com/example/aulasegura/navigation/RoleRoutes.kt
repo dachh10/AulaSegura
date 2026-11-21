@@ -24,6 +24,6 @@ fun AppUser.destinationRoute(): String = when (role) {
     UserRole.TEACHER ->
         if (estado == "aprobado") Routes.TEACHER_HOME else Routes.ACCOUNT_REVIEW
     UserRole.TUTOR ->
-        if (vinculacion == "vinculado") Routes.PARENT_HOME else Routes.LINK_CHILD
+        if (vinculacion == "vinculado") Routes.PARENT_HOME else Routes.linkChildRoute("pending")
     UserRole.UNKNOWN -> Routes.LOGIN
 }

@@ -455,6 +455,7 @@ fun AccountReviewScreen(
 @Composable
 fun LinkChildScreen(
     uid: String = "",
+    mode: LinkChildMode = LinkChildMode.PENDING,
     childName: String,
     rejected: Boolean = false,
     isLoading: Boolean = false,
@@ -465,13 +466,22 @@ fun LinkChildScreen(
     onChildNameChange: (String) -> Unit = {},
     onSaveChildName: () -> Unit = {},
 ) {
-    var editingName by remember { mutableStateOf(false) }
-    val payload = remember(uid, childName) { ParentLinkQr.encode(uid, childName) }
-    val canShowQr = uid.isNotBlank() && childName.isNotBlank()
+    // ADD mode keeps the new child's name LOCAL: the QR carries it and no profile
+    // field is written (hijoSolicitado is not self-editable by the rules).
+    var localName by remember { mutableStateOf("") }
+    var localQrReady by remember { mutableStateOf(false) }
+    var editingName by remember { mutableStateOf(mode == LinkChildMode.ADD) }
+
+    val isAdd = mode == LinkChildMode.ADD
+    val shownName = if (isAdd) localName else childName
+    val showQr = if (isAdd) localQrReady && localName.isNotBlank() else childName.isNotBlank()
+    val payload = remember(uid, shownName) { ParentLinkQr.encode(uid, shownName) }
 
     AccessScaffold(
-        title = "Pendiente de vinculación",
-        subtitle = if (rejected) {
+        title = mode.title,
+        subtitle = if (isAdd) {
+            "Escribe el nombre del nuevo alumno y muestra el código a la directora."
+        } else if (rejected) {
             "La directora rechazó el nombre «$childName». Corrígelo y genera un código QR nuevo."
         } else {
             "Preséntate con la directora para vincular a $childName."
@@ -485,7 +495,7 @@ fun LinkChildScreen(
                 .padding(horizontal = 16.dp, vertical = 10.dp),
         ) {
             Text(
-                text = if (rejected) "Vinculación rechazada" else "Pendiente de vinculación",
+                text = if (isAdd) "Nuevo hijo" else if (rejected) "Vinculación rechazada" else "Pendiente de vinculación",
                 color = PrimaryContainer,
                 fontFamily = DmSans,
                 fontWeight = FontWeight.SemiBold,
@@ -493,7 +503,27 @@ fun LinkChildScreen(
             )
         }
         Spacer(Modifier.height(24.dp))
-        if (canShowQr) {
+
+        if (isAdd && !localQrReady) {
+            OutlinedTextField(
+                value = localName,
+                onValueChange = { localName = it },
+                label = { Text("Nombre completo del nuevo alumno") },
+                singleLine = true,
+                modifier = Modifier.fillMaxWidth(),
+            )
+            Spacer(Modifier.height(12.dp))
+            PillButton(
+                text = "Generar QR",
+                onClick = {
+                    if (localName.isNotBlank()) {
+                        localQrReady = true
+                        editingName = false
+                    }
+                },
+                containerColor = Primary,
+            )
+        } else if (showQr) {
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -506,57 +536,74 @@ fun LinkChildScreen(
             }
             Spacer(Modifier.height(12.dp))
             Text(
-                text = "Alumno: $childName",
+                text = "Alumno: $shownName",
                 color = Primary,
                 fontFamily = DmSans,
                 fontWeight = FontWeight.SemiBold,
                 fontSize = 16.sp,
             )
+            if (isAdd) {
+                Spacer(Modifier.height(12.dp))
+                Text(
+                    text = "Cambiar nombre",
+                    color = BrandCoral,
+                    fontFamily = DmSans,
+                    fontWeight = FontWeight.SemiBold,
+                    fontSize = 13.sp,
+                    modifier = Modifier.clickable { localQrReady = false },
+                )
+            }
         }
-        Spacer(Modifier.height(24.dp))
-        Text(text = "1. Preséntate con la directora", color = OnSurfaceVariant,
-            fontFamily = DmSans, fontSize = 14.sp)
-        Spacer(Modifier.height(8.dp))
-        Text(text = "2. Muestra este código QR", color = OnSurfaceVariant,
-            fontFamily = DmSans, fontSize = 14.sp)
-        Spacer(Modifier.height(8.dp))
-        Text(text = "3. Ella lo escaneará y vincularemos a tu hijo", color = OnSurfaceVariant,
-            fontFamily = DmSans, fontSize = 14.sp)
-        Spacer(Modifier.height(20.dp))
-        Text(
-            text = "Corregir nombre del alumno",
-            color = BrandCoral,
-            fontFamily = DmSans,
-            fontWeight = FontWeight.SemiBold,
-            fontSize = 13.sp,
-            modifier = Modifier.clickable { editingName = !editingName },
-        )
-        if (editingName) {
-            Spacer(Modifier.height(12.dp))
-            OutlinedTextField(
-                value = childName,
-                onValueChange = onChildNameChange,
-                label = { Text("Nombre completo de tu hijo") },
-                singleLine = true,
-                modifier = Modifier.fillMaxWidth(),
+
+        if (!isAdd) {
+            Spacer(Modifier.height(24.dp))
+            Text(text = "1. Preséntate con la directora", color = OnSurfaceVariant,
+                fontFamily = DmSans, fontSize = 14.sp)
+            Spacer(Modifier.height(8.dp))
+            Text(text = "2. Muestra este código QR", color = OnSurfaceVariant,
+                fontFamily = DmSans, fontSize = 14.sp)
+            Spacer(Modifier.height(8.dp))
+            Text(text = "3. Ella lo escaneará y vincularemos a tu hijo", color = OnSurfaceVariant,
+                fontFamily = DmSans, fontSize = 14.sp)
+            Spacer(Modifier.height(20.dp))
+            Text(
+                text = "Corregir nombre del alumno",
+                color = BrandCoral,
+                fontFamily = DmSans,
+                fontWeight = FontWeight.SemiBold,
+                fontSize = 13.sp,
+                modifier = Modifier.clickable { editingName = !editingName },
             )
-            Spacer(Modifier.height(12.dp))
-            PillButton(
-                text = if (isLoading) "Guardando." else "Guardar nombre",
-                onClick = { if (!isLoading) onSaveChildName() },
-            )
+            if (editingName) {
+                Spacer(Modifier.height(12.dp))
+                OutlinedTextField(
+                    value = childName,
+                    onValueChange = onChildNameChange,
+                    label = { Text("Nombre completo de tu hijo") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                Spacer(Modifier.height(12.dp))
+                PillButton(
+                    text = if (isLoading) "Guardando." else "Guardar nombre",
+                    onClick = { if (!isLoading) onSaveChildName() },
+                )
+            }
         }
+
         if (message != null) {
             Spacer(Modifier.height(12.dp))
             Text(text = message, color = Error, fontFamily = DmSans, fontSize = 13.sp)
         }
-        Spacer(Modifier.height(24.dp))
-        PillButton(
-            text = if (isLoading) "Actualizando…" else "Ya fui vinculado",
-            onClick = { if (!isLoading) onRefresh() },
-            containerColor = SecondaryContainer,
-            contentColor = SurfaceContainerLowest,
-        )
+        if (!isAdd) {
+            Spacer(Modifier.height(24.dp))
+            PillButton(
+                text = if (isLoading) "Actualizando." else "Ya fui vinculado",
+                onClick = { if (!isLoading) onRefresh() },
+                containerColor = SecondaryContainer,
+                contentColor = SurfaceContainerLowest,
+            )
+        }
         Spacer(Modifier.height(24.dp))
         Text(
             text = "Cerrar sesión",

@@ -49,6 +49,7 @@ import com.example.aulasegura.ui.screens.access.AccessStateViewModel
 import com.example.aulasegura.ui.screens.access.AccountReviewScreen
 import com.example.aulasegura.ui.screens.access.ForgotPasswordScreen
 import com.example.aulasegura.ui.screens.access.LinkChildScreen
+import com.example.aulasegura.ui.screens.access.LinkChildMode
 import com.example.aulasegura.ui.screens.access.LoginScreen
 import com.example.aulasegura.ui.screens.access.LoginViewModel
 import com.example.aulasegura.ui.screens.access.OnboardingScreen
@@ -355,7 +356,14 @@ fun AulaSeguraNavHost(
                 },
             )
         }
-        composable(Routes.LINK_CHILD) {
+        composable(
+            route = Routes.LINK_CHILD,
+            arguments = listOf(navArgument("mode") { type = NavType.StringType }),
+        ) { entry ->
+            val mode = when (entry.arguments?.getString("mode")) {
+                "add" -> LinkChildMode.ADD
+                else -> LinkChildMode.PENDING
+            }
             val container = rememberAppContainer()
             val vm: AccessStateViewModel = viewModel(factory = container.viewModelFactory)
             val ui by vm.uiState.collectAsState()
@@ -370,6 +378,7 @@ fun AulaSeguraNavHost(
 
             LinkChildScreen(
                 uid = ui.uid,
+                mode = mode,
                 childName = ui.childName,
                 rejected = ui.vinculacion == "rechazada",
                 isLoading = ui.isLoading,
@@ -381,7 +390,7 @@ fun AulaSeguraNavHost(
                 onSignOut = {
                     sessionViewModel.signOut()
                     navController.navigate(Routes.LOGIN) {
-                        popUpTo(Routes.LINK_CHILD) { inclusive = true }
+                        popUpTo(0) { inclusive = true }
                     }
                 },
             )
@@ -441,7 +450,7 @@ fun AulaSeguraNavHost(
                 onQuickAsistente = { navController.navigate(Routes.PARENT_AI) },
                 onVerTareas = { navController.navigate(Routes.PARENT_TASKS) },
                 onSelectChild = homeViewModel::select,
-                onAddChild = { navController.navigate(Routes.LINK_CHILD) },
+                onAddChild = { navController.navigate(Routes.linkChildRoute("add")) },
                 onSelectTab = { navController.openParentTab(it) },
             )
         }

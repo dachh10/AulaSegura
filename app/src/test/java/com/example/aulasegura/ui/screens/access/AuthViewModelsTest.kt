@@ -315,7 +315,7 @@ class SessionViewModelTest {
 
             val state = viewModel.state.value as SessionState.SignedIn
             assertEquals(tutor, state.user)
-            assertEquals(Routes.LINK_CHILD, state.user.destinationRoute())
+            assertEquals(Routes.linkChildRoute("pending"), state.user.destinationRoute())
         }
 
     @Test

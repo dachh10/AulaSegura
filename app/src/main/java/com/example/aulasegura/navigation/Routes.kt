@@ -15,7 +15,9 @@ object Routes {
     const val CHECK_EMAIL = "check_email"
     const val VERIFY_EMAIL = "verify_email"
     const val ACCOUNT_REVIEW = "account_review"
-    const val LINK_CHILD = "link_child"
+    const val LINK_CHILD = "link_child?mode={mode}"
+
+fun linkChildRoute(mode: String): String = "link_child?mode=$mode"
     const val PERMISSIONS = "permissions"
 
     // ---- Parent / tutor ----

@@ -51,6 +51,9 @@ interface AuthRepository {
     suspend fun registerAccount(input: AccountRegistrationInput): AccountRegistrationResult =
         AccountRegistrationResult.Failed
 
+    /** Canonical subject ids already taken in a group, to warn before submitting. */
+    suspend fun takenSubjects(groupId: String): Set<String> = emptySet()
+
     /** `true` when the current Auth user has confirmed their email. */
     suspend fun isEmailVerified(): Boolean = true
 

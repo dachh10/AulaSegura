@@ -126,6 +126,8 @@ Cada work unit lleva sus tests en el mismo commit y se verifica con `testDebugUn
 5. **Perfil y sesión:** iniciar y cerrar sesión con tutor, docente y directora; verificar que cada uno cae en su pantalla y que el docente pendiente sigue en «Cuenta en revisión».
 6. **Aún no se puede probar:** el QR, el escáner, la aprobación por QR, el segundo tutor y la asignación en lote llegan con 4.2-4.7.
 
+**Evidencia observada (21 nov 2026, dispositivo):** Run desde `main` con T1 mergeada. Cold start sin `FATAL EXCEPTION` ni `IllegalStateException` de Room; `FirebaseApp initialization successful`; login de la directora exitoso (notificación de token de FirebaseAuth y FCM token recibido); `WM-WorkerWrapper: Worker result SUCCESS` para `SyncWorker`. No aparece `PERMISSION_DENIED` de Firestore. Los mensajes `E` del log corresponden al sistema OEM (Oplus/Play Services), no a la app. Queda pendiente confirmar en pantalla que el panel carga datos bajo las reglas nuevas -el log no prueba lecturas de Firestore- y ejecutar la migración 4→5 con una base v4 real cuando vuelva a haber datos.
+
 ---
 
 ## 8. Riesgos y cosas que quedan fuera

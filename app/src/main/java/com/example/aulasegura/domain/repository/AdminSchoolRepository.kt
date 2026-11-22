@@ -7,9 +7,8 @@ import com.example.aulasegura.domain.model.AdminSchool
  * One-shot read and whitelisted write of the signed-in principal's school.
  *
  * The write path is deliberately narrow: only the campus fields may change. The
- * repository never creates or deletes the school document, and never sends
- * `key`, `createdAt`, `name`, `cycle` or `address` — the first two are immutable
- * under the deployed rule, the rest are not part of this form.
+ * repository creates the document on first save when it does not exist yet, and
+ * never deletes it. `key` and `createdAt` are immutable under the deployed rule.
  */
 interface AdminSchoolRepository {
     suspend fun getSchool(): AdminSchoolResult<AdminSchool>

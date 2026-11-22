@@ -161,11 +161,40 @@ fun AdminProfileScreen(
             }
     }
 
+    var showPhotoOptions by remember { mutableStateOf(false) }
+    val galleryLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.GetContent(),
+    ) { uri -> if (uri != null) viewModel.changePhoto(uri) }
+
     val isUploading = ui.upload.phase in setOf(
         AdminPhotoUploadPhase.COMPRESSING,
         AdminPhotoUploadPhase.UPLOADING,
         AdminPhotoUploadPhase.SAVING,
     )
+
+    if (showPhotoOptions) {
+        AlertDialog(
+            onDismissRequest = { showPhotoOptions = false },
+            title = { Text("Cambiar foto") },
+            text = { Text("Elige una foto reciente o toma una ahora.") },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        showPhotoOptions = false
+                        capturePhoto()
+                    },
+                ) { Text("Tomar foto") }
+            },
+            dismissButton = {
+                TextButton(
+                    onClick = {
+                        showPhotoOptions = false
+                        galleryLauncher.launch("image/*")
+                    },
+                ) { Text("Elegir de la galería") }
+            },
+        )
+    }
 
     Box(
         modifier = Modifier
@@ -232,7 +261,7 @@ fun AdminProfileScreen(
                             )
                             showEditProfile = true
                         },
-                        onChangePhoto = ::capturePhoto,
+                        onChangePhoto = { showPhotoOptions = true },
                         onChangePhotoEnabled = !isUploading,
                         onChangePassword = {
                             passwordForm = AdminChangePasswordForm()

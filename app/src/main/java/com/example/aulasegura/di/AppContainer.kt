@@ -728,7 +728,11 @@ class AppViewModelFactory(
             LoginViewModel(container.authRepository)
 
         modelClass.isAssignableFrom(RegisterViewModel::class.java) ->
-            RegisterViewModel(container.authRepository)
+            RegisterViewModel(
+                auth = container.authRepository,
+                compressor = container.imageCompressor,
+                uploader = container.cloudinaryUploader,
+            )
 
         modelClass.isAssignableFrom(AccessStateViewModel::class.java) ->
             AccessStateViewModel(container.authRepository, container.parentRepository)
@@ -880,6 +884,7 @@ class AppViewModelFactory(
                 users = container.adminUserRepository,
                 students = container.adminStudentRepository,
                 schools = container.adminSchoolRepository,
+                auth = container.authRepository,
             )
 
         modelClass.isAssignableFrom(AdminReportsViewModel::class.java) ->

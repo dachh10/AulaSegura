@@ -13,6 +13,8 @@ import com.example.aulasegura.domain.repository.AdminDashboardError
  * dashboard shows the numbers it was given, never a design-time constant.
  */
 data class AdminDashboardUiState(
+    val photoUrl: String? = null,
+    val fullName: String = "",
     val schoolName: String = "",
     val pendingTeachers: Int = 0,
     val ungroupedStudents: Int = 0,

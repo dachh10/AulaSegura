@@ -99,8 +99,8 @@ fun ReviewStudentScreen(
             Text(text = "UID: $uid", fontFamily = DmSans, fontSize = 13.sp)
             Spacer(Modifier.height(4.dp))
             Text(
-                text = "Correo verificado",
-                color = Primary,
+                text = "Tutor del alumno",
+                color = OnSurfaceVariant,
                 fontFamily = DmSans,
                 fontSize = 12.sp,
             )

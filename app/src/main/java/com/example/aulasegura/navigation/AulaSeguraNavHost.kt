@@ -839,8 +839,8 @@ fun AulaSeguraNavHost(
                 ui = detail,
                 onBack = { navController.popBackStack() },
                 onPasarLista = { navController.navigate(Routes.teacherRollCall(groupId)) },
-                onNuevaTarea = { navController.navigate(Routes.TEACHER_TASK_NEW) },
-                onNuevoAviso = { navController.navigate(Routes.TEACHER_NOTICE_NEW) },
+                onNuevaTarea = { navController.navigate(Routes.teacherTaskNewRoute(groupId)) },
+                onNuevoAviso = { navController.navigate(Routes.teacherNoticeNewRoute(groupId)) },
                 // El formulario elige el alumno y de ahí sale el grupo: no hay
                 // ruta con grupo fijo, así que se abre el mismo formulario real.
                 onRegistrarIncidente = { navController.navigate(Routes.TEACHER_INCIDENT_NEW) },
@@ -991,10 +991,23 @@ fun AulaSeguraNavHost(
                 onRemoveEvidence = incidentViewModel::removeEvidence,
             )
         }
-        composable(Routes.TEACHER_TASK_NEW) {
+        composable(
+            route = Routes.TEACHER_TASK_NEW,
+            arguments = listOf(
+                navArgument("groupId") {
+                    type = NavType.StringType
+                    nullable = true
+                    defaultValue = null
+                },
+            ),
+        ) { entry ->
             val container = rememberAppContainer()
             val taskViewModel: TeacherTaskNewViewModel =
                 viewModel(factory = container.viewModelFactory)
+            val initialGroupId = entry.arguments?.getString("groupId")
+            LaunchedEffect(initialGroupId) {
+                if (!initialGroupId.isNullOrBlank()) taskViewModel.preselectGroup(initialGroupId)
+            }
             val taskUi by taskViewModel.state.collectAsState()
             TeacherTaskNewScreen(
                 ui = taskUi,
@@ -1010,10 +1023,23 @@ fun AulaSeguraNavHost(
                 onPublish = taskViewModel::publish,
             )
         }
-        composable(Routes.TEACHER_NOTICE_NEW) {
+        composable(
+            route = Routes.TEACHER_NOTICE_NEW,
+            arguments = listOf(
+                navArgument("groupId") {
+                    type = NavType.StringType
+                    nullable = true
+                    defaultValue = null
+                },
+            ),
+        ) { entry ->
             val container = rememberAppContainer()
             val noticeViewModel: TeacherNoticeNewViewModel =
                 viewModel(factory = container.viewModelFactory)
+            val initialGroupId = entry.arguments?.getString("groupId")
+            LaunchedEffect(initialGroupId) {
+                if (!initialGroupId.isNullOrBlank()) noticeViewModel.preselectGroup(initialGroupId)
+            }
             val noticeUi by noticeViewModel.state.collectAsState()
             TeacherNoticeNewScreen(
                 ui = noticeUi,

@@ -1,15 +1,20 @@
 package com.example.aulasegura.sync
 
 import com.example.aulasegura.data.local.dao.StudentDao
+import com.example.aulasegura.data.remote.approvedGroupDocument
 import com.example.aulasegura.data.remote.tutorApprovalFirestoreUpdate
 import com.example.aulasegura.data.local.entity.OutboxEntity
 import com.example.aulasegura.data.local.entity.SyncState
 import com.example.aulasegura.domain.repository.approvedStudentDocument
 import com.example.aulasegura.domain.repository.tutorProfileOnApproval
+import com.example.aulasegura.domain.repository.nextListNumberFrom
+import com.example.aulasegura.domain.repository.resolveApprovedGroup
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.FirebaseFirestoreException
 import com.google.firebase.firestore.FieldValue
+import com.google.firebase.firestore.SetOptions
 import com.google.firebase.firestore.Source
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.tasks.await
 
 /**
@@ -31,13 +36,31 @@ class StudentApprovalSyncHandler(
         mark(studentId, SyncState.SYNCING)
 
         val input = approval.toInput()
+        // The replay must produce the same classroom as the online approval:
+        // canonical group fields, next free roster number and studentCount.
+        val approvedGroup = resolveApprovedGroup(input)
         val document = approvedStudentDocument(input, approval.schoolId).toMutableMap().apply {
             put("createdAt", FieldValue.serverTimestamp())
             put("updatedAt", FieldValue.serverTimestamp())
+            if (approvedGroup != null) {
+                put("groupId", approvedGroup.groupId)
+                put("grupo", approvedGroup.name)
+                put("grado", approvedGroup.grade.toString())
+                val used = studentDao.observeByGroup(approvedGroup.groupId).first()
+                    .map { it.listNumber }
+                put("listNumber", nextListNumberFrom(used) ?: 1)
+            }
         }
 
         return try {
             val batch = firestore.batch()
+            if (approvedGroup != null) {
+                batch.set(
+                    firestore.collection("groups").document(approvedGroup.groupId),
+                    approvedGroupDocument(approvedGroup, approval.schoolId),
+                    SetOptions.merge(),
+                )
+            }
             if (approval.duplicateStudentId.isNullOrBlank()) {
                 batch.set(firestore.collection(COLLECTION).document(studentId), document)
             } else {

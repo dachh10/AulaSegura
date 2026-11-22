@@ -60,7 +60,7 @@ class ParentIncidentsViewModel(
                     if (children.isEmpty()) {
                         _state.value = ParentIncidentsUiState.NoChildren
                     } else {
-                        selected = indexForSelection(selection.selectedId.value, children.map { it.studentId })
+                        selected = indexForSelection(selection.ensureValid(currentUid().orEmpty(), children.map { it.studentId }), children.map { it.studentId })
                         loadIncidents()
                     }
                 }

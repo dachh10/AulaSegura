@@ -42,6 +42,15 @@ class TeacherAssignmentTest {
     }
 
     @Test
+    fun `the subject is resolved for the group grade`() {
+        val subjects = listOf("Matemáticas III", "Historia Universal")
+
+        assertEquals("Matemáticas III", subjectForGroup(subjects, 3))
+        assertEquals("Historia Universal", subjectForGroup(subjects, 6))
+        assertNull(subjectForGroup(emptyList(), 3))
+    }
+
+    @Test
     fun `a group label never degrades to a raw id`() {
         assertEquals("3° B", displayGroupLabel("grp-3b", null))
         assertEquals("3° B", displayGroupLabel("grp-3b", "   "))

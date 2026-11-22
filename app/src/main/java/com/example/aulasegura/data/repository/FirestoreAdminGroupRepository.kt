@@ -1,6 +1,7 @@
 package com.example.aulasegura.data.repository
 
 import com.example.aulasegura.domain.model.AdminGroup
+import com.example.aulasegura.domain.model.subjectsForGrade
 import com.example.aulasegura.domain.model.AdminScheduleSlot
 import com.example.aulasegura.domain.repository.AdminGroupError
 import com.example.aulasegura.domain.repository.AdminGroupFields
@@ -230,24 +231,46 @@ class FirestoreAdminGroupRepository(
             val link = if (assign) FieldValue.arrayUnion(teacherUid) else FieldValue.arrayRemove(teacherUid)
             val reverse = if (assign) FieldValue.arrayUnion(groupId) else FieldValue.arrayRemove(groupId)
 
+            // A manual assignment must leave the same two-sided links as the
+            // approval flow: the teacher's subject for this group's grade and a
+            // subjectTeachers slot that no other teacher can take.
+            val groupSnapshot = withTimeout(WRITE_TIMEOUT_MILLIS) { groupRef.get().await() }
+            val grade = groupSnapshot.getLong(AdminGroupFields.GRADE)?.toInt()
+            @Suppress("UNCHECKED_CAST")
+            val subjectTeachers = (groupSnapshot.get("subjectTeachers") as? Map<String, Any?>)
+                ?.mapNotNull { (key, value) -> (value as? String)?.let { key to it } }
+                ?.toMap() ?: emptyMap()
+            val freeSubject = if (assign && grade != null) {
+                subjectsForGrade(grade).firstOrNull { it.id !in subjectTeachers }
+            } else null
+            val ownedSubject = if (!assign) {
+                subjectTeachers.entries.firstOrNull { it.value == teacherUid }?.key
+            } else null
+
+            val groupPayload = mutableMapOf<String, Any>(
+                AdminGroupFields.TEACHER_IDS to link,
+                AdminGroupFields.UPDATED_AT to FieldValue.serverTimestamp(),
+            )
+            if (freeSubject != null) {
+                groupPayload["subjectTeachers.${freeSubject.id}"] = teacherUid
+            }
+            if (ownedSubject != null) {
+                groupPayload["subjectTeachers.$ownedSubject"] = FieldValue.delete()
+            }
+            val userPayload = mutableMapOf<String, Any>(
+                AdminUserFields.GROUP_IDS to reverse,
+                AdminUserFields.UPDATED_AT to FieldValue.serverTimestamp(),
+            )
+            if (freeSubject != null) {
+                userPayload[AdminUserFields.SUBJECTS] = listOf(freeSubject.label)
+            }
+
             val batch = firestore.batch()
             // Both sides commit atomically: there is no observable state in which
             // only one side has changed. No titular is written: a group can have
             // several teachers and no single one is singled out.
-            batch.update(
-                groupRef,
-                mapOf(
-                    AdminGroupFields.TEACHER_IDS to link,
-                    AdminGroupFields.UPDATED_AT to FieldValue.serverTimestamp(),
-                ),
-            )
-            batch.update(
-                userRef,
-                mapOf(
-                    AdminUserFields.GROUP_IDS to reverse,
-                    AdminUserFields.UPDATED_AT to FieldValue.serverTimestamp(),
-                ),
-            )
+            batch.update(groupRef, groupPayload)
+            batch.update(userRef, userPayload)
 
             withTimeout(WRITE_TIMEOUT_MILLIS) { batch.commit().await() }
             AdminGroupResult.Success

@@ -6,6 +6,7 @@ import com.example.aulasegura.data.local.entity.AttendanceSessionEntity
 import com.example.aulasegura.data.mapper.AttendanceSyncMapper.withCountsFrom
 import com.example.aulasegura.data.mapper.toRollCallSync
 import com.example.aulasegura.domain.model.AttendanceMark
+import com.example.aulasegura.domain.model.subjectForGroup
 import com.example.aulasegura.domain.model.RollCallDraft
 import com.example.aulasegura.domain.model.RollCallEntry
 import com.example.aulasegura.domain.model.RollCallSync
@@ -59,7 +60,7 @@ class RoomAttendanceRepository(
                 // The profile carries the subjects the teacher declared; an empty
                 // list stays an empty string rather than an invented label in
                 // Firestore. The screen prints "Sin materia asignada" for it.
-                subject = teacher.subjects.firstOrNull().orEmpty(),
+                subject = subjectForGroup(teacher.subjects, group.grade).orEmpty(),
                 date = AttendanceTimes.isoDate(now),
                 startedAt = now,
             ),

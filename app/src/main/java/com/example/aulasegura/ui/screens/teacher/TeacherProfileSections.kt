@@ -152,13 +152,11 @@ private fun EditableFieldsCard(
                 icon = Icons.Filled.AccountCircle,
                 imeAction = ImeAction.Next,
             )
-            StitchField(
-                label = "Materias",
+            // The school assigns the subject at approval time; showing it as an
+            // editable free-text field let a teacher overwrite it with anything.
+            LockedField(
+                label = "Materias (asignadas por la escuela)",
                 value = ui.editSubjects,
-                onChange = onSubjectsChange,
-                icon = Icons.Filled.Person,
-                placeholder = "Ej. Matemáticas, Ciencias",
-                imeAction = ImeAction.Done,
             )
             LockedField(label = "Correo electrónico", value = ui.email)
         }

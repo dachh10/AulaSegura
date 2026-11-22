@@ -120,6 +120,15 @@ fun subjectIdFromLabel(value: String, grade: Int? = null): String? {
     }?.id
 }
 
+/**
+ * The subject a teacher teaches in a specific group. A teacher can be linked to
+ * more than one classroom, so using `subjects.firstOrNull()` everywhere shows the
+ * first grade's subject on a group of a different grade.
+ */
+fun subjectForGroup(subjects: List<String>, grade: Int): String? =
+    subjects.firstNotNullOfOrNull { label -> subjectIdFromLabel(label, grade) }
+        ?.let { subjectById(it)?.label }
+
 /** Whether a teacher may take a subject slot in a group. */
 enum class SubjectAvailability { FREE, TAKEN_BY_OTHER, INVALID }
 

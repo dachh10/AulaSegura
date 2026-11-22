@@ -3,6 +3,7 @@ package com.example.aulasegura.ui.screens.teacher
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.aulasegura.domain.model.AttendanceSessionSummary
+import com.example.aulasegura.domain.model.subjectForGroup
 import com.example.aulasegura.domain.model.Group
 import com.example.aulasegura.domain.model.IncidentSummary
 import com.example.aulasegura.domain.model.Student
@@ -60,7 +61,7 @@ class TeacherGroupDetailViewModel(
     private val scheduleState = MutableStateFlow<ScheduleLoadResult?>(null)
 
     /** Same source as the group cards: the subject is a property of the teacher. */
-    private val subject: String? = auth.currentUser?.subjects?.firstOrNull()
+    private val subjects: List<String> = auth.currentUser?.subjects.orEmpty()
 
     @OptIn(ExperimentalCoroutinesApi::class)
     private val roster = groupId.flatMapLatest { id ->
@@ -130,7 +131,7 @@ class TeacherGroupDetailViewModel(
         TeacherGroupDetailUi(
             groupId = id,
             label = basis.group?.label ?: id,
-            subject = subject ?: NO_SUBJECT,
+            subject = subjectForGroup(subjects, basis.group?.grade ?: 0) ?: NO_SUBJECT,
             slotLabel = (basis.schedule as? ScheduleLoadResult.Loaded)?.let { loaded ->
                 groupSlotLabel(
                     slots = loaded.slots,

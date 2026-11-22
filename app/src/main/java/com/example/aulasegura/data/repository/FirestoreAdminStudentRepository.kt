@@ -1,5 +1,6 @@
 package com.example.aulasegura.data.repository
 
+import com.example.aulasegura.data.remote.approvedGroupDocument
 import com.example.aulasegura.data.remote.tutorApprovalFirestoreUpdate
 import com.example.aulasegura.domain.model.AdminStudent
 import com.example.aulasegura.domain.model.groupIdFor
@@ -21,6 +22,8 @@ import com.example.aulasegura.domain.repository.ApproveStudentResult
 import com.example.aulasegura.domain.repository.ApprovedStudentInput
 import com.example.aulasegura.domain.repository.AuthRepository
 import com.example.aulasegura.domain.repository.approvedStudentDocument
+import com.example.aulasegura.domain.repository.nextListNumberFrom
+import com.example.aulasegura.domain.repository.resolveApprovedGroup
 import com.example.aulasegura.domain.repository.tutorProfileOnApproval
 import com.example.aulasegura.domain.repository.CreateStudentResult
 import com.example.aulasegura.domain.repository.LinkingCodeResult
@@ -175,36 +178,30 @@ class FirestoreAdminStudentRepository(
             // the canonical group on demand with a deterministic id. Same classroom
             // always maps to the same document, so it shows up in GRUPOS and a
             // second approval to that classroom only increments its studentCount.
-            val gradeNumber = input.grado.toIntOrNull()
-            val section = input.grupo.trim().uppercase()
-            val hasGroup = gradeNumber != null && gradeNumber in 1..6 &&
-                section in listOf("A", "B", "C", "D")
-            val resolvedGroupId = if (hasGroup) groupIdFor(gradeNumber, section) else input.groupId
-            if (hasGroup) {
+            // One canonicalisation helper feeds both the online and the offline
+            // replay, so an approval always produces the same classroom document.
+            val approvedGroup = resolveApprovedGroup(input)
+            val resolvedGroupId = approvedGroup?.groupId ?: input.groupId
+            if (approvedGroup != null) {
                 val groupRef = firestore.collection(AdminStudentFields.GROUP_COLLECTION)
-                    .document(resolvedGroupId)
-                val groupDoc = AdminGroupFields.newGroupDocument(
-                    name = groupNameFor(gradeNumber, section),
-                    grade = gradeNumber,
-                    section = section,
-                    schoolId = schoolId,
-                ).toMutableMap().apply {
-                    // Single write per document: increment lives inside set(merge)
-                    // so the counter accumulates instead of resetting to 1.
-                    put(AdminGroupFields.STUDENT_COUNT, FieldValue.increment(1L))
-                    put(AdminGroupFields.UPDATED_AT, FieldValue.serverTimestamp())
-                }
-                batch.set(groupRef, groupDoc, com.google.firebase.firestore.SetOptions.merge())
+                    .document(approvedGroup.groupId)
+                batch.set(
+                    groupRef,
+                    approvedGroupDocument(approvedGroup, schoolId),
+                    com.google.firebase.firestore.SetOptions.merge(),
+                )
             }
             // Keep the student document's group fields canonical and give them
             // the next free roster number, so the number is assigned as students
             // are approved rather than left at 0.
-            if (hasGroup) {
-                document[AdminStudentFields.GROUP_ID] = resolvedGroupId
-                document[AdminStudentFields.GRUPO] = groupNameFor(gradeNumber, section)
-                document[AdminStudentFields.GRADO] = gradeNumber.toString()
-                val roster = getStudents().filter { it.groupId == resolvedGroupId }
-                document[AdminStudentFields.LIST_NUMBER] = nextListNumber(roster) ?: 1
+            if (approvedGroup != null) {
+                document[AdminStudentFields.GROUP_ID] = approvedGroup.groupId
+                document[AdminStudentFields.GRUPO] = approvedGroup.name
+                document[AdminStudentFields.GRADO] = approvedGroup.grade.toString()
+                val used = getStudents()
+                    .filter { it.groupId == approvedGroup.groupId }
+                    .map { it.listNumber }
+                document[AdminStudentFields.LIST_NUMBER] = nextListNumberFrom(used) ?: 1
             }
             if (input.duplicateStudentId.isNullOrBlank()) {
                 batch.set(

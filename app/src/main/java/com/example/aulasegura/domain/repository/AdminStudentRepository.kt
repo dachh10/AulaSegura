@@ -1,6 +1,10 @@
 package com.example.aulasegura.domain.repository
 
 import com.example.aulasegura.domain.model.AdminStudent
+import com.example.aulasegura.domain.model.MAX_ROSTER_SIZE
+import com.example.aulasegura.domain.model.SchoolCatalog
+import com.example.aulasegura.domain.model.groupIdFor
+import com.example.aulasegura.domain.model.groupNameFor
 
 /**
  * The principal's students: one-shot reads plus the writes this block owns.
@@ -138,6 +142,32 @@ fun approvedStudentDocument(
 sealed interface ApproveStudentResult {
     data class Success(val studentId: String) : ApproveStudentResult
     data class Failure(val reason: AdminStudentError) : ApproveStudentResult
+}
+
+/** Canonical classroom of a QR approval, shared by the online and offline paths. */
+data class ApprovedGroup(
+    val grade: Int,
+    val section: String,
+    val groupId: String,
+    val name: String,
+)
+
+fun resolveApprovedGroup(input: ApprovedStudentInput): ApprovedGroup? {
+    val grade = input.grado.toIntOrNull() ?: return null
+    val section = input.grupo.trim().uppercase()
+    if (grade !in SchoolCatalog.GRADES || section !in SchoolCatalog.SECTIONS) return null
+    return ApprovedGroup(
+        grade = grade,
+        section = section,
+        groupId = groupIdFor(grade, section),
+        name = groupNameFor(grade, section),
+    )
+}
+
+/** Next free roster number from the numbers already used in a group. */
+fun nextListNumberFrom(values: List<Int>): Int? {
+    val next = (values.maxOrNull() ?: 0) + 1
+    return next.takeIf { it <= MAX_ROSTER_SIZE }
 }
 
 /** Result of a create, carrying the id needed for the linking code. */

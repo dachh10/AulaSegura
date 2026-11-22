@@ -57,7 +57,7 @@ Los IDs siguen la lista acordada en el logbook. El orden de ejecución se define
 | **4.6 (T6)** | Panel del director: tarjetas, FAB y navegación con badges | `AdminDashboardScreen` | - | ✅ **hecho según pedido del dueño** - dos cards de acción (Solicitudes con contador, Alumnos sin grupo) y hero con círculo de asistencia + leyenda - `c7bc139`; tabs se mantienen (decisión del dueño) (merge `91eb762`; cards parejas `c299cd3`/merge `714b422`) |
 | **4.7 (T7)** | Alumnos sin grupo: busqueda, seleccion y asignacion en lote | `UngroupedStudentsScreen` | `students` | OK mergeado en `3f8ff74` y verificado en dispositivo (asignacion, contador y numeros de lista) |
 | **4.8 (T8)** | Inicio del tutor: + Agregar hijo, grupo por asignar, sin datos | `ParentHomeScreen` | `students` | OK rama `3b457a5`; merge pendiente |
-| **4.9 (T9)** | Reglas completas: `email_verified`, director-only, lectura por tutor/grupo | sin pantalla | `docs/firestore.rules` | ⚠️ parcial |
+| **4.9 (T9)** | Reglas completas: `email_verified`, director-only, lectura por tutor/grupo. **Requisito: un docente no aprobado (`estado != "aprobado"`) no puede entrar al módulo docente** | sin pantalla | `docs/firestore.rules` | ✅ **completo y desplegado en `aulasegu`** - reglas `email_verified` (`018a9aa`), director-only (`322-326`) y lectura por tutor/grupo (`myGroups`, `tutorOfStudent`); `docs/firestore.rules` con la rama de intención del docente desplegada. Nota: el bloqueo del docente no aprobado hoy se cumple en la navegación (`RoleRoutes.kt`), no en las reglas de Firestore; queda registrado como refuerzo de seguridad pendiente, no como parte abierta de 4.9 |
 | **4.10 (T10)** | Tests JVM por regla y flujo, build verde, prueba en dispositivo | todas | Gradle + device | ⬜ pendiente |
 
 Ya entregado antes de esta fase: login sin selección de rol y redirección por estado, Registro Tutor/Docente, Verificar correo, Cuenta en revisión/rechazada, pantalla de vinculación como placeholder, chips de hijos y reglas de autocreación.
@@ -121,7 +121,7 @@ Cada work unit lleva sus tests en el mismo commit y se verifica con `testDebugUn
 1. **Instalar la build:** `adb devices` y luego
    `adb -s <device> install -r app\build\outputs\apk\debug\app-debug.apk`.
 2. **Base limpia:** la base se borró y quedó sólo la cuenta de la directora en `users`, así que ya no hay alumnos/asistencia con los que probar la migración 4→5 con datos viejos. Instalar desde cero, iniciar con la directora y confirmar que la app abre sin `IllegalStateException` (`adb logcat | findstr /i "room migration"`). La migración con datos reales queda cubierta por el esquema exportado y los tests JVM; cuando vuelvan a existir alumnos, repetir la comprobación de roster/outbox.
-3. **Reglas:** ya están desplegadas en `aulasegu` (§7.1). Confirmá en Firebase Console → Firestore → Rules que la regla de `students` incluye `tutores` y que el alta individual de la directora sigue funcionando. Las reglas completas (4.9, `email_verified`) todavía no están.
+3. **Reglas:** ya están desplegadas en `aulasegu` (§7.1), incluidas las completas (4.9: `email_verified`, director-only, lectura por tutor/grupo y la rama de intención del docente). Confirmá en Firebase Console → Firestore → Rules que la regla de `students` incluye `tutores` y que el alta individual de la directora sigue funcionando. Para reforzar: verificar que un docente con `estado != "aprobado"` no entra al módulo docente; hoy eso lo garantiza la navegación, no las reglas.
 4. **Flujo existente (regresión):** con la cuenta de directora, crear un alumno por el alta individual de siempre; verificar que el docente lo ve en su grupo y que el tutor sigue viendo a su hijo en el inicio. Esto prueba que el doble vocabulario no rompió Fase 2/3.
 5. **Perfil y sesión:** iniciar y cerrar sesión con tutor, docente y directora; verificar que cada uno cae en su pantalla y que el docente pendiente sigue en «Cuenta en revisión».
 6. **Aún no se puede probar:** el QR, el escáner, la aprobación por QR, el segundo tutor y la asignación en lote llegan con 4.2-4.7.
@@ -169,13 +169,13 @@ Cada work unit lleva sus tests en el mismo commit y se verifica con `testDebugUn
 - [x] 4.6 - panel del director con contadores (dos cards de acción y hero con círculo de asistencia, según pedido del dueño; tabs se mantienen).
 - [x] 4.7 - asignacion de grupo en lote (verificado en dispositivo: asignacion, studentCount y numeros de lista).
 - [ ] 4.8 - inicio del tutor con «Agregar hijo» y estado sin grupo.
-- [ ] 4.9 - reglas completas desplegadas.
+- [x] 4.9 - reglas completas desplegadas (`email_verified`, director-only, lectura por tutor/grupo; rama de intención del docente). **Requisito registrado: un docente no aprobado no puede entrar**; hoy se cumple en `RoleRoutes.kt`, no en las reglas, y queda como refuerzo de seguridad para endurecer en reglas.
 - [ ] 4.10 - ciclo completo probado en dispositivo.
 
 ## Riesgos anotados
 
 1. **Persistencia:** migración de esquema y formatos de documento; mitigada con defaults y doble escritura, pendiente de prueba en dispositivo.
-2. **Seguridad:** las reglas base ya están desplegadas, pero la aprobación/vinculación completas (4.9) y la prueba con cuentas reales siguen pendientes antes de cerrar la fase.
+2. **Seguridad:** las reglas base y las completas (4.9) están desplegadas en `aulasegu`. Queda como refuerzo -no como bloque de 4.9- hacer que un docente no aprobado no pueda entrar también desde las reglas: hoy la redirección por `estado == "aprobado"` es solo client-side (`navigation/RoleRoutes.kt`). La prueba final con cuentas reales corresponde a 4.10.
 3. **Permisos:** cámara y notificaciones; la negación del permiso debe explicarse, no bloquear la app.
 4. **Sin conexión:** la aprobación offline depende del outbox/WorkManager existente y de que la regla de correo verificado se compruebe al sincronizar.
 
@@ -232,3 +232,19 @@ Estado operativo real (aclaración de las notas anteriores, que quedaron desactu
 - Código en `main` desde el merge `4f1a47b`.
 
 **Auditoría de módulos — Prioridad 1 corregida (rama `fix/fase4-audit-priority1`):** cinco datos falsos visibles. (1) El panel del directivo mostraba fijamente `0` / "Sin asignar" en "Alumnos sin grupo"; ahora `AdminDashboardViewModel` cuenta los alumnos con `groupId` vacío mediante `ungroupedStudentCount` y la card muestra el número real. (2) La revisión del QR ofrecía secciones A–F fuera del catálogo; ahora usa `AvailableSections` (A–D). (3) El inicio del tutor mostraba "2 nuevos" y "Sin pendientes" fijos; Avisos usa `unreadNotifications` real (o "Sin nuevos") e Incidentes usa un texto neutro "Ver reportes" sin afirmar un dato que no se mide. (4) Si falla la lectura del nombre del grupo, `displayGroupLabel` deriva "3° B" desde `grp-3b` en vez de mostrar el ID crudo. (5) La vista previa del aviso docente mostraba "Prof. Salinas · 3° B" / "Primaria Matutina" fijos; ahora renderiza el nombre del docente y los grupos seleccionados. Tests nuevos: `DashboardCountTest` y casos en `TeacherAssignmentTest`. Verificación: 104 suites / 665 tests / 0 fallos + assembleDebug verde.
+
+
+---
+
+### Cierre de 4.9 — especificación de estado (actualizado)
+
+**4.9 está COMPLETO.** Las reglas completas están implementadas en `docs/firestore.rules` y desplegadas en el proyecto `aulasegu`:
+
+- `email_verified`: `users/{uid}` solo puede marcar `emailVerified` cuando `request.auth.token.email_verified == true` (reglas `259-264`, commit `018a9aa`).
+- **Director-only:** creación/edición/borrado de `groups/{id}` restringido a `isDirectivo()` (`:322-326`) y campos sensibles de `users` en el whitelist del director (`:152-160`).
+- **Lectura por tutor/grupo:** `myGroups()` (`:72-74`) y `tutorOfStudent()` (`:91-102`) gobiernan alumnos, tareas, avisos, asistencia e incidentes.
+- Rama adicional para la intención del docente (`requestedGroupId`/`requestedSubject`), sin permitir que escriba `groupIds` por su cuenta.
+
+**Requisito que queda registrado explícitamente:** un docente **no aprobado** (`estado != "aprobado"`) **no puede entrar al módulo docente**. Hoy ese bloqueo se cumple en la capa de navegación (`navigation/RoleRoutes.kt`, con `estado == "aprobado"`), **no en las reglas de Firestore**. Por eso se anota como refuerzo de seguridad pendiente de endurecer en reglas; no es un bloque abierto de 4.9 y no cambia su estado de completado.
+
+Las líneas anteriores que decían "4.9 parcial / reglas completas todavía no están" son registros históricos de antes del despliegue; este bloque es el estado vigente.

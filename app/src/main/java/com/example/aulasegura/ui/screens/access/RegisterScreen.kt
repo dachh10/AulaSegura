@@ -59,6 +59,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.aulasegura.domain.model.SchoolCatalog
 import com.example.aulasegura.domain.model.groupNameFor
+import com.example.aulasegura.domain.model.subjectsForGrade
 import com.example.aulasegura.domain.repository.RegistrationKind
 import com.example.aulasegura.ui.components.AulaField
 import com.example.aulasegura.ui.components.PillButton
@@ -730,19 +731,25 @@ private fun TeacherAssignmentFields(
             fontWeight = FontWeight.Medium,
             fontSize = 12.sp,
         )
-        listOf(
-            SchoolCatalog.SUBJECTS.take(3),
-            SchoolCatalog.SUBJECTS.drop(3),
-        ).forEach { row ->
-            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                row.forEach { subject ->
-                    val taken = subject.id in takenSubjects && subject.id != subjectId
-                    SelectionChip(
-                        label = subject.label,
-                        selected = subject.id == subjectId,
-                        enabled = !taken,
-                        onClick = { onSubjectIdChange(subject.id) },
-                    )
+        if (grade == null) {
+            Text(
+                text = "Elige primero el grado para ver sus materias.",
+                color = OnSurfaceVariant,
+                style = AulaTextStyles.dataMonoSm,
+            )
+        } else {
+            val gradeSubjects = subjectsForGrade(grade)
+            listOf(gradeSubjects.take(3), gradeSubjects.drop(3)).forEach { row ->
+                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    row.forEach { subject ->
+                        val taken = subject.id in takenSubjects && subject.id != subjectId
+                        SelectionChip(
+                            label = subject.label,
+                            selected = subject.id == subjectId,
+                            enabled = !taken,
+                            onClick = { onSubjectIdChange(subject.id) },
+                        )
+                    }
                 }
             }
         }

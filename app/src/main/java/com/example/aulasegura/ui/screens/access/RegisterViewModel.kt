@@ -64,7 +64,17 @@ class RegisterViewModel(
         it.copy(subjectId = id, subject = subjectById(id)?.label.orEmpty(), errorMessage = null)
     }
 
-    fun setGrade(value: Int) = _uiState.update { it.copy(grade = value, errorMessage = null) }
+    // Subjects differ per grade, so a grade change invalidates the old choice.
+    fun setGrade(value: Int) = _uiState.update {
+        if (it.grade == value) it else it.copy(
+            grade = value,
+            subjectId = "",
+            subject = "",
+            section = "",
+            takenSubjects = emptySet(),
+            errorMessage = null,
+        )
+    }
 
     fun setSection(value: String) = _uiState.update {
         it.copy(section = value.trim().uppercase(), errorMessage = null)

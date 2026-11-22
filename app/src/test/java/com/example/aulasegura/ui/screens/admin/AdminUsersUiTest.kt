@@ -200,7 +200,7 @@ class AdminUsersUiTest {
         assertEquals("5551234567", docenteDoc[AdminUserFields.PHONE])
         assertEquals(listOf("Español", "Historia"), docenteDoc[AdminUserFields.SUBJECTS])
         assertEquals("grp-3b", docenteDoc[AdminUserFields.REQUESTED_GROUP_ID])
-        assertEquals("espanol", docenteDoc[AdminUserFields.REQUESTED_SUBJECT])
+        assertEquals("g3-espanol-iii", docenteDoc[AdminUserFields.REQUESTED_SUBJECT])
         assertEquals("pendiente", docenteDoc[AdminUserFields.ESTADO])
         assertFalse(docenteDoc.containsKey(AdminUserFields.GROUP_IDS))
         assertEquals(AdminUserFields.ServerTimestamp, docenteDoc[AdminUserFields.CREATED_AT])

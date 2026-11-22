@@ -478,15 +478,15 @@ class RegisterViewModelTest {
         vm.setChildName("")
         vm.setGrade(3)
         vm.setSection("A")
-        vm.setSubjectId("matematicas")
+        vm.setSubjectId("g3-matematicas-iii")
 
         vm.submit()
         advanceUntilIdle()
 
         assertTrue(vm.uiState.value.succeeded)
         assertEquals(RegistrationKind.DOCENTE, repo.lastAccountRegistration?.kind)
-        assertEquals("Matemáticas", repo.lastAccountRegistration?.subject)
-        assertEquals("matematicas", repo.lastAccountRegistration?.subjectId)
+        assertEquals("Matemáticas III", repo.lastAccountRegistration?.subject)
+        assertEquals("g3-matematicas-iii", repo.lastAccountRegistration?.subjectId)
         assertEquals(3, repo.lastAccountRegistration?.grade)
         assertEquals("A", repo.lastAccountRegistration?.section)
         assertEquals("", repo.lastAccountRegistration?.childName)
@@ -494,14 +494,14 @@ class RegisterViewModelTest {
 
     @Test
     fun `a teacher cannot submit a subject already taken in the group`() = runTest(dispatcher) {
-        val repo = FakeAuthRepository(takenSubjects = setOf("matematicas"))
+        val repo = FakeAuthRepository(takenSubjects = setOf("g3-matematicas-iii"))
         val vm = viewModel(repo)
         vm.setKind(RegistrationKind.DOCENTE)
         vm.setGrade(3)
         vm.setSection("A")
         vm.refreshTakenSubjects()
         advanceUntilIdle()
-        vm.setSubjectId("matematicas")
+        vm.setSubjectId("g3-matematicas-iii")
 
         vm.submit()
         advanceUntilIdle()

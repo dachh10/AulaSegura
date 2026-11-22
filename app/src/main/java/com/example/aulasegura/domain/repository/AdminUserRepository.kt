@@ -1,6 +1,8 @@
 package com.example.aulasegura.domain.repository
 
 import com.example.aulasegura.domain.model.SubjectAvailability
+import com.example.aulasegura.domain.model.gradeSectionFromGroupId
+import com.example.aulasegura.domain.model.subjectsForGrade
 import com.example.aulasegura.domain.model.subjectIdFromLabel
 import com.example.aulasegura.domain.model.subjectAvailability
 import com.example.aulasegura.domain.model.subjectById
@@ -124,7 +126,8 @@ fun teacherApprovalPlan(
 ): TeacherApprovalPlan? {
     val groupId = requestedGroupId?.takeIf { it.isNotBlank() } ?: return null
     val subjectId = requestedSubject?.takeIf { it.isNotBlank() } ?: return null
-    val label = subjectById(subjectId)?.label ?: return null
+    val grade = gradeSectionFromGroupId(groupId)?.first ?: return null
+    val label = subjectsForGrade(grade).firstOrNull { it.id == subjectId }?.label ?: return null
     if (subjectAvailability(subjectTeachers, subjectId, uid) != SubjectAvailability.FREE) return null
     return TeacherApprovalPlan(groupId, subjectId, label)
 }
@@ -273,7 +276,8 @@ const val REQUESTED_SUBJECT = "requestedSubject"
             // path as a self-registered one. No direct groupIds write here.
             document[ESTADO] = "pendiente"
             groupIds.firstOrNull()?.let { document[REQUESTED_GROUP_ID] = it }
-            labels.firstNotNullOfOrNull { subjectIdFromLabel(it) }?.let {
+            val grade = groupIds.firstOrNull()?.let { gradeSectionFromGroupId(it)?.first }
+            labels.firstNotNullOfOrNull { subjectIdFromLabel(it, grade) }?.let {
                 document[REQUESTED_SUBJECT] = it
             }
         }

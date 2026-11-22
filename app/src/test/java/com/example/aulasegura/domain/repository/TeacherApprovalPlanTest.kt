@@ -22,33 +22,38 @@ class TeacherApprovalPlanTest {
         )
 
         assertEquals("grp-3a", document[AdminUserFields.REQUESTED_GROUP_ID])
-        assertEquals("matematicas", document[AdminUserFields.REQUESTED_SUBJECT])
+        assertEquals("g3-matematicas-iii", document[AdminUserFields.REQUESTED_SUBJECT])
         assertEquals("pendiente", document[AdminUserFields.ESTADO])
         assertFalse(document.containsKey(AdminUserFields.GROUP_IDS))
     }
 
     @Test
     fun `a free subject produces the assignment plan`() {
-        val plan = teacherApprovalPlan("grp-3a", "matematicas", "teacher-1", emptyMap())
+        val plan = teacherApprovalPlan("grp-3a", "g3-matematicas-iii", "teacher-1", emptyMap())
 
         assertEquals("grp-3a", plan?.groupId)
-        assertEquals("matematicas", plan?.subjectId)
-        assertEquals("Matemáticas", plan?.label)
+        assertEquals("g3-matematicas-iii", plan?.subjectId)
+        assertEquals("Matemáticas III", plan?.label)
+    }
+
+    @Test
+    fun `a subject from another grade is never approved`() {
+        assertNull(teacherApprovalPlan("grp-1a", "g4-historia-mexico-i", "teacher-1", emptyMap()))
     }
 
     @Test
     fun `a subject taken by another teacher cannot be approved`() {
         assertNull(
             teacherApprovalPlan(
-                "grp-3a", "matematicas", "teacher-1",
-                mapOf("matematicas" to "teacher-2"),
+                "grp-3a", "g3-matematicas-iii", "teacher-1",
+                mapOf("g3-matematicas-iii" to "teacher-2"),
             ),
         )
     }
 
     @Test
     fun `an invalid or missing intent cannot be approved`() {
-        assertNull(teacherApprovalPlan(null, "matematicas", "teacher-1", emptyMap()))
+        assertNull(teacherApprovalPlan(null, "g3-matematicas-iii", "teacher-1", emptyMap()))
         assertNull(teacherApprovalPlan("grp-3a", "musica", "teacher-1", emptyMap()))
     }
 }

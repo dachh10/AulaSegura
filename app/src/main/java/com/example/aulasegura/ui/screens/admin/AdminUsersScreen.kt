@@ -207,33 +207,6 @@ fun AdminUsersScreen(
                     lineHeight = 34.sp,
                     letterSpacing = (-0.8).sp,
                 )
-                Box(
-                    modifier = Modifier
-                        .size(44.dp)
-                        .clip(CircleShape)
-                        .background(PrimaryContainer)
-                        .clickable(onClick = {
-                            if (selectedTab == AdminUsersTab.ALUMNOS) {
-                                onAddStudent()
-                            } else {
-                                createForm = CreateAccountForm()
-                                viewModel.createErrorShown()
-                                showCreate = true
-                            }
-                        }),
-                    contentAlignment = Alignment.Center,
-                ) {
-                    Icon(
-                        imageVector = Icons.Filled.PersonAdd,
-                        contentDescription = if (selectedTab == AdminUsersTab.ALUMNOS) {
-                            "Agregar alumno"
-                        } else {
-                            "Agregar usuario"
-                        },
-                        tint = OnPrimary,
-                        modifier = Modifier.size(22.dp),
-                    )
-                }
             }
 
             Reveal(60) {

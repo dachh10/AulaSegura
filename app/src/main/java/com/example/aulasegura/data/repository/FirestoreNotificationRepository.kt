@@ -36,7 +36,9 @@ class FirestoreNotificationRepository(
                 .limit(MAX_ROWS)
                 .addSnapshotListener { snapshot, error ->
                     if (error != null) {
-                        close(error)
+                        // Closing with the error would throw into every collector;
+                        // on sign-out the watch is briefly rejected by the rules.
+                        close()
                         return@addSnapshotListener
                     }
                     trySend(snapshot?.documents.orEmpty().mapNotNull { it.toNotification() })

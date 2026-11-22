@@ -65,7 +65,9 @@ class FirestoreChatRepository(
                 .orderBy(FIELD_LAST_MESSAGE_AT, Query.Direction.DESCENDING)
                 .addSnapshotListener { snapshot, error ->
                     if (error != null) {
-                        close(error)
+                        // A normal close avoids throwing PERMISSION_DENIED into
+                        // collectors when the session is being torn down.
+                        close()
                         return@addSnapshotListener
                     }
                     trySend(snapshot?.documents.orEmpty().mapNotNull { it.toConversation(user.uid) })
@@ -88,7 +90,8 @@ class FirestoreChatRepository(
                 }
 
                 override fun onCancelled(error: DatabaseError) {
-                    close(error.toException())
+                    // Sign-out cancels the watch; never propagate it as a crash.
+                    close()
                 }
             }
 

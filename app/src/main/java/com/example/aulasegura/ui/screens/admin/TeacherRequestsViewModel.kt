@@ -69,6 +69,10 @@ class TeacherRequestsViewModel(
                         error = when (result.reason) {
                             AdminUserUpdateError.SUBJECT_TAKEN ->
                                 "La materia que eligió ya tiene docente en ese grupo. La solicitud sigue pendiente."
+                            AdminUserUpdateError.DENIED ->
+                                "La escuela no pudo asignar el grupo. Revisa las reglas de Firestore o el grupo elegido."
+                            AdminUserUpdateError.NETWORK, AdminUserUpdateError.TIMEOUT ->
+                                "Sin conexión. La solicitud sigue pendiente; inténtalo de nuevo."
                             else -> "No se pudo actualizar la solicitud."
                         },
                     )

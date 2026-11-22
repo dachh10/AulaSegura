@@ -332,7 +332,14 @@ service cloud.firestore {
     // ---------------------------------------------------------------------
 
     match /groups/{groupId} {
-      allow read: if isActive() && resource.data.schoolId == mySchool();
+      // A transaction may read a classroom that does not exist yet: approving a
+      // teacher whose grade/section has no group document must not be denied by
+      // resource.data on a missing doc. An existing group still needs to belong
+      // to the director's school.
+      allow read: if isActive() && (
+        !exists(/databases/$(database)/documents/groups/$(groupId)) ||
+        resource.data.schoolId == mySchool()
+      );
       allow create, update: if isDirectivo()
         && request.resource.data.schoolId == mySchool();
       allow delete: if isDirectivo() && resource.data.schoolId == mySchool();

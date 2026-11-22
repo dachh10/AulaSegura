@@ -25,8 +25,9 @@ Criterio usado: solo se cuenta como problema algo que el usuario **ve o pierde**
 | Prioridad | Alcance | Estado | Evidencia |
 |---|---|---|---|
 | **1** | Datos falsos visibles en los tres módulos | ✅ **COMPLETA** | commit `170cddd`, merge `8962f6e` en `main`; 104 suites / 665 tests / 0 fallos + `assembleDebug` |
-| **2** | Consistencia de datos y flujos que pierden información | 🟡 **PENDIENTE** | 9 hallazgos documentados en la sección 4 |
-| **3** | Detalles de texto, estados vacíos y controles inertes | 🟡 **PENDIENTE** | 11 hallazgos documentados en la sección 5 |
+| **2** | Consistencia de datos y flujos que pierden información | ✅ **COMPLETA** | 4 commits en `fix/fase4-prioridad2`, merge `65e1a4e` en `main`; 106 suites / 673 tests / 0 fallos |
+| **3** | Detalles de texto, estados vacíos y controles inertes | ✅ **COMPLETA** | 4 commits en `fix/fase4-prioridad3`, merge `b8bfa12` en `main`; 106 suites / 677 tests / 0 fallos |
+| **Extra** | Limpieza del módulo directivo y configuración real del plantel | ✅ **COMPLETA** | rama `fix/fase4-directivo-config`; 106 suites / 679 tests / 0 fallos |
 
 ---
 
@@ -130,4 +131,16 @@ No se decides en este documento qué se implementa primero: eso se acuerda antes
 
 **L3** — Cierre de la prioridad 1: commit `170cddd`, merge y push a `main` en `8962f6e`. Verificación 104 suites / 665 tests / 0 fallos + `assembleDebug` verde.
 
-**L4** — Estado actual: prioridades 2 y 3 pendientes, sin fecha de ejecución. Las reglas de Firestore ya están desplegadas en `aulasegu` y no hay docentes previos que backfillear.
+**L4** - (Registro histórico) Entonces las prioridades 2 y 3 estaban pendientes. Estado vigente: ver L7.
+
+**L5** - Prioridad 2 completada y pusheada en `65e1a4e` (9 ítems, 106 suites / 673 tests / 0 fallos).
+
+**L6** - Prioridad 3 completada y pusheada en `b8bfa12` (11 ítems, 106 suites / 677 tests / 0 fallos).
+
+**L7** - Trabajo extra del módulo directivo, autorizado (verbatim): "Has todo esto quitar ambos FABs, sacar los badges falsos y 'Requiere atención', y hacer que el nombre del plantel se configure a mano y se muestre en perfil/panel, implementalo, lo que si quiero que quede bien implementado es lo de la configuracion del plantel." Implementado en `fix/fase4-directivo-config`: se quitaron los FABs de alta manual en Usuarios y Grupos, los badges falsos 2/4 de Más y la tarjeta estática "Requiere atención" del panel; el nombre del plantel es editable y obligatorio en Configuración, se guarda en `schools/{schoolId}.name` y se muestra en perfil y panel. No hizo falta cambiar reglas. Verificación 106 suites / 679 tests / 0 fallos + `assembleDebug`.
+
+---
+
+## 8. Estado final del backlog
+
+Las tres prioridades y el trabajo extra del directivo están **completos**. No queda ningún ítem pendiente de este documento. Lo único abierto de la Fase 4 es el bloque **4.10 (ciclo completo en dispositivo)**, que corresponde a verificación del equipo.

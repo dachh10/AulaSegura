@@ -317,7 +317,11 @@ fun AdminUsersScreen(
                     }
 
                     rows.isEmpty() -> Text(
-                        text = "Sin resultados para \"${query.trim()}\"",
+                        text = adminUsersEmptyMessage(
+                            query = query,
+                            studentsTab = selectedTab == AdminUsersTab.ALUMNOS,
+                            groupFilter = selectedGroup,
+                        ),
                         color = OnSurfaceVariant,
                         fontFamily = DmSans,
                         fontSize = 14.sp,

@@ -1,5 +1,10 @@
 package com.example.aulasegura.ui.screens.admin
 
+import android.content.ClipData
+import android.content.ClipboardManager
+import android.content.Context
+import android.content.Intent
+
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
@@ -56,8 +61,10 @@ import com.example.aulasegura.di.rememberAppContainer
 import com.example.aulasegura.domain.model.AdminGroup
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.graphicsLayer
@@ -326,7 +333,7 @@ private fun PhotoHeader() {
                     .shadow(6.dp, CircleShape, ambientColor = CameraShadow, spotColor = CameraShadow)
                     .clip(CircleShape)
                     .background(SecondaryContainer)
-                    .clickable { },
+                    .alpha(0.5f),
                 contentAlignment = Alignment.Center,
             ) {
                 Icon(
@@ -479,6 +486,20 @@ private fun GroupField(
 
 @Composable
 private fun LinkingCodeCard(code: String?) {
+    val context = LocalContext.current
+    val copyCode: () -> Unit = {
+        val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as? ClipboardManager
+        clipboard?.setPrimaryClip(ClipData.newPlainText("Código de vinculación", code.orEmpty()))
+        Unit
+    }
+    val shareCode: () -> Unit = {
+        val intent = Intent(Intent.ACTION_SEND).apply {
+            type = "text/plain"
+            putExtra(Intent.EXTRA_TEXT, "Código de vinculación: ${code.orEmpty()}")
+        }
+        runCatching { context.startActivity(Intent.createChooser(intent, "Compartir código")) }
+        Unit
+    }
     Box(
         modifier = Modifier
             .fillMaxWidth()
@@ -508,8 +529,8 @@ private fun LinkingCodeCard(code: String?) {
             )
             Spacer(modifier = Modifier.height(4.dp))
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                CodeActionPill(icon = Icons.Filled.ContentCopy, label = "Copiar")
-                CodeActionPill(icon = Icons.Filled.Share, label = "Compartir")
+                CodeActionPill(icon = Icons.Filled.ContentCopy, label = "Copiar", onClick = copyCode)
+                CodeActionPill(icon = Icons.Filled.Share, label = "Compartir", onClick = shareCode)
             }
             Spacer(modifier = Modifier.height(8.dp))
             Text(
@@ -526,7 +547,7 @@ private fun LinkingCodeCard(code: String?) {
 }
 
 @Composable
-private fun CodeActionPill(icon: ImageVector, label: String) {
+private fun CodeActionPill(icon: ImageVector, label: String, onClick: () -> Unit) {
     val source = remember { MutableInteractionSource() }
     val pressed by source.collectIsPressedAsState()
     val scale by animateFloatAsState(
@@ -545,7 +566,7 @@ private fun CodeActionPill(icon: ImageVector, label: String) {
             .clip(RoundedCornerShape(percent = 50))
             .background(SurfaceContainerLowest)
             .border(1.dp, OutlineVariant.copy(alpha = 0.60f), RoundedCornerShape(percent = 50))
-            .clickable(interactionSource = source, indication = null) { }
+            .clickable(interactionSource = source, indication = null, onClick = onClick)
             .padding(horizontal = 12.dp, vertical = 6.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {

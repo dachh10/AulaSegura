@@ -1,5 +1,7 @@
 package com.example.aulasegura.ui.screens.teacher
 
+import com.example.aulasegura.domain.model.subjectForGroup
+
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.aulasegura.domain.repository.AuthRepository
@@ -34,7 +36,7 @@ class TeacherGroupsViewModel(
 
     // Resolved once: the subject comes from the profile, and the profile does not
     // change while this screen is alive.
-    private val subject: String? = auth.currentUser?.subjects?.firstOrNull()
+    private val subjects: List<String> = auth.currentUser?.subjects.orEmpty()
 
     private val refreshing = MutableStateFlow(true)
     private val notice = MutableStateFlow<String?>(null)
@@ -45,7 +47,7 @@ class TeacherGroupsViewModel(
         notice,
     ) { cached, isRefreshing, message ->
         UiState(
-            groups = cached.map { it.toUi(subject) },
+            groups = cached.map { it.toUi(subjectForGroup(subjects, it.grade)) },
             refreshing = isRefreshing,
             notice = message,
         )

@@ -28,8 +28,8 @@ Branch: `fix/fase4-prioridad2`. Delivery: work-unit commits on this branch; push
 - **T2** — S3: ungrouped search/selection. Route: inline. Evidence: `onQueryChange` clears selection; `UngroupedStudentsViewModelTest` GREEN.
 - **T3** — S4: teacher profile subject and groups. Route: inline. Evidence: subjects read-only, saveProfile does not write them, refresh preserves groups.
 - **T4** — S5: groupId through task/notice navigation. Route: inline. Evidence: optional route arg, preselect methods, RoutesGroupPreselectionTest GREEN.
-- **T5** — S6: per-group subject resolution. Route: inline. Evidence: pending.
-- **T6** — S7: director manual assignment. Route: inline. Evidence: pending.
+- **T5** — S6: per-group subject resolution. Route: inline. Evidence: `subjectForGroup` used by groups list, group detail and roll-call sessions; test GREEN.
+- **T6** — S7: director manual assignment. Route: inline. Evidence: `assignTeacher` writes `subjectTeachers` and `users.subjects` for the first free subject of that grade.
 - **T7** — S8: parent tab selection reconciliation. Route: inline. Evidence: Attendance/Tasks/Incidents call `ensureValid` before mapping the id; existing VM tests GREEN.
 - **T8** — S9: remove unverifiable QR claim. Route: inline. Evidence: `ReviewStudentScreen` says "Tutor del alumno" instead of "Correo verificado".
 - **T9** — all: full verification, FASE4.md update, merge/push on approval. Route: inline. Evidence: pending.

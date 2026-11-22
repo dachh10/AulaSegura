@@ -24,6 +24,7 @@ class AdminDashboardViewModel(
     private val dashboard: AdminDashboardRepository,
     private val reports: AdminReportRepository,
     private val users: com.example.aulasegura.domain.repository.AdminUserRepository? = null,
+    private val students: com.example.aulasegura.domain.repository.AdminStudentRepository? = null,
 ) : ViewModel() {
 
     private val _state = MutableStateFlow(AdminDashboardUiState())
@@ -35,6 +36,7 @@ class AdminDashboardViewModel(
 
     fun refresh() {
         refreshPendingTeachers()
+        refreshUngroupedStudents()
         _state.update {
             it.copy(
                 loading = true,
@@ -74,6 +76,16 @@ class AdminDashboardViewModel(
                 .getOrDefault(emptyList())
                 .let { pendingTeacherCount(it) }
             _state.update { it.copy(pendingTeachers = count) }
+        }
+    }
+
+    private fun refreshUngroupedStudents() {
+        val repo = students ?: return
+        viewModelScope.launch {
+            val count = runCatching { repo.getStudents() }
+                .getOrDefault(emptyList())
+                .let { ungroupedStudentCount(it) }
+            _state.update { it.copy(ungroupedStudents = count) }
         }
     }
 }

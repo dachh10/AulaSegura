@@ -1,6 +1,7 @@
 package com.example.aulasegura.ui.screens.admin
 
 import com.example.aulasegura.domain.model.AdminDashboard
+import com.example.aulasegura.domain.model.AdminStudent
 import com.example.aulasegura.domain.model.AdminReportRangeSummary
 import com.example.aulasegura.domain.repository.AdminDashboardError
 
@@ -13,6 +14,7 @@ import com.example.aulasegura.domain.repository.AdminDashboardError
  */
 data class AdminDashboardUiState(
     val pendingTeachers: Int = 0,
+    val ungroupedStudents: Int = 0,
     val loading: Boolean = true,
     val dashboard: AdminDashboard = AdminDashboard(),
     val error: String? = null,
@@ -22,6 +24,10 @@ data class AdminDashboardUiState(
 ) {
     val empty: Boolean get() = !loading && error == null && dashboard.empty
 }
+
+/** Count of students with no group; the same rows the assignment screen lists. */
+fun ungroupedStudentCount(students: List<AdminStudent>): Int =
+    students.count { it.groupId.isBlank() }
 
 /**
  * Copy for the "Asistencia de hoy" card. A day with no sessions says so explicitly;

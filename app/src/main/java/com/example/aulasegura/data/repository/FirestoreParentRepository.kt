@@ -1,6 +1,7 @@
 package com.example.aulasegura.data.repository
 
 import com.example.aulasegura.domain.model.AttendanceMark
+import com.example.aulasegura.domain.model.displayGroupLabel
 import com.example.aulasegura.domain.model.ParentAttachment
 import com.example.aulasegura.domain.model.ParentAttendanceCounts
 import com.example.aulasegura.domain.model.ParentIncident
@@ -117,7 +118,7 @@ class FirestoreParentRepository(
 
         return ParentChildrenResult.Loaded(
             rows
-                .map { it.copy(groupLabel = labels[it.groupId] ?: it.groupId) }
+                .map { it.copy(groupLabel = displayGroupLabel(it.groupId, labels[it.groupId])) }
                 .sortedWith(compareBy({ it.listNumber }, { it.fullName })),
         )
     }

@@ -128,6 +128,7 @@ fun ParentHomeScreen(
                     }
                     Reveal(180) {
                         QuickAccess(
+                            unreadNotices = unreadNotifications,
                             onAvisos = onQuickAvisos,
                             onIncidentes = onQuickIncidentes,
                             onJustificar = onQuickJustificar,
@@ -539,6 +540,7 @@ private fun SummaryShieldMotif(modifier: Modifier = Modifier) {
 
 @Composable
 private fun QuickAccess(
+    unreadNotices: Int = 0,
     onAvisos: () -> Unit,
     onIncidentes: () -> Unit,
     onJustificar: () -> Unit,
@@ -562,15 +564,15 @@ private fun QuickAccess(
                 modifier = Modifier.weight(1f),
                 icon = Icons.Outlined.Campaign,
                 title = "Avisos",
-                subtitle = "2 nuevos",
-                subtitleColor = Secondary,
+                subtitle = if (unreadNotices > 0) "$unreadNotices nuevos" else "Sin nuevos",
+                subtitleColor = if (unreadNotices > 0) Secondary else Outline,
                 onClick = onAvisos,
             )
             QuickCard(
                 modifier = Modifier.weight(1f),
                 icon = Icons.Outlined.Shield,
                 title = "Incidentes",
-                subtitle = "Sin pendientes",
+                subtitle = "Ver reportes",
                 subtitleColor = Outline,
                 onClick = onIncidentes,
             )

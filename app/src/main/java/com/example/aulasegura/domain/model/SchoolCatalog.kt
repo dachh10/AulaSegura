@@ -92,6 +92,14 @@ fun gradeSectionFromGroupId(groupId: String): Pair<Int, String>? {
 fun groupNameFor(grade: Int, section: String): String =
     "$grade° ${section.trim().uppercase()}"
 
+/** Never show a raw `grp-3b` to a parent: derive "3° B" from the id instead. */
+fun displayGroupLabel(groupId: String, storedName: String?): String =
+    storedName?.takeIf { it.isNotBlank() }
+        ?: gradeSectionFromGroupId(groupId)?.let { (grade, section) ->
+            groupNameFor(grade, section)
+        }
+        ?: groupId
+
 /** The six subjects a grade actually teaches. */
 fun subjectsForGrade(grade: Int): List<Subject> =
     SchoolCatalog.SUBJECTS_BY_GRADE[grade] ?: emptyList()

@@ -1,5 +1,7 @@
 package com.example.aulasegura.ui.screens.admin
 
+import com.example.aulasegura.domain.model.AvailableSections
+
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Column
@@ -44,7 +46,7 @@ import com.example.aulasegura.ui.theme.SecondaryContainer
 import com.example.aulasegura.ui.theme.SurfaceContainerLowest
 
 private val GRADOS = listOf("1", "2", "3", "4", "5", "6")
-private val GRUPOS = listOf("A", "B", "C", "D", "E", "F")
+private val GRUPOS get() = AvailableSections
 
 /**
  * The director reviews the QR payload, assigns grade/group and either accepts

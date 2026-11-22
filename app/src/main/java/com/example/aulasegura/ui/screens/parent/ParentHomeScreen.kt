@@ -177,7 +177,7 @@ private fun HomePlaceholder(ui: ParentHomeUiState) {
 
             ParentHomeUiState.NoChildren -> HomeMessage(
                 title = "Aún no hay hijos vinculados",
-                body = "Pide a la escuela el código del alumno y regístrate de nuevo para ver su información.",
+                body = "Cuando la escuela escanee tu QR con el alumno, aparecerá aquí. También puedes usar «Agregar hijo».",
             )
 
             is ParentHomeUiState.Failed -> HomeMessage(

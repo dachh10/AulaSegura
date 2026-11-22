@@ -83,7 +83,10 @@ class TeacherRequestsViewModel(
 
     fun acceptAll() {
         val count = acceptAllTeacherUids(_state.value.users).size
-        if (count == 0) return
+        if (count == 0) {
+            _state.update { it.copy(message = "No hay solicitudes pendientes.", error = null) }
+            return
+        }
         _state.update { it.copy(loading = true, error = null, message = null) }
         viewModelScope.launch {
             when (val result = users.acceptAllPendingTeachers()) {

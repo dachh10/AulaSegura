@@ -35,6 +35,7 @@ class ParentNoticesViewModel(
     private var notices: List<ParentNoticeItem> = emptyList()
     private var filter = ParentNoticeFilter.All
     private var error: String? = null
+private var childLabel: String = ""
 
     init {
         load()
@@ -80,13 +81,12 @@ class ParentNoticesViewModel(
 
             when (val result = parents.loadNotices()) {
                 is ParentNoticesResult.Loaded -> {
-                    // Filter to the selected child's group when we can resolve it.
-                    val children = when (val kids = parents.loadChildren()) {
-                        is com.example.aulasegura.domain.repository.ParentChildrenResult.Loaded -> kids.children
-                        else -> emptyList()
-                    }
+                    // The repository already loaded the roster for these notices.
+                    val children = result.children
                     val selectedId = selection.ensureValid(currentUid().orEmpty(), children.map { it.studentId })
-                    val selectedGroup = children.firstOrNull { it.studentId == selectedId }?.groupId
+                    val selectedChild = children.firstOrNull { it.studentId == selectedId }
+                    val selectedGroup = selectedChild?.groupId
+                    childLabel = selectedChild?.fullName.orEmpty()
                     notices = if (selectedGroup.isNullOrBlank()) {
                         result.notices
                     } else {
@@ -114,6 +114,7 @@ class ParentNoticesViewModel(
             filter = filter,
             sections = noticeSections(filter, notices, moment, zone),
             emptyMessage = noticesEmptyMessage(filter),
+            childLabel = childLabel,
             error = error,
         )
     }

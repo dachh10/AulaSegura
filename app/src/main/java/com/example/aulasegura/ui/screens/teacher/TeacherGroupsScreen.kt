@@ -15,6 +15,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -109,13 +110,15 @@ fun TeacherGroupsScreen(
 ) {
     var filter by remember { mutableStateOf(GroupFilter.Todos) }
 
-    val subject = groups.firstOrNull()?.subject
+    val subjects = remember(groups) { distinctGroupSubjects(groups) }
+    var selectedSubject by remember { mutableStateOf<String?>(null) }
+    val subjectForFilter = selectedSubject ?: subjects.firstOrNull()
 
-    val visible = remember(filter, groups, subject) {
+    val visible = remember(filter, groups, subjectForFilter) {
         when (filter) {
             GroupFilter.Todos -> groups
             GroupFilter.Hoy -> groups.filter { it.isToday }
-            GroupFilter.Materia -> groups.filter { it.subject == subject }
+            GroupFilter.Materia -> groups.filter { it.subject == subjectForFilter }
         }
     }
 
@@ -143,10 +146,32 @@ fun TeacherGroupsScreen(
                 ) {
                     GroupFilter.entries.forEach { option ->
                         FilterChip(
-                            label = option.labelFor(subject),
+                            label = option.labelFor(subjectForFilter),
                             selected = option == filter,
-                            onClick = { filter = option },
+                            onClick = {
+                                filter = option
+                                if (option == GroupFilter.Materia && selectedSubject == null) {
+                                    selectedSubject = subjects.firstOrNull()
+                                }
+                            },
                         )
+                    }
+                }
+                if (filter == GroupFilter.Materia && subjects.size > 1) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .horizontalScroll(rememberScrollState())
+                            .padding(top = 8.dp),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    ) {
+                        subjects.forEach { subject ->
+                            FilterChip(
+                                label = subject,
+                                selected = subject == subjectForFilter,
+                                onClick = { selectedSubject = subject },
+                            )
+                        }
                     }
                 }
             }

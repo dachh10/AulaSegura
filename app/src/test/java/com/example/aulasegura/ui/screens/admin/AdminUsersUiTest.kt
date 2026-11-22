@@ -19,6 +19,22 @@ import org.junit.Test
  */
 class AdminUsersUiTest {
 
+    @Test
+    fun `an empty query never renders a no-results message`() {
+        assertEquals(
+            "Todavía no hay usuarios en esta sección.",
+            adminUsersEmptyMessage("", studentsTab = false, groupFilter = null),
+        )
+        assertEquals(
+            "No hay alumnos en ese grupo.",
+            adminUsersEmptyMessage("", studentsTab = true, groupFilter = "grp-3a"),
+        )
+        assertEquals(
+            "Sin resultados para \"Ana\".",
+            adminUsersEmptyMessage("Ana", studentsTab = false, groupFilter = null),
+        )
+    }
+
     private val docente = AdminUser(
         uid = "u-teacher",
         email = "ricardo@aula.test",

@@ -130,7 +130,11 @@ sealed interface ParentTaskResult {
 
 sealed interface ParentNoticesResult {
 
-    data class Loaded(val notices: List<ParentNoticeItem>) : ParentNoticesResult
+    /** Children are returned with the notices so the UI does not reload them. */
+    data class Loaded(
+        val notices: List<ParentNoticeItem>,
+        val children: List<ParentChild> = emptyList(),
+    ) : ParentNoticesResult
 
     data object SignedOut : ParentNoticesResult
 

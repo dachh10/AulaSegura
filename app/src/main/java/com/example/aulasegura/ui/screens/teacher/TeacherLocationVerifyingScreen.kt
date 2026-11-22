@@ -84,7 +84,7 @@ import kotlinx.coroutines.delay
  */
 @Composable
 fun TeacherLocationVerifyingScreen(
-    groupId: String = "3B",
+    groupId: String = "",
     school: SchoolSite? = null,
     schoolLoaded: Boolean = true,
     onBack: () -> Unit = {},

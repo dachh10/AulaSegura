@@ -590,7 +590,7 @@ private fun ProfileHeader(
  */
 @Composable
 private fun MySubjectsSection(subjects: List<String>) {
-    val labels = subjects.filter { it.isNotBlank() }.ifEmpty { listOf("General") }
+    val labels = subjects.filter { it.isNotBlank() }.ifEmpty { listOf("Sin materia asignada") }
     Column(
         modifier = Modifier
             .fillMaxWidth()

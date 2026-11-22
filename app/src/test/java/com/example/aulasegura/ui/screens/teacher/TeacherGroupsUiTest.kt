@@ -40,6 +40,20 @@ class TeacherGroupsUiTest {
     }
 
     @Test
+    fun `the subject filter offers every distinct subject, not only the first`() {
+        val cards = listOf(
+            group.toUi("Matemáticas III"),
+            group.copy(id = "grp-5a", name = "5° A").toUi("Historia de México II"),
+            group.copy(id = "grp-3a", name = "3° A").toUi("Matemáticas III"),
+        )
+
+        assertEquals(
+            listOf("Matemáticas III", "Historia de México II"),
+            distinctGroupSubjects(cards),
+        )
+    }
+
+    @Test
     fun `attendance, schedule and roll call stay hidden until data exists`() {
         val ui = group.toUi(subject = "Matemáticas")
 

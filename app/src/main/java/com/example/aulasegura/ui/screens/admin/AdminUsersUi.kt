@@ -14,6 +14,17 @@ import com.example.aulasegura.domain.repository.AdminUserFields
  * so a failed students read does not blank out Docentes/Padres, or the other way
  * around.
  */
+/** Honest copy for an empty list: a blank query is not a "no results" search. */
+fun adminUsersEmptyMessage(
+    query: String,
+    studentsTab: Boolean,
+    groupFilter: String?,
+): String = when {
+    studentsTab && !groupFilter.isNullOrBlank() -> "No hay alumnos en ese grupo."
+    query.isBlank() -> "Todavía no hay usuarios en esta sección."
+    else -> "Sin resultados para \"${query.trim()}\"."
+}
+
 data class AdminUsersUiState(
     val loading: Boolean = true,
     val users: List<AdminUser> = emptyList(),

@@ -73,6 +73,29 @@ class ParentNoticesViewModelTest {
     }
 
     @Test
+    fun `the inbox names the child whose notices are shown`() = runTest(dispatcher) {
+        val viewModel = viewModel(notices = listOf(notice("hoy", at(2026, 11, 18, 9))))
+        advanceUntilIdle()
+
+        val state = viewModel.state.value as ParentNoticesUiState.Loaded
+        assertEquals("Mariana Gómez Ruiz", state.childLabel)
+    }
+
+    @Test
+    fun `a refresh reads the roster only once`() = runTest(dispatcher) {
+        val parents = FakeNotices(notices = listOf(notice("hoy", at(2026, 11, 18, 9))))
+        val viewModel = ParentNoticesViewModel(
+            parents = parents,
+            selection = TestChildSelection(),
+            now = { at(2026, 11, 18, 12) },
+            zone = zone,
+        )
+        advanceUntilIdle()
+
+        assertEquals(1, parents.childrenLoads)
+    }
+
+    @Test
     fun `opening a notice writes the mark once and lowers the badge`() = runTest(dispatcher) {
         val parents = FakeNotices(
             notices = listOf(notice("hoy", at(2026, 11, 18, 9))),
@@ -204,9 +227,11 @@ private class FakeNotices(
 ) : ParentRepository {
 
     val readMarks = mutableListOf<String>()
+    var childrenLoads = 0
 
-    override suspend fun loadChildren(): ParentChildrenResult =
-        ParentChildrenResult.Loaded(
+    override suspend fun loadChildren(): ParentChildrenResult {
+        childrenLoads++
+        return ParentChildrenResult.Loaded(
             listOf(
                 ParentChild(
                     studentId = "std-1",
@@ -218,6 +243,7 @@ private class FakeNotices(
                 ),
             ),
         )
+    }
 
     override suspend fun loadMonth(
         child: ParentChild,
@@ -236,7 +262,8 @@ private class FakeNotices(
 
     override suspend fun loadNotices(): ParentNoticesResult {
         failure?.let { return ParentNoticesResult.Failed(it) }
-        return ParentNoticesResult.Loaded(notices)
+        val children = (loadChildren() as? ParentChildrenResult.Loaded)?.children.orEmpty()
+        return ParentNoticesResult.Loaded(notices, children)
     }
 
     override suspend fun markNoticeRead(noticeId: String): NoticeReadResult {

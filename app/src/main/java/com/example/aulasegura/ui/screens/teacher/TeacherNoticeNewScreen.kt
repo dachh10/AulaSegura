@@ -676,7 +676,7 @@ private fun PreviewCard(
                     Spacer(modifier = Modifier.width(10.dp))
                     Column {
                         Text(
-                            text = "Prof. Salinas · 3° B",
+                            text = if (teacherName.isNotBlank()) "Prof. $teacherName" else "Docente",
                             color = OnSurface,
                             fontFamily = DmSans,
                             fontWeight = FontWeight.Bold,
@@ -684,7 +684,7 @@ private fun PreviewCard(
                             lineHeight = 16.sp,
                         )
                         Text(
-                            text = "Primaria Matutina",
+                            text = audienceLabel.ifBlank { "Sin grupos seleccionados" },
                             color = OnSurfaceVariant,
                             fontFamily = DmSans,
                             fontWeight = FontWeight.Medium,

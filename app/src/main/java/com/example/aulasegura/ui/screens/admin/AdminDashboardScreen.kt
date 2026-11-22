@@ -172,9 +172,13 @@ fun AdminDashboardScreen(
                     )
                     ActionTile(
                         icon = Icons.Filled.PersonAdd,
-                        count = 0,
+                        count = uiState.ungroupedStudents,
                         title = "Alumnos sin grupo",
-                        subtitle = "Sin asignar",
+                        subtitle = if (uiState.ungroupedStudents == 0) {
+                            "Sin asignar"
+                        } else {
+                            "${uiState.ungroupedStudents} sin asignar"
+                        },
                         action = "Asignar",
                         tint = Primary,
                         onClick = onAlumnosSinGrupo,

@@ -873,6 +873,7 @@ class AppViewModelFactory(
                 dashboard = container.adminDashboardRepository,
                 reports = container.adminReportRepository,
                 users = container.adminUserRepository,
+                students = container.adminStudentRepository,
             )
 
         modelClass.isAssignableFrom(AdminReportsViewModel::class.java) ->

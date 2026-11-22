@@ -42,6 +42,14 @@ class TeacherAssignmentTest {
     }
 
     @Test
+    fun `a group label never degrades to a raw id`() {
+        assertEquals("3° B", displayGroupLabel("grp-3b", null))
+        assertEquals("3° B", displayGroupLabel("grp-3b", "   "))
+        assertEquals("Grupo especial", displayGroupLabel("grp-3b", "Grupo especial"))
+        assertEquals("legacy-id", displayGroupLabel("legacy-id", null))
+    }
+
+    @Test
     fun `a subject is free, taken by another teacher, or invalid`() {
         assertEquals(
             SubjectAvailability.FREE,

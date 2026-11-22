@@ -58,6 +58,26 @@ class UngroupedStudentsViewModelTest {
     }
 
     @Test
+    fun `searching clears hidden selections so they are never assigned`() = runTest(dispatcher) {
+        val repo = UngroupedTestStudents(listOf(student("a"), student("c")))
+        val vm = UngroupedStudentsViewModel(repo, UngroupedTestGroups(groups))
+        advanceUntilIdle()
+
+        vm.toggleAll()
+        assertEquals(setOf("a", "c"), vm.state.value.selected)
+
+        vm.onQueryChange("a")
+        assertEquals(emptySet<String>(), vm.state.value.selected)
+
+        vm.onGradoChange(3)
+        vm.onGrupoChange("B")
+        vm.assign()
+        advanceUntilIdle()
+
+        assertEquals(emptyList<String>(), repo.assignedIds)
+    }
+
+    @Test
     fun `assigning writes the batch for the selected students`() = runTest(dispatcher) {
         val repo = UngroupedTestStudents(listOf(student("a"), student("c")))
         val vm = UngroupedStudentsViewModel(repo, UngroupedTestGroups(groups))

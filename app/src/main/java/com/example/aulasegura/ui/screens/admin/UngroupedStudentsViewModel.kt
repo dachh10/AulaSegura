@@ -60,7 +60,11 @@ class UngroupedStudentsViewModel(
         }
     }
 
-    fun onQueryChange(query: String) = _state.update { it.copy(query = query, message = null) }
+    // A filter change hides rows; keeping their ids selected would assign
+    // students the director can no longer see.
+    fun onQueryChange(query: String) = _state.update {
+        it.copy(query = query, message = null, selected = emptySet())
+    }
 
     fun toggle(id: String) = _state.update {
         it.copy(

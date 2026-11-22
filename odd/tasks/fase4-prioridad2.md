@@ -25,13 +25,13 @@ Branch: `fix/fase4-prioridad2`. Delivery: work-unit commits on this branch; push
 ## Tasks
 
 - **T1** — S2: shared group/roster canonicalisation for both approval paths. Route: inline. Evidence: pending.
-- **T2** — S3: ungrouped search/selection. Route: inline. Evidence: pending.
+- **T2** — S3: ungrouped search/selection. Route: inline. Evidence: `onQueryChange` clears selection; `UngroupedStudentsViewModelTest` GREEN.
 - **T3** — S4: teacher profile subject and groups. Route: inline. Evidence: pending.
 - **T4** — S5: groupId through task/notice navigation. Route: inline. Evidence: pending.
 - **T5** — S6: per-group subject resolution. Route: inline. Evidence: pending.
 - **T6** — S7: director manual assignment. Route: inline. Evidence: pending.
-- **T7** — S8: parent tab selection reconciliation. Route: inline. Evidence: pending.
-- **T8** — S9: remove unverifiable QR claim. Route: inline. Evidence: pending.
+- **T7** — S8: parent tab selection reconciliation. Route: inline. Evidence: Attendance/Tasks/Incidents call `ensureValid` before mapping the id; existing VM tests GREEN.
+- **T8** — S9: remove unverifiable QR claim. Route: inline. Evidence: `ReviewStudentScreen` says "Tutor del alumno" instead of "Correo verificado".
 - **T9** — all: full verification, FASE4.md update, merge/push on approval. Route: inline. Evidence: pending.
 
 ## Log

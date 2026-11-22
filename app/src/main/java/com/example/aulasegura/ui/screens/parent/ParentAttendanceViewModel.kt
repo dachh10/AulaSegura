@@ -79,7 +79,7 @@ class ParentAttendanceViewModel(
                     if (children.isEmpty()) {
                         _state.value = ParentAttendanceUiState.NoChildren
                     } else {
-                        selected = indexForSelection(selection.selectedId.value, children.map { it.studentId })
+                        selected = indexForSelection(selection.ensureValid(currentUid().orEmpty(), children.map { it.studentId }), children.map { it.studentId })
                         loadMonth()
                     }
                 }

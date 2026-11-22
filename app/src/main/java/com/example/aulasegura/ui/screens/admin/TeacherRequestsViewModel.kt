@@ -4,6 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.aulasegura.domain.model.AdminUser
 import com.example.aulasegura.domain.repository.AdminUserRepository
+import com.example.aulasegura.domain.repository.AdminUserUpdateError
 import com.example.aulasegura.domain.repository.AdminUserUpdateResult
 import com.example.aulasegura.domain.repository.BatchResult
 import com.example.aulasegura.domain.repository.TeacherRequestFilter
@@ -63,7 +64,14 @@ class TeacherRequestsViewModel(
                     }
                 }
                 is AdminUserUpdateResult.Failure -> _state.update {
-                    it.copy(loading = false, error = "No se pudo actualizar la solicitud.")
+                    it.copy(
+                        loading = false,
+                        error = when (result.reason) {
+                            AdminUserUpdateError.SUBJECT_TAKEN ->
+                                "La materia que eligió ya tiene docente en ese grupo. La solicitud sigue pendiente."
+                            else -> "No se pudo actualizar la solicitud."
+                        },
+                    )
                 }
             }
         }

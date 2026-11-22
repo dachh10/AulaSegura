@@ -1,5 +1,12 @@
 package com.example.aulasegura.domain.repository
 
+import com.example.aulasegura.domain.model.SubjectAvailability
+import com.example.aulasegura.domain.model.gradeSectionFromGroupId
+import com.example.aulasegura.domain.model.subjectsForGrade
+import com.example.aulasegura.domain.model.subjectIdFromLabel
+import com.example.aulasegura.domain.model.subjectAvailability
+import com.example.aulasegura.domain.model.subjectById
+
 import com.example.aulasegura.domain.model.AdminUser
 
 /**
@@ -98,7 +105,31 @@ enum class AdminUserUpdateError {
     NETWORK,
     TIMEOUT,
     DENIED,
+    /** The subject the teacher chose was already taken while the request waited. */
+    SUBJECT_TAKEN,
     UNKNOWN,
+}
+
+/** What the approval transaction must commit for a teacher. */
+data class TeacherApprovalPlan(
+    val groupId: String,
+    val subjectId: String,
+    val label: String,
+)
+
+/** `null` means the intent is invalid or the subject is no longer free. */
+fun teacherApprovalPlan(
+    requestedGroupId: String?,
+    requestedSubject: String?,
+    uid: String,
+    subjectTeachers: Map<String, String>,
+): TeacherApprovalPlan? {
+    val groupId = requestedGroupId?.takeIf { it.isNotBlank() } ?: return null
+    val subjectId = requestedSubject?.takeIf { it.isNotBlank() } ?: return null
+    val grade = gradeSectionFromGroupId(groupId)?.first ?: return null
+    val label = subjectsForGrade(grade).firstOrNull { it.id == subjectId }?.label ?: return null
+    if (subjectAvailability(subjectTeachers, subjectId, uid) != SubjectAvailability.FREE) return null
+    return TeacherApprovalPlan(groupId, subjectId, label)
 }
 
 /** The only two roles the principal is allowed to create from the app. */
@@ -189,6 +220,8 @@ object AdminUserFields {
     const val ESTADO = "estado"
     const val EMAIL_VERIFIED = "emailVerified"
     const val FECHA_SOLICITUD = "fechaSolicitud"
+const val REQUESTED_GROUP_ID = "requestedGroupId"
+const val REQUESTED_SUBJECT = "requestedSubject"
 
     /**
      * Marker used by the pure new-account document builder for a field Firestore
@@ -237,9 +270,20 @@ object AdminUserFields {
         )
         if (phone.isNotBlank()) document[PHONE] = phone.trim()
         if (role == AccountRole.DOCENTE) {
-            document[SUBJECTS] = subjects.map { it.trim() }.filter { it.isNotEmpty() }
+            val labels = subjects.map { it.trim() }.filter { it.isNotEmpty() }
+            document[SUBJECTS] = labels
+            // A director-created teacher goes through the same intent -> approval
+            // path as a self-registered one. No direct groupIds write here.
+            document[ESTADO] = "pendiente"
+            groupIds.firstOrNull()?.let { document[REQUESTED_GROUP_ID] = it }
+            val grade = groupIds.firstOrNull()?.let { gradeSectionFromGroupId(it)?.first }
+            labels.firstNotNullOfOrNull { subjectIdFromLabel(it, grade) }?.let {
+                document[REQUESTED_SUBJECT] = it
+            }
         }
-        if (groupIds.isNotEmpty()) document[GROUP_IDS] = groupIds
+        if (groupIds.isNotEmpty() && role != AccountRole.DOCENTE) {
+            document[GROUP_IDS] = groupIds
+        }
         if (role == AccountRole.TUTOR) document[STUDENT_IDS] = emptyList<String>()
         return document
     }

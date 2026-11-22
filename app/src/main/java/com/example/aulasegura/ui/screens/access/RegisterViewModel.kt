@@ -6,6 +6,8 @@ import com.example.aulasegura.domain.repository.AccountRegistrationInput
 import com.example.aulasegura.domain.repository.AccountRegistrationResult
 import com.example.aulasegura.domain.repository.AuthRepository
 import com.example.aulasegura.domain.repository.RegistrationKind
+import com.example.aulasegura.domain.model.groupIdFor
+import com.example.aulasegura.domain.model.subjectById
 import com.example.aulasegura.domain.repository.accountRegistrationError
 import com.example.aulasegura.domain.repository.accountRegistrationMessage
 import com.example.aulasegura.domain.repository.passwordStrength
@@ -24,6 +26,11 @@ data class RegisterUiState(
     val confirmPassword: String = "",
     val childName: String = "",
     val subject: String = "",
+    val subjectId: String = "",
+    val grade: Int? = null,
+    val section: String = "",
+    /** Canonical keys already assigned in the chosen group. */
+    val takenSubjects: Set<String> = emptySet(),
     val accepted: Boolean = false,
     val isLoading: Boolean = false,
     val errorMessage: String? = null,
@@ -52,6 +59,38 @@ class RegisterViewModel(
     fun setConfirmPassword(value: String) = _uiState.update { it.copy(confirmPassword = value) }
     fun setChildName(value: String) = _uiState.update { it.copy(childName = value) }
     fun setSubject(value: String) = _uiState.update { it.copy(subject = value) }
+
+    fun setSubjectId(id: String) = _uiState.update {
+        it.copy(subjectId = id, subject = subjectById(id)?.label.orEmpty(), errorMessage = null)
+    }
+
+    // Subjects differ per grade, so a grade change invalidates the old choice.
+    fun setGrade(value: Int) = _uiState.update {
+        if (it.grade == value) it else it.copy(
+            grade = value,
+            subjectId = "",
+            subject = "",
+            section = "",
+            takenSubjects = emptySet(),
+            errorMessage = null,
+        )
+    }
+
+    fun setSection(value: String) = _uiState.update {
+        it.copy(section = value.trim().uppercase(), errorMessage = null)
+    }
+
+    /** Called after a grade/section change so the form can disable taken subjects. */
+    fun refreshTakenSubjects() {
+        val state = _uiState.value
+        if (state.grade == null || state.section.isBlank()) return
+        val groupId = groupIdFor(state.grade, state.section)
+        viewModelScope.launch {
+            val taken = auth.takenSubjects(groupId)
+            _uiState.update { it.copy(takenSubjects = taken) }
+        }
+    }
+
     fun setAccepted(value: Boolean) = _uiState.update { it.copy(accepted = value) }
 
     fun submit() {
@@ -66,9 +105,17 @@ class RegisterViewModel(
             confirmPassword = state.confirmPassword,
             childName = state.childName.trim(),
             subject = state.subject.trim(),
+            subjectId = state.subjectId,
+            grade = state.grade,
+            section = state.section,
             accepted = state.accepted,
         )
         val error = accountRegistrationError(input)
+            ?: if (state.subjectId in state.takenSubjects) {
+                "Esa materia ya está asignada en ese grupo. Elige otra."
+            } else {
+                null
+            }
         if (error != null) {
             _uiState.update { it.copy(errorMessage = error) }
             return

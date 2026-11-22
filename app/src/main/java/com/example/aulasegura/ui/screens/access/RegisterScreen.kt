@@ -57,6 +57,9 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.aulasegura.domain.model.SchoolCatalog
+import com.example.aulasegura.domain.model.groupNameFor
+import com.example.aulasegura.domain.model.subjectsForGrade
 import com.example.aulasegura.domain.repository.RegistrationKind
 import com.example.aulasegura.ui.components.AulaField
 import com.example.aulasegura.ui.components.PillButton
@@ -102,6 +105,10 @@ fun RegisterScreen(
     onConfirmPasswordChange: (String) -> Unit = {},
     onChildNameChange: (String) -> Unit = {},
     onSubjectChange: (String) -> Unit = {},
+    onSubjectIdChange: (String) -> Unit = {},
+    onGradeChange: (Int) -> Unit = {},
+    onSectionChange: (String) -> Unit = {},
+    onSelectionChanged: () -> Unit = {},
     onAcceptedChange: (Boolean) -> Unit = {},
     isLoading: Boolean = false,
     errorMessage: String? = null,
@@ -230,45 +237,35 @@ fun RegisterScreen(
                             },
                         )
 
-                        Column {
+                        if (isTutor) {
                             AulaField(
-                                value = if (isTutor) ui.childName else ui.subject,
-                                onValueChange = if (isTutor) onChildNameChange else onSubjectChange,
-                                placeholder = if (isTutor) "Nombre completo de tu hijo" else "Ej. Matemáticas, 3° grado",
+                                value = ui.childName,
+                                onValueChange = onChildNameChange,
+                                placeholder = "Nombre completo de tu hijo",
                                 leadingIcon = Icons.Outlined.Badge,
-                                label = if (isTutor) "Nombre completo de tu hijo" else "Materia o grado que impartes",
+                                label = "Nombre completo de tu hijo",
                                 keyboardType = KeyboardType.Text,
                                 labelTrailing = {
-                                    if (isTutor) {
-                                        Text(
-                                            text = "Para tu código QR",
-                                            color = PrimaryContainer,
-                                            fontFamily = DmSans,
-                                            fontWeight = FontWeight.Medium,
-                                            fontSize = 11.sp,
-                                        )
-                                    }
+                                    Text(
+                                        text = "Para tu código QR",
+                                        color = PrimaryContainer,
+                                        fontFamily = DmSans,
+                                        fontWeight = FontWeight.Medium,
+                                        fontSize = 11.sp,
+                                    )
                                 },
                             )
-                            if (!isTutor) {
-                                Row(
-                                    modifier = Modifier.padding(start = 4.dp, top = 6.dp),
-                                    verticalAlignment = Alignment.CenterVertically,
-                                ) {
-                                    Icon(
-                                        imageVector = Icons.Outlined.Info,
-                                        contentDescription = null,
-                                        tint = TertiaryContainer,
-                                        modifier = Modifier.size(14.dp),
-                                    )
-                                    Spacer(Modifier.width(6.dp))
-                                    Text(
-                                        text = "Tu cuenta será revisada por la directora.",
-                                        color = OnSurfaceVariant,
-                                        style = AulaTextStyles.dataMonoSm,
-                                    )
-                                }
-                            }
+                        } else {
+                            TeacherAssignmentFields(
+                                grade = ui.grade,
+                                section = ui.section,
+                                subjectId = ui.subjectId,
+                                takenSubjects = ui.takenSubjects,
+                                onGradeChange = onGradeChange,
+                                onSectionChange = onSectionChange,
+                                onSubjectIdChange = onSubjectIdChange,
+                                onSelectionChanged = onSelectionChanged,
+                            )
                         }
 
                         TermsRow(
@@ -667,5 +664,148 @@ private fun RegisterBottomBar(
                 modifier = Modifier.clickable(onClick = onLogin),
             )
         }
+    }
+}
+
+
+/**
+ * A teacher picks a classroom (grade + section) and one of the six subjects.
+ * A subject already owned in that classroom cannot be selected: the same
+ * invariant the approval transaction enforces atomically.
+ */
+@Composable
+private fun TeacherAssignmentFields(
+    grade: Int?,
+    section: String,
+    subjectId: String,
+    takenSubjects: Set<String>,
+    onGradeChange: (Int) -> Unit,
+    onSectionChange: (String) -> Unit,
+    onSubjectIdChange: (String) -> Unit,
+    onSelectionChanged: () -> Unit,
+) {
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Text(
+            text = "Grupo que impartes",
+            color = PrimaryContainer,
+            fontFamily = DmSans,
+            fontWeight = FontWeight.Medium,
+            fontSize = 12.sp,
+        )
+        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            SchoolCatalog.GRADES.forEach { value ->
+                SelectionChip(
+                    label = "$value°",
+                    selected = grade == value,
+                    onClick = {
+                        onGradeChange(value)
+                        onSelectionChanged()
+                    },
+                )
+            }
+        }
+        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            SchoolCatalog.SECTIONS.forEach { value ->
+                SelectionChip(
+                    label = value,
+                    selected = section == value,
+                    onClick = {
+                        onSectionChange(value)
+                        onSelectionChanged()
+                    },
+                )
+            }
+        }
+        if (grade != null && section.isNotBlank()) {
+            Text(
+                text = "Grupo: ${groupNameFor(grade, section)}",
+                color = OnSurfaceVariant,
+                style = AulaTextStyles.dataMonoSm,
+            )
+        }
+        Spacer(Modifier.height(2.dp))
+        Text(
+            text = "Materia que impartes",
+            color = PrimaryContainer,
+            fontFamily = DmSans,
+            fontWeight = FontWeight.Medium,
+            fontSize = 12.sp,
+        )
+        if (grade == null) {
+            Text(
+                text = "Elige primero el grado para ver sus materias.",
+                color = OnSurfaceVariant,
+                style = AulaTextStyles.dataMonoSm,
+            )
+        } else {
+            val gradeSubjects = subjectsForGrade(grade)
+            listOf(gradeSubjects.take(3), gradeSubjects.drop(3)).forEach { row ->
+                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    row.forEach { subject ->
+                        val taken = subject.id in takenSubjects && subject.id != subjectId
+                        SelectionChip(
+                            label = subject.label,
+                            selected = subject.id == subjectId,
+                            enabled = !taken,
+                            onClick = { onSubjectIdChange(subject.id) },
+                        )
+                    }
+                }
+            }
+        }
+        if (takenSubjects.isNotEmpty()) {
+            Text(
+                text = "Las materias marcadas ya tienen docente en este grupo.",
+                color = OnSurfaceVariant,
+                style = AulaTextStyles.dataMonoSm,
+            )
+        }
+        Row(
+            modifier = Modifier.padding(start = 4.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Icon(
+                imageVector = Icons.Outlined.Info,
+                contentDescription = null,
+                tint = TertiaryContainer,
+                modifier = Modifier.size(14.dp),
+            )
+            Spacer(Modifier.width(6.dp))
+            Text(
+                text = "Tu cuenta será revisada por la directora; el grupo y la materia se asignan solos.",
+                color = OnSurfaceVariant,
+                style = AulaTextStyles.dataMonoSm,
+            )
+        }
+    }
+}
+
+@Composable
+private fun SelectionChip(
+    label: String,
+    selected: Boolean,
+    enabled: Boolean = true,
+    onClick: () -> Unit,
+) {
+    Box(
+        modifier = Modifier
+            .clip(PillShape)
+            .border(
+                width = 1.dp,
+                color = if (selected) Primary else Outline,
+                shape = PillShape,
+            )
+            .background(if (selected) PrimaryContainer else SurfaceContainerLowest)
+            .then(if (enabled) Modifier.clickable(onClick = onClick) else Modifier)
+            .padding(horizontal = 12.dp, vertical = 8.dp),
+        contentAlignment = Alignment.Center,
+    ) {
+        Text(
+            text = label,
+            color = if (selected) OnSecondaryFixed else OnSurfaceVariant,
+            fontFamily = DmSans,
+            fontWeight = FontWeight.Medium,
+            fontSize = 12.sp,
+        )
     }
 }

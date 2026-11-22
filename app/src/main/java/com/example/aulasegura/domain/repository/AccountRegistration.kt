@@ -1,6 +1,7 @@
 package com.example.aulasegura.domain.repository
 
 import com.example.aulasegura.domain.model.AppUser
+import com.example.aulasegura.domain.model.teacherAssignmentError
 
 /** Which tab of the registration form the user is filling. */
 enum class RegistrationKind {
@@ -22,6 +23,10 @@ data class AccountRegistrationInput(
     val confirmPassword: String,
     val childName: String = "",
     val subject: String = "",
+    /** Canonical subject key; the label stays in [subject]. */
+    val subjectId: String = "",
+    val grade: Int? = null,
+    val section: String = "",
     val accepted: Boolean = false,
 )
 
@@ -60,8 +65,8 @@ fun accountRegistrationError(input: AccountRegistrationInput): String? = when {
     !input.accepted -> "Acepta el aviso de privacidad y los términos de uso."
     input.kind == RegistrationKind.TUTOR && input.childName.isBlank() ->
         "Escribe el nombre completo de tu hijo."
-    input.kind == RegistrationKind.DOCENTE && input.subject.isBlank() ->
-        "Escribe la materia o grado que impartes."
+    input.kind == RegistrationKind.DOCENTE ->
+        teacherAssignmentError(input.grade, input.section, input.subjectId)
     else -> null
 }
 

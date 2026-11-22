@@ -46,7 +46,10 @@ private class FakeAuthRepository(
     var restoreResult: AuthResult = AuthResult.Failure(AuthFailure.NO_SESSION),
     var accountActive: Flow<Boolean> = emptyFlow(),
     var linkingState: Flow<LinkingState> = emptyFlow(),
+    var takenSubjects: Set<String> = emptySet(),
 ) : AuthRepository {
+
+    override suspend fun takenSubjects(groupId: String): Set<String> = this.takenSubjects
 
     var emailVerified: Boolean = false
     var markEmailVerifiedCalls = 0
@@ -473,15 +476,38 @@ class RegisterViewModelTest {
         val vm = viewModel(repo)
         vm.setKind(RegistrationKind.DOCENTE)
         vm.setChildName("")
-        vm.setSubject("Matemáticas")
+        vm.setGrade(3)
+        vm.setSection("A")
+        vm.setSubjectId("g3-matematicas-iii")
 
         vm.submit()
         advanceUntilIdle()
 
         assertTrue(vm.uiState.value.succeeded)
         assertEquals(RegistrationKind.DOCENTE, repo.lastAccountRegistration?.kind)
-        assertEquals("Matemáticas", repo.lastAccountRegistration?.subject)
+        assertEquals("Matemáticas III", repo.lastAccountRegistration?.subject)
+        assertEquals("g3-matematicas-iii", repo.lastAccountRegistration?.subjectId)
+        assertEquals(3, repo.lastAccountRegistration?.grade)
+        assertEquals("A", repo.lastAccountRegistration?.section)
         assertEquals("", repo.lastAccountRegistration?.childName)
+    }
+
+    @Test
+    fun `a teacher cannot submit a subject already taken in the group`() = runTest(dispatcher) {
+        val repo = FakeAuthRepository(takenSubjects = setOf("g3-matematicas-iii"))
+        val vm = viewModel(repo)
+        vm.setKind(RegistrationKind.DOCENTE)
+        vm.setGrade(3)
+        vm.setSection("A")
+        vm.refreshTakenSubjects()
+        advanceUntilIdle()
+        vm.setSubjectId("g3-matematicas-iii")
+
+        vm.submit()
+        advanceUntilIdle()
+
+        assertFalse(vm.uiState.value.succeeded)
+        assertTrue(vm.uiState.value.errorMessage!!.contains("ya está asignada"))
     }
 
     @Test

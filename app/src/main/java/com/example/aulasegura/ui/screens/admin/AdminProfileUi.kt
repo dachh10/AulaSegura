@@ -230,5 +230,7 @@ fun notificationsFailureMessage(error: AdminUserUpdateError): String = when (err
     -> "Sin conexión. La preferencia no se guardó; inténtalo de nuevo."
 
     AdminUserUpdateError.DENIED -> "No tienes permiso para cambiar esta preferencia."
+    AdminUserUpdateError.SUBJECT_TAKEN ->
+        "La materia ya tiene docente en ese grupo. No se guardó la preferencia."
     AdminUserUpdateError.UNKNOWN -> "No se pudo guardar la preferencia."
 }

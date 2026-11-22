@@ -6,6 +6,7 @@ import com.example.aulasegura.data.local.mapper.toCachedUser
 import com.example.aulasegura.data.mapper.profilePhotoUpdate
 import com.example.aulasegura.data.mapper.profileUpdate
 import com.example.aulasegura.domain.model.AppUser
+import com.example.aulasegura.domain.model.groupIdFor
 import com.example.aulasegura.domain.model.UserRole
 import com.example.aulasegura.domain.repository.AccountRegistrationInput
 import com.example.aulasegura.domain.repository.AccountRegistrationResult
@@ -243,6 +244,11 @@ class AuthRepositoryImpl(
                 userData[FIELD_HIJO_SOLICITADO] = input.childName.trim()
             } else {
                 userData[FIELD_SUBJECTS] = listOf(input.subject.trim())
+                // The choice is an intent until the director approves the person.
+                // The approval transaction turns it into real group links.
+                userData[FIELD_REQUESTED_GROUP_ID] =
+                    groupIdFor(input.grade ?: 0, input.section)
+                userData[FIELD_REQUESTED_SUBJECT] = input.subjectId
             }
 
             withTimeout(WRITE_TIMEOUT_MILLIS) {
@@ -282,6 +288,14 @@ class AuthRepositoryImpl(
             reject(AccountRegistrationResult.Failed)
         }
     }
+
+    override suspend fun takenSubjects(groupId: String): Set<String> = runCatching {
+        val snapshot = withTimeout(READ_TIMEOUT_MILLIS) {
+            firestore.collection(GROUPS).document(groupId).get().await()
+        }
+        @Suppress("UNCHECKED_CAST")
+        (snapshot.get("subjectTeachers") as? Map<String, Any?>)?.keys ?: emptySet()
+    }.getOrDefault(emptySet())
 
     override suspend fun isEmailVerified(): Boolean {
         val user = auth.currentUser ?: return false
@@ -618,6 +632,8 @@ class AuthRepositoryImpl(
 
     private companion object {
         const val USERS = "users"
+const val GROUPS = "groups"
+private const val READ_TIMEOUT_MILLIS = 8_000L
         const val STUDENTS = "students"
         const val LINKING_CODES = "linkingCodes"
         const val FIELD_USED_BY = "usedBy"
@@ -632,6 +648,8 @@ class AuthRepositoryImpl(
         const val FIELD_ACTIVE = "active"
         const val FIELD_PHOTO_URL = "photoUrl"
         const val FIELD_SUBJECTS = "subjects"
+const val FIELD_REQUESTED_GROUP_ID = "requestedGroupId"
+const val FIELD_REQUESTED_SUBJECT = "requestedSubject"
         const val FIELD_ROL = "rol"
         const val FIELD_ESTADO = "estado"
         const val FIELD_NOMBRE = "nombre"

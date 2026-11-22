@@ -29,6 +29,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.aulasegura.di.rememberAppContainer
 import com.example.aulasegura.domain.model.AdminUser
 import com.example.aulasegura.domain.repository.TeacherRequestFilter
+import com.example.aulasegura.domain.repository.teacherRequestStateLabel
 import com.example.aulasegura.ui.components.PillButton
 import com.example.aulasegura.ui.theme.BrandCoral
 import com.example.aulasegura.ui.theme.BrandCream
@@ -122,6 +123,7 @@ fun TeacherRequestsScreen(onBack: () -> Unit) {
             ui.visible.forEach { teacher ->
                 TeacherRequestCard(
                     teacher = teacher,
+                    stateLabel = teacherRequestStateLabel(ui.filter),
                     onAccept = { vm.decide(teacher.uid, approve = true) },
                     onReject = { vm.decide(teacher.uid, approve = false) },
                 )
@@ -143,6 +145,7 @@ fun TeacherRequestsScreen(onBack: () -> Unit) {
 @Composable
 private fun TeacherRequestCard(
     teacher: AdminUser,
+    stateLabel: String? = null,
     onAccept: () -> Unit,
     onReject: () -> Unit,
 ) {
@@ -179,19 +182,29 @@ private fun TeacherRequestCard(
             fontSize = 11.sp,
         )
         Spacer(Modifier.height(12.dp))
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            PillButton(
-                text = "Rechazar",
-                onClick = onReject,
-                containerColor = SecondaryContainer,
-                modifier = Modifier.weight(1f),
+        if (stateLabel != null) {
+            Text(
+                text = stateLabel,
+                color = if (stateLabel == "Rechazada") Error else Primary,
+                fontFamily = DmSans,
+                fontWeight = FontWeight.SemiBold,
+                fontSize = 13.sp,
             )
-            PillButton(
-                text = "Aceptar",
-                onClick = onAccept,
-                containerColor = Primary,
-                modifier = Modifier.weight(1f),
-            )
+        } else {
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                PillButton(
+                    text = "Rechazar",
+                    onClick = onReject,
+                    containerColor = SecondaryContainer,
+                    modifier = Modifier.weight(1f),
+                )
+                PillButton(
+                    text = "Aceptar",
+                    onClick = onAccept,
+                    containerColor = Primary,
+                    modifier = Modifier.weight(1f),
+                )
+            }
         }
     }
 }

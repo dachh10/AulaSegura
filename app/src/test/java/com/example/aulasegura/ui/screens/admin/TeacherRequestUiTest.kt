@@ -6,6 +6,7 @@ import com.example.aulasegura.domain.repository.TeacherRequestFilter
 import com.example.aulasegura.domain.repository.acceptAllTeacherUids
 import com.example.aulasegura.domain.repository.pendingTeacherCount
 import com.example.aulasegura.domain.repository.teacherRequests
+import com.example.aulasegura.domain.repository.teacherRequestStateLabel
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
@@ -63,6 +64,13 @@ class TeacherRequestUiTest {
             setOf("pendiente-viejo", "pendiente-nuevo"),
             acceptAllTeacherUids(all).toSet(),
         )
+    }
+
+    @Test
+    fun `only pending cards offer decision buttons`() {
+        assertEquals(null, teacherRequestStateLabel(TeacherRequestFilter.PENDIENTES))
+        assertEquals("Aceptada", teacherRequestStateLabel(TeacherRequestFilter.ACEPTADAS))
+        assertEquals("Rechazada", teacherRequestStateLabel(TeacherRequestFilter.RECHAZADAS))
     }
 
     @Test

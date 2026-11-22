@@ -29,6 +29,16 @@ fun teacherRequests(
 fun pendingTeacherCount(users: List<AdminUser>): Int =
     teacherRequests(users, TeacherRequestFilter.PENDIENTES).size
 
+/**
+ * Decided requests are read-only: `null` only for pending cards, which are the
+ * ones that still offer the accept/reject buttons.
+ */
+fun teacherRequestStateLabel(filter: TeacherRequestFilter): String? = when (filter) {
+    TeacherRequestFilter.PENDIENTES -> null
+    TeacherRequestFilter.ACEPTADAS -> "Aceptada"
+    TeacherRequestFilter.RECHAZADAS -> "Rechazada"
+}
+
 /** Uids for the batch write; excludes unverified and already-decided teachers. */
 fun acceptAllTeacherUids(users: List<AdminUser>): List<String> =
     teacherRequests(users, TeacherRequestFilter.PENDIENTES).map { it.uid }

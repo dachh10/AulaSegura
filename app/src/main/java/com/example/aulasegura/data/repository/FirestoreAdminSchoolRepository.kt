@@ -26,9 +26,11 @@ import kotlinx.coroutines.withTimeout
  * cache to mistake for a refresh. One 12 s deadline covers both the read and the
  * update; an offline principal gets an explicit error, never a plausible empty form.
  *
- * The update is a partial `update(map)` built from [AdminCampusConfig.toUpdateMap].
- * That builder is the only place the writable keys are named, which is what keeps
- * `key` and `createdAt` out of the payload. `updatedAt` uses the server clock.
+ * The write is `set(merge)` built from [AdminCampusConfig.toUpdateMap]: it creates
+ * the document when it does not exist and updates it otherwise, so the director
+ * is not limited to a seeded school. That builder is the only place the writable
+ * keys are named, which keeps `key` and `createdAt` out of the payload.
+ * `updatedAt` uses the server clock.
  *
  * This repository is separate from the teacher's `FirestoreSchoolRepository`:
  * that one is a cache-first geofence read tied to Room and the Remote Config
@@ -46,7 +48,9 @@ class FirestoreAdminSchoolRepository(
                 .get(Source.SERVER)
                 .await()
 
-            if (!snapshot.exists()) throw SchoolNotFound
+            // A school without a document is a valid starting point: the
+            // director configures it here instead of depending on a seeded row.
+            if (!snapshot.exists()) return@schoolCall AdminSchool()
 
             documentToSchool(snapshot.data.orEmpty())
         }
@@ -56,9 +60,11 @@ class FirestoreAdminSchoolRepository(
             val fields = config.toUpdateMap().toMutableMap()
             fields[AdminCampusFields.UPDATED_AT] = FieldValue.serverTimestamp()
 
+            // Create-or-update: the director decides the location; no seeded
+            // document is required. Merge keeps fields owned by other flows.
             firestore.collection(COLLECTION_SCHOOLS)
                 .document(schoolId)
-                .update(fields)
+                .set(fields, com.google.firebase.firestore.SetOptions.merge())
                 .await()
         }
 
@@ -73,8 +79,6 @@ class FirestoreAdminSchoolRepository(
             withTimeout(CALL_TIMEOUT_MILLIS) {
                 AdminSchoolResult.Success(block(schoolId))
             }
-        } catch (error: SchoolNotFound) {
-            AdminSchoolResult.Failure(AdminSchoolError.NOT_FOUND)
         } catch (error: TimeoutCancellationException) {
             AdminSchoolResult.Failure(AdminSchoolError.TIMEOUT)
         } catch (error: FirebaseFirestoreException) {
@@ -127,7 +131,6 @@ class FirestoreAdminSchoolRepository(
     }
 
     /** Local signal for a missing document, mapped without exposing Firestore types. */
-    private object SchoolNotFound : Exception()
 
     private companion object {
         const val COLLECTION_SCHOOLS = "schools"

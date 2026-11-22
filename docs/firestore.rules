@@ -362,7 +362,12 @@ service cloud.firestore {
       allow read: if isActive() && schoolId == mySchool();
       allow update: if isDirectivo() && schoolId == mySchool()
         && !changedKeys().hasAny(['key', 'createdAt']);
-      allow create, delete: if false;
+      // The director owns her school's configuration: the first save creates the
+      // document, later saves update it. Identity fields stay immutable.
+      allow create: if isDirectivo()
+        && schoolId == mySchool()
+        && !request.resource.data.keys().hasAny(['key', 'createdAt']);
+      allow delete: if false;
     }
 
     // ---------------------------------------------------------------------

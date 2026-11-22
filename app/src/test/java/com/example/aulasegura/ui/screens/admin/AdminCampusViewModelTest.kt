@@ -15,6 +15,7 @@ import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Before
 import org.junit.Test
@@ -37,6 +38,24 @@ class AdminCampusViewModelTest {
         },
         nameResolver = resolver,
     )
+
+    @Test
+    fun `a school with no document yet opens a blank configurable form`() = runTest(dispatcher) {
+        val vm = AdminCampusViewModel(
+            schools = object : AdminSchoolRepository {
+                override suspend fun getSchool() =
+                    AdminSchoolResult.Success(AdminSchool())
+                override suspend fun updateCampus(config: AdminCampusConfig) =
+                    AdminSchoolResult.Success(Unit)
+            },
+        )
+        advanceUntilIdle()
+
+        val state = vm.state.value
+        assertNotNull(state.school)
+        assertEquals("", state.school?.name)
+        assertEquals(null, state.error)
+    }
 
     @Test
     fun `coordinates fill the school name automatically`() = runTest(dispatcher) {

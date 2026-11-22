@@ -22,7 +22,7 @@ Branch: `fix/fase4-detalles-1a7`. Delivery: work-unit commits on this branch; pu
 
 - **T1** — S2,S3,S5: pickers de registro, directora y tutor; fotos en los tres inicios. Route: inline. Evidence: registration photo uploaded after account creation, director gallery + home avatar, tutor camera diagnostic + home avatar; build GREEN.
 - **T2** — S4,S7: fallback de escuela y miniatura del incidente. Route: inline. Evidence: school row no longer prints the raw id; director incident tile uses incidentThumbnailUrl with AsyncImage; tests GREEN.
-- **T3** — S6: filtro por `reportedBy` en Room y limpieza al cerrar sesión. Route: inline. Evidence: pending.
+- **T3** — S6: filtro por `reportedBy` en Room y limpieza al cerrar sesión. Route: inline. Evidence: `IncidentDao.observeHistory(reporterUid)` con WHERE y repositorio que usa el uid de sesión; la limpieza de caché se descartó para no perder borradores pendientes de sincronizar. Build GREEN.
 - **T4** — all: full verification, FASE4.md update, merge/push on approval. Route: inline. Evidence: pending.
 
 ## Log

@@ -297,16 +297,6 @@ private fun SchoolIdentityCard(
         }
         Spacer(modifier = Modifier.width(14.dp))
         Column(modifier = Modifier.weight(1f)) {
-            Text(
-                text = "Nombre del plantel",
-                color = OnSurfaceVariant,
-                fontFamily = DmSans,
-                fontWeight = FontWeight.Medium,
-                fontSize = 12.sp,
-                lineHeight = 12.sp,
-                letterSpacing = 0.24.sp,
-            )
-            Spacer(modifier = Modifier.height(4.dp))
             OutlinedTextField(
                 value = nameText,
                 onValueChange = onNameChange,

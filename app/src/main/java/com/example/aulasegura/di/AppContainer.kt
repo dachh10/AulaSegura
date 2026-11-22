@@ -474,6 +474,11 @@ class AppContainer(context: Context) {
      * teacher's geofence read: a save must be confirmed by the server, while the
      * teacher keeps using the last cached centre until their next online refresh.
      */
+    /** Best-effort reverse geocoder for the campus name field. */
+    val schoolNameResolver: com.example.aulasegura.domain.repository.SchoolNameResolver by lazy {
+        com.example.aulasegura.data.location.AndroidSchoolNameResolver(appContext)
+    }
+
     val adminSchoolRepository: AdminSchoolRepository by lazy {
         FirestoreAdminSchoolRepository(
             firestore = firestore,
@@ -916,7 +921,10 @@ class AppViewModelFactory(
             )
 
         modelClass.isAssignableFrom(AdminCampusViewModel::class.java) ->
-            AdminCampusViewModel(schools = container.adminSchoolRepository)
+            AdminCampusViewModel(
+                schools = container.adminSchoolRepository,
+                nameResolver = container.schoolNameResolver,
+            )
 
         modelClass.isAssignableFrom(AdminNotificationsViewModel::class.java) ->
             AdminNotificationsViewModel(notifications = container.notificationRepository)

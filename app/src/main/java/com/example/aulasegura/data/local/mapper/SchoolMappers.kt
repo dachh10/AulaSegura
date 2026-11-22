@@ -20,6 +20,7 @@ private const val MAX_RADIUS_METERS = 5_000.0
 fun schoolEntityFrom(id: String, data: Map<String, Any?>): SchoolEntity? {
     val name = data["name"] as? String ?: return null
     val location = data["location"] as? Map<*, *>
+    val schedule = data["schedule"] as? Map<*, *>
 
     return SchoolEntity(
         schoolId = id,
@@ -30,6 +31,8 @@ fun schoolEntityFrom(id: String, data: Map<String, Any?>): SchoolEntity? {
         updatedAt = (data["updatedAt"] as? Timestamp)?.toEpochMillis() ?: 0L,
         // A document written before the flag existed must keep requiring GPS.
         requireLocation = data["requireLocation"] as? Boolean ?: true,
+        entryTime = schedule?.get("entryTime") as? String,
+        exitTime = schedule?.get("exitTime") as? String,
     )
 }
 
@@ -51,6 +54,8 @@ fun SchoolEntity.toSchoolSite(fallbackRadiusMeters: Double): SchoolSite? {
         longitude = longitude,
         radiusMeters = radiusMeters.orDefault(fallbackRadiusMeters),
         requireLocation = requireLocation,
+        entryTime = entryTime,
+        exitTime = exitTime,
     )
 }
 

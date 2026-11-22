@@ -25,6 +25,18 @@ class AdminCampusUiTest {
     )
 
     @Test
+    fun `times stay canonical in storage and render with AM PM`() {
+        assertEquals("07:00", formatHhMm(7, 0))
+        assertEquals("13:00", formatHhMm(13, 0))
+        assertEquals("7:00 AM", formatTime12Hour("07:00"))
+        assertEquals("1:00 PM", formatTime12Hour("13:00"))
+        assertEquals("12:30 PM", formatTime12Hour("12:30"))
+        assertEquals("12:30 AM", formatTime12Hour("00:30"))
+        assertEquals(13 to 0, parseHhMm("13:00"))
+        assertNull(parseHhMm("25:00"))
+    }
+
+    @Test
     fun `the school name is required and is part of the save payload`() {
         assertNull(validateSchoolName("Escuela Benito Juárez"))
         assertNotNull(validateSchoolName("  "))

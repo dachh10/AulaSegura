@@ -64,6 +64,7 @@ import com.example.aulasegura.ui.screens.access.SplashScreen
 import com.example.aulasegura.ui.screens.access.VerifyEmailScreen
 import com.example.aulasegura.ui.screens.access.nextRoute
 import com.example.aulasegura.ui.screens.admin.AdminDashboardScreen
+import com.example.aulasegura.ui.screens.admin.formatTime12Hour
 import com.example.aulasegura.ui.screens.admin.AdminCampusScreen
 import com.example.aulasegura.ui.screens.admin.AdminGroupsScreen
 import com.example.aulasegura.ui.screens.admin.AdminGroupDetailScreen
@@ -75,6 +76,7 @@ import com.example.aulasegura.ui.screens.admin.AdminProfileScreen
 import com.example.aulasegura.ui.screens.admin.AdminReportsScreen
 import com.example.aulasegura.ui.screens.admin.ReportPdfExporter
 import com.example.aulasegura.ui.screens.admin.AdminUsersScreen
+import java.time.LocalTime
 import com.example.aulasegura.ui.screens.admin.ReviewStudentScreen
 import com.example.aulasegura.ui.screens.admin.ScanStudentScreen
 import com.example.aulasegura.ui.screens.admin.TeacherRequestsScreen
@@ -866,6 +868,21 @@ fun AulaSeguraNavHost(
 
             val groupId = entry.arguments?.getString("groupId").orEmpty()
             val school = rememberSchoolSite()
+            val site = school.site
+            if (site != null && !site.isWithinSchedule(LocalTime.now())) {
+                TeacherNoClassScreen(
+                    onBack = { navController.popBackStack() },
+                    onGoHome = {
+                        navController.popBackStack(Routes.TEACHER_HOME, inclusive = false)
+                    },
+                    title = "Fuera del horario de pase de lista",
+                    message = "El horario configurado es de " +
+                        "${formatTime12Hour(site.entryTime.orEmpty())} a " +
+                        "${formatTime12Hour(site.exitTime.orEmpty())}. " +
+                        "Las listas ya guardadas siguen en el historial.",
+                )
+                return@composable
+            }
             TeacherLocationVerifyingScreen(
                 groupId = groupId,
                 school = school.site,

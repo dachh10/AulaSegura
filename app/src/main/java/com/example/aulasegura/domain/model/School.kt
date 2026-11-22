@@ -1,5 +1,7 @@
 package com.example.aulasegura.domain.model
 
+import java.time.LocalTime
+
 /**
  * The geofence a teacher has to be inside to take attendance.
  *
@@ -25,4 +27,22 @@ data class SchoolSite(
     val longitude: Double,
     val radiusMeters: Double,
     val requireLocation: Boolean = true,
-)
+    /** Canonical `HH:mm` from `schools/{id}.schedule`; null means no time gate. */
+    val entryTime: String? = null,
+    val exitTime: String? = null,
+) {
+    /**
+     * A roll call may only start inside the configured window. A missing or
+     * malformed window means "no restriction" so a school that never set one is
+     * not locked out after an update.
+     */
+    fun isWithinSchedule(now: LocalTime): Boolean {
+        val start = parseSchoolTime(entryTime) ?: return true
+        val end = parseSchoolTime(exitTime) ?: return true
+        return !now.isBefore(start) && !now.isAfter(end)
+    }
+}
+
+private fun parseSchoolTime(value: String?): LocalTime? = runCatching {
+    value?.takeIf { it.isNotBlank() }?.let { LocalTime.parse(it) }
+}.getOrNull()

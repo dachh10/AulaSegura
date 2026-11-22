@@ -48,7 +48,7 @@ import com.example.aulasegura.data.local.entity.TaskEntity
         ProfileEntity::class,
         SchoolEntity::class,
     ],
-    version = 6,
+    version = 7,
     exportSchema = true,
 )
 @TypeConverters(Converters::class)
@@ -162,6 +162,14 @@ abstract class AulaSeguraDatabase : RoomDatabase() {
                 db.execSQL(
                     "ALTER TABLE `profile` ADD COLUMN `fechaSolicitud` INTEGER NOT NULL DEFAULT 0",
                 )
+            }
+        }
+
+        /** Carries the configured roll-call window into the teacher's cache. */
+        val MIGRATION_6_7: Migration = object : Migration(6, 7) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE `schools` ADD COLUMN `entryTime` TEXT")
+                db.execSQL("ALTER TABLE `schools` ADD COLUMN `exitTime` TEXT")
             }
         }
 

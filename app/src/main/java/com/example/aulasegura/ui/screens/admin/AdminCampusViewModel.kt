@@ -20,7 +20,12 @@ import kotlinx.coroutines.launch
  */
 class AdminCampusViewModel(
     private val schools: AdminSchoolRepository,
+    private val nameResolver: com.example.aulasegura.domain.repository.SchoolNameResolver? = null,
 ) : ViewModel() {
+
+    /** A name the director typed wins over any automatic geocoder result. */
+    private var nameEditedByUser = false
+    private var lastAutoFilledCoordinates: String? = null
 
     private val _state = MutableStateFlow(AdminCampusUiState())
     val state: StateFlow<AdminCampusUiState> = _state.asStateFlow()
@@ -43,6 +48,10 @@ class AdminCampusViewModel(
             when (val result = schools.getSchool()) {
                 is AdminSchoolResult.Success -> {
                     val school = result.data
+                    if (!keepCoordinates) {
+                        nameEditedByUser = false
+                        lastAutoFilledCoordinates = null
+                    }
                     _state.update { current ->
                         current.copy(
                             loading = false,
@@ -78,7 +87,27 @@ class AdminCampusViewModel(
     }
 
     fun setName(value: String) {
+        nameEditedByUser = true
         _state.update { it.copy(nameText = value, saved = false, saveError = null) }
+    }
+
+    /** Fills the name from the centre once, unless the director typed one already. */
+    private fun autoFillNameFromCoordinates() {
+        val resolver = nameResolver ?: return
+        if (nameEditedByUser) return
+        val valid = validateCoordinates(
+            _state.value.latitudeText,
+            _state.value.longitudeText,
+        ) as? com.example.aulasegura.ui.screens.admin.CoordinateValidation.Valid
+            ?: return
+        val key = "${valid.latitude},${valid.longitude}"
+        if (key == lastAutoFilledCoordinates) return
+        lastAutoFilledCoordinates = key
+        viewModelScope.launch {
+            val resolved = resolver.resolve(valid.latitude, valid.longitude)
+            if (resolved.isNullOrBlank() || nameEditedByUser) return@launch
+            _state.update { current -> current.copy(nameText = resolved, saved = false) }
+        }
     }
 
     fun setRadius(radiusMeters: Int) {
@@ -105,10 +134,12 @@ class AdminCampusViewModel(
 
     fun setLatitude(value: String) {
         _state.update { it.copy(latitudeText = value, saved = false, saveError = null) }
+        autoFillNameFromCoordinates()
     }
 
     fun setLongitude(value: String) {
         _state.update { it.copy(longitudeText = value, saved = false, saveError = null) }
+        autoFillNameFromCoordinates()
     }
 
     /** Applies a map drag or tap to both text fields using the non-locale formatter. */
@@ -121,6 +152,7 @@ class AdminCampusViewModel(
                 saveError = null,
             )
         }
+        autoFillNameFromCoordinates()
     }
 
     fun save() {

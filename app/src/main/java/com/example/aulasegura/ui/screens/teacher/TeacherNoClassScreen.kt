@@ -49,6 +49,9 @@ import com.example.aulasegura.ui.theme.SurfaceContainerLowest
 fun TeacherNoClassScreen(
     onBack: () -> Unit,
     onGoHome: () -> Unit,
+    title: String = "Hoy no hay clases",
+    message: String = "El pase de lista se realiza de lunes a viernes. " +
+        "Las listas que ya guardaste siguen en el historial.",
 ) {
     Box(
         modifier = Modifier
@@ -80,7 +83,7 @@ fun TeacherNoClassScreen(
                 }
 
                 Text(
-                    text = "Hoy no hay clases",
+                    text = title,
                     color = PrimaryContainer,
                     fontFamily = BricolageGrotesque,
                     fontWeight = FontWeight.Bold,
@@ -89,8 +92,7 @@ fun TeacherNoClassScreen(
                     textAlign = TextAlign.Center,
                 )
                 Text(
-                    text = "El pase de lista se realiza de lunes a viernes. " +
-                        "Las listas que ya guardaste siguen en el historial.",
+                    text = message,
                     color = OnboardingMuted,
                     fontFamily = DmSans,
                     fontSize = 13.sp,

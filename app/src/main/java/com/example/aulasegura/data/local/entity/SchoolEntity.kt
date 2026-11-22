@@ -27,4 +27,8 @@ data class SchoolEntity(
     // Declared last so it matches the column MIGRATION_3_4 appends. The default
     // keeps an old cached row (and every caller that omits it) fail-closed.
     val requireLocation: Boolean = true,
+    // Appended by MIGRATION_6_7. Nullable so a cached row from an older version
+    // means "no configured window" instead of locking the teacher out.
+    val entryTime: String? = null,
+    val exitTime: String? = null,
 )

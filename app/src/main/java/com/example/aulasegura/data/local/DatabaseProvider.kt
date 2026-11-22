@@ -33,6 +33,7 @@ object DatabaseProvider {
                 AulaSeguraDatabase.MIGRATION_3_4,
                 AulaSeguraDatabase.MIGRATION_4_5,
                 AulaSeguraDatabase.MIGRATION_5_6,
+                AulaSeguraDatabase.MIGRATION_6_7,
             )
             .build()
 }

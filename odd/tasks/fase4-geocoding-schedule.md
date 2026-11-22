@@ -20,7 +20,7 @@ Branch: `fix/fase4-geocoding-schedule`. Delivery: work-unit commits on this bran
 
 - **T1** — S1,S4: reverse geocoding on coordinate change with a user-edited guard. Route: inline. Evidence: SchoolNameResolver port + Android Geocoder impl, VM auto-fill with `nameEditedByUser`, AdminCampusViewModelTest GREEN.
 - **T2** — S2,S5: AM/PM time picker in the campus form. Route: inline. Evidence: TimeBox opens Material3 TimePicker (is24Hour=false), stores canonical HH:mm; formatTime12Hour tests GREEN.
-- **T3** — S3,S6: carry the schedule into the teacher school model and gate roll call. Route: inline. Evidence: pending.
+- **T3** — S3,S6: carry the schedule into the teacher school model and gate roll call. Route: inline. Evidence: SchoolSite entry/exit + isWithinSchedule test, Room MIGRATION_6_7, NavHost gate before the GPS screen; SchoolScheduleTest GREEN.
 - **T4** — all: full verification, FASE4.md update, merge/push on approval. Route: inline. Evidence: pending.
 
 ## Log

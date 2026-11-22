@@ -26,8 +26,8 @@ Branch: `fix/fase4-prioridad2`. Delivery: work-unit commits on this branch; push
 
 - **T1** — S2: shared group/roster canonicalisation for both approval paths. Route: inline. Evidence: pending.
 - **T2** — S3: ungrouped search/selection. Route: inline. Evidence: `onQueryChange` clears selection; `UngroupedStudentsViewModelTest` GREEN.
-- **T3** — S4: teacher profile subject and groups. Route: inline. Evidence: pending.
-- **T4** — S5: groupId through task/notice navigation. Route: inline. Evidence: pending.
+- **T3** — S4: teacher profile subject and groups. Route: inline. Evidence: subjects read-only, saveProfile does not write them, refresh preserves groups.
+- **T4** — S5: groupId through task/notice navigation. Route: inline. Evidence: optional route arg, preselect methods, RoutesGroupPreselectionTest GREEN.
 - **T5** — S6: per-group subject resolution. Route: inline. Evidence: pending.
 - **T6** — S7: director manual assignment. Route: inline. Evidence: pending.
 - **T7** — S8: parent tab selection reconciliation. Route: inline. Evidence: Attendance/Tasks/Incidents call `ensureValid` before mapping the id; existing VM tests GREEN.

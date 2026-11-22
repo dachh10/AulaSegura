@@ -139,6 +139,12 @@ class TeacherTaskNewViewModel(
             ),
         )
 
+    /** Preselects the classroom the teacher was viewing before opening the form. */
+    fun preselectGroup(groupId: String) {
+        if (published.value) return
+        selectedGroupId.value = groupId
+    }
+
     fun selectGroup(groupId: String) {
         if (published.value) return
         selectedGroupId.value = groupId

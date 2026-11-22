@@ -93,6 +93,12 @@ class TeacherNoticeNewViewModel(
             initialValue = TeacherNoticeNewUi(teacherName = teacherName),
         )
 
+    /** Preselects the classroom the teacher was viewing before opening the form. */
+    fun preselectGroup(groupId: String) {
+        if (published.value) return
+        selectedGroupIds.value = setOf(groupId)
+    }
+
     fun toggleGroup(groupId: String) {
         if (published.value) return
         selectedGroupIds.value = selectedGroupIds.value.let { current ->

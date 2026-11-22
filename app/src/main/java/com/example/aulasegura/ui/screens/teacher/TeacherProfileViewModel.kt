@@ -115,7 +115,9 @@ class TeacherProfileViewModel(
         viewModelScope.launch {
             val result = auth.updateProfile(
                 fullName = name,
-                subjects = parseSubjects(_ui.value.editSubjects),
+                // Subjects are assigned by the director; never write back the
+                // text a teacher typed in the profile form.
+                subjects = auth.currentUser?.subjects.orEmpty(),
             )
             when (result) {
                 ProfileUpdateResult.Saved -> {
@@ -201,7 +203,9 @@ class TeacherProfileViewModel(
 
     /** Re-reads the session profile after a form wrote it, so the header is fresh. */
     fun refresh() {
-        auth.currentUser?.let { _ui.value = it.toProfileUi() }
+        // The profile cache does not carry groups; they arrive from the roster
+        // collector, so a refresh must not erase them.
+        auth.currentUser?.let { _ui.value = it.toProfileUi().copy(groups = _ui.value.groups) }
     }
 
     private fun finishPhoto(message: String) {

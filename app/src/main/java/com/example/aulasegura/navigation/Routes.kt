@@ -56,8 +56,15 @@ fun linkChildRoute(mode: String): String = "link_child?mode=$mode"
     const val TEACHER_ROLL_CALL_OFFLINE = "teacher/roll-call/offline/{groupId}"
     const val TEACHER_ROLL_CALL_SAVE = "teacher/roll-call/save/{groupId}"
     const val TEACHER_INCIDENT_NEW = "teacher/incident/new"
-    const val TEACHER_TASK_NEW = "teacher/task/new"
-    const val TEACHER_NOTICE_NEW = "teacher/notice/new"
+    const val TEACHER_TASK_NEW = "teacher/task/new?groupId={groupId}"
+    const val TEACHER_NOTICE_NEW = "teacher/notice/new?groupId={groupId}"
+
+    /** Opens the form with the group the teacher was viewing preselected. */
+    fun teacherTaskNewRoute(groupId: String? = null): String =
+        if (groupId.isNullOrBlank()) "teacher/task/new" else "teacher/task/new?groupId=$groupId"
+
+    fun teacherNoticeNewRoute(groupId: String? = null): String =
+        if (groupId.isNullOrBlank()) "teacher/notice/new" else "teacher/notice/new?groupId=$groupId"
     const val TEACHER_CHAT = "teacher/chat"
     const val TEACHER_CONVERSATION = "teacher/chat/{conversationId}"
     const val TEACHER_HISTORY = "teacher/history"

@@ -310,7 +310,7 @@ class FirestoreParentRepository(
             ParentChildrenResult.SignedOut -> return ParentNoticesResult.SignedOut
             is ParentChildrenResult.Failed -> return ParentNoticesResult.Failed(result.reason)
         }
-        if (children.isEmpty()) return ParentNoticesResult.Loaded(emptyList())
+        if (children.isEmpty()) return ParentNoticesResult.Loaded(emptyList(), children)
 
         // The read mark is fetched once and joined in memory: one query for the
         // whole inbox instead of one document read per notice.
@@ -331,9 +331,10 @@ class FirestoreParentRepository(
         // cannot publish the same notice twice, and `distinctBy` keeps it that way
         // if the school ever addresses one notice to both groups.
         return ParentNoticesResult.Loaded(
-            byGroup.filterNotNull().flatten()
+            notices = byGroup.filterNotNull().flatten()
                 .distinctBy { it.noticeId }
                 .sortedWith(compareByDescending<ParentNoticeItem> { it.createdAtMillis }.thenBy { it.title }),
+            children = children,
         )
     }
 

@@ -111,9 +111,14 @@ class AccessStateViewModel(
 
     init {
         val current = auth.currentUser
-        parents?.observeMyChildren()?.let { flow ->
-            viewModelScope.launch {
-                flow.collect { ids -> _uiState.update { it.copy(knownChildIds = ids.toSet()) } }
+        // In ADD mode the watcher created at QR generation is the only live
+        // roster listener; keeping this one open made the baseline move while
+        // the QR was being generated.
+        if (!addMode) {
+            parents?.observeMyChildren()?.let { flow ->
+                viewModelScope.launch {
+                    flow.collect { ids -> _uiState.update { it.copy(knownChildIds = ids.toSet()) } }
+                }
             }
         }
         _uiState.update {

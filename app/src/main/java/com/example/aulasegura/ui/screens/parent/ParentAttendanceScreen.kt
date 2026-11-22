@@ -333,7 +333,7 @@ private fun MonthSummaryCard(
                 strokeWidth = 3.5.dp,
             ) {
                 Text(
-                    text = ui.percent?.let { "$it%" } ?: "—",
+                    text = ui.percent?.let { "$it%" } ?: "Sin datos aún",
                     color = Primary,
                     fontFamily = JetBrainsMono,
                     fontWeight = FontWeight.Bold,

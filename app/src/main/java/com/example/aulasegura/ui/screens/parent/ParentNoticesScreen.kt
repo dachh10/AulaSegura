@@ -53,6 +53,7 @@ import com.example.aulasegura.ui.theme.BrandCoral
 import com.example.aulasegura.ui.theme.BrandCream
 import com.example.aulasegura.ui.theme.BricolageGrotesque
 import com.example.aulasegura.ui.theme.DmSans
+import com.example.aulasegura.ui.theme.OnSurfaceVariant
 import com.example.aulasegura.ui.theme.JetBrainsMono
 import com.example.aulasegura.ui.theme.OnPrimary
 import com.example.aulasegura.ui.theme.PrimaryContainer
@@ -86,6 +87,7 @@ fun ParentNoticesScreen(
     onMarkRead: (String) -> Unit,
 ) {
     var expandedId by remember { mutableStateOf<String?>(null) }
+    val childLabel = (ui as? ParentNoticesUiState.Loaded)?.childLabel.orEmpty()
 
     Box(
         modifier = Modifier
@@ -104,7 +106,7 @@ fun ParentNoticesScreen(
                 .statusBarsPadding()
                 .navigationBarsPadding(),
         ) {
-            Reveal(0) { NoticesTopBar(onBack = onBack) }
+            Reveal(0) { NoticesTopBar(onBack = onBack, childLabel = childLabel) }
 
             Column(
                 modifier = Modifier
@@ -168,7 +170,7 @@ fun ParentNoticesScreen(
 }
 
 @Composable
-private fun NoticesTopBar(onBack: () -> Unit) {
+private fun NoticesTopBar(onBack: () -> Unit, childLabel: String = "") {
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -195,15 +197,25 @@ private fun NoticesTopBar(onBack: () -> Unit) {
             )
         }
         Spacer(Modifier.width(14.dp))
-        Text(
-            text = "Avisos",
-            color = InkPrimary,
-            fontFamily = BricolageGrotesque,
-            fontWeight = FontWeight.Bold,
-            fontSize = 28.sp,
-            lineHeight = 32.sp,
-            letterSpacing = (-0.5).sp,
-        )
+        Column {
+            Text(
+                text = "Avisos",
+                color = InkPrimary,
+                fontFamily = BricolageGrotesque,
+                fontWeight = FontWeight.Bold,
+                fontSize = 28.sp,
+                lineHeight = 32.sp,
+                letterSpacing = (-0.5).sp,
+            )
+            if (childLabel.isNotBlank()) {
+                Text(
+                    text = "De $childLabel",
+                    color = OnSurfaceVariant,
+                    fontFamily = DmSans,
+                    fontSize = 12.sp,
+                )
+            }
+        }
     }
 }
 

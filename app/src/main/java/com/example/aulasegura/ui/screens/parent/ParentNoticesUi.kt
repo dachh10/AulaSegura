@@ -22,6 +22,8 @@ sealed interface ParentNoticesUiState {
         val filter: ParentNoticeFilter,
         val sections: List<ParentNoticeSectionUi>,
         val emptyMessage: String,
+        /** Child whose group these notices were filtered to. */
+        val childLabel: String = "",
         /** The read mark could not be stored; the notice is still on screen. */
         val error: String?,
     ) : ParentNoticesUiState

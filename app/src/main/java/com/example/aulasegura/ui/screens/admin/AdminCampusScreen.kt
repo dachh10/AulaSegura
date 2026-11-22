@@ -44,9 +44,14 @@ import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.material.icons.filled.Sync
 import androidx.compose.material.icons.filled.TouchApp
 import androidx.compose.material.icons.filled.VerifiedUser
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
+import androidx.compose.material3.TimePicker
+import androidx.compose.material3.TimePickerDialog
+import androidx.compose.material3.rememberTimePickerState
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -762,7 +767,7 @@ private fun ScheduleCard(
         }
     }
 }
-
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun TimeBox(
     label: String,
@@ -771,11 +776,20 @@ private fun TimeBox(
     icon: @Composable () -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    var showPicker by remember { mutableStateOf(false) }
+    val (initialHour, initialMinute) = parseHhMm(value) ?: (8 to 0)
+    val pickerState = rememberTimePickerState(
+        initialHour = initialHour,
+        initialMinute = initialMinute,
+        is24Hour = false,
+    )
+
     Row(
         modifier = modifier
             .clip(RoundedCornerShape(16.dp))
             .background(SurfaceContainerLow.copy(alpha = 0.80f))
             .border(1.dp, OutlineVariant.copy(alpha = 0.30f), RoundedCornerShape(16.dp))
+            .clickable { showPicker = true }
             .padding(horizontal = 12.dp, vertical = 10.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
@@ -791,24 +805,38 @@ private fun TimeBox(
                 lineHeight = 14.sp,
                 letterSpacing = 0.30.sp,
             )
-            BasicTextField(
-                value = value,
-                onValueChange = onValueChange,
-                singleLine = true,
-                textStyle = TextStyle(
-                    color = PrimaryContainer,
-                    fontFamily = JetBrainsMono,
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 15.sp,
-                    lineHeight = 20.sp,
-                ),
-                cursorBrush = SolidColor(PrimaryContainer),
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Text),
-                modifier = Modifier.width(72.dp),
+            Text(
+                text = formatTime12Hour(value),
+                color = PrimaryContainer,
+                fontFamily = JetBrainsMono,
+                fontWeight = FontWeight.Bold,
+                fontSize = 15.sp,
+                lineHeight = 20.sp,
             )
         }
     }
+
+    if (showPicker) {
+        TimePickerDialog(
+            title = { Text("Selecciona la hora") },
+            onDismissRequest = { showPicker = false },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        onValueChange(formatHhMm(pickerState.hour, pickerState.minute))
+                        showPicker = false
+                    },
+                ) { Text("Aceptar") }
+            },
+            dismissButton = {
+                TextButton(onClick = { showPicker = false }) { Text("Cancelar") }
+            },
+        ) {
+            TimePicker(state = pickerState)
+        }
+    }
 }
+
 
 @Composable
 private fun CampusStatusSection(

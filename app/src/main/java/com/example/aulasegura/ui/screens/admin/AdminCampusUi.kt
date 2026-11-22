@@ -129,6 +129,29 @@ fun validateRadius(radiusMeters: Int): String? = when {
 
 private val TIME_PATTERN = Regex("^([01]\\d|2[0-3]):[0-5]\\d$")
 
+/** Canonical `HH:mm` from the time picker, independent of device locale. */
+fun formatHhMm(hour: Int, minute: Int): String =
+    String.format(Locale.US, "%02d:%02d", hour, minute)
+
+fun parseHhMm(value: String): Pair<Int, Int>? {
+    val parts = value.trim().split(":")
+    if (parts.size != 2) return null
+    val hour = parts[0].toIntOrNull() ?: return null
+    val minute = parts[1].toIntOrNull() ?: return null
+    return if (hour in 0..23 && minute in 0..59) hour to minute else null
+}
+
+/** Presentation only: Firestore keeps `HH:mm`, the UI shows 7:00 AM / 1:00 PM. */
+fun formatTime12Hour(value: String): String {
+    val (hour, minute) = parseHhMm(value) ?: return "--:--"
+    val suffix = if (hour < 12) "AM" else "PM"
+    val displayHour = when (hour % 12) {
+        0 -> 12
+        else -> hour % 12
+    }
+    return "$displayHour:${String.format(Locale.US, "%02d", minute)} $suffix"
+}
+
 private fun isValidTime(value: String): Boolean = TIME_PATTERN.matches(value)
 
 /**

@@ -56,7 +56,7 @@ Los IDs siguen la lista acordada en el logbook. El orden de ejecución se define
 | **4.5 (T5)** | Solicitudes de docentes: listar verificados, aceptar/rechazar, lote | `TeacherRequestsScreen` | `users/{uid}.estado` | ✅ **mergeada y verificada en dispositivo** - `e9bccc3`, `3ddd414` (merge `cc3bfa9`); fixes de verificaci-on `f102d3e`, `734f826`, `000d7ef` |
 | **4.6 (T6)** | Panel del director: tarjetas, FAB y navegación con badges | `AdminDashboardScreen` | - | ✅ **hecho según pedido del dueño** - dos cards de acción (Solicitudes con contador, Alumnos sin grupo) y hero con círculo de asistencia + leyenda - `c7bc139`; tabs se mantienen (decisión del dueño) (merge `91eb762`; cards parejas `c299cd3`/merge `714b422`) |
 | **4.7 (T7)** | Alumnos sin grupo: busqueda, seleccion y asignacion en lote | `UngroupedStudentsScreen` | `students` | OK mergeado en `3f8ff74` y verificado en dispositivo (asignacion, contador y numeros de lista) |
-| **4.8 (T8)** | Inicio del tutor: + Agregar hijo, grupo por asignar, sin datos | `ParentHomeScreen` | `students` | OK rama `3b457a5`; merge pendiente |
+| **4.8 (T8)** | Inicio del tutor: + Agregar hijo, grupo por asignar, sin datos | `ParentHomeScreen` | `students` | ✅ mergeado y verificado en dispositivo (registro histórico: "rama `3b457a5`; merge pendiente") |
 | **4.9 (T9)** | Reglas completas: `email_verified`, director-only, lectura por tutor/grupo. **Requisito: un docente no aprobado (`estado != "aprobado"`) no puede entrar al módulo docente** | sin pantalla | `docs/firestore.rules` | ✅ **completo y desplegado en `aulasegu`** - reglas `email_verified` (`018a9aa`), director-only (`322-326`) y lectura por tutor/grupo (`myGroups`, `tutorOfStudent`); `docs/firestore.rules` con la rama de intención del docente desplegada. Nota: el bloqueo del docente no aprobado hoy se cumple en la navegación (`RoleRoutes.kt`), no en las reglas de Firestore; queda registrado como refuerzo de seguridad pendiente, no como parte abierta de 4.9 |
 | **4.10 (T10)** | Tests JVM por regla y flujo, build verde, prueba en dispositivo | todas | Gradle + device | ⬜ pendiente |
 
@@ -124,7 +124,7 @@ Cada work unit lleva sus tests en el mismo commit y se verifica con `testDebugUn
 3. **Reglas:** ya están desplegadas en `aulasegu` (§7.1), incluidas las completas (4.9: `email_verified`, director-only, lectura por tutor/grupo y la rama de intención del docente). Confirmá en Firebase Console → Firestore → Rules que la regla de `students` incluye `tutores` y que el alta individual de la directora sigue funcionando. Para reforzar: verificar que un docente con `estado != "aprobado"` no entra al módulo docente; hoy eso lo garantiza la navegación, no las reglas.
 4. **Flujo existente (regresión):** con la cuenta de directora, crear un alumno por el alta individual de siempre; verificar que el docente lo ve en su grupo y que el tutor sigue viendo a su hijo en el inicio. Esto prueba que el doble vocabulario no rompió Fase 2/3.
 5. **Perfil y sesión:** iniciar y cerrar sesión con tutor, docente y directora; verificar que cada uno cae en su pantalla y que el docente pendiente sigue en «Cuenta en revisión».
-6. **Aún no se puede probar:** el QR, el escáner, la aprobación por QR, el segundo tutor y la asignación en lote llegan con 4.2-4.7.
+6. **(Registro histórico)** Entonces faltaban el QR, el escáner, la aprobación por QR y la asignación en lote; todos esos bloques (4.2-4.7) ya están mergeados y verificados en dispositivo.
 
 **Registro cronologico de entrega (todo cerrado salvo 4.7-4.10):**
 
@@ -135,7 +135,7 @@ Cada work unit lleva sus tests en el mismo commit y se verifica con `testDebugUn
 - **4.6 - panel del director:** `c7bc139` (merge `91eb762`) y cards parejas `c299cd3` (merge `714b422`). Dos cards de accion y hero con circulo de asistencia alimentado por datos reales. Tabs se mantienen por decision del dueno. CERRADO.
 - **Docs de orden:** `86df584` deja checklist y tabla sincronizados; `FASE4.md` al dia en `main`.
 
-**Pendiente real para cerrar la fase:** 4.7 (Alumnos sin grupo), 4.8 (inicio del tutor con Agregar hijo), 4.9 (reglas completas) y 4.10 (ciclo completo en dispositivo). No hay ningun bloque 4.1-4.6 pendiente.
+**(Registro histórico)** Entonces quedaban 4.7, 4.8, 4.9 y 4.10; 4.7, 4.8 y 4.9 ya están completos. Sigue abierto **4.10 (ciclo completo en dispositivo)**.
 
 **T3 (commits `c24fefa`, `a26fa07`, `15828eb`, `d43354b`, merge `74df0ca`):** `ScanStudentUi.from` valida el payload y rechaza códigos ajenos con «QR no válido» sin escribir nada (2 tests JVM); `ScanStudentScreen` usa CameraX (vista, marco y línea del diseño, linterna y explicación si se niega el permiso) y entrega el payload a una ruta de revisión; botón «Escanear alumno» en el panel del director. CameraX 1.4.0 agregado desde Google Maven (Risk: dependencias nuevas). Verificación: 82 suites / 582 tests / 0 fallos + `assembleDebug` verde. Ya probado en dispositivo: permiso, escaneo real del QR y navegación a revisión.
 
@@ -149,7 +149,7 @@ Cada work unit lleva sus tests en el mismo commit y se verifica con `testDebugUn
 
 ## 8. Riesgos y cosas que quedan fuera
 
-- Las reglas modificadas no se ejecutaron en emulador ni se desplegaron: sólo pasaron chequeo estructural.
+- **(Registro histórico)** Entonces las reglas no estaban desplegadas; hoy están compiladas y desplegadas en `aulasegu`, incluido el guard de `exists()` en `groups/{id}`.
 - La migración Room se validó por esquema exportado y tests JVM, pero no se ejecutó en un dispositivo con datos reales.
 - `fechaSolicitud` se lee en memoria pero no se cachea en `ProfileEntity`: la cola del director se sirve desde Firestore.
 - Quedan fuera de 4.1: generación/escaneo de QR, aprobación en lote, segundo tutor, asignación grupal, `email_verified` en reglas y las pantallas 4.2-4.8.
@@ -212,7 +212,7 @@ El usuario verificó en dispositivo, con instalación limpia y cuenta recreada d
 
 Aclaración histórica: la nota anterior sobre `NewChildWatcher`/`watchForNewChild` fue un diagnóstico erróneo y NO fue la causa del cierre de la pantalla; ese rebote ocurre al entrar, antes de generar el QR. La causa real y su fix son los de la nota "`addMode` + baseline del primer snapshot". El `NewChildWatcher` se conserva porque evita un falso positivo cuando el listener tarda en emitir, pero no resolvía el síntoma reportado.
 
-Estado final: `main` en `cf72d43` (merge `fix/fase4-add-mode-auto-proceed`), sin commits pendientes de push. Verificación automatizada final: 101 suites / 652 tests / 0 fallos + `assembleDebug` verde. Quedan para cerrar la Fase 4: 4.9 (reglas completas) y 4.10 (ciclo completo en dispositivo).
+Estado de ese momento (registro histórico): `main` en `cf72d43`, 101 suites / 652 tests / 0 fallos, y entonces quedaban 4.9 y 4.10. Estado vigente: ver los bloques de cierre al final del documento.
 
 **Asignación de grupo y materia al docente (rama `feat/fase4-docente-grupo-materia`):** se reemplaza el campo libre "Materia o grado que impartes" por dos selectores (grado 1..6 y sección A..D → `grp-{grado}{letra}`) y un selector de las seis materias fijas (español, matemáticas, lectura, historia, geografía, ciencias) en `SchoolCatalog`. El registro guarda solo la INTENCIÓN (`requestedGroupId` + `requestedSubject`) y avisa si esa materia ya está ocupada en el grupo (`groups.subjectTeachers`). La aprobación del director sigue decidiendo solo si la persona entra, pero en la MISMA transacción sobre `groups/{id}` aplica la elección: `subjectTeachers[materia] = uid`, `teacherIds` con `arrayUnion`, y en `users/{uid}` escribe `groupIds`, `subjects` y `estado = aprobado`. Si la materia fue tomada mientras la solicitud esperaba, la aprobación falla con `SUBJECT_TAKEN` y la solicitud queda pendiente: no hay decisión humana sobre grupo/materia. `acceptAllPendingTeachers` usa el mismo camino. Las cuentas de docente creadas por el director también escriben la intención en vez de `groupIds` directo. Reglas: nueva rama estrecha que permite al docente pendiente corregir solo `requestedGroupId`/`requestedSubject`/`subjects`/`updatedAt`, sin `groupIds`. Verificación: 103 suites / 661 tests / 0 fallos + assembleDebug verde. Pendiente: desplegar `docs/firestore.rules`, backfill manual de docentes existentes y prueba en dispositivo.
 
@@ -266,3 +266,11 @@ Las líneas anteriores que decían "4.9 parcial / reglas completas todavía no e
 **Prioridad 3 · 3.4 y 3.5 — docente (rama `fix/fase4-prioridad3`):** el filtro "Materia" de Mis grupos ya no toma el nombre y el predicado de la primera tarjeta: ahora hay un chip por cada materia distinta del roster (`distinctGroupSubjects`) y se filtra por la seleccionada. Las etiquetas heredadas "General" se reemplazan por "Sin materia asignada" (el texto que ya usan las tarjetas y el pase de lista) y los defaults `"3B"` de las rutas de asistencia se cambian por un grupo vacío, para no apuntar a un `groupId` que no existe. Test nuevo en `TeacherGroupsUiTest`. Verificación: 106 suites / 675 tests / 0 fallos + assembleDebug verde.
 
 **Prioridad 3 · 3.6 a 3.10 — tutor (rama `fix/fase4-prioridad3`):** el estado sin hijos ya no dice "regístate de nuevo" sino que apunta al QR de la escuela y a "+ Agregar hijo"; el anillo de asistencia usa el mismo texto "Sin datos aún" que el inicio; la pantalla de Avisos muestra debajo del título el nombre del hijo cuyo grupo se está filtrando; en modo "agregar hijo" ya no queda abierto el listener global de `observeMyChildren()` junto al watcher del QR; y `loadNotices()` devuelve también los hijos en `ParentNoticesResult.Loaded`, así que la pantalla no vuelve a leer el roster (test que fija una sola lectura). Verificación: 106 suites / 677 tests / 0 fallos + assembleDebug verde.
+
+---
+
+### Prioridad 3 completa (2026-11-22)
+
+Los 11 ítems de la sección 5 de `Prioridades de arreglo.md` quedaron resueltos en la rama `fix/fase4-prioridad3` con cuatro unidades: directivo (`3056164`), docente (`4923986`), tutor (`a7bf453`) y limpieza del tracker. Ya no hay bots con acciones inertes, textos que afirman datos no medidos, ni secciones de `FASE4.md` que contradigan el estado real sin estar marcadas como históricas.
+
+Verificación final: **106 suites / 677 tests / 0 fallos** + `assembleDebug` verde. Falta la prueba en dispositivo y el merge/push a `main`.

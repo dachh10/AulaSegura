@@ -22,8 +22,8 @@ Branch: `fix/fase4-prioridad3`. Delivery: work-unit commits on this branch; push
 - **T2** — S3: teacher filter and legacy defaults. Route: inline. Evidence: distinctGroupSubjects test, per-subject chips, "Sin materia asignada" default, no "3B" fallbacks.
 - **T3** — S4: tutor copy and notices child label. Route: inline. Evidence: QR-based no-child copy, single "Sin datos aún", notices header names the child; ParentNoticesViewModelTest GREEN.
 - **T4** — S5: duplicate listeners/reads. Route: inline. Evidence: add mode skips the always-on roster listener; notices reuses children from ParentNoticesResult.Loaded (test pins one roster read).
-- **T5** — S6: tracker cleanup. Route: inline. Evidence: pending.
-- **T6** — all: full verification, FASE4.md update, merge/push on approval. Route: inline. Evidence: pending.
+- **T5** — S6: tracker cleanup. Route: inline. Evidence: stale sections marked as historical without erasing them.
+- **T6** — all: full verification, FASE4.md update, merge/push on approval. Route: inline. Evidence: 106 suites / 677 tests / 0 failures plus assembleDebug; merge/push pending user approval.
 
 ## Log
 

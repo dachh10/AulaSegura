@@ -217,3 +217,16 @@ Estado final: `main` en `cf72d43` (merge `fix/fase4-add-mode-auto-proceed`), sin
 **Asignación de grupo y materia al docente (rama `feat/fase4-docente-grupo-materia`):** se reemplaza el campo libre "Materia o grado que impartes" por dos selectores (grado 1..6 y sección A..D → `grp-{grado}{letra}`) y un selector de las seis materias fijas (español, matemáticas, lectura, historia, geografía, ciencias) en `SchoolCatalog`. El registro guarda solo la INTENCIÓN (`requestedGroupId` + `requestedSubject`) y avisa si esa materia ya está ocupada en el grupo (`groups.subjectTeachers`). La aprobación del director sigue decidiendo solo si la persona entra, pero en la MISMA transacción sobre `groups/{id}` aplica la elección: `subjectTeachers[materia] = uid`, `teacherIds` con `arrayUnion`, y en `users/{uid}` escribe `groupIds`, `subjects` y `estado = aprobado`. Si la materia fue tomada mientras la solicitud esperaba, la aprobación falla con `SUBJECT_TAKEN` y la solicitud queda pendiente: no hay decisión humana sobre grupo/materia. `acceptAllPendingTeachers` usa el mismo camino. Las cuentas de docente creadas por el director también escriben la intención en vez de `groupIds` directo. Reglas: nueva rama estrecha que permite al docente pendiente corregir solo `requestedGroupId`/`requestedSubject`/`subjects`/`updatedAt`, sin `groupIds`. Verificación: 103 suites / 661 tests / 0 fallos + assembleDebug verde. Pendiente: desplegar `docs/firestore.rules`, backfill manual de docentes existentes y prueba en dispositivo.
 
 **Ajuste antes del merge: catálogo de materias por grado:** las materias NO son las mismas en los seis grados. `SchoolCatalog.SUBJECTS_BY_GRADE` define las seis materias de cada grado (36 en total, IDs canónicos `g{grado}-{slug}`), y `subjectsForGrade(grado)` alimenta el selector del registro. Cambiar el grado limpia la materia elegida y vuelve a consultar las materias ocupadas del nuevo grupo. `teacherAssignmentError` y `teacherApprovalPlan` rechazan una materia de otro grado, así que no se puede aprobar una asignación incoherente. Verificación: 103 suites / 662 tests / 0 fallos + assembleDebug verde.
+
+---
+
+### Verificación en dispositivo — asignación de docente (2026-11-22)
+
+El usuario verificó en dispositivo que el flujo completo funciona: registro con grado + sección + una de las seis materias **de ese grado**, aviso de materia ocupada, aprobación de la directora sin elegir grupo/materia, y panel del docente mostrando el grupo y la materia asignados.
+
+Estado operativo real (aclaración de las notas anteriores, que quedaron desactualizadas):
+- Las materias **no** son seis fijas para todos los grados: son 6 por grado, 36 en total (nota "Ajuste antes del merge").
+- `docs/firestore.rules` fue desplegado y compilado correctamente en el proyecto `aulasegu` (`firebase deploy --only firestore:rules --project aulasegu`).
+- No existían docentes en Firestore, así que no hubo backfill.
+- Verificación automatizada final: 103 suites / 662 tests / 0 fallos + `assembleDebug` verde.
+- Código en `main` desde el merge `4f1a47b`.

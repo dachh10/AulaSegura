@@ -15,6 +15,7 @@ import java.util.Locale
 class AdminCampusUiTest {
 
     private val validConfig = AdminCampusConfig(
+        name = "Escuela Benito Juárez",
         latitude = 19.2926,
         longitude = -99.6557,
         radiusMeters = 200,
@@ -22,6 +23,18 @@ class AdminCampusUiTest {
         exitTime = "14:00",
         requireLocation = true,
     )
+
+    @Test
+    fun `the school name is required and is part of the save payload`() {
+        assertNull(validateSchoolName("Escuela Benito Juárez"))
+        assertNotNull(validateSchoolName("  "))
+        assertNotNull(validateSchoolName("ab"))
+
+        assertEquals(
+            "Escuela Benito Juárez",
+            buildCampusUpdate(validConfig)["name"],
+        )
+    }
 
     @Test
     fun `radius outside 20 to 5000 is rejected and valid values are accepted`() {
@@ -65,12 +78,12 @@ class AdminCampusUiTest {
         val map = buildCampusUpdate(validConfig)
 
         assertEquals(
-            setOf("location", "radiusMeters", "schedule", "requireLocation", "updatedAt"),
+            setOf("name", "location", "radiusMeters", "schedule", "requireLocation", "updatedAt"),
             map.keys,
         )
 
         // Immutable and identity fields must never reach the write path.
-        listOf("key", "createdAt", "name", "cycle", "address", "schoolId").forEach {
+        listOf("key", "createdAt", "cycle", "address", "schoolId").forEach {
             assertFalse("map must not contain $it", map.containsKey(it))
         }
 
@@ -229,11 +242,13 @@ class AdminCampusUiTest {
         val base = AdminCampusUiState(
             loading = false,
             school = school,
+            nameText = "Escuela Benito Juárez",
             radiusMeters = 200,
             entryTime = "08:00",
             exitTime = "14:00",
         )
 
+        assertFalse(base.copy(nameText = "", latitudeText = "19.2826", longitudeText = "-99.6557").canSave)
         assertFalse(base.copy(latitudeText = "", longitudeText = "").canSave)
         assertFalse(base.copy(latitudeText = "0", longitudeText = "0").canSave)
         assertFalse(base.copy(latitudeText = "19.2826", longitudeText = "200").canSave)

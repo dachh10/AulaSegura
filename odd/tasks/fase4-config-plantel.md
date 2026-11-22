@@ -17,9 +17,9 @@ Branch: `fix/fase4-directivo-config`. Delivery: work-unit commits on this branch
 ## Tasks
 
 - **T1** — S2,S3: FAB and fake-badge removal. Route: inline. Evidence: both FABs removed, Más badges null, static attention card deleted; build GREEN.
-- **T2** — S4: school name write path and rules. Route: inline. Evidence: pending.
-- **T3** — S4: name shown in profile and panel. Route: inline. Evidence: pending.
-- **T4** — S5: honest campus UI states. Route: inline. Evidence: pending.
+- **T2** — S4: school name write path and rules. Route: inline. Evidence: `AdminCampusConfig.name` + `toUpdateMap` now write `schools/{id}.name`; existing rule already allowed it (only `key`/`createdAt` blocked), no rule change needed.
+- **T3** — S4: name shown in profile and panel. Route: inline. Evidence: profile and dashboard ViewModels load `AdminSchool.name`; profile "Escuela" row and panel top bar show the real name; AdminProfileUiTest GREEN.
+- **T4** — S5: honest campus UI states. Route: inline. Evidence: name is a required editable field, "Centro guardado" tied to `hasLocation`, coordinate errors shown only after a save attempt; AdminCampusUiTest updated and GREEN.
 - **T5** — all: full verification, FASE4.md update, merge/push on approval. Route: inline. Evidence: pending.
 
 ## Log

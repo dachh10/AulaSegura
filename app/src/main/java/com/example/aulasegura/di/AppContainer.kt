@@ -874,6 +874,7 @@ class AppViewModelFactory(
                 reports = container.adminReportRepository,
                 users = container.adminUserRepository,
                 students = container.adminStudentRepository,
+                schools = container.adminSchoolRepository,
             )
 
         modelClass.isAssignableFrom(AdminReportsViewModel::class.java) ->
@@ -926,6 +927,7 @@ class AppViewModelFactory(
                 auth = container.authRepository,
                 compressor = container.imageCompressor,
                 uploader = container.cloudinaryUploader,
+                schools = container.adminSchoolRepository,
             )
 
         modelClass.isAssignableFrom(TeacherProfileViewModel::class.java) ->

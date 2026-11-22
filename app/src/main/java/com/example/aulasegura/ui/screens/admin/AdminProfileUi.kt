@@ -21,6 +21,8 @@ data class AdminProfileUi(
     val fullName: String = "",
     val email: String = "",
     val schoolId: String = "",
+    /** Real school name from `schools/{id}`, shown instead of the raw id. */
+    val schoolName: String = "",
     val phone: String = "",
     val photoUrl: String? = null,
     val notificationsEnabled: Boolean = true,
@@ -154,8 +156,11 @@ fun uploadPhaseLabel(phase: AdminPhotoUploadPhase): String = when (phase) {
     AdminPhotoUploadPhase.FAILURE -> "No se pudo actualizar la foto"
 }
 
-fun adminProfileFieldRows(user: AdminUser): List<AdminProfileFieldRow> =
-    adminProfileFieldRows(user.fullName, user.email, user.schoolId, user.phone)
+fun adminProfileFieldRows(
+    user: AdminUser,
+    schoolName: String = "",
+): List<AdminProfileFieldRow> =
+    adminProfileFieldRows(user.fullName, user.email, user.schoolId, user.phone, schoolName)
 
 /** A blank field prints an em dash rather than an empty, unlabeled space. */
 fun adminProfileFieldRows(
@@ -163,10 +168,14 @@ fun adminProfileFieldRows(
     email: String,
     schoolId: String,
     phone: String,
+    schoolName: String = "",
 ): List<AdminProfileFieldRow> = listOf(
     AdminProfileFieldRow("Nombre", fullName.ifBlank { EMPTY_VALUE }),
     AdminProfileFieldRow("Correo", email.ifBlank { EMPTY_VALUE }),
-    AdminProfileFieldRow("Escuela", schoolId.ifBlank { EMPTY_VALUE }),
+    AdminProfileFieldRow(
+        "Escuela",
+        schoolName.ifBlank { schoolId }.ifBlank { EMPTY_VALUE },
+    ),
     AdminProfileFieldRow("Teléfono", phone.ifBlank { EMPTY_VALUE }),
 )
 

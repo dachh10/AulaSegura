@@ -154,7 +154,12 @@ fun AdminDashboardScreen(
                 .padding(start = 16.dp, end = 16.dp, top = 10.dp, bottom = 104.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
-            Reveal(0) { AdminTopBar(onNotificaciones = onNotificaciones) }
+            Reveal(0) {
+                AdminTopBar(
+                    onNotificaciones = onNotificaciones,
+                    schoolName = uiState.schoolName,
+                )
+            }
             Reveal(30) {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
@@ -289,7 +294,7 @@ fun AdminDashboardScreen(
 }
 
 @Composable
-private fun AdminTopBar(onNotificaciones: () -> Unit) {
+private fun AdminTopBar(onNotificaciones: () -> Unit, schoolName: String = "") {
     Row(
         modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.SpaceBetween,
@@ -322,7 +327,7 @@ private fun AdminTopBar(onNotificaciones: () -> Unit) {
                     lineHeight = 24.sp,
                 )
                 Text(
-                    text = "Primaria Benito Juárez",
+                    text = schoolName.ifBlank { "Plantel sin nombre" },
                     color = Outline,
                     fontFamily = DmSans,
                     fontWeight = FontWeight.Normal,

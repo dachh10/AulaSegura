@@ -191,6 +191,7 @@ fun AdminProfileScreen(
                         fullName = ui.fullName,
                         email = ui.email,
                         schoolId = ui.schoolId,
+                        schoolName = ui.schoolName,
                         phone = ui.phone,
                     ),
                     status = ui.upload.message ?: uploadPhaseLabel(ui.upload.phase),

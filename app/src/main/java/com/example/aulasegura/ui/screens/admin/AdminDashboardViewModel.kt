@@ -24,6 +24,7 @@ class AdminDashboardViewModel(
     private val dashboard: AdminDashboardRepository,
     private val reports: AdminReportRepository,
     private val users: com.example.aulasegura.domain.repository.AdminUserRepository? = null,
+    private val schools: com.example.aulasegura.domain.repository.AdminSchoolRepository? = null,
     private val students: com.example.aulasegura.domain.repository.AdminStudentRepository? = null,
 ) : ViewModel() {
 
@@ -37,6 +38,7 @@ class AdminDashboardViewModel(
     fun refresh() {
         refreshPendingTeachers()
         refreshUngroupedStudents()
+        refreshSchoolName()
         _state.update {
             it.copy(
                 loading = true,
@@ -76,6 +78,17 @@ class AdminDashboardViewModel(
                 .getOrDefault(emptyList())
                 .let { pendingTeacherCount(it) }
             _state.update { it.copy(pendingTeachers = count) }
+        }
+    }
+
+    private fun refreshSchoolName() {
+        val repo = schools ?: return
+        viewModelScope.launch {
+            val name = runCatching { repo.getSchool() }
+                .getOrNull()
+                ?.let { it as? com.example.aulasegura.domain.repository.AdminSchoolResult.Success }
+                ?.data?.name.orEmpty()
+            _state.update { it.copy(schoolName = name) }
         }
     }
 

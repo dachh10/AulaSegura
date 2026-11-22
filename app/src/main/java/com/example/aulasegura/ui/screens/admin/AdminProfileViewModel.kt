@@ -33,6 +33,7 @@ class AdminProfileViewModel(
     private val auth: AuthRepository,
     private val compressor: ImageCompressor,
     private val uploader: CloudinaryUploader,
+    private val schools: com.example.aulasegura.domain.repository.AdminSchoolRepository? = null,
 ) : ViewModel() {
 
     private val _state = MutableStateFlow(AdminProfileUi())
@@ -50,6 +51,11 @@ class AdminProfileViewModel(
     private fun refresh(keepPhoto: Boolean) {
         _state.update { it.copy(loading = true) }
         viewModelScope.launch {
+            val schoolName = runCatching { schools?.getSchool() }
+                .getOrNull()
+                ?.let { it as? com.example.aulasegura.domain.repository.AdminSchoolResult.Success }
+                ?.data?.name.orEmpty()
+            _state.update { it.copy(schoolName = schoolName) }
             val user = users.getSelf()
             _state.update { current ->
                 current.copy(

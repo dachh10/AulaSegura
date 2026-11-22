@@ -63,7 +63,7 @@ class AdminProfileUiTest {
             listOf(
                 AdminProfileFieldRow("Nombre", "Patricia Rangel Vega"),
                 AdminProfileFieldRow("Correo", "directora@escuela.mx"),
-                AdminProfileFieldRow("Escuela", "esc-01"),
+                AdminProfileFieldRow("Escuela", "—"),
                 AdminProfileFieldRow("Teléfono", "5551000099"),
             ),
             adminProfileFieldRows(user),
@@ -82,7 +82,7 @@ class AdminProfileUiTest {
 
         assertEquals("Escuela Benito Juárez", rows.first { it.label == "Escuela" }.value)
         assertEquals(
-            "esc-01",
+            "—",
             adminProfileFieldRows(
                 fullName = "Patricia",
                 email = "a@b.c",

@@ -1,5 +1,7 @@
 package com.example.aulasegura.ui.screens.admin
 
+import com.example.aulasegura.domain.model.incidentThumbnailUrl
+
 import android.content.Intent
 import android.net.Uri
 import androidx.compose.animation.core.animateFloatAsState
@@ -731,22 +733,32 @@ private fun IncidentThumbnail(incident: AdminIncident) {
             .background(SurfaceContainerLow)
             .border(1.dp, OutlineVariant.copy(alpha = 0.20f), ThumbShape),
     ) {
-        // No Coil in the project: the evidence is opened in the browser from the
-        // detail row. The tile only signals the kind and how many files there are.
+        // The first image is the incident's thumbnail, like in the family view;
+        // the icon stays as a fallback for videos and rows without evidence.
+        val imageUrl = incidentThumbnailUrl(incident.media)
         Box(
             modifier = Modifier.fillMaxSize(),
             contentAlignment = Alignment.Center,
         ) {
-            Icon(
-                imageVector = when {
-                    hasVideo -> Icons.Filled.PlayArrow
-                    incident.hasMedia -> Icons.Filled.PhotoCamera
-                    else -> Icons.Filled.Image
-                },
-                contentDescription = null,
-                tint = OutlineVariant,
-                modifier = Modifier.size(30.dp),
-            )
+            if (imageUrl != null) {
+                coil.compose.AsyncImage(
+                    model = imageUrl,
+                    contentDescription = "Evidencia del incidente",
+                    modifier = Modifier.fillMaxSize(),
+                    contentScale = androidx.compose.ui.layout.ContentScale.Crop,
+                )
+            } else {
+                Icon(
+                    imageVector = when {
+                        hasVideo -> Icons.Filled.PlayArrow
+                        incident.hasMedia -> Icons.Filled.PhotoCamera
+                        else -> Icons.Filled.Image
+                    },
+                    contentDescription = null,
+                    tint = OutlineVariant,
+                    modifier = Modifier.size(30.dp),
+                )
+            }
         }
 
         if (hasVideo) {

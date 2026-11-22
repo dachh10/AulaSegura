@@ -6,6 +6,7 @@ import com.example.aulasegura.domain.model.AdminIncidentMedia
 import com.example.aulasegura.domain.model.IncidentCategory
 import com.example.aulasegura.domain.model.IncidentSeverity
 import com.example.aulasegura.domain.model.IncidentStatus
+import com.example.aulasegura.domain.model.incidentThumbnailUrl
 import com.example.aulasegura.domain.repository.AdminIncidentError
 import java.util.Calendar
 import java.util.Locale
@@ -16,6 +17,25 @@ import org.junit.Test
 
 /** Pure helpers only: no Firebase, no ViewModel, no Compose. */
 class AdminIncidentsUiTest {
+
+    @Test
+    fun `the tile uses the first image thumbnail and skips videos`() {
+        val media = listOf(
+            AdminIncidentMedia(type = "video", url = "https://video"),
+            AdminIncidentMedia(
+                type = "image",
+                url = "https://full",
+                thumbnailUrl = "https://thumb",
+            ),
+        )
+
+        assertEquals("https://thumb", incidentThumbnailUrl(media))
+        assertEquals(
+            "https://full",
+            incidentThumbnailUrl(listOf(AdminIncidentMedia(url = "https://full"))),
+        )
+        assertNull(incidentThumbnailUrl(emptyList()))
+    }
 
     private val knownIncident = AdminIncident(
         id = "inc-1",

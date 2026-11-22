@@ -95,14 +95,14 @@ fun AdminMoreScreen(
             icon = Icons.Filled.Warning,
             title = "Incidentes",
             subtitle = "Revisa los reportes del plantel",
-            badge = "2",
+            badge = null,
             onClick = onIncidents,
         ),
         MoreEntry(
             icon = Icons.Filled.Notifications,
             title = "Notificaciones",
             subtitle = "Alertas y avisos del sistema",
-            badge = "4",
+            badge = null,
             onClick = onNotifications,
         ),
         MoreEntry(

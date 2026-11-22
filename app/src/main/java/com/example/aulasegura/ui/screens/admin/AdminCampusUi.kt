@@ -82,8 +82,13 @@ fun validateCoordinates(latitudeText: String, longitudeText: String): Coordinate
     return CoordinateValidation.Valid(latitude, longitude)
 }
 
+/** The school name is required so every screen can print a real name, not an id. */
+fun validateSchoolName(value: String): String? =
+    if (value.trim().length < 3) "Escribe el nombre del plantel." else null
+
 data class AdminCampusUiState(
     val loading: Boolean = true,
+    val nameText: String = "",
     val school: AdminSchool? = null,
     val radiusMeters: Int = AdminSchool.DEFAULT_RADIUS_METERS,
     val entryTime: String = "",
@@ -102,10 +107,12 @@ data class AdminCampusUiState(
         get() = validateCoordinates(latitudeText, longitudeText)
     val coordinateError: String?
         get() = (coordinateValidation as? CoordinateValidation.Invalid)?.message
+    val nameError: String? get() = validateSchoolName(nameText)
 
     val canSave: Boolean
         get() = !loading && !saving && school != null &&
-            coordinateError == null && radiusError == null && scheduleError == null
+            nameError == null && coordinateError == null &&
+            radiusError == null && scheduleError == null
 
     /** True only after a completed load that found no school document. */
     val empty: Boolean get() = !loading && error == null && school == null
@@ -149,6 +156,7 @@ fun buildCampusConfig(
     latitude: Double,
     longitude: Double,
 ): AdminCampusConfig = AdminCampusConfig(
+    name = state.nameText.trim(),
     latitude = latitude,
     longitude = longitude,
     radiusMeters = state.radiusMeters,

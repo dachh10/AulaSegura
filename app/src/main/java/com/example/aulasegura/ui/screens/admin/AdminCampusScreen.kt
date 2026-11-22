@@ -133,7 +133,9 @@ fun AdminCampusScreen(
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
             SchoolIdentityCard(
-                name = uiState.school?.name.orEmpty(),
+                nameText = uiState.nameText,
+                nameError = uiState.nameError,
+                onNameChange = viewModel::setName,
                 key = uiState.school?.key.orEmpty(),
                 cycle = uiState.school?.cycle.orEmpty(),
             )
@@ -144,6 +146,8 @@ fun AdminCampusScreen(
                 storedLongitude = uiState.school?.longitude,
                 radiusMeters = uiState.radiusMeters.toFloat(),
                 coordinateError = uiState.coordinateError,
+                hasLocation = uiState.school?.hasLocation == true,
+                showCoordinateError = uiState.saveError != null,
                 onLatitudeChange = viewModel::setLatitude,
                 onLongitudeChange = viewModel::setLongitude,
                 onLocationChange = onPinMove,
@@ -261,7 +265,13 @@ private fun CampusTopBar(onBack: () -> Unit, onAyuda: () -> Unit) {
 }
 
 @Composable
-private fun SchoolIdentityCard(name: String, key: String, cycle: String) {
+private fun SchoolIdentityCard(
+    nameText: String,
+    nameError: String?,
+    onNameChange: (String) -> Unit,
+    key: String,
+    cycle: String,
+) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -287,24 +297,23 @@ private fun SchoolIdentityCard(name: String, key: String, cycle: String) {
         }
         Spacer(modifier = Modifier.width(14.dp))
         Column(modifier = Modifier.weight(1f)) {
-            Text(
-                text = "Nombre del plantel",
-                color = OnSurfaceVariant,
-                fontFamily = DmSans,
-                fontWeight = FontWeight.Medium,
-                fontSize = 12.sp,
-                lineHeight = 12.sp,
-                letterSpacing = 0.24.sp,
+            OutlinedTextField(
+                value = nameText,
+                onValueChange = onNameChange,
+                label = { Text("Nombre del plantel", fontFamily = DmSans) },
+                placeholder = { Text("Ej. Escuela Benito Juárez", fontFamily = DmSans) },
+                singleLine = true,
+                isError = nameError != null && nameText.isNotBlank(),
+                textStyle = TextStyle(
+                    fontFamily = BricolageGrotesque,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 15.sp,
+                ),
+                modifier = Modifier.fillMaxWidth(),
             )
-            Spacer(modifier = Modifier.height(4.dp))
-            Text(
-                text = name.ifBlank { "Plantel sin nombre" },
-                color = PrimaryContainer,
-                fontFamily = BricolageGrotesque,
-                fontWeight = FontWeight.Bold,
-                fontSize = 15.sp,
-                lineHeight = 18.sp,
-            )
+            nameError?.takeIf { nameText.isNotBlank() }?.let {
+                Text(text = it, color = Error, fontFamily = DmSans, fontSize = 11.sp)
+            }
             Spacer(modifier = Modifier.height(6.dp))
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(
@@ -349,6 +358,8 @@ private fun LocationCard(
     storedLongitude: Double?,
     radiusMeters: Float,
     coordinateError: String?,
+    hasLocation: Boolean,
+    showCoordinateError: Boolean,
     onLatitudeChange: (String) -> Unit,
     onLongitudeChange: (String) -> Unit,
     onLocationChange: (LatLng) -> Unit,
@@ -379,7 +390,7 @@ private fun LocationCard(
                 fontSize = 16.sp,
                 lineHeight = 22.sp,
             )
-            GpsActivePill()
+            GpsActivePill(active = hasLocation)
         }
 
         EditableCampusMap(
@@ -424,7 +435,7 @@ private fun LocationCard(
                 value = latitudeText,
                 placeholder = formatCoordinate(19.2826),
                 onValueChange = onLatitudeChange,
-                isError = coordinateError != null,
+                isError = showCoordinateError && coordinateError != null,
                 modifier = Modifier.weight(1f),
             )
             CoordinateField(
@@ -432,12 +443,12 @@ private fun LocationCard(
                 value = longitudeText,
                 placeholder = formatCoordinate(-99.6557),
                 onValueChange = onLongitudeChange,
-                isError = coordinateError != null,
+                isError = showCoordinateError && coordinateError != null,
                 modifier = Modifier.weight(1f),
             )
         }
 
-        coordinateError?.let {
+        if (showCoordinateError) coordinateError?.let {
             Text(
                 text = it,
                 color = Error,
@@ -450,7 +461,7 @@ private fun LocationCard(
 }
 
 @Composable
-private fun GpsActivePill() {
+private fun GpsActivePill(active: Boolean) {
     val transition = rememberInfiniteTransition(label = "gpsPulse")
     val pulse by transition.animateFloat(
         initialValue = 0.35f,
@@ -477,7 +488,7 @@ private fun GpsActivePill() {
         )
         Spacer(modifier = Modifier.width(4.dp))
         Text(
-            text = "Centro guardado",
+            text = if (active) "Centro guardado" else "Sin centro guardado",
             color = GpsPillText,
             fontFamily = DmSans,
             fontWeight = FontWeight.SemiBold,

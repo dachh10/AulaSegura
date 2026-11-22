@@ -47,6 +47,7 @@ class AdminCampusViewModel(
                         current.copy(
                             loading = false,
                             school = school,
+                            nameText = if (keepCoordinates) current.nameText else school.name,
                             radiusMeters = school.radiusMeters,
                             entryTime = school.entryTime,
                             exitTime = school.exitTime,
@@ -74,6 +75,10 @@ class AdminCampusViewModel(
                 }
             }
         }
+    }
+
+    fun setName(value: String) {
+        _state.update { it.copy(nameText = value, saved = false, saveError = null) }
     }
 
     fun setRadius(radiusMeters: Int) {
@@ -128,7 +133,7 @@ class AdminCampusViewModel(
             return
         }
 
-        val validation = current.radiusError ?: current.scheduleError
+        val validation = current.nameError ?: current.radiusError ?: current.scheduleError
         if (validation != null) {
             _state.update { it.copy(saveError = validation) }
             return

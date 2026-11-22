@@ -154,7 +154,12 @@ fun AdminDashboardScreen(
                 .padding(start = 16.dp, end = 16.dp, top = 10.dp, bottom = 104.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
-            Reveal(0) { AdminTopBar(onNotificaciones = onNotificaciones) }
+            Reveal(0) {
+                AdminTopBar(
+                    onNotificaciones = onNotificaciones,
+                    schoolName = uiState.schoolName,
+                )
+            }
             Reveal(30) {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
@@ -207,7 +212,6 @@ fun AdminDashboardScreen(
                     )
                 }
             }
-            Reveal(240) { AttentionRequired() }
         }
 
         // Floating "Escanear alumno" button above the bottom bar (Stitch 07).
@@ -290,7 +294,7 @@ fun AdminDashboardScreen(
 }
 
 @Composable
-private fun AdminTopBar(onNotificaciones: () -> Unit) {
+private fun AdminTopBar(onNotificaciones: () -> Unit, schoolName: String = "") {
     Row(
         modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.SpaceBetween,
@@ -323,7 +327,7 @@ private fun AdminTopBar(onNotificaciones: () -> Unit) {
                     lineHeight = 24.sp,
                 )
                 Text(
-                    text = "Primaria Benito Juárez",
+                    text = schoolName.ifBlank { "Plantel sin nombre" },
                     color = Outline,
                     fontFamily = DmSans,
                     fontWeight = FontWeight.Normal,
@@ -788,66 +792,3 @@ private fun TodayGroups(groupCount: Int, onVerDetalles: () -> Unit) {
     }
 }
 
-/** Attendance-derived alerts are a Reportes feature; show no counts for them. */
-@Composable
-private fun AttentionRequired() {
-    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-        Text(
-            text = "Requiere atención",
-            color = OnSurface,
-            fontFamily = BricolageGrotesque,
-            fontWeight = FontWeight.Bold,
-            fontSize = 18.sp,
-            lineHeight = 24.sp,
-        )
-
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .clip(TileShape)
-                .background(AttentionCardBg)
-                .border(1.dp, AttentionCardBorder, TileShape)
-                .padding(12.dp),
-        ) {
-            AttentionRow(
-                icon = Icons.Filled.Error,
-                text = "Seguimiento de faltas · Disponible con Reportes",
-            )
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(vertical = 10.dp)
-                    .height(1.dp)
-                    .background(AttentionCardBorder.copy(alpha = 0.6f)),
-            )
-            AttentionRow(
-                icon = Icons.Filled.CloudOff,
-                text = "Sincronización de registros · Disponible con Reportes",
-            )
-        }
-    }
-}
-
-@Composable
-private fun AttentionRow(icon: ImageVector, text: String) {
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Icon(
-            imageVector = icon,
-            contentDescription = null,
-            tint = PendingPillText,
-            modifier = Modifier.size(20.dp),
-        )
-        Spacer(modifier = Modifier.width(10.dp))
-        Text(
-            text = text,
-            color = AttentionText,
-            fontFamily = DmSans,
-            fontWeight = FontWeight.Medium,
-            fontSize = 13.sp,
-            lineHeight = 18.sp,
-        )
-    }
-}

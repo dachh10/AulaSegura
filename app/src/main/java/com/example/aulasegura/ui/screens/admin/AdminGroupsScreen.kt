@@ -154,12 +154,6 @@ fun AdminGroupsScreen(
                     }
                 }
 
-                AddCircleButton(
-                    onClick = {
-                        form = AdminGroupForm()
-                        showCreate = true
-                    },
-                )
             }
 
             Row(

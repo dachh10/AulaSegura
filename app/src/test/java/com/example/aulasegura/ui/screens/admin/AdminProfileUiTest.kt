@@ -71,6 +71,28 @@ class AdminProfileUiTest {
     }
 
     @Test
+    fun `the school row shows the real name and falls back to the id`() {
+        val rows = adminProfileFieldRows(
+            fullName = "Patricia Rangel Vega",
+            email = "directora@escuela.mx",
+            schoolId = "esc-01",
+            phone = "",
+            schoolName = "Escuela Benito Juárez",
+        )
+
+        assertEquals("Escuela Benito Juárez", rows.first { it.label == "Escuela" }.value)
+        assertEquals(
+            "esc-01",
+            adminProfileFieldRows(
+                fullName = "Patricia",
+                email = "a@b.c",
+                schoolId = "esc-01",
+                phone = "",
+            ).first { it.label == "Escuela" }.value,
+        )
+    }
+
+    @Test
     fun `profile validation rejects blank names`() {
         assertNull(profileValidationError("Patricia", "Rangel"))
         assertTrue(profileValidationError("  ", "Rangel")!!.contains("nombre"))

@@ -46,6 +46,7 @@ data class AdminSchool(
  * type makes it impossible for a caller to pass `key` or `createdAt` to [toUpdateMap].
  */
 data class AdminCampusConfig(
+    val name: String,
     val latitude: Double,
     val longitude: Double,
     val radiusMeters: Int,
@@ -56,6 +57,7 @@ data class AdminCampusConfig(
 
 /** Field names of `schools/{schoolId}` that the campus form owns. */
 object AdminCampusFields {
+    const val NAME = "name"
     const val LOCATION = "location"
     const val RADIUS_METERS = "radiusMeters"
     const val SCHEDULE = "schedule"
@@ -85,6 +87,7 @@ const val SERVER_TIMESTAMP_SENTINEL = "__server_timestamp__"
  * builder before replacing the sentinel. No identity field is reachable from here.
  */
 fun AdminCampusConfig.toUpdateMap(): Map<String, Any?> = mapOf(
+    AdminCampusFields.NAME to name.trim(),
     AdminCampusFields.LOCATION to mapOf(
         AdminCampusFields.LOCATION_LAT to latitude,
         AdminCampusFields.LOCATION_LNG to longitude,

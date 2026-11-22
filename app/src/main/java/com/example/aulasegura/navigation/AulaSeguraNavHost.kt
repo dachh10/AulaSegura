@@ -284,7 +284,7 @@ fun AulaSeguraNavHost(
 
             RegisterScreen(
                 onBack = { navController.popBackStack() },
-                onCreated = registerViewModel::submit,
+                onCreated = { uri -> registerViewModel.submit(uri) },
                 onLogin = {
                     navController.navigate(Routes.LOGIN) {
                         popUpTo(Routes.LOGIN) { inclusive = true }
@@ -468,6 +468,7 @@ fun AulaSeguraNavHost(
             ParentHomeScreen(
                 ui = homeState,
                 fullName = parent?.fullName.orEmpty(),
+                photoUrl = parent?.photoUrl,
                 onNotifications = { navController.navigate(Routes.PARENT_NOTIFICATIONS) },
                 onQuickAvisos = { navController.navigate(Routes.PARENT_NOTICES) },
                 onQuickIncidentes = { navController.navigate(Routes.PARENT_INCIDENTS) },

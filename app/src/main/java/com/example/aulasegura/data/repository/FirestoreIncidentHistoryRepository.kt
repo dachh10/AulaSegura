@@ -36,10 +36,12 @@ class FirestoreIncidentHistoryRepository(
     private val auth: AuthRepository,
 ) : IncidentHistoryRepository {
 
-    override fun observeIncidents(): Flow<List<IncidentSummary>> =
-        incidentDao.observeHistory().map { rows ->
+    override fun observeIncidents(): Flow<List<IncidentSummary>> {
+        val uid = auth.currentUser?.uid ?: return kotlinx.coroutines.flow.emptyFlow()
+        return incidentDao.observeHistory(uid).map { rows ->
             rows.map { row -> row.draft.toIncidentSummary(row.mediaCount) }
         }
+    }
 
     override suspend fun refresh(): HistoryRefreshResult {
         val user = auth.currentUser ?: return HistoryRefreshResult.SignedOut

@@ -83,6 +83,7 @@ private val AmberText = Color(0xFFB45309)
 fun ParentHomeScreen(
     ui: ParentHomeUiState,
     fullName: String,
+    photoUrl: String? = null,
     onNotifications: () -> Unit,
     onQuickAvisos: () -> Unit,
     onQuickIncidentes: () -> Unit,
@@ -109,6 +110,7 @@ fun ParentHomeScreen(
             Reveal(0) {
                 HomeTopBar(
                     fullName = fullName,
+                    photoUrl = photoUrl,
                     onNotifications = onNotifications,
                     unreadNotifications = unreadNotifications,
                 )
@@ -221,6 +223,7 @@ private fun HomeMessage(title: String, body: String) {
 @Composable
 private fun HomeTopBar(
     fullName: String,
+    photoUrl: String? = null,
     onNotifications: () -> Unit,
     unreadNotifications: Int,
 ) {
@@ -240,13 +243,22 @@ private fun HomeTopBar(
                 .background(PrimaryContainer),
             contentAlignment = Alignment.Center,
         ) {
-            Text(
-                text = initialsOf(fullName),
-                color = OnPrimary,
-                fontFamily = BricolageGrotesque,
-                fontWeight = FontWeight.Bold,
-                fontSize = 18.sp,
-            )
+            if (!photoUrl.isNullOrBlank()) {
+                coil.compose.AsyncImage(
+                    model = photoUrl,
+                    contentDescription = "Foto de perfil",
+                    modifier = Modifier.fillMaxSize().clip(CircleShape),
+                    contentScale = androidx.compose.ui.layout.ContentScale.Crop,
+                )
+            } else {
+                Text(
+                    text = initialsOf(fullName),
+                    color = OnPrimary,
+                    fontFamily = BricolageGrotesque,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 18.sp,
+                )
+            }
         }
         Spacer(Modifier.width(12.dp))
         Column(Modifier.weight(1f)) {

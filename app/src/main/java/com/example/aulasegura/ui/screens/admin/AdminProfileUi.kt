@@ -172,10 +172,9 @@ fun adminProfileFieldRows(
 ): List<AdminProfileFieldRow> = listOf(
     AdminProfileFieldRow("Nombre", fullName.ifBlank { EMPTY_VALUE }),
     AdminProfileFieldRow("Correo", email.ifBlank { EMPTY_VALUE }),
-    AdminProfileFieldRow(
-        "Escuela",
-        schoolName.ifBlank { schoolId }.ifBlank { EMPTY_VALUE },
-    ),
+    // Never print the raw document id: until the director configures a real
+    // school name the row stays empty.
+    AdminProfileFieldRow("Escuela", schoolName.ifBlank { EMPTY_VALUE }),
     AdminProfileFieldRow("Teléfono", phone.ifBlank { EMPTY_VALUE }),
 )
 

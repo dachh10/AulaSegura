@@ -1,5 +1,16 @@
 package com.example.aulasegura.ui.screens.access
 
+import android.content.Context
+import android.net.Uri
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.TextButton
+import androidx.compose.ui.platform.LocalContext
+import androidx.core.content.FileProvider
+import coil.compose.AsyncImage
+import java.io.File
+
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -94,7 +105,7 @@ import com.example.aulasegura.ui.theme.TertiaryContainer
 @Composable
 fun RegisterScreen(
     onBack: () -> Unit,
-    onCreated: () -> Unit,
+    onCreated: (Uri?) -> Unit,
     onLogin: () -> Unit,
     ui: RegisterUiState = RegisterUiState(),
     onKindChange: (RegistrationKind) -> Unit = {},
@@ -116,6 +127,39 @@ fun RegisterScreen(
     var passwordVisible by remember { mutableStateOf(false) }
     var confirmVisible by remember { mutableStateOf(false) }
     val isTutor = ui.kind == RegistrationKind.TUTOR
+    val context = LocalContext.current
+    var photoUri by remember { mutableStateOf<Uri?>(null) }
+    var showPhotoOptions by remember { mutableStateOf(false) }
+    var pendingCapture by remember { mutableStateOf<File?>(null) }
+    val cameraLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.TakePicture(),
+    ) { saved ->
+        val captured = pendingCapture
+        pendingCapture = null
+        if (saved && captured != null) {
+            photoUri = FileProvider.getUriForFile(
+                context,
+                "${context.packageName}.fileprovider",
+                captured,
+            )
+        } else {
+            captured?.delete()
+        }
+    }
+    val galleryLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.GetContent(),
+    ) { uri -> if (uri != null) photoUri = uri }
+
+    fun capturePhoto() {
+        val directory = File(context.cacheDir, "perfil").apply { mkdirs() }
+        val file = File(directory, "registro_${System.currentTimeMillis()}.jpg")
+        val uri = FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", file)
+        pendingCapture = file
+        runCatching { cameraLauncher.launch(uri) }.onFailure {
+            pendingCapture = null
+            file.delete()
+        }
+    }
 
     Box(
         modifier = Modifier
@@ -150,6 +194,8 @@ fun RegisterScreen(
 
                 Reveal(delayMillis = 90) {
                     AvatarPicker(
+                        photoUri = photoUri,
+                        onClick = { showPhotoOptions = true },
                         modifier = Modifier
                             .fillMaxWidth()
                             .padding(top = 8.dp, bottom = 28.dp),
@@ -280,12 +326,37 @@ fun RegisterScreen(
 
         RegisterBottomBar(
             label = if (isTutor) "Crear cuenta" else "Enviar solicitud",
+            photoUri = photoUri,
             onCreated = onCreated,
             onLogin = onLogin,
             isLoading = isLoading,
             errorMessage = errorMessage,
             modifier = Modifier.align(Alignment.BottomCenter),
         )
+
+        if (showPhotoOptions) {
+            AlertDialog(
+                onDismissRequest = { showPhotoOptions = false },
+                title = { Text("Agregar foto") },
+                text = { Text("Elige una foto reciente o toma una ahora.") },
+                confirmButton = {
+                    TextButton(
+                        onClick = {
+                            showPhotoOptions = false
+                            capturePhoto()
+                        },
+                    ) { Text("Tomar foto") }
+                },
+                dismissButton = {
+                    TextButton(
+                        onClick = {
+                            showPhotoOptions = false
+                            galleryLauncher.launch("image/*")
+                        },
+                    ) { Text("Elegir de la galería") }
+                },
+            )
+        }
     }
 }
 
@@ -428,7 +499,11 @@ private fun KindSelector(
 }
 
 @Composable
-private fun AvatarPicker(modifier: Modifier = Modifier) {
+private fun AvatarPicker(
+    photoUri: Uri? = null,
+    onClick: () -> Unit = {},
+    modifier: Modifier = Modifier,
+) {
     Column(modifier = modifier, horizontalAlignment = Alignment.CenterHorizontally) {
         Box(modifier = Modifier.size(88.dp)) {
             Box(
@@ -439,12 +514,21 @@ private fun AvatarPicker(modifier: Modifier = Modifier) {
                     .border(2.dp, SurfaceContainerLowest, CircleShape),
                 contentAlignment = Alignment.Center,
             ) {
-                Icon(
-                    imageVector = Icons.Filled.Person,
-                    contentDescription = null,
-                    tint = PrimaryContainer.copy(alpha = 0.70f),
-                    modifier = Modifier.size(48.dp),
-                )
+                if (photoUri != null) {
+                    AsyncImage(
+                        model = photoUri,
+                        contentDescription = "Foto de perfil elegida",
+                        modifier = Modifier.fillMaxSize().clip(CircleShape),
+                        contentScale = androidx.compose.ui.layout.ContentScale.Crop,
+                    )
+                } else {
+                    Icon(
+                        imageVector = Icons.Filled.Person,
+                        contentDescription = null,
+                        tint = PrimaryContainer.copy(alpha = 0.70f),
+                        modifier = Modifier.size(48.dp),
+                    )
+                }
             }
             Box(
                 modifier = Modifier
@@ -453,7 +537,7 @@ private fun AvatarPicker(modifier: Modifier = Modifier) {
                     .clip(CircleShape)
                     .background(SecondaryContainer)
                     .border(2.dp, SurfaceContainerLowest, CircleShape)
-                    .clickable { },
+                    .clickable(onClick = onClick),
                 contentAlignment = Alignment.Center,
             ) {
                 Icon(
@@ -605,7 +689,8 @@ private fun TermsRow(
 @Composable
 private fun RegisterBottomBar(
     label: String,
-    onCreated: () -> Unit,
+    photoUri: Uri? = null,
+    onCreated: (Uri?) -> Unit,
     onLogin: () -> Unit,
     isLoading: Boolean = false,
     errorMessage: String? = null,
@@ -640,7 +725,7 @@ private fun RegisterBottomBar(
         }
         PillButton(
             text = if (isLoading) "Enviando…" else label,
-            onClick = { if (!isLoading) onCreated() },
+            onClick = { if (!isLoading) onCreated(photoUri) },
             containerColor = SecondaryContainer,
             contentColor = SurfaceContainerLowest,
             fontSize = 16.sp,

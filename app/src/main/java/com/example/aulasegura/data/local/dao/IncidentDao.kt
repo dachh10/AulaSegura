@@ -38,10 +38,11 @@ interface IncidentDao {
         SELECT d.*,
                (SELECT COUNT(*) FROM incident_media m WHERE m.incidentId = d.incidentId) AS mediaCount
         FROM incident_drafts d
+        WHERE d.reportedBy = :reporterUid
         ORDER BY d.occurredAt DESC
         """,
     )
-    fun observeHistory(): Flow<List<IncidentWithMediaCount>>
+    fun observeHistory(reporterUid: String): Flow<List<IncidentWithMediaCount>>
 
     @Query("SELECT * FROM incident_drafts WHERE groupId = :groupId ORDER BY occurredAt DESC")
     fun observeDraftsByGroup(groupId: String): Flow<List<IncidentDraftEntity>>

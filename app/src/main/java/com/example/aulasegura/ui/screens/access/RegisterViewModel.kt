@@ -1,6 +1,11 @@
 package com.example.aulasegura.ui.screens.access
 
+import android.net.Uri
 import androidx.lifecycle.ViewModel
+import com.example.aulasegura.data.remote.cloudinary.CloudinaryUploader
+import com.example.aulasegura.data.remote.cloudinary.PhotoCompressor
+import com.example.aulasegura.ui.profile.AvatarUploadResult
+import com.example.aulasegura.ui.profile.uploadProfileAvatar
 import androidx.lifecycle.viewModelScope
 import com.example.aulasegura.domain.repository.AccountRegistrationInput
 import com.example.aulasegura.domain.repository.AccountRegistrationResult
@@ -46,6 +51,8 @@ data class RegisterUiState(
  */
 class RegisterViewModel(
     private val auth: AuthRepository,
+    private val compressor: PhotoCompressor? = null,
+    private val uploader: CloudinaryUploader? = null,
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(RegisterUiState())
@@ -93,7 +100,7 @@ class RegisterViewModel(
 
     fun setAccepted(value: Boolean) = _uiState.update { it.copy(accepted = value) }
 
-    fun submit() {
+    fun submit(photoUri: Uri? = null) {
         if (_uiState.value.isLoading) return
         val state = _uiState.value
         val input = AccountRegistrationInput(
@@ -124,6 +131,9 @@ class RegisterViewModel(
         _uiState.update { it.copy(isLoading = true, errorMessage = null) }
         viewModelScope.launch {
             val result = auth.registerAccount(input)
+            if (result is AccountRegistrationResult.Success && photoUri != null) {
+                uploadAvatar(photoUri)
+            }
             _uiState.update {
                 when (result) {
                     is AccountRegistrationResult.Success ->
@@ -135,6 +145,14 @@ class RegisterViewModel(
                 }
             }
         }
+    }
+
+    /** Best effort: a failed upload never blocks the account that was created. */
+    private suspend fun uploadAvatar(uri: Uri) {
+        val uid = auth.currentUser?.uid ?: return
+        val compressor = compressor ?: return
+        val uploader = uploader ?: return
+        uploadProfileAvatar(uid, compressor.compress(uri), uploader, auth)
     }
 
     fun consumeNavigation() = _uiState.update { it.copy(succeeded = false) }

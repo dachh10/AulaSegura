@@ -25,6 +25,7 @@ class AdminDashboardViewModel(
     private val reports: AdminReportRepository,
     private val users: com.example.aulasegura.domain.repository.AdminUserRepository? = null,
     private val schools: com.example.aulasegura.domain.repository.AdminSchoolRepository? = null,
+    private val auth: com.example.aulasegura.domain.repository.AuthRepository? = null,
     private val students: com.example.aulasegura.domain.repository.AdminStudentRepository? = null,
 ) : ViewModel() {
 
@@ -36,6 +37,13 @@ class AdminDashboardViewModel(
     }
 
     fun refresh() {
+        val current = auth?.currentUser
+        _state.update {
+            it.copy(
+                photoUrl = current?.photoUrl,
+                fullName = current?.fullName.orEmpty(),
+            )
+        }
         refreshPendingTeachers()
         refreshUngroupedStudents()
         refreshSchoolName()

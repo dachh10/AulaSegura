@@ -19,6 +19,14 @@ data class AdminIncidentMedia(
     val format: String? = null,
 )
 
+/** First non-video evidence image, preferring the thumbnail over the full URL. */
+fun incidentThumbnailUrl(media: List<AdminIncidentMedia>): String? =
+    media.firstOrNull { !it.type.equals("video", ignoreCase = true) }
+        ?.let { entry ->
+            entry.thumbnailUrl?.takeIf { it.isNotBlank() }
+                ?: entry.url.takeIf { it.isNotBlank() }
+        }
+
 /** The school's pin, kept only to render the detail row and the verified badge. */
 data class AdminIncidentLocation(
     val latitude: Double? = null,

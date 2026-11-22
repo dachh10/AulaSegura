@@ -158,6 +158,8 @@ fun AdminDashboardScreen(
                 AdminTopBar(
                     onNotificaciones = onNotificaciones,
                     schoolName = uiState.schoolName,
+                    photoUrl = uiState.photoUrl,
+                    fullName = uiState.fullName,
                 )
             }
             Reveal(30) {
@@ -294,7 +296,12 @@ fun AdminDashboardScreen(
 }
 
 @Composable
-private fun AdminTopBar(onNotificaciones: () -> Unit, schoolName: String = "") {
+private fun AdminTopBar(
+    onNotificaciones: () -> Unit,
+    schoolName: String = "",
+    photoUrl: String? = null,
+    fullName: String = "",
+) {
     Row(
         modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.SpaceBetween,
@@ -308,18 +315,29 @@ private fun AdminTopBar(onNotificaciones: () -> Unit, schoolName: String = "") {
                     .background(PrimaryFixed),
                 contentAlignment = Alignment.Center,
             ) {
-                Text(
-                    text = "PR",
-                    color = Primary,
-                    fontFamily = DmSans,
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 16.sp,
-                )
+                val avatar = adminAvatarUrl(photoUrl)
+                if (avatar != null) {
+                    coil.compose.AsyncImage(
+                        model = avatar,
+                        contentDescription = "Foto de perfil",
+                        modifier = Modifier.fillMaxSize().clip(CircleShape),
+                        contentScale = androidx.compose.ui.layout.ContentScale.Crop,
+                    )
+                } else {
+                    Text(
+                        text = adminInitials(fullName),
+                        color = Primary,
+                        fontFamily = DmSans,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 16.sp,
+                    )
+                }
             }
             Spacer(modifier = Modifier.width(12.dp))
             Column {
                 Text(
-                    text = "Hola, directora Patricia",
+                    text = fullName.takeIf { it.isNotBlank() }?.let { "Hola, directora $it" }
+                        ?: "Hola, directora",
                     color = Primary,
                     fontFamily = BricolageGrotesque,
                     fontWeight = FontWeight.SemiBold,

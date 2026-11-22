@@ -19,7 +19,7 @@ Branch: `fix/fase4-prioridad3`. Delivery: work-unit commits on this branch; push
 ## Tasks
 
 - **T1** — S2: director controls and empty states. Route: inline. Evidence: copy/share wired, photo badge disabled, honest empty copy with `adminUsersEmptyMessage` test, accept-all feedback.
-- **T2** — S3: teacher filter and legacy defaults. Route: inline. Evidence: pending.
+- **T2** — S3: teacher filter and legacy defaults. Route: inline. Evidence: distinctGroupSubjects test, per-subject chips, "Sin materia asignada" default, no "3B" fallbacks.
 - **T3** — S4: tutor copy and notices child label. Route: inline. Evidence: pending.
 - **T4** — S5: duplicate listeners/reads. Route: inline. Evidence: pending.
 - **T5** — S6: tracker cleanup. Route: inline. Evidence: pending.

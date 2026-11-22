@@ -864,7 +864,7 @@ fun AulaSeguraNavHost(
                 return@composable
             }
 
-            val groupId = entry.arguments?.getString("groupId") ?: "3B"
+            val groupId = entry.arguments?.getString("groupId").orEmpty()
             val school = rememberSchoolSite()
             TeacherLocationVerifyingScreen(
                 groupId = groupId,
@@ -889,7 +889,7 @@ fun AulaSeguraNavHost(
             )
         }
         composable(Routes.TEACHER_ROLL_CALL_INSIDE) { entry ->
-            val groupId = entry.arguments?.getString("groupId") ?: "3B"
+            val groupId = entry.arguments?.getString("groupId").orEmpty()
             val container = rememberAppContainer()
             val rollCallViewModel: RollCallViewModel = viewModel(
                 key = "roll-call-$groupId",
@@ -928,7 +928,7 @@ fun AulaSeguraNavHost(
             )
         }
         composable(Routes.TEACHER_ROLL_CALL_MAP) { entry ->
-            val groupId = entry.arguments?.getString("groupId") ?: "3B"
+            val groupId = entry.arguments?.getString("groupId").orEmpty()
             val school = rememberSchoolSite()
             TeacherRollCallMapScreen(
                 groupId = groupId,
@@ -941,7 +941,7 @@ fun AulaSeguraNavHost(
             )
         }
         composable(Routes.TEACHER_ROLL_CALL_OUTSIDE) { entry ->
-            val groupId = entry.arguments?.getString("groupId") ?: "3B"
+            val groupId = entry.arguments?.getString("groupId").orEmpty()
             val school = rememberSchoolSite()
             TeacherOutsideRadiusScreen(
                 groupId = groupId,
@@ -958,7 +958,7 @@ fun AulaSeguraNavHost(
             )
         }
         composable(Routes.TEACHER_ROLL_CALL_OFFLINE) { entry ->
-            val groupId = entry.arguments?.getString("groupId") ?: "3B"
+            val groupId = entry.arguments?.getString("groupId").orEmpty()
             TeacherRollCallOfflineScreen(
                 groupId = groupId,
                 onBack = { navController.popBackStack() },
@@ -1245,7 +1245,7 @@ fun AulaSeguraNavHost(
             )
         }
         composable(Routes.ADMIN_GROUP_DETAIL) { entry ->
-            val groupId = entry.arguments?.getString("groupId") ?: "3B"
+            val groupId = entry.arguments?.getString("groupId").orEmpty()
             val groupLabel = if (groupId.length == 2) "${groupId.first()}° ${groupId.last()}" else groupId
             AdminGroupDetailScreen(
                 groupId = groupId,

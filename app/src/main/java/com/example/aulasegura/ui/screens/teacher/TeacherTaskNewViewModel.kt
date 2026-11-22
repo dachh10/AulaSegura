@@ -314,7 +314,7 @@ class TeacherTaskNewViewModel(
         const val DESCRIPTION_MAX_CHARS = 500
         const val DEFAULT_DUE_DAYS = 7
         const val DEFAULT_DUE_HOUR = 8
-        const val DEFAULT_SUBJECT = "General"
+        const val DEFAULT_SUBJECT = "Sin materia asignada"
         const val DEFAULT_ATTACHMENT_NAME = "documento.pdf"
     }
 }

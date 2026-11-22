@@ -30,4 +30,8 @@ fun Group.toUi(subject: String?): TeacherGroupUi = TeacherGroupUi(
     students = studentCount,
 )
 
+/** Every distinct subject in the roster, not just the first card's one. */
+fun distinctGroupSubjects(groups: List<TeacherGroupUi>): List<String> =
+    groups.map { it.subject }.filter { it.isNotBlank() }.distinct()
+
 private const val NO_SUBJECT = "Sin materia asignada"

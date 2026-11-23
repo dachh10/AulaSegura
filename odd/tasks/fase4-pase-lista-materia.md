@@ -45,4 +45,6 @@ Branch: `fix/fase4-pase-lista-materia`. Delivery: work-unit commits on this bran
 
 **L9** — T3 verificado: `loadMonth`/`loadHome` aceptan `subjectId` opcional y filtran en memoria sin tocar la query de Firestore (sigue siendo una sola igualdad por `groupId` y reglas). `parentSubjectId` deriva el id de la etiqueta con el grado del grupo cuando el documento no trae `subjectId`; las desconocidas se dejan con id vacío y solo aparecen en "Todas". El selector mantiene las opciones de la carga sin filtrar para no encogerse al elegir una materia. `marksByDay` conserva el peor mark del día bajo "Todas" y con una materia concreta recibe un solo registro por día. Suite completa GREEN.
 
+**L11** — RDD assess del slice completo (`2602133..6ff4467`, committed-only, `.atl/` excluido): `medium` / `under_budget` (697 líneas, 47 archivos). Sin revisión debida; el boundary queda en `2602133`. Commits del punto 8: `3788809` (modelo/migración), `a953513` (docente/rutas), `b717513` (tutor), `6ff4467` (docs).
+
 **L10** — T4 verificado: `./gradlew testDebugUnitTest` y `./gradlew assembleDebug` GREEN; APK generado. `FASE4.md` actualizado con el punto 8. Reglas de Firestore sin cambios: la query del tutor sigue siendo una sola igualdad por `groupId` y el cliente ya no impone una sesión por día. Merge y push quedan explícitamente pendientes de la autorización del usuario.

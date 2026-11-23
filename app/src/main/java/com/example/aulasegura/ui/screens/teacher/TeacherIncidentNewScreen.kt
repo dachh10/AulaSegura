@@ -2,6 +2,7 @@ package com.example.aulasegura.ui.screens.teacher
 
 import android.content.Context
 import android.net.Uri
+import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.Canvas
@@ -83,6 +84,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.em
 import androidx.compose.ui.unit.sp
 import androidx.core.content.FileProvider
+import com.example.aulasegura.ui.profile.rememberCameraPermissionGate
 import com.example.aulasegura.domain.model.IncidentCategory
 import com.example.aulasegura.domain.model.IncidentLocation
 import com.example.aulasegura.domain.model.IncidentSeverity
@@ -213,18 +215,42 @@ fun TeacherIncidentNewScreen(
             onPhotoTaken(captured)
         } else {
             captured?.delete()
+            if (captured != null) {
+                Toast.makeText(
+                    context,
+                    "La cámara no guardó la evidencia. Intenta de nuevo.",
+                    Toast.LENGTH_SHORT,
+                ).show()
+            }
         }
     }
 
+    val requireCameraPermission = rememberCameraPermissionGate(
+        onDenied = {
+            Toast.makeText(
+                context,
+                "Permite el acceso a la cámara para adjuntar evidencia.",
+                Toast.LENGTH_SHORT,
+            ).show()
+        },
+    )
+
     fun capturePhoto() {
-        val file = newEvidencePhotoFile(context)
-        val uri = FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", file)
-        pendingCapture = file
-        runCatching { photoLauncher.launch(uri) }
-            .onFailure {
-                pendingCapture = null
-                file.delete()
-            }
+        requireCameraPermission {
+            val file = newEvidencePhotoFile(context)
+            val uri = FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", file)
+            pendingCapture = file
+            runCatching { photoLauncher.launch(uri) }
+                .onFailure {
+                    pendingCapture = null
+                    file.delete()
+                    Toast.makeText(
+                        context,
+                        "No se pudo abrir la cámara. Intenta de nuevo.",
+                        Toast.LENGTH_SHORT,
+                    ).show()
+                }
+        }
     }
 
     Column(

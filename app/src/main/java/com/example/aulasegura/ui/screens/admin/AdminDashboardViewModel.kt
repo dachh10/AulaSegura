@@ -44,6 +44,7 @@ class AdminDashboardViewModel(
                 fullName = current?.fullName.orEmpty(),
             )
         }
+        refreshIdentity()
         refreshPendingTeachers()
         refreshUngroupedStudents()
         refreshSchoolName()
@@ -75,6 +76,28 @@ class AdminDashboardViewModel(
                 is AdminReportResult.Failure -> _state.update {
                     it.copy(todayLoading = false, todayError = result.reason.toMessage())
                 }
+            }
+        }
+    }
+
+    /**
+     * Re-reads the directora's own document for the top bar.
+     *
+     * `auth.currentUser` is the profile resolved at sign-in, so a photo or a name
+     * saved later in the profile screen stays invisible here until the next
+     * sign-in. The dashboard re-runs this whenever the screen comes back, not on
+     * every refresh, and only touches the greeting fields — the metrics keep their
+     * own loading state.
+     */
+    fun refreshIdentity() {
+        val repo = users ?: return
+        viewModelScope.launch {
+            val self = runCatching { repo.getSelf() }.getOrNull() ?: return@launch
+            _state.update {
+                it.copy(
+                    photoUrl = self.photoUrl ?: it.photoUrl,
+                    fullName = self.fullName.ifBlank { it.fullName },
+                )
             }
         }
     }

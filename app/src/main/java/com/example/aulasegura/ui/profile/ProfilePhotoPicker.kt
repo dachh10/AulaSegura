@@ -3,6 +3,7 @@ package com.example.aulasegura.ui.profile
 import android.content.Context
 import android.graphics.Bitmap
 import android.net.Uri
+import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.ActivityResultLauncher
 import androidx.activity.result.contract.ActivityResultContracts
@@ -53,13 +54,20 @@ data class ProfilePhotoPicker(
  * the file behind the supplied content:// URI, so TakePicture returns
  * `saved=false` on those devices. The preview Bitmap is written by us into the
  * same FileProvider file, so the rest of the app still receives a normal Uri.
+ *
+ * Errors are reported through [onError]. Screens that do not pass one get a
+ * Toast, so a denied permission or an unavailable camera app never looks like a
+ * button that does nothing.
  */
 @Composable
 fun rememberProfilePhotoPicker(
     onPhoto: (Uri) -> Unit,
-    onError: (String) -> Unit = {},
+    onError: ((String) -> Unit)? = null,
 ): ProfilePhotoPicker {
     val context = LocalContext.current
+    val reportError: (String) -> Unit = onError ?: { message ->
+        Toast.makeText(context, message, Toast.LENGTH_SHORT).show()
+    }
     var pendingFile by remember { mutableStateOf<File?>(null) }
 
     fun newCaptureFile(): File {
@@ -71,7 +79,7 @@ fun rememberProfilePhotoPicker(
         if (file == null) return
         runCatching {
             onPhoto(FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", file))
-        }.onFailure { onError("No se pudo abrir la foto. Intenta con la galería.") }
+        }.onFailure { reportError("No se pudo abrir la foto. Intenta con la galería.") }
     }
 
     val previewLauncher: ActivityResultLauncher<Void?> = rememberLauncherForActivityResult(
@@ -81,7 +89,7 @@ fun rememberProfilePhotoPicker(
         pendingFile = null
         if (bitmap == null) {
             file?.delete()
-            onError("La cámara no devolvió la foto. Prueba con la galería.")
+            reportError("La cámara no devolvió la foto. Prueba con la galería.")
             return@rememberLauncherForActivityResult
         }
         val saved = runCatching {
@@ -91,7 +99,7 @@ fun rememberProfilePhotoPicker(
         }.getOrDefault(false)
         if (saved) deliver(file) else {
             file?.delete()
-            onError("No se pudo guardar la foto. Prueba con la galería.")
+            reportError("No se pudo guardar la foto. Prueba con la galería.")
         }
     }
 
@@ -99,14 +107,22 @@ fun rememberProfilePhotoPicker(
         contract = ActivityResultContracts.GetContent(),
     ) { uri -> if (uri != null) onPhoto(uri) }
 
+    val requireCameraPermission = rememberCameraPermissionGate(
+        onDenied = {
+            reportError("Permite el acceso a la cámara para tomar la foto.")
+        },
+    )
+
     return ProfilePhotoPicker(
         takePhoto = {
-            val file = newCaptureFile()
-            pendingFile = file
-            runCatching { previewLauncher.launch(null) }.onFailure {
-                pendingFile = null
-                file.delete()
-                onError("No se pudo abrir la cámara. Prueba con la galería.")
+            requireCameraPermission {
+                val file = newCaptureFile()
+                pendingFile = file
+                runCatching { previewLauncher.launch(null) }.onFailure {
+                    pendingFile = null
+                    file.delete()
+                    reportError("No se pudo abrir la cámara. Prueba con la galería.")
+                }
             }
         },
         pickFromGallery = { galleryLauncher.launch("image/*") },

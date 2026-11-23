@@ -46,6 +46,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -116,6 +117,9 @@ fun AdminDashboardScreen(
         factory = rememberAppContainer().viewModelFactory,
     )
     val uiState by viewModel.state.collectAsState()
+    // Coming back from the profile must repaint the greeting with the photo that
+    // was just saved; the metrics below are left at their current values.
+    LaunchedEffect(Unit) { viewModel.refreshIdentity() }
     val context = LocalContext.current
     var cameraDenied by remember { mutableStateOf(false) }
     // Ask exactly when the button is tapped: the system dialog appears right

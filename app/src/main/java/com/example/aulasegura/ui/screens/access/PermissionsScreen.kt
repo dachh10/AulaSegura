@@ -126,12 +126,20 @@ fun PermissionsScreen(
     val activity = context as? ComponentActivity
     val asked = remember { mutableSetOf<String>() }
 
-    // CAMERA is deliberately absent: the manifest does not declare it and the app
-    // uses the system camera app through TakePicture + FileProvider, which needs no
-    // runtime permission. Only declared permissions are requested here.
-    var cameraState by remember { mutableStateOf(PermState.GRANTED) }
+    // The manifest declares CAMERA because the QR scanners use CameraX, and
+    // Android refuses the system camera intent to an app that declares the
+    // permission without holding it. This card is the honest place to ask for it;
+    // the photo pickers also ask on first use if the tutor skipped this screen.
+    var cameraState by remember { mutableStateOf(PermState.PENDING) }
     var locationState by remember { mutableStateOf(PermState.PENDING) }
     var notifState by remember { mutableStateOf(PermState.PENDING) }
+
+    val cameraLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestPermission(),
+    ) { granted ->
+        asked += Manifest.permission.CAMERA
+        cameraState = if (granted) PermState.GRANTED else PermState.DENIED
+    }
 
     val locationLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.RequestPermission(),
@@ -176,6 +184,7 @@ fun PermissionsScreen(
     }
 
     fun refreshStates() {
+        cameraState = stateOf(Manifest.permission.CAMERA)
         locationState = stateOf(Manifest.permission.ACCESS_FINE_LOCATION)
         notifState = stateOf(Manifest.permission.POST_NOTIFICATIONS)
     }
@@ -183,6 +192,7 @@ fun PermissionsScreen(
     fun request(permission: String) {
         asked += permission
         when (permission) {
+            Manifest.permission.CAMERA -> cameraLauncher.launch(permission)
             Manifest.permission.ACCESS_FINE_LOCATION -> locationLauncher.launch(permission)
             Manifest.permission.POST_NOTIFICATIONS -> notifLauncher.launch(permission)
         }
@@ -203,6 +213,15 @@ fun PermissionsScreen(
             openSettings()
         } else {
             runCatching { request(Manifest.permission.ACCESS_FINE_LOCATION) }
+                .onFailure { openSettings() }
+        }
+    }
+
+    fun onCameraClick() {
+        if (stateOf(Manifest.permission.CAMERA) == PermState.GRANTED) {
+            openSettings()
+        } else {
+            runCatching { request(Manifest.permission.CAMERA) }
                 .onFailure { openSettings() }
         }
     }
@@ -287,9 +306,9 @@ fun PermissionsScreen(
                             iconTint = PrimaryContainer,
                             iconBg = PrimaryFixed,
                             title = "Cámara",
-                            description = "Para tomar fotos o videos de incidentes y comprobantes.",
+                            description = "Para escanear códigos QR y tomar fotos de incidentes y comprobantes.",
                             state = cameraState,
-                            onGrant = {},
+                            onGrant = ::onCameraClick,
                             onOpenSettings = ::openSettings,
                         )
                     }
@@ -476,9 +495,9 @@ private fun notificationsGranted(context: Context): Boolean =
     }
 
 /**
- * The mockup had a third "Cámara" card, but the app has no CAMERA permission:
- * photos go through the system camera app or the gallery picker. Saying so is
- * more useful than a button that would open a setting that does not exist.
+ * The mockup had a third "Cámara" card; the app now really asks for CAMERA, so
+ * this note only clarifies that the permission is used for QR scanning and for
+ * the photos the user chooses to take.
  */
 @Composable
 private fun PermissionNote() {
@@ -499,8 +518,8 @@ private fun PermissionNote() {
             modifier = Modifier.size(18.dp),
         )
         Text(
-            text = "Las fotos se toman con la cámara del teléfono o se eligen de la galería; " +
-                "no piden permiso adicional.",
+            text = "La cámara solo se usa para escanear códigos QR y para las fotos que " +
+                "decidas tomar; si la bloqueas, la app te lleva a Ajustes.",
             fontFamily = DmSans,
             fontSize = 11.sp,
             lineHeight = 15.sp,

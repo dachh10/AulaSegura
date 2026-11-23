@@ -356,6 +356,9 @@ fun AdminUsersScreen(
     editing?.let { form ->
         EditUserDialog(
             form = form,
+            isTutor = selectedTab == AdminUsersTab.PADRES,
+            assignedGroups = assignedGroupNames(form.groupIds, uiState.groupNames),
+            assignedStudents = assignedStudentNames(form.studentIds, uiState.students),
             error = uiState.error,
             saving = uiState.loading,
             onFormChange = { editing = it },
@@ -368,7 +371,6 @@ fun AdminUsersScreen(
         StudentDetailDialog(
             student = student,
             groupName = selectedStudentGroup,
-            linkingCode = uiState.linkingCode,
             loading = uiState.detailLoading,
             saving = uiState.detailSaving,
             error = uiState.detailError,
@@ -784,12 +786,11 @@ private fun UserRowItem(row: UserRow, onClick: () -> Unit) {
     }
 }
 
-/** Full student record plus the live linking code and the logical baja/re-activation action. */
+/** Full student record plus the logical baja/re-activation action. */
 @Composable
 private fun StudentDetailDialog(
     student: AdminStudent,
     groupName: String,
-    linkingCode: String?,
     loading: Boolean,
     saving: Boolean,
     error: String?,
@@ -818,15 +819,6 @@ private fun StudentDetailDialog(
                 DetailLine("Grupo", groupName.ifBlank { "sin grupo" })
                 DetailLine("Estado", if (student.active) "Activo" else "Inactivo")
                 DetailLine("Tutores vinculados", student.tutorIds.size.toString())
-                DetailLine(
-                    label = "Código de vinculación",
-                    value = when {
-                        loading -> "Buscando código…"
-                        linkingCode.isNullOrBlank() -> "sin código vigente"
-                        else -> linkingCode
-                    },
-                    mono = true,
-                )
                 error?.let {
                     Text(
                         text = it,
@@ -879,6 +871,9 @@ private fun DetailLine(label: String, value: String, mono: Boolean = false) {
 @Composable
 private fun EditUserDialog(
     form: AdminUserForm,
+    isTutor: Boolean,
+    assignedGroups: String,
+    assignedStudents: String,
     error: String?,
     saving: Boolean,
     onFormChange: (AdminUserForm) -> Unit,
@@ -903,13 +898,20 @@ private fun EditUserDialog(
                 FormField("Nombre", form.firstName) { onFormChange(form.copy(firstName = it)) }
                 FormField("Apellido", form.lastName) { onFormChange(form.copy(lastName = it)) }
                 FormField("Teléfono", form.phone) { onFormChange(form.copy(phone = it)) }
-                FormField("Materias (separadas por coma)", form.subjects) {
-                    onFormChange(form.copy(subjects = it))
+                if (isTutor) {
+                    ReadOnlyInfo("Alumnos asignados", assignedStudents, "Sin alumnos asignados")
+                } else {
+                    FormField("Materias (separadas por coma)", form.subjects) {
+                        onFormChange(form.copy(subjects = it))
+                    }
+                    ReadOnlyInfo("Grupos asignados", assignedGroups, "Sin grupos asignados")
                 }
-                ReadOnlyInfo("Grupos asignados", form.groupIds, "Sin grupos asignados")
-                ReadOnlyInfo("Alumnos asignados", form.studentIds, "Sin alumnos asignados")
                 Text(
-                    text = "La asignación de grupos y alumnos se gestiona desde Grupos.",
+                    text = if (isTutor) {
+                        "Los alumnos se vinculan desde la cuenta del tutor."
+                    } else {
+                        "La asignación de grupos se gestiona desde Grupos."
+                    },
                     color = OnSurfaceVariant,
                     fontFamily = DmSans,
                     fontSize = 12.sp,

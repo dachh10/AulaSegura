@@ -216,6 +216,26 @@ fun parseCsv(value: String): List<String> =
         .distinct()
 
 /**
+ * Links are stored as student ids, but the edit dialog should show the human
+ * name. Unknown ids stay as ids so the directivo never sees an invented name.
+ */
+fun assignedStudentNames(studentIds: String, students: List<AdminStudent>): String {
+    val ids = parseCsv(studentIds)
+    if (ids.isEmpty()) return ""
+    val byId = students.associateBy { it.id }
+    return ids.joinToString(", ") { id ->
+        byId[id]?.displayName?.takeIf { it.isNotBlank() } ?: id
+    }
+}
+
+/** Group links are stored as ids; the edit dialog shows the classroom name. */
+fun assignedGroupNames(groupIds: String, groupNames: Map<String, String>): String {
+    val ids = parseCsv(groupIds)
+    if (ids.isEmpty()) return ""
+    return ids.joinToString(", ") { groupLabel(it, groupNames) }
+}
+
+/**
  * Builds the exact payload the principal is allowed to write.
  *
  * Only whitelisted keys are present; identity fields are never added. `fullName`

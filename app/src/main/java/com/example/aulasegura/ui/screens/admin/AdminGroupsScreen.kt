@@ -85,7 +85,6 @@ fun AdminGroupsScreen(
     onBack: () -> Unit = {},
     onAgregarGrupo: () -> Unit = {},
     onGrupo: (String) -> Unit = {},
-    onAddStudent: (String) -> Unit = {},
     onPanel: () -> Unit = {},
     onUsuarios: () -> Unit = {},
     onReportes: () -> Unit = {},
@@ -153,7 +152,7 @@ fun AdminGroupsScreen(
                         )
                     }
                 }
-
+                AddCircleButton(onClick = { showCreate = true })
             }
 
             Row(
@@ -233,7 +232,6 @@ fun AdminGroupsScreen(
                         GroupCard(
                             group = group,
                             onClick = { onGrupo(group.id) },
-                            onAddStudent = onAddStudent,
                         )
                     }
                 }
@@ -365,7 +363,6 @@ private fun GradeChip(
 private fun GroupCard(
     group: AdminGroupRowUi,
     onClick: () -> Unit,
-    onAddStudent: (String) -> Unit,
 ) {
     var menuExpanded by remember { mutableStateOf(false) }
     val source = remember { MutableInteractionSource() }
@@ -464,19 +461,6 @@ private fun GroupCard(
                         onClick = {
                             menuExpanded = false
                             onClick()
-                        },
-                    )
-                    DropdownMenuItem(
-                        text = {
-                            Text(
-                                text = "Agregar alumno",
-                                fontFamily = DmSans,
-                                fontSize = 14.sp,
-                            )
-                        },
-                        onClick = {
-                            menuExpanded = false
-                            onAddStudent(group.id)
                         },
                     )
                 }

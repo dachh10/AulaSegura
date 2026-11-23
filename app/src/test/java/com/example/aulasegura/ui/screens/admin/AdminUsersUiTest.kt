@@ -1,5 +1,6 @@
 package com.example.aulasegura.ui.screens.admin
 
+import com.example.aulasegura.domain.model.AdminStudent
 import com.example.aulasegura.domain.model.AdminUser
 import com.example.aulasegura.domain.model.UserRole
 import com.example.aulasegura.domain.repository.AccountRole
@@ -269,5 +270,36 @@ class AdminUsersUiTest {
     fun `the saving verb follows the direction being written`() {
         assertEquals("Dando de baja…", studentStatusAction(active = true, saving = true))
         assertEquals("Reactivando…", studentStatusAction(active = false, saving = true))
+    }
+
+    @Test
+    fun `tutor edit shows linked student names instead of raw ids`() {
+        fun student(id: String, name: String) = AdminStudent(
+            id = id,
+            firstName = name,
+            lastName = "Gómez",
+            fullName = "$name Gómez",
+            curp = "",
+            listNumber = 1,
+            groupId = "grp-3b",
+            schoolId = "school-1",
+            tutorIds = listOf("u-tutor"),
+            active = true,
+        )
+        val students = listOf(student("s-1", "Sofía"), student("s-2", "Luis"))
+
+        assertEquals("Sofía Gómez, Luis Gómez", assignedStudentNames("s-1, s-2", students))
+        assertEquals("", assignedStudentNames("", students))
+        assertEquals("s-99", assignedStudentNames("s-99", students))
+    }
+
+    @Test
+    fun `teacher edit shows assigned group names instead of raw ids`() {
+        assertEquals("3° B, 4° A", assignedGroupNames("grp-3b, grp-4a", emptyMap()))
+        assertEquals(
+            "Primaria Matutina",
+            assignedGroupNames("g-custom", mapOf("g-custom" to "Primaria Matutina")),
+        )
+        assertEquals("", assignedGroupNames("", emptyMap()))
     }
 }

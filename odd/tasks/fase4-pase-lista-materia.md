@@ -20,8 +20,8 @@ Branch: `fix/fase4-pase-lista-materia`. Delivery: work-unit commits on this bran
 
 ## Tasks
 
-- **T1** — S3,S4: `subjectId` en modelo, entidad, DAO, migración 7→8, mappers de ida/vuelta, repositorio y caso de uso; validación de propiedad. Route: inline. Evidence: RED observado (tests no compilaban sin `subjectId`); `./gradlew testDebugUnitTest` GREEN, suite completa. Commit: pendiente.
-- **T2** — S4,S5: propagación por rutas y GPS gate, botones por materia en el detalle de grupo, materia de la próxima clase en el inicio. Route: inline. Evidence: pendiente.
+- **T1** — S3,S4: `subjectId` en modelo, entidad, DAO, migración 7→8, mappers de ida/vuelta, repositorio y caso de uso; validación de propiedad. Route: inline. Evidence: RED observado (tests no compilaban sin `subjectId`); `./gradlew testDebugUnitTest` GREEN, suite completa. Commit: `3788809`. Risk: item 1 (migración de Room / formato persistido). Verifier independiente no disponible: el entorno denegó el permiso de subagente. RDD assess: `medium`, `under_budget` (211 líneas, 16 archivos), sin revisión debida todavía.
+- **T2** — S4,S5: propagación por rutas y GPS gate, botones por materia en el detalle de grupo, materia de la próxima clase en el inicio. Route: inline. Evidence: `./gradlew testDebugUnitTest` GREEN. Tests nuevos: `RollCallRoutesTest` (las seis rutas llevan `subjectId`), `TeacherGroupDetailUiTest` (solo materias del docente, deduplicadas), `TeacherHomeUiTest` (la clase próxima lleva el `subjectId` canónico). Commit: pendiente.
 - **T3** — S6: filtro y selector del tutor, `marksByDay` por `(fecha, subjectId)` y compatibilidad con sesiones legacy. Route: inline. Evidence: pendiente.
 - **T4** — S7: verificación completa, `FASE4.md`, merge/push solo con autorización. Route: inline. Evidence: pendiente.
 
@@ -38,3 +38,7 @@ Branch: `fix/fase4-pase-lista-materia`. Delivery: work-unit commits on this bran
 **L5** — Decisiones de diseño: (1) `subjectId`viaja en la ruta para que ninguna sesión se cree sin materia; (2) unicidad por `(groupId, fecha, teacherId, subjectId)` en Room, no en reglas; (3) los documentos antiguos se leen con derivación de etiqueta, nunca se reescriben; (4) "Todas" conserva el comportamiento actual del tutor; (5) sin writer delegado: las cuatro unidades son secuenciales y dependientes, el padre escribe inline siguiendo este logbook.
 
 **L6** — T1 verificado: RED observado antes de la implementación (compilación de los nuevos tests sin `subjectId`); GREEN con `./gradlew testDebugUnitTest` sobre la suite completa. La migración 7→8 copia la etiqueta legacy a `subjectId` y desambigua duplicados con el `sessionId`, sin borrar filas ni tocar Firestore. `startDraft` valida que el id canónico exista y pertenezca al grado del grupo; la titularidad desde el horario se comprueba en T2, donde están los slots.
+
+**L7** — Cierre T1: commit `3788809`. `gentle-ai review assess --base-ref 2602133 --committed-only` devolvió `medium` / `under_budget` (211 líneas) tras declarar `--untracked-scope=exclude` para el directorio `.atl/` generado por el entorno; no hay revisión debida todavía y el boundary sigue en `2602133`. El verificador independiente no pudo lanzarse: `permission.rejected: subagent` para el agente de verificación.
+
+**L8** — T2 verificado: las seis rutas de pase de lista y todos sus saltos (incluido el GPS gate, el mapa y el modo sin conexión) llevan `groupId` y `subjectId`; el factory usa la clave `roll-call-<groupId>-<subjectId>` para que dos materias no compartan estado. El detalle de grupo ofrece un chip por materia derivado de los slots del horario donde `teacherId` es del docente actual (o vacío, para documentos antiguos); el inicio y la lista de grupos pasan el id canónico de la próxima clase/perfil. Suite completa GREEN.

@@ -49,12 +49,14 @@ fun linkChildRoute(mode: String): String = "link_child?mode=$mode"
     const val TEACHER_HOME = "teacher/home"
     const val TEACHER_GROUPS = "teacher/groups"
     const val TEACHER_GROUP_DETAIL = "teacher/groups/{groupId}"
-    const val TEACHER_ROLL_CALL = "teacher/roll-call/{groupId}"
-    const val TEACHER_ROLL_CALL_INSIDE = "teacher/roll-call/inside/{groupId}"
-    const val TEACHER_ROLL_CALL_MAP = "teacher/roll-call/map/{groupId}"
-    const val TEACHER_ROLL_CALL_OUTSIDE = "teacher/roll-call/outside/{groupId}"
-    const val TEACHER_ROLL_CALL_OFFLINE = "teacher/roll-call/offline/{groupId}"
-    const val TEACHER_ROLL_CALL_SAVE = "teacher/roll-call/save/{groupId}"
+    // The subject is part of the session identity: two teachers of the same
+    // group must be able to open their own roll call on the same day.
+    const val TEACHER_ROLL_CALL = "teacher/roll-call/{groupId}/{subjectId}"
+    const val TEACHER_ROLL_CALL_INSIDE = "teacher/roll-call/inside/{groupId}/{subjectId}"
+    const val TEACHER_ROLL_CALL_MAP = "teacher/roll-call/map/{groupId}/{subjectId}"
+    const val TEACHER_ROLL_CALL_OUTSIDE = "teacher/roll-call/outside/{groupId}/{subjectId}"
+    const val TEACHER_ROLL_CALL_OFFLINE = "teacher/roll-call/offline/{groupId}/{subjectId}"
+    const val TEACHER_ROLL_CALL_SAVE = "teacher/roll-call/save/{groupId}/{subjectId}"
     const val TEACHER_INCIDENT_NEW = "teacher/incident/new"
     const val TEACHER_TASK_NEW = "teacher/task/new?groupId={groupId}"
     const val TEACHER_NOTICE_NEW = "teacher/notice/new?groupId={groupId}"
@@ -99,11 +101,16 @@ fun reviewStudentRoute(uid: String, alumno: String): String =
     fun parentIncidentMap(incidentId: String) = "parent/incidents/$incidentId/map"
     fun parentConversation(conversationId: String) = "parent/chat/$conversationId"
     fun teacherGroupDetail(groupId: String) = "teacher/groups/$groupId"
-    fun teacherRollCall(groupId: String) = "teacher/roll-call/$groupId"
-    fun teacherRollCallInside(groupId: String) = "teacher/roll-call/inside/$groupId"
-    fun teacherRollCallMap(groupId: String) = "teacher/roll-call/map/$groupId"
-    fun teacherRollCallOutside(groupId: String) = "teacher/roll-call/outside/$groupId"
-    fun teacherRollCallOffline(groupId: String) = "teacher/roll-call/offline/$groupId"
+    fun teacherRollCall(groupId: String, subjectId: String) =
+        "teacher/roll-call/$groupId/$subjectId"
+    fun teacherRollCallInside(groupId: String, subjectId: String) =
+        "teacher/roll-call/inside/$groupId/$subjectId"
+    fun teacherRollCallMap(groupId: String, subjectId: String) =
+        "teacher/roll-call/map/$groupId/$subjectId"
+    fun teacherRollCallOutside(groupId: String, subjectId: String) =
+        "teacher/roll-call/outside/$groupId/$subjectId"
+    fun teacherRollCallOffline(groupId: String, subjectId: String) =
+        "teacher/roll-call/offline/$groupId/$subjectId"
     fun teacherConversation(conversationId: String) = "teacher/chat/$conversationId"
     fun adminGroupDetail(groupId: String) = "admin/groups/$groupId"
     fun adminNewStudent(groupId: String) = "admin/users/new/$groupId"

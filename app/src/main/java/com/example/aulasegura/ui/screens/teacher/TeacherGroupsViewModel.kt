@@ -1,6 +1,7 @@
 package com.example.aulasegura.ui.screens.teacher
 
 import com.example.aulasegura.domain.model.subjectForGroup
+import com.example.aulasegura.domain.model.subjectIdFromLabel
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
@@ -47,7 +48,10 @@ class TeacherGroupsViewModel(
         notice,
     ) { cached, isRefreshing, message ->
         UiState(
-            groups = cached.map { it.toUi(subjectForGroup(subjects, it.grade)) },
+            groups = cached.map { group ->
+                val label = subjectForGroup(subjects, group.grade)
+                group.toUi(label, label?.let { subjectIdFromLabel(it, group.grade) })
+            },
             refreshing = isRefreshing,
             notice = message,
         )

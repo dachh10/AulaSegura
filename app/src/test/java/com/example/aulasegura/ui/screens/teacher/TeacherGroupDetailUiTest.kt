@@ -268,6 +268,24 @@ class TeacherGroupDetailUiTest {
     }
 
     @Test
+    fun `only this teacher's subjects are offered for the roll call`() {
+        val slots = listOf(
+            ClassSlot("s1", "grp-3b", 2, "08:00", "09:00", "Matemáticas", "uid-docente"),
+            ClassSlot("s2", "grp-3b", 3, "10:00", "11:00", "Español III", "uid-docente"),
+            ClassSlot("s3", "grp-3b", 4, "12:00", "13:00", "Ciencias Naturales", "otro-docente"),
+            ClassSlot("s4", "grp-4a", 2, "08:00", "09:00", "Historia de México I", "uid-docente"),
+        )
+
+        val subjects = rollCallSubjectsOf(slots, "grp-3b", 3, "uid-docente")
+
+        assertEquals(
+            listOf("g3-matematicas-iii", "g3-espanol-iii"),
+            subjects.map { it.id },
+        )
+        assertEquals(listOf("Matemáticas III", "Español III"), subjects.map { it.label })
+    }
+
+    @Test
     fun `an unsynced session never reads as synced`() {
         assertEquals("Sincronizado", sessionSyncLabel(RollCallSync.SYNCED))
         assertEquals("Pendiente", sessionSyncLabel(RollCallSync.PENDING))

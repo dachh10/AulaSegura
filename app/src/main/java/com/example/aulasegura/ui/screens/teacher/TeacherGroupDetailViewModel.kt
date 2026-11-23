@@ -48,7 +48,7 @@ class TeacherGroupDetailViewModel(
     private val history: AttendanceHistoryRepository,
     private val incidents: IncidentHistoryRepository,
     private val schedule: ScheduleRepository,
-    auth: AuthRepository,
+    private val auth: AuthRepository,
     private val now: () -> Long = System::currentTimeMillis,
     private val zone: TimeZone = TimeZone.getDefault(),
 ) : ViewModel() {
@@ -132,6 +132,12 @@ class TeacherGroupDetailViewModel(
             groupId = id,
             label = basis.group?.label ?: id,
             subject = subjectForGroup(subjects, basis.group?.grade ?: 0) ?: NO_SUBJECT,
+            rollCallSubjects = rollCallSubjectsOf(
+                slots = (basis.schedule as? ScheduleLoadResult.Loaded)?.slots.orEmpty(),
+                groupId = id,
+                grade = basis.group?.grade ?: 0,
+                currentUid = auth.currentUser?.uid.orEmpty(),
+            ),
             slotLabel = (basis.schedule as? ScheduleLoadResult.Loaded)?.let { loaded ->
                 groupSlotLabel(
                     slots = loaded.slots,

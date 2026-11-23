@@ -91,8 +91,8 @@ fun TeacherHomeScreen(
     subjects: List<String> = emptyList(),
     photoUrl: String? = null,
     onIrAGrupos: () -> Unit = {},
-    /** The group of the next class, or `null` when the timetable has nothing. */
-    onIrAPaseLista: (String?) -> Unit = {},
+    /** The group and subject of the next class; `null` group when there is none. */
+    onIrAPaseLista: (String?, String) -> Unit = { _, _ -> },
     onIrARegistrarIncidente: () -> Unit = {},
     onIrAPublicarTarea: () -> Unit = {},
     onIrAPublicarAviso: () -> Unit = {},
@@ -130,7 +130,9 @@ fun TeacherHomeScreen(
                 TeacherHeroCard(
                     nextClass = ui.nextClass,
                     notice = ui.scheduleNotice,
-                    onPasarLista = { onIrAPaseLista(ui.nextClass?.groupId) },
+                    onPasarLista = {
+                        onIrAPaseLista(ui.nextClass?.groupId, ui.nextClass?.subjectId.orEmpty())
+                    },
                 )
             }
             Reveal(120) { TeacherTodaySummary(summary = ui.summary) }

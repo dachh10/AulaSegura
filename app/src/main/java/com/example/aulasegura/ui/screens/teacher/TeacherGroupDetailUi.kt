@@ -25,6 +25,8 @@ data class TeacherGroupDetailUi(
     /** `"3° B"` — the badge of the hero. */
     val label: String = "",
     val subject: String = "",
+    /** Subjects this teacher owns in this group, one button per subject. */
+    val rollCallSubjects: List<RollCallSubjectUi> = emptyList(),
     /** `"Hoy · 08:00 – 09:00"`, from the group's timetable. `null` without a slot. */
     val slotLabel: String? = null,
     val listState: GroupListState = GroupListState.Loading,

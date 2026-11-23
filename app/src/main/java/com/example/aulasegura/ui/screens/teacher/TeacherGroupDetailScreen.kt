@@ -112,7 +112,8 @@ import com.example.aulasegura.ui.theme.OnSecondaryFixedVariant
 fun TeacherGroupDetailScreen(
     ui: TeacherGroupDetailUi,
     onBack: () -> Unit = {},
-    onPasarLista: () -> Unit = {},
+    /** Receives the canonical subject id of the roll call to open. */
+    onPasarLista: (String) -> Unit = {},
     onNuevaTarea: () -> Unit = {},
     onNuevoAviso: () -> Unit = {},
     onRegistrarIncidente: () -> Unit = {},
@@ -144,9 +145,18 @@ fun TeacherGroupDetailScreen(
             ) {
                 Reveal(60) { GroupStats(ui = ui) }
 
+                Reveal(80) {
+                    RollCallSubjectChips(
+                        subjects = ui.rollCallSubjects,
+                        onSelect = onPasarLista,
+                    )
+                }
+
                 Reveal(100) {
                     GroupQuickActions(
-                        onPasarLista = onPasarLista,
+                        onPasarLista = {
+                            onPasarLista(ui.rollCallSubjects.firstOrNull()?.id.orEmpty())
+                        },
                         onNuevaTarea = onNuevaTarea,
                         onNuevoAviso = onNuevoAviso,
                     )
@@ -184,7 +194,7 @@ fun TeacherGroupDetailScreen(
         }
 
         PassListBar(
-            onClick = onPasarLista,
+            onClick = { onPasarLista(ui.rollCallSubjects.firstOrNull()?.id.orEmpty()) },
             modifier = Modifier.align(Alignment.BottomCenter),
         )
     }

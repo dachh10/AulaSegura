@@ -2,6 +2,7 @@ package com.example.aulasegura.ui.screens.teacher
 
 import com.example.aulasegura.domain.model.AttendanceSessionSummary
 import com.example.aulasegura.domain.model.ClassSlot
+import com.example.aulasegura.domain.model.subjectIdFromLabel
 import com.example.aulasegura.domain.model.Group
 import com.example.aulasegura.domain.model.IncidentSummary
 import com.example.aulasegura.domain.model.PublishedNotice
@@ -40,6 +41,8 @@ data class NextClassUi(
     val subject: String,
     val groupLabel: String,
     val studentCount: Int,
+    /** Canonical id passed to the roll call; empty only for an unknown label. */
+    val subjectId: String = "",
 ) {
 
     /** `"Matemáticas · 3° B"`; a slot without a subject prints only the group. */
@@ -132,6 +135,7 @@ fun nextClassOf(
         subject = slot.subject,
         groupLabel = group?.label.orEmpty(),
         studentCount = group?.studentCount ?: 0,
+        subjectId = subjectIdFromLabel(slot.subject, group?.grade).orEmpty(),
     )
 }
 

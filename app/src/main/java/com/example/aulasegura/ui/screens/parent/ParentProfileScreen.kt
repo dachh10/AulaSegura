@@ -1,5 +1,8 @@
 package com.example.aulasegura.ui.screens.parent
 
+import com.example.aulasegura.ui.profile.ProfilePhotoOptionsDialog
+import com.example.aulasegura.ui.profile.rememberProfilePhotoPicker
+
 import android.Manifest
 import android.app.Activity
 import android.content.Context
@@ -153,7 +156,6 @@ fun ParentProfileScreen(
 ) {
     val context = LocalContext.current
     var showPhotoOptions by remember { mutableStateOf(false) }
-    var pendingCapture by remember { mutableStateOf<File?>(null) }
     val scrollState = rememberScrollState()
 
     // The indigo header sits under the status bar, so its icons must be light
@@ -191,39 +193,7 @@ fun ParentProfileScreen(
         }
     }
 
-    // The camera writes into a cache file the FileProvider exposes to the camera
-    // app; the ViewModel only sees the resulting Uri and compresses it. Its own
-    // directory, so the profile photo never mixes with the incident evidence.
-    var cameraFailed by remember { mutableStateOf(false) }
-    val cameraLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.TakePicture(),
-    ) { saved ->
-        val captured = pendingCapture
-        pendingCapture = null
-        if (saved && captured != null) {
-            cameraFailed = false
-            onChangePhoto(Uri.fromFile(captured))
-        } else {
-            captured?.delete()
-            cameraFailed = true
-        }
-    }
-    val galleryLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.GetContent(),
-    ) { uri ->
-        if (uri != null) onChangePhoto(uri)
-    }
-
-    fun capturePhoto() {
-        val directory = File(context.cacheDir, "perfil").apply { mkdirs() }
-        val file = File(directory, "perfil_${System.currentTimeMillis()}.jpg")
-        pendingCapture = file
-        val uri = FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", file)
-        runCatching { cameraLauncher.launch(uri) }.onFailure {
-            pendingCapture = null
-            file.delete()
-        }
-    }
+    val photoPicker = rememberProfilePhotoPicker(onPhoto = onChangePhoto)
 
     Box(
         modifier = Modifier
@@ -246,17 +216,6 @@ fun ParentProfileScreen(
                 ProfileHeader(
                     ui = ui,
                     onChangePhoto = { showPhotoOptions = true },
-                )
-            }
-
-            if (cameraFailed) {
-                Spacer(Modifier.height(10.dp))
-                Text(
-                    text = "No se pudo tomar la foto. Intenta con otra cámara o elige una de la galería.",
-                    color = Error,
-                    fontFamily = DmSans,
-                    fontSize = 12.sp,
-                    modifier = Modifier.padding(horizontal = 24.dp),
                 )
             }
 
@@ -328,15 +287,15 @@ fun ParentProfileScreen(
     }
 
     if (showPhotoOptions) {
-        PhotoOptionsDialog(
+        ProfilePhotoOptionsDialog(
             onDismiss = { showPhotoOptions = false },
             onTakePhoto = {
                 showPhotoOptions = false
-                capturePhoto()
+                photoPicker.takePhoto()
             },
             onPickFromGallery = {
                 showPhotoOptions = false
-                galleryLauncher.launch("image/*")
+                photoPicker.pickFromGallery()
             },
         )
     }

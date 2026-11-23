@@ -9,6 +9,8 @@ import androidx.compose.material3.TextButton
 import androidx.compose.ui.platform.LocalContext
 import androidx.core.content.FileProvider
 import coil.compose.AsyncImage
+import com.example.aulasegura.ui.profile.ProfilePhotoOptionsDialog
+import com.example.aulasegura.ui.profile.rememberProfilePhotoPicker
 import java.io.File
 
 import androidx.compose.foundation.background
@@ -130,36 +132,7 @@ fun RegisterScreen(
     val context = LocalContext.current
     var photoUri by remember { mutableStateOf<Uri?>(null) }
     var showPhotoOptions by remember { mutableStateOf(false) }
-    var pendingCapture by remember { mutableStateOf<File?>(null) }
-    val cameraLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.TakePicture(),
-    ) { saved ->
-        val captured = pendingCapture
-        pendingCapture = null
-        if (saved && captured != null) {
-            photoUri = FileProvider.getUriForFile(
-                context,
-                "${context.packageName}.fileprovider",
-                captured,
-            )
-        } else {
-            captured?.delete()
-        }
-    }
-    val galleryLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.GetContent(),
-    ) { uri -> if (uri != null) photoUri = uri }
-
-    fun capturePhoto() {
-        val directory = File(context.cacheDir, "perfil").apply { mkdirs() }
-        val file = File(directory, "registro_${System.currentTimeMillis()}.jpg")
-        val uri = FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", file)
-        pendingCapture = file
-        runCatching { cameraLauncher.launch(uri) }.onFailure {
-            pendingCapture = null
-            file.delete()
-        }
-    }
+    val photoPicker = rememberProfilePhotoPicker(onPhoto = { photoUri = it })
 
     Box(
         modifier = Modifier
@@ -335,26 +308,10 @@ fun RegisterScreen(
         )
 
         if (showPhotoOptions) {
-            AlertDialog(
-                onDismissRequest = { showPhotoOptions = false },
-                title = { Text("Agregar foto") },
-                text = { Text("Elige una foto reciente o toma una ahora.") },
-                confirmButton = {
-                    TextButton(
-                        onClick = {
-                            showPhotoOptions = false
-                            capturePhoto()
-                        },
-                    ) { Text("Tomar foto") }
-                },
-                dismissButton = {
-                    TextButton(
-                        onClick = {
-                            showPhotoOptions = false
-                            galleryLauncher.launch("image/*")
-                        },
-                    ) { Text("Elegir de la galería") }
-                },
+            ProfilePhotoOptionsDialog(
+                onDismiss = { showPhotoOptions = false },
+                onTakePhoto = { showPhotoOptions = false; photoPicker.takePhoto() },
+                onPickFromGallery = { showPhotoOptions = false; photoPicker.pickFromGallery() },
             )
         }
     }

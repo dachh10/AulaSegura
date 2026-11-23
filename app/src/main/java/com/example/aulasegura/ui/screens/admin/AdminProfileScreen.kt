@@ -1,5 +1,8 @@
 package com.example.aulasegura.ui.screens.admin
 
+import com.example.aulasegura.ui.profile.ProfilePhotoOptionsDialog
+import com.example.aulasegura.ui.profile.rememberProfilePhotoPicker
+
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.animateColorAsState
@@ -74,6 +77,7 @@ import com.example.aulasegura.ui.components.AdminBottomBar
 import com.example.aulasegura.ui.components.AdminTab
 import com.example.aulasegura.ui.components.shieldPattern
 import com.example.aulasegura.ui.screens.access.Reveal
+import com.example.aulasegura.ui.theme.BrandCoral
 import com.example.aulasegura.ui.theme.BrandCream
 import com.example.aulasegura.ui.theme.BrandMint
 import com.example.aulasegura.ui.theme.BricolageGrotesque
@@ -121,27 +125,6 @@ fun AdminProfileScreen(
     var showChangePassword by remember { mutableStateOf(false) }
     var passwordForm by remember { mutableStateOf(AdminChangePasswordForm()) }
 
-    // Same camera pattern as the incident form: the camera writes a real photo
-    // into this file, the ViewModel compresses it and uploads the compressed bytes.
-    // TakePicturePreview would only hand back a thumbnail, not the full photo.
-    var pendingCapture by remember { mutableStateOf<File?>(null) }
-    val photoLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.TakePicture(),
-    ) { saved ->
-        val captured = pendingCapture
-        pendingCapture = null
-        if (saved && captured != null) {
-            val uri = FileProvider.getUriForFile(
-                context,
-                "${context.packageName}.fileprovider",
-                captured,
-            )
-            viewModel.changePhoto(uri)
-        } else {
-            captured?.delete()
-        }
-    }
-
     // A successful change closes the dialog; the honest success banner stays visible.
     LaunchedEffect(ui.passwordChange.phase) {
         if (ui.passwordChange.phase == AdminPasswordChangePhase.SUCCESS) {
@@ -149,22 +132,8 @@ fun AdminProfileScreen(
         }
     }
 
-    fun capturePhoto() {
-        val directory = File(context.cacheDir, "perfil").apply { mkdirs() }
-        val file = File(directory, "perfil_${System.currentTimeMillis()}.jpg")
-        val uri = FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", file)
-        pendingCapture = file
-        runCatching { photoLauncher.launch(uri) }
-            .onFailure {
-                pendingCapture = null
-                file.delete()
-            }
-    }
-
     var showPhotoOptions by remember { mutableStateOf(false) }
-    val galleryLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.GetContent(),
-    ) { uri -> if (uri != null) viewModel.changePhoto(uri) }
+    val photoPicker = rememberProfilePhotoPicker(onPhoto = viewModel::changePhoto)
 
     val isUploading = ui.upload.phase in setOf(
         AdminPhotoUploadPhase.COMPRESSING,
@@ -173,26 +142,10 @@ fun AdminProfileScreen(
     )
 
     if (showPhotoOptions) {
-        AlertDialog(
-            onDismissRequest = { showPhotoOptions = false },
-            title = { Text("Cambiar foto") },
-            text = { Text("Elige una foto reciente o toma una ahora.") },
-            confirmButton = {
-                TextButton(
-                    onClick = {
-                        showPhotoOptions = false
-                        capturePhoto()
-                    },
-                ) { Text("Tomar foto") }
-            },
-            dismissButton = {
-                TextButton(
-                    onClick = {
-                        showPhotoOptions = false
-                        galleryLauncher.launch("image/*")
-                    },
-                ) { Text("Elegir de la galería") }
-            },
+        ProfilePhotoOptionsDialog(
+            onDismiss = { showPhotoOptions = false },
+            onTakePhoto = { showPhotoOptions = false; photoPicker.takePhoto() },
+            onPickFromGallery = { showPhotoOptions = false; photoPicker.pickFromGallery() },
         )
     }
 
@@ -211,6 +164,7 @@ fun AdminProfileScreen(
                 ProfileHeader(
                     ui = ui,
                     onBack = onBack,
+                    onChangePhoto = { showPhotoOptions = true },
                 )
             }
 
@@ -514,7 +468,11 @@ private fun ChangePasswordDialog(
 }
 
 @Composable
-private fun ProfileHeader(ui: AdminProfileUi, onBack: () -> Unit) {
+private fun ProfileHeader(
+    ui: AdminProfileUi,
+    onBack: () -> Unit,
+    onChangePhoto: () -> Unit = {},
+) {
     val avatarUrl = adminAvatarUrl(ui.photoUrl)
     val initials = adminInitials(ui.fullName)
     val displayName = when {
@@ -557,15 +515,16 @@ private fun ProfileHeader(ui: AdminProfileUi, onBack: () -> Unit) {
 
         Spacer(Modifier.height(8.dp))
 
-        Box(
-            modifier = Modifier
-                .size(74.dp)
-                .shadow(6.dp, CircleShape)
-                .clip(CircleShape)
-                .background(PrimaryFixed)
-                .border(3.dp, OnPrimary, CircleShape),
-            contentAlignment = Alignment.Center,
-        ) {
+        Box {
+            Box(
+                modifier = Modifier
+                    .size(74.dp)
+                    .shadow(6.dp, CircleShape)
+                    .clip(CircleShape)
+                    .background(PrimaryFixed)
+                    .border(3.dp, OnPrimary, CircleShape),
+                contentAlignment = Alignment.Center,
+            ) {
             if (avatarUrl != null) {
                 // The URL carries the 512/fill/face transform: Coil never downloads
                 // the original just to paint a 74 dp avatar.
@@ -584,6 +543,24 @@ private fun ProfileHeader(ui: AdminProfileUi, onBack: () -> Unit) {
                     fontFamily = BricolageGrotesque,
                     fontWeight = FontWeight.Bold,
                     fontSize = 26.sp,
+                )
+            }
+            }
+            Box(
+                modifier = Modifier
+                    .align(Alignment.BottomEnd)
+                    .size(26.dp)
+                    .clip(CircleShape)
+                    .background(BrandCoral)
+                    .border(2.dp, OnPrimary, CircleShape)
+                    .clickable(onClick = onChangePhoto),
+                contentAlignment = Alignment.Center,
+            ) {
+                Icon(
+                    imageVector = Icons.Outlined.PhotoCamera,
+                    contentDescription = "Cambiar foto",
+                    tint = Color.White,
+                    modifier = Modifier.size(14.dp),
                 )
             }
         }

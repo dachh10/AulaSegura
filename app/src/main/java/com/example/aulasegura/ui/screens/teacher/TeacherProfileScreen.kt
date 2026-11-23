@@ -1,5 +1,8 @@
 package com.example.aulasegura.ui.screens.teacher
 
+import com.example.aulasegura.ui.profile.ProfilePhotoOptionsDialog
+import com.example.aulasegura.ui.profile.rememberProfilePhotoPicker
+
 import android.Manifest
 import android.content.Context
 import android.content.Intent
@@ -146,7 +149,6 @@ fun TeacherProfileScreen(
 ) {
     val context = LocalContext.current
     var showPhotoOptions by remember { mutableStateOf(false) }
-    var pendingCapture by remember { mutableStateOf<File?>(null) }
 
     // The notification switch reflects the Android permission, not a local flag:
     // the OS is what decides whether the phone rings, and it can only be changed
@@ -177,37 +179,7 @@ fun TeacherProfileScreen(
             runCatching { context.startActivity(intent) }
         }
     }
-
-    // The camera writes into a cache file the FileProvider exposes to the camera
-    // app; the ViewModel only sees the resulting Uri and compresses it. The same
-    // pattern the incident form uses, with its own directory so the two never mix.
-    val cameraLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.TakePicture(),
-    ) { saved ->
-        val captured = pendingCapture
-        pendingCapture = null
-        if (saved && captured != null) {
-            onChangePhoto(Uri.fromFile(captured))
-        } else {
-            captured?.delete()
-        }
-    }
-    val galleryLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.GetContent(),
-    ) { uri ->
-        if (uri != null) onChangePhoto(uri)
-    }
-
-    fun capturePhoto() {
-        val directory = File(context.cacheDir, "perfil").apply { mkdirs() }
-        val file = File(directory, "perfil_${System.currentTimeMillis()}.jpg")
-        pendingCapture = file
-        val uri = FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", file)
-        runCatching { cameraLauncher.launch(uri) }.onFailure {
-            pendingCapture = null
-            file.delete()
-        }
-    }
+    val photoPicker = rememberProfilePhotoPicker(onPhoto = onChangePhoto)
 
     Box(
         modifier = Modifier
@@ -294,130 +266,14 @@ fun TeacherProfileScreen(
     }
 
     if (showPhotoOptions) {
-        // A Dialog + Surface instead of AlertDialog: the overload that lets us
-        // place three options does not draw Material's dialog container, so the
-        // options ended up floating over the page. Here the card is explicit and
-        // opaque, and each option is a full-width button with its own hit target.
-        Dialog(onDismissRequest = { showPhotoOptions = false }) {
-            Surface(
-                shape = RoundedCornerShape(24.dp),
-                color = SurfaceContainerLowest,
-                tonalElevation = 6.dp,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 24.dp),
-            ) {
-                Column(
-                    modifier = Modifier.padding(24.dp),
-                    verticalArrangement = Arrangement.spacedBy(12.dp),
-                ) {
-                    Text(
-                        text = "Cambiar foto",
-                        color = PrimaryContainer,
-                        fontFamily = BricolageGrotesque,
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 20.sp,
-                    )
-                    Text(
-                        text = "Elige una foto reciente o toma una ahora.",
-                        color = Outline,
-                        fontFamily = DmSans,
-                        fontSize = 14.sp,
-                        lineHeight = 20.sp,
-                    )
-
-                    Spacer(Modifier.height(4.dp))
-
-                    val (cameraOptionInteraction, cameraOptionPress) = rememberPressScale(0.98f)
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(48.dp)
-                            .then(cameraOptionPress)
-                            .clip(RoundedCornerShape(percent = 50))
-                            .background(BrandCoral)
-                            .clickable(
-                                interactionSource = cameraOptionInteraction,
-                                indication = null,
-                                onClick = {
-                                    showPhotoOptions = false
-                                    capturePhoto()
-                                },
-                            )
-                            .padding(horizontal = 16.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.Center,
-                    ) {
-                        Icon(
-                            imageVector = Icons.Filled.CameraAlt,
-                            contentDescription = null,
-                            tint = Color.White,
-                            modifier = Modifier.size(18.dp),
-                        )
-                        Spacer(Modifier.width(10.dp))
-                        Text(
-                            text = "Tomar foto",
-                            color = Color.White,
-                            fontFamily = DmSans,
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 14.sp,
-                        )
-                    }
-
-                    val (galleryOptionInteraction, galleryOptionPress) = rememberPressScale(0.98f)
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(48.dp)
-                            .then(galleryOptionPress)
-                            .clip(RoundedCornerShape(percent = 50))
-                            .border(1.dp, PrimaryContainer, RoundedCornerShape(percent = 50))
-                            .clickable(
-                                interactionSource = galleryOptionInteraction,
-                                indication = null,
-                                onClick = {
-                                    showPhotoOptions = false
-                                    galleryLauncher.launch("image/*")
-                                },
-                            )
-                            .padding(horizontal = 16.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.Center,
-                    ) {
-                        Icon(
-                            imageVector = Icons.Filled.PhotoLibrary,
-                            contentDescription = null,
-                            tint = PrimaryContainer,
-                            modifier = Modifier.size(18.dp),
-                        )
-                        Spacer(Modifier.width(10.dp))
-                        Text(
-                            text = "Elegir de la galería",
-                            color = PrimaryContainer,
-                            fontFamily = DmSans,
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 14.sp,
-                        )
-                    }
-
-                    TextButton(
-                        onClick = { showPhotoOptions = false },
-                        modifier = Modifier.align(Alignment.CenterHorizontally),
-                    ) {
-                        Text(
-                            text = "Cancelar",
-                            color = Outline,
-                            fontFamily = DmSans,
-                            fontWeight = FontWeight.Medium,
-                            fontSize = 14.sp,
-                        )
-                    }
-                }
-            }
-        }
+        ProfilePhotoOptionsDialog(
+            onDismiss = { showPhotoOptions = false },
+            onTakePhoto = { showPhotoOptions = false; photoPicker.takePhoto() },
+            onPickFromGallery = { showPhotoOptions = false; photoPicker.pickFromGallery() },
+        )
     }
-
 }
+
 @Composable
 private fun ProfileMessage(
     message: String,

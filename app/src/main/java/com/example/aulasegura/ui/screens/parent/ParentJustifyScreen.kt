@@ -4,6 +4,7 @@ import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.net.Uri
+import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.Image
@@ -75,6 +76,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.aulasegura.ui.components.rememberPressScale
+import com.example.aulasegura.ui.profile.rememberCameraPermissionGate
 import com.example.aulasegura.ui.screens.access.Reveal
 import com.example.aulasegura.ui.theme.BricolageGrotesque
 import com.example.aulasegura.ui.theme.DmSans
@@ -129,6 +131,12 @@ fun ParentJustifyScreen(
             }
             bitmap.recycle()
             onAttach("comprobante_foto.jpg", "image/jpeg", bytes)
+        } else {
+            Toast.makeText(
+                context,
+                "La cámara no devolvió la foto. Prueba con la galería.",
+                Toast.LENGTH_SHORT,
+            ).show()
         }
     }
 
@@ -150,6 +158,16 @@ fun ParentJustifyScreen(
     LaunchedEffect(loaded?.sent) {
         if (loaded?.sent == true) onSent()
     }
+
+    val requireCameraPermission = rememberCameraPermissionGate(
+        onDenied = {
+            Toast.makeText(
+                context,
+                "Permite el acceso a la cámara para tomar el comprobante.",
+                Toast.LENGTH_SHORT,
+            ).show()
+        },
+    )
 
     Column(
         modifier = Modifier
@@ -191,7 +209,7 @@ fun ParentJustifyScreen(
                     ui = ui,
                     onSelectReason = onSelectReason,
                     onDetailsChange = onDetailsChange,
-                    onTakePhoto = { cameraLauncher.launch(null) },
+                    onTakePhoto = { requireCameraPermission { cameraLauncher.launch(null) } },
                     onPickGallery = { galleryLauncher.launch("image/*") },
                     onRemoveReceipt = onRemoveReceipt,
                 )

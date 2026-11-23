@@ -124,9 +124,10 @@ class ParentHomeViewModelTest {
             child: ParentChild,
             year: Int,
             month: Int,
+            subjectId: String?,
         ): ParentMonthResult = error("not used")
 
-        override suspend fun loadHome(): ParentHomeResult =
+        override suspend fun loadHome(subjectId: String?): ParentHomeResult =
             ParentHomeResult.Loaded(emptyList())
 
         override suspend fun loadTasks(child: ParentChild): ParentTasksResult =

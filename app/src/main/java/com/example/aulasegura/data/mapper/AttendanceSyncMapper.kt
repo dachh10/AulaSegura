@@ -42,6 +42,7 @@ object AttendanceSyncMapper {
             "schoolId" to schoolId,
             "teacherId" to teacherId,
             "subject" to subject,
+            "subjectId" to subjectId,
             "date" to date,
             "startedAt" to startedAt.toTimestamp(),
             "status" to status,

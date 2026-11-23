@@ -194,6 +194,32 @@ class ParentAttendanceUiTest {
         )
     }
 
+    @Test
+    fun `subject options exclude unknown legacy labels`() {
+        val days = listOf(
+            day("2026-11-03", AttendanceMark.PRESENT).copy(
+                subjectId = "g3-matematicas-iii",
+                subject = "Matemáticas III",
+            ),
+            day("2026-11-04", AttendanceMark.ABSENT).copy(
+                subjectId = "g3-espanol-iii",
+                subject = "Español III",
+            ),
+            day("2026-11-05", AttendanceMark.PRESENT).copy(
+                subjectId = "",
+                subject = "Materia desconocida",
+            ),
+        )
+
+        assertEquals(
+            listOf(
+                ParentSubjectUi("g3-espanol-iii", "Español III"),
+                ParentSubjectUi("g3-matematicas-iii", "Matemáticas III"),
+            ),
+            subjectOptionsOf(days),
+        )
+    }
+
     private fun day(
         date: String,
         mark: AttendanceMark?,

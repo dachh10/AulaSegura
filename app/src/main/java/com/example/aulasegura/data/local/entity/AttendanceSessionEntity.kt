@@ -14,7 +14,19 @@ import androidx.room.PrimaryKey
  */
 @Entity(
     tableName = "attendance_sessions",
-    indices = [Index("groupId"), Index("date"), Index("teacherId"), Index("syncState")],
+    indices = [
+        Index("groupId"),
+        Index("date"),
+        Index("teacherId"),
+        Index("syncState"),
+        // One session per group, day, teacher and subject. Without the subject a
+        // second teacher's roll call collided with the first one's.
+        Index(
+            value = ["groupId", "date", "teacherId", "subjectId"],
+            unique = true,
+            name = "index_attendance_sessions_group_date_teacher_subject",
+        ),
+    ],
 )
 data class AttendanceSessionEntity(
     @PrimaryKey val sessionId: String,
@@ -22,6 +34,8 @@ data class AttendanceSessionEntity(
     val schoolId: String,
     val teacherId: String,
     val subject: String,
+    /** Canonical catalog id; empty on documents created before the point 8 migration. */
+    val subjectId: String = "",
     /** ISO date, `"2026-11-03"`, kept as text so range queries stay lexicographic. */
     val date: String,
     val startedAt: Long,

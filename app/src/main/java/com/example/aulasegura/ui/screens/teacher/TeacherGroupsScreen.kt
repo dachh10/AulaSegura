@@ -105,7 +105,7 @@ fun TeacherGroupsScreen(
     onIrAHistorial: () -> Unit = {},
     onIrAPerfil: () -> Unit = {},
     onIrANotificaciones: () -> Unit = {},
-    onPasarLista: (String) -> Unit = {},
+    onPasarLista: (String, String) -> Unit = { _, _ -> },
     onVerAlumnos: (String) -> Unit = {},
 ) {
     var filter by remember { mutableStateOf(GroupFilter.Todos) }
@@ -194,7 +194,7 @@ fun TeacherGroupsScreen(
                     visible.forEach { group ->
                         TeacherGroupCard(
                             group = group,
-                            onPasarLista = { onPasarLista(group.id) },
+                            onPasarLista = { onPasarLista(group.id, group.subjectId) },
                             onVerAlumnos = { onVerAlumnos(group.id) },
                         )
                     }

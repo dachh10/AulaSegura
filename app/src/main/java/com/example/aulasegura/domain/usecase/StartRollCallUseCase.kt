@@ -23,8 +23,8 @@ class StartRollCallUseCase(
     private val analytics: AnalyticsLogger = NoOpAnalyticsLogger,
 ) {
 
-    suspend operator fun invoke(groupId: String): AttendanceStart {
-        val result = attendance.startDraft(groupId)
+    suspend operator fun invoke(groupId: String, subjectId: String): AttendanceStart {
+        val result = attendance.startDraft(groupId, subjectId)
         if (result is AttendanceStart.Ready) {
             analytics.log(AnalyticsEvent.RollCallStarted)
         }

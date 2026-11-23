@@ -110,6 +110,7 @@ fun ParentAttendanceScreen(
     onNextMonth: () -> Unit,
     onCycleChild: () -> Unit,
     onSelectTab: (ParentTab) -> Unit,
+    onSelectSubject: (String?) -> Unit = {},
 ) {
     Box(
         modifier = Modifier
@@ -134,6 +135,15 @@ fun ParentAttendanceScreen(
                             childCount = ui.childCount,
                             onCycleChild = onCycleChild,
                         )
+                    }
+                    Reveal(30) {
+                        Box(Modifier.padding(horizontal = 16.dp, vertical = 4.dp)) {
+                            ParentSubjectChips(
+                                subjects = ui.subjects,
+                                selectedSubjectId = ui.selectedSubjectId,
+                                onSelect = onSelectSubject,
+                            )
+                        }
                     }
                     Reveal(60) {
                         Box(Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {

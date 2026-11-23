@@ -23,6 +23,7 @@ class AttendanceDocumentMapperTest {
             "schoolId" to "sch-benito-juarez",
             "teacherId" to "uid-docente",
             "subject" to "Matemáticas",
+            "subjectId" to "g3-matematicas-iii",
             "date" to "2026-11-15",
             "startedAt" to startedAt.toTimestamp(),
             "closedAt" to (startedAt + 600_000).toTimestamp(),
@@ -55,6 +56,19 @@ class AttendanceDocumentMapperTest {
         assertEquals(431.16, session.locationDistanceMeters!!, 0.001)
         // A document that came from the server is already there.
         assertEquals(SyncState.SYNCED, session.syncState)
+    }
+
+    @Test
+    fun `reads the canonical subject id and leaves legacy documents empty`() {
+        val current = requireNotNull(attendanceSessionEntityFrom("ses-7", document()))
+        assertEquals("g3-matematicas-iii", current.subjectId)
+        assertEquals("Matemáticas", current.subject)
+
+        val legacy = requireNotNull(
+            attendanceSessionEntityFrom("ses-8", document(mapOf("subjectId" to null))),
+        )
+        assertEquals("", legacy.subjectId)
+        assertEquals("Matemáticas", legacy.subject)
     }
 
     @Test

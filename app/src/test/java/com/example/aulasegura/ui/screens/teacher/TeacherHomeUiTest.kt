@@ -102,6 +102,7 @@ class TeacherHomeUiTest {
         assertEquals(28, next?.studentCount)
         assertEquals("Matemáticas · 3° B", next?.headline)
         assertEquals("grp-3b", next?.groupId)
+        assertEquals("g3-matematicas-iii", next?.subjectId)
     }
 
     @Test

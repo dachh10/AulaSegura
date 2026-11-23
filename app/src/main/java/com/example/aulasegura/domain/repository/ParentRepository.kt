@@ -28,13 +28,18 @@ fun observeMyChildren(): Flow<List<String>> = kotlinx.coroutines.flow.emptyFlow(
      * Sessions of [child]'s group in the given month, each with the child's own
      * record. [month] is 1-based, the way `Calendar` and the UI read it.
      */
-    suspend fun loadMonth(child: ParentChild, year: Int, month: Int): ParentMonthResult
+    suspend fun loadMonth(
+        child: ParentChild,
+        year: Int,
+        month: Int,
+        subjectId: String? = null,
+    ): ParentMonthResult
 
     /**
      * Everything the home card shows: every child with today's status, the
      * month counters and the tasks still due for their group.
      */
-    suspend fun loadHome(): ParentHomeResult
+    suspend fun loadHome(subjectId: String? = null): ParentHomeResult
 
     /**
      * Every task published to [child]'s group, due date included.

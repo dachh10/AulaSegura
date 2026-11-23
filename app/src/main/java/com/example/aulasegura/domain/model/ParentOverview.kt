@@ -50,6 +50,8 @@ data class ParentDayAttendance(
     val mark: AttendanceMark?,
     val time: String?,
     val note: String?,
+    /** Canonical subject id; empty on sessions written before the subject filter. */
+    val subjectId: String = "",
 )
 
 /** A month of the child, ready for the calendar and the summary card. */

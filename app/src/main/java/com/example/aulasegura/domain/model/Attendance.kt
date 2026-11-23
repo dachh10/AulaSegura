@@ -130,6 +130,14 @@ data class RollCallDraft(
     val schoolId: String,
     val teacherId: String,
     val subject: String,
+    /**
+     * Canonical catalog id of [subject], e.g. `g3-matematicas-iii`.
+     *
+     * Empty only for legacy callers: a session opened from a slot always carries
+     * the id, which is what keeps two teachers of the same group from writing the
+     * same (group, date, subject) session.
+     */
+    val subjectId: String = "",
     /** ISO date, `"2026-11-03"`. */
     val date: String,
     val startedAt: Long,

@@ -320,9 +320,10 @@ class ParentProfileViewModelTest {
             child: ParentChild,
             year: Int,
             month: Int,
+            subjectId: String?,
         ): ParentMonthResult = error("not used")
 
-        override suspend fun loadHome(): ParentHomeResult = error("not used")
+        override suspend fun loadHome(subjectId: String?): ParentHomeResult = error("not used")
 
         override suspend fun loadTasks(child: ParentChild): ParentTasksResult =
             error("not used")

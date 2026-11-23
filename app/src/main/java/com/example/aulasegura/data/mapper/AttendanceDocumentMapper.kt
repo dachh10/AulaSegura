@@ -34,6 +34,9 @@ fun attendanceSessionEntityFrom(id: String, data: Map<String, Any?>): Attendance
         schoolId = schoolId,
         teacherId = teacherId,
         subject = data["subject"] as? String ?: "",
+        // Sessions written before point 8 only carry the display label. Do not
+        // invent an id here: the reader derives one with subjectIdFromLabel.
+        subjectId = data["subjectId"] as? String ?: "",
         date = date,
         startedAt = millis(data["startedAt"]),
         closedAt = (data["closedAt"] as? Timestamp)?.toEpochMillis(),

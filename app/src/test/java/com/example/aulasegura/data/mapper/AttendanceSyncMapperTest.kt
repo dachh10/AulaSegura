@@ -68,6 +68,14 @@ class AttendanceSyncMapperTest {
     }
 
     @Test
+    fun sessionMapCarriesTheCanonicalSubjectId() {
+        val map = session().toFirestoreMap()
+
+        assertEquals("g3-matematicas-iii", map["subjectId"])
+        assertEquals("Matemáticas", map["subject"])
+    }
+
+    @Test
     fun recordMapSendsNumbersAsLongAndOnlySetOptionals() {
         val base = record("stu-1", "present").toFirestoreMap()
 
@@ -93,6 +101,7 @@ class AttendanceSyncMapperTest {
         schoolId = "sch-benito-juarez",
         teacherId = "uid-docente",
         subject = "Matemáticas",
+        subjectId = "g3-matematicas-iii",
         date = "2026-11-03",
         startedAt = 1_700_000_000_000L,
         status = "open",

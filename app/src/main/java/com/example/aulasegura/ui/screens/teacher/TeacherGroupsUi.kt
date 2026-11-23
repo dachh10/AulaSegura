@@ -21,13 +21,16 @@ data class TeacherGroupUi(
     val attendance: Int? = null,
     val rollCallDone: Boolean? = null,
     val isToday: Boolean = true,
+    /** Canonical id used to open this group's roll call. */
+    val subjectId: String = "",
 )
 
-fun Group.toUi(subject: String?): TeacherGroupUi = TeacherGroupUi(
+fun Group.toUi(subject: String?, subjectId: String? = null): TeacherGroupUi = TeacherGroupUi(
     id = id,
     label = label,
     subject = subject ?: NO_SUBJECT,
     students = studentCount,
+    subjectId = subjectId.orEmpty(),
 )
 
 /** Every distinct subject in the roster, not just the first card's one. */

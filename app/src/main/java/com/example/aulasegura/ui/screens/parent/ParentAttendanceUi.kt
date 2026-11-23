@@ -29,12 +29,19 @@ sealed interface ParentAttendanceUiState {
         val weeks: List<List<ParentCalendarDay?>>,
         val recent: List<ParentAttendanceRecordUi>,
         val canGoNext: Boolean,
+        /** Real subjects of the month; unknown legacy labels stay under "Todas". */
+        val subjects: List<ParentSubjectUi> = emptyList(),
+        /** `null` is "Todas": every subject of the day is shown. */
+        val selectedSubjectId: String? = null,
     ) : ParentAttendanceUiState
 
     data object NoChildren : ParentAttendanceUiState
 
     data class Failed(val message: String) : ParentAttendanceUiState
 }
+
+/** One selectable subject in the tutor's attendance filter. */
+data class ParentSubjectUi(val id: String, val label: String)
 
 data class ParentCalendarDay(
     val day: Int,
@@ -126,6 +133,15 @@ internal fun monthWeeks(
  * The most severe wins (absent > late > justified > present): a day with one
  * absence is not a full attendance day, and showing the best mark would hide it.
  */
+/** Only known subjects get a chip; unknown legacy labels remain inside "Todas". */
+internal fun subjectOptionsOf(days: List<ParentDayAttendance>): List<ParentSubjectUi> =
+    days.mapNotNull { day ->
+        day.subjectId.takeIf { it.isNotBlank() }
+            ?.let { ParentSubjectUi(it, day.subject.ifBlank { "Sin materia" }) }
+    }
+        .distinctBy { it.id }
+        .sortedBy { it.label }
+
 internal fun marksByDay(days: List<ParentDayAttendance>): Map<Int, AttendanceMark?> =
     days.groupBy { it.date.takeLast(2).toIntOrNull() }
         .mapNotNull { (day, ofDay) -> day?.let { it to worstMark(ofDay.map { row -> row.mark }) } }

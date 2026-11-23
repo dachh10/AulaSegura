@@ -292,6 +292,7 @@ private class FakeParentRepository(
         child: ParentChild,
         year: Int,
         month: Int,
+        subjectId: String?,
     ): ParentMonthResult {
         failure?.let { return ParentMonthResult.Failed(it) }
         val found = months["$year-$month"]
@@ -299,7 +300,7 @@ private class FakeParentRepository(
         return ParentMonthResult.Loaded(found)
     }
 
-    override suspend fun loadHome(): ParentHomeResult = ParentHomeResult.Loaded(emptyList())
+    override suspend fun loadHome(subjectId: String?): ParentHomeResult = ParentHomeResult.Loaded(emptyList())
 
     override suspend fun loadTasks(child: ParentChild): ParentTasksResult =
         ParentTasksResult.Loaded(emptyList())

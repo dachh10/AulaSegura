@@ -504,6 +504,7 @@ fun AulaSeguraNavHost(
                 onPreviousMonth = attendanceViewModel::previousMonth,
                 onNextMonth = attendanceViewModel::nextMonth,
                 onCycleChild = attendanceViewModel::cycleChild,
+                onSelectSubject = attendanceViewModel::selectSubject,
                 onSelectTab = { navController.openParentTab(it) },
             )
         }
@@ -791,9 +792,9 @@ fun AulaSeguraNavHost(
                 onIrAGrupos = { navController.navigate(Routes.TEACHER_GROUPS) },
                 // Con horario, "Pasar lista" va directo al grupo de la clase; sin
                 // él no hay grupo que adivinar: se abre la lista de grupos.
-                onIrAPaseLista = { groupId ->
+                onIrAPaseLista = { groupId, subjectId ->
                     if (groupId != null) {
-                        navController.navigate(Routes.teacherRollCall(groupId))
+                        navController.navigate(Routes.teacherRollCall(groupId, subjectId))
                     } else {
                         navController.navigate(Routes.TEACHER_GROUPS)
                     }
@@ -822,7 +823,7 @@ fun AulaSeguraNavHost(
                 onIrAHistorial = { navController.navigate(Routes.TEACHER_HISTORY) },
                 onIrAPerfil = { navController.navigate(Routes.TEACHER_PROFILE) },
                 onIrANotificaciones = { navController.navigate(Routes.TEACHER_NOTIFICATIONS) },
-                onPasarLista = { groupId -> navController.navigate(Routes.teacherRollCall(groupId)) },
+                onPasarLista = { groupId, subjectId -> navController.navigate(Routes.teacherRollCall(groupId, subjectId)) },
                 onVerAlumnos = { groupId -> navController.navigate(Routes.teacherGroupDetail(groupId)) },
             )
         }
@@ -841,7 +842,7 @@ fun AulaSeguraNavHost(
             TeacherGroupDetailScreen(
                 ui = detail,
                 onBack = { navController.popBackStack() },
-                onPasarLista = { navController.navigate(Routes.teacherRollCall(groupId)) },
+                onPasarLista = { subjectId -> navController.navigate(Routes.teacherRollCall(groupId, subjectId)) },
                 onNuevaTarea = { navController.navigate(Routes.teacherTaskNewRoute(groupId)) },
                 onNuevoAviso = { navController.navigate(Routes.teacherNoticeNewRoute(groupId)) },
                 // El formulario elige el alumno y de ahí sale el grupo: no hay
@@ -868,6 +869,7 @@ fun AulaSeguraNavHost(
             }
 
             val groupId = entry.arguments?.getString("groupId").orEmpty()
+            val subjectId = entry.arguments?.getString("subjectId").orEmpty()
             val school = rememberSchoolSite()
             val site = school.site
             if (site != null && !site.isWithinSchedule(LocalTime.now())) {
@@ -890,17 +892,17 @@ fun AulaSeguraNavHost(
                 schoolLoaded = school.loaded,
                 onBack = { navController.popBackStack() },
                 onInsideRadius = {
-                    navController.navigate(Routes.teacherRollCallInside(groupId)) {
+                    navController.navigate(Routes.teacherRollCallInside(groupId, subjectId)) {
                         popUpTo(Routes.TEACHER_ROLL_CALL) { inclusive = true }
                     }
                 },
                 onOutsideRadius = {
-                    navController.navigate(Routes.teacherRollCallOutside(groupId)) {
+                    navController.navigate(Routes.teacherRollCallOutside(groupId, subjectId)) {
                         popUpTo(Routes.TEACHER_ROLL_CALL) { inclusive = true }
                     }
                 },
                 onContinueUnverified = {
-                    navController.navigate(Routes.teacherRollCallInside(groupId)) {
+                    navController.navigate(Routes.teacherRollCallInside(groupId, subjectId)) {
                         popUpTo(Routes.TEACHER_ROLL_CALL) { inclusive = true }
                     }
                 },
@@ -908,11 +910,13 @@ fun AulaSeguraNavHost(
         }
         composable(Routes.TEACHER_ROLL_CALL_INSIDE) { entry ->
             val groupId = entry.arguments?.getString("groupId").orEmpty()
+            val subjectId = entry.arguments?.getString("subjectId").orEmpty()
             val container = rememberAppContainer()
             val rollCallViewModel: RollCallViewModel = viewModel(
-                key = "roll-call-$groupId",
+                key = "roll-call-$groupId-$subjectId",
                 factory = RollCallViewModelFactory(
                     groupId = groupId,
+                    subjectId = subjectId,
                     startRollCall = container.startRollCallUseCase,
                     saveRollCall = container.saveRollCallUseCase,
                     students = container.studentRepository,
@@ -942,11 +946,12 @@ fun AulaSeguraNavHost(
                 onMark = rollCallViewModel::mark,
                 onMarkAllPresent = rollCallViewModel::markAllPresent,
                 onSave = rollCallViewModel::save,
-                onOpenMap = { navController.navigate(Routes.teacherRollCallMap(groupId)) },
+                onOpenMap = { navController.navigate(Routes.teacherRollCallMap(groupId, subjectId)) },
             )
         }
         composable(Routes.TEACHER_ROLL_CALL_MAP) { entry ->
             val groupId = entry.arguments?.getString("groupId").orEmpty()
+            val subjectId = entry.arguments?.getString("subjectId").orEmpty()
             val school = rememberSchoolSite()
             TeacherRollCallMapScreen(
                 groupId = groupId,
@@ -954,19 +959,20 @@ fun AulaSeguraNavHost(
                 onBack = { navController.popBackStack() },
                 onSave = { navController.popBackStack() },
                 onOpenOfflineMode = {
-                    navController.navigate(Routes.teacherRollCallOffline(groupId))
+                    navController.navigate(Routes.teacherRollCallOffline(groupId, subjectId))
                 },
             )
         }
         composable(Routes.TEACHER_ROLL_CALL_OUTSIDE) { entry ->
             val groupId = entry.arguments?.getString("groupId").orEmpty()
+            val subjectId = entry.arguments?.getString("subjectId").orEmpty()
             val school = rememberSchoolSite()
             TeacherOutsideRadiusScreen(
                 groupId = groupId,
                 school = school.site,
                 onBack = { navController.popBackStack() },
                 onRetry = {
-                    navController.navigate(Routes.teacherRollCall(groupId)) {
+                    navController.navigate(Routes.teacherRollCall(groupId, subjectId)) {
                         popUpTo(Routes.TEACHER_ROLL_CALL_OUTSIDE) { inclusive = true }
                     }
                 },

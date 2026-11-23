@@ -48,7 +48,7 @@ import com.example.aulasegura.data.local.entity.TaskEntity
         ProfileEntity::class,
         SchoolEntity::class,
     ],
-    version = 7,
+    version = 8,
     exportSchema = true,
 )
 @TypeConverters(Converters::class)
@@ -170,6 +170,38 @@ abstract class AulaSeguraDatabase : RoomDatabase() {
             override fun migrate(db: SupportSQLiteDatabase) {
                 db.execSQL("ALTER TABLE `schools` ADD COLUMN `entryTime` TEXT")
                 db.execSQL("ALTER TABLE `schools` ADD COLUMN `exitTime` TEXT")
+            }
+        }
+
+        /**
+         * Carries the canonical subject id into the local attendance cache.
+         *
+         * Old rows only have a display label, so the label is copied first: a
+         * teacher's offline history must stay readable after the upgrade. Two
+         * rows that used to collide on (group, date, teacher, label) get their
+         * own session id appended — nothing is dropped, the outbox survives,
+         * and Firestore documents are never rewritten from here.
+         */
+        val MIGRATION_7_8: Migration = object : Migration(7, 8) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    "ALTER TABLE `attendance_sessions` " +
+                        "ADD COLUMN `subjectId` TEXT NOT NULL DEFAULT ''",
+                )
+                db.execSQL("UPDATE `attendance_sessions` SET `subjectId` = `subject`")
+                db.execSQL(
+                    "UPDATE `attendance_sessions` SET `subjectId` = `subjectId` || '#' || `sessionId` " +
+                        "WHERE `sessionId` IN (" +
+                        "SELECT s.`sessionId` FROM `attendance_sessions` s " +
+                        "JOIN `attendance_sessions` d ON d.`groupId` = s.`groupId` " +
+                        "AND d.`date` = s.`date` AND d.`teacherId` = s.`teacherId` " +
+                        "AND d.`subjectId` = s.`subjectId` AND d.`sessionId` <> s.`sessionId`)",
+                )
+                db.execSQL(
+                    "CREATE UNIQUE INDEX IF NOT EXISTS " +
+                        "`index_attendance_sessions_group_date_teacher_subject` " +
+                        "ON `attendance_sessions` (`groupId`, `date`, `teacherId`, `subjectId`)",
+                )
             }
         }
 

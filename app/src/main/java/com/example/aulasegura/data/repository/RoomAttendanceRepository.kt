@@ -7,6 +7,8 @@ import com.example.aulasegura.data.mapper.AttendanceSyncMapper.withCountsFrom
 import com.example.aulasegura.data.mapper.toRollCallSync
 import com.example.aulasegura.domain.model.AttendanceMark
 import com.example.aulasegura.domain.model.subjectForGroup
+import com.example.aulasegura.domain.model.subjectIdFromLabel
+import com.example.aulasegura.domain.model.subjectById
 import com.example.aulasegura.domain.model.RollCallDraft
 import com.example.aulasegura.domain.model.RollCallEntry
 import com.example.aulasegura.domain.model.RollCallSync
@@ -44,11 +46,33 @@ class RoomAttendanceRepository(
     private val newSessionId: () -> String = { UUID.randomUUID().toString() },
 ) : AttendanceRepository {
 
-    override suspend fun startDraft(groupId: String): AttendanceStart {
+    override suspend fun startDraft(groupId: String, subjectId: String): AttendanceStart {
         val teacher = auth.currentUser ?: return AttendanceStart.SignedOut
         val group = groups.observeMyGroups().first().firstOrNull { it.id == groupId }
             ?: return AttendanceStart.NoGroup(groupId)
         val now = clock()
+
+        // The caller passes the canonical id from the timetable. An empty id is
+        // the legacy path (a screen opened without a subject); resolve it from
+        // the profile the way the old code did instead of blocking that screen.
+        val canonicalId = subjectId.ifBlank {
+            subjectForGroup(teacher.subjects, group.grade)
+                ?.let { subjectIdFromLabel(it, group.grade) }
+                .orEmpty()
+        }
+        val resolvedSubject = if (canonicalId.isBlank()) {
+            subjectForGroup(teacher.subjects, group.grade).orEmpty()
+        } else {
+            val subject = subjectById(canonicalId)
+                ?: return AttendanceStart.InvalidSubject(groupId, canonicalId)
+            if (subject.grade != group.grade) {
+                return AttendanceStart.InvalidSubject(groupId, canonicalId)
+            }
+            // Slot ownership is checked where the timetable is available, before
+            // this screen is opened. This offline seam only guarantees that the
+            // id is a real subject of this group's grade.
+            subject.label
+        }
 
         return AttendanceStart.Ready(
             RollCallDraft(
@@ -57,10 +81,8 @@ class RoomAttendanceRepository(
                 groupLabel = group.label,
                 schoolId = group.schoolId,
                 teacherId = teacher.uid,
-                // The profile carries the subjects the teacher declared; an empty
-                // list stays an empty string rather than an invented label in
-                // Firestore. The screen prints "Sin materia asignada" for it.
-                subject = subjectForGroup(teacher.subjects, group.grade).orEmpty(),
+                subject = resolvedSubject,
+                subjectId = canonicalId,
                 date = AttendanceTimes.isoDate(now),
                 startedAt = now,
             ),
@@ -104,6 +126,7 @@ class RoomAttendanceRepository(
             schoolId = draft.schoolId,
             teacherId = draft.teacherId,
             subject = draft.subject,
+            subjectId = draft.subjectId,
             date = draft.date,
             startedAt = draft.startedAt,
             closedAt = now,

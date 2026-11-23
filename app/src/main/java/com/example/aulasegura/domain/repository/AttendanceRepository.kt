@@ -26,7 +26,7 @@ interface AttendanceRepository {
      * Nothing is persisted here. A session only exists once it is saved, so
      * backing out of the screen leaves no half-open session in Firestore.
      */
-    suspend fun startDraft(groupId: String): AttendanceStart
+    suspend fun startDraft(groupId: String, subjectId: String): AttendanceStart
 
     /**
      * Persists [entries] as the closed session [draft], locally and queued.
@@ -61,6 +61,13 @@ sealed interface AttendanceStart {
      * Saving a session without it would be rejected by the rules anyway.
      */
     data class NoGroup(val groupId: String) : AttendanceStart
+
+    /**
+     * The subject does not exist in the catalog or does not belong to this
+     * group's grade. Opening a session with it would put an unfilterable mark in
+     * the tutor's list, so the screen must ask for a different subject.
+     */
+    data class InvalidSubject(val groupId: String, val subjectId: String) : AttendanceStart
 }
 
 /**

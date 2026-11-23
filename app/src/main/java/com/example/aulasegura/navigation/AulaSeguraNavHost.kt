@@ -913,6 +913,7 @@ fun AulaSeguraNavHost(
                 key = "roll-call-$groupId",
                 factory = RollCallViewModelFactory(
                     groupId = groupId,
+                    subjectId = "", // wired from the route in the next work unit
                     startRollCall = container.startRollCallUseCase,
                     saveRollCall = container.saveRollCallUseCase,
                     students = container.studentRepository,

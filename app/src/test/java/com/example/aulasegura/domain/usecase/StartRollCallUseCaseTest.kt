@@ -24,15 +24,20 @@ class StartRollCallUseCaseTest {
         schoolId = "sch-benito-juarez",
         teacherId = "uid-docente",
         subject = "Matemáticas",
+        subjectId = "g3-matematicas-iii",
         date = "2026-11-14",
         startedAt = 1_763_136_000_000L,
     )
 
     private class FakeAttendanceRepository(
         private val start: AttendanceStart,
+        private val onStart: (String, String) -> Unit = { _, _ -> },
     ) : AttendanceRepository {
 
-        override suspend fun startDraft(groupId: String): AttendanceStart = start
+        override suspend fun startDraft(groupId: String, subjectId: String): AttendanceStart {
+            onStart(groupId, subjectId)
+            return start
+        }
 
         override suspend fun save(
             draft: RollCallDraft,
@@ -53,10 +58,25 @@ class StartRollCallUseCaseTest {
             analytics = { events += it },
         )
 
-        val start = useCase("grp-3b")
+        val start = useCase("grp-3b", "g3-matematicas-iii")
 
         assertEquals(AttendanceStart.Ready(draft), start)
         assertEquals(listOf<AnalyticsEvent>(AnalyticsEvent.RollCallStarted), events)
+    }
+
+    @Test
+    fun `the canonical subject id reaches the repository`() = runBlocking {
+        var seen: Pair<String, String>? = null
+        val useCase = StartRollCallUseCase(
+            attendance = FakeAttendanceRepository(
+                AttendanceStart.Ready(draft),
+                onStart = { group, subject -> seen = group to subject },
+            ),
+        )
+
+        useCase("grp-3b", "g3-matematicas-iii")
+
+        assertEquals("grp-3b" to "g3-matematicas-iii", seen)
     }
 
     @Test
@@ -67,7 +87,7 @@ class StartRollCallUseCaseTest {
             analytics = { events += it },
         )
 
-        useCase("grp-3b")
+        useCase("grp-3b", "g3-matematicas-iii")
 
         assertTrue(events.isEmpty())
     }

@@ -36,6 +36,7 @@ import kotlinx.coroutines.launch
  */
 class RollCallViewModel(
     private val groupId: String,
+    private val subjectId: String,
     private val startRollCall: StartRollCallUseCase,
     private val saveRollCall: SaveRollCallUseCase,
     students: StudentRepository,
@@ -164,7 +165,7 @@ class RollCallViewModel(
     }
 
     private suspend fun openSession() {
-        when (val start = startRollCall(groupId)) {
+        when (val start = startRollCall(groupId, subjectId)) {
             is AttendanceStart.Ready -> {
                 draft = start.draft
                 groupLabel = start.draft.groupLabel
@@ -176,6 +177,10 @@ class RollCallViewModel(
             is AttendanceStart.NoGroup -> message =
                 "No encontramos el grupo ${start.groupId} en este dispositivo. " +
                     "Vuelve a Mis grupos y reintenta."
+
+            is AttendanceStart.InvalidSubject -> message =
+                "La materia seleccionada no corresponde a este grupo. " +
+                    "Vuelve a elegir la materia desde el horario."
         }
         render()
     }
@@ -228,6 +233,7 @@ class RollCallViewModel(
 /** Builds a [RollCallViewModel] for the group being marked. */
 class RollCallViewModelFactory(
     private val groupId: String,
+    private val subjectId: String,
     private val startRollCall: StartRollCallUseCase,
     private val saveRollCall: SaveRollCallUseCase,
     private val students: StudentRepository,
@@ -236,5 +242,5 @@ class RollCallViewModelFactory(
 
     @Suppress("UNCHECKED_CAST")
     override fun <T : ViewModel> create(modelClass: Class<T>): T =
-        RollCallViewModel(groupId, startRollCall, saveRollCall, students, attendance) as T
+        RollCallViewModel(groupId, subjectId, startRollCall, saveRollCall, students, attendance) as T
 }

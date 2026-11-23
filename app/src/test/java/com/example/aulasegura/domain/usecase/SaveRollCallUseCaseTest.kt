@@ -28,7 +28,7 @@ class SaveRollCallUseCaseTest {
         var savedEntries: List<RollCallEntry>? = null
         var outcome: SaveRollCallOutcome = SaveRollCallOutcome.Queued
 
-        override suspend fun startDraft(groupId: String): AttendanceStart =
+        override suspend fun startDraft(groupId: String, subjectId: String): AttendanceStart =
             AttendanceStart.NoGroup(groupId)
 
         override suspend fun save(

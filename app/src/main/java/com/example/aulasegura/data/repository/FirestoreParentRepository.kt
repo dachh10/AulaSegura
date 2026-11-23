@@ -2,6 +2,8 @@ package com.example.aulasegura.data.repository
 
 import com.example.aulasegura.domain.model.AttendanceMark
 import com.example.aulasegura.domain.model.displayGroupLabel
+import com.example.aulasegura.domain.model.gradeSectionFromGroupId
+import com.example.aulasegura.domain.model.subjectIdFromLabel
 import com.example.aulasegura.domain.model.ParentAttachment
 import com.example.aulasegura.domain.model.ParentAttendanceCounts
 import com.example.aulasegura.domain.model.ParentIncident
@@ -127,6 +129,7 @@ class FirestoreParentRepository(
         child: ParentChild,
         year: Int,
         month: Int,
+        subjectId: String?,
     ): ParentMonthResult {
         auth.currentUser ?: return ParentMonthResult.SignedOut
 
@@ -151,10 +154,20 @@ class FirestoreParentRepository(
             val date = data[FIELD_DATE] as? String ?: return@mapNotNull null
             if (!date.startsWith(prefix)) return@mapNotNull null
 
+            val label = data[FIELD_SUBJECT] as? String ?: ""
+            val resolvedSubjectId = parentSubjectId(
+                storedId = data[FIELD_SUBJECT_ID] as? String ?: "",
+                label = label,
+                grade = gradeSectionFromGroupId(child.groupId)?.first,
+            )
+            // Unknown legacy labels resolve to "": they belong to "Todas" only.
+            if (subjectId != null && resolvedSubjectId != subjectId) return@mapNotNull null
+
             SessionRow(
                 sessionId = document.id,
                 date = date,
-                subject = data[FIELD_SUBJECT] as? String ?: "",
+                subject = label,
+                subjectId = resolvedSubjectId,
                 startedAt = parentEpochMillis(data[FIELD_STARTED_AT]),
             )
         }
@@ -182,6 +195,7 @@ class FirestoreParentRepository(
                     mark = AttendanceMark.fromWire(record.status),
                     time = record.time,
                     note = record.note,
+                    subjectId = session.subjectId,
                 )
             }
             .sortedWith(compareByDescending<ParentDayAttendance> { it.date }.thenByDescending { it.startedAt })
@@ -196,7 +210,7 @@ class FirestoreParentRepository(
         )
     }
 
-    override suspend fun loadHome(): ParentHomeResult {
+    override suspend fun loadHome(subjectId: String?): ParentHomeResult {
         auth.currentUser ?: return ParentHomeResult.SignedOut
 
         val children = when (val result = loadChildren()) {
@@ -216,7 +230,7 @@ class FirestoreParentRepository(
         val results = coroutineScope {
             children.map { child ->
                 async {
-                    when (val monthResult = loadMonth(child, year, month)) {
+                    when (val monthResult = loadMonth(child, year, month, subjectId)) {
                         is ParentMonthResult.Loaded -> {
                             val tasks = loadTasks(child.groupId, todayStart)
                             if (tasks == null) {
@@ -575,6 +589,7 @@ class FirestoreParentRepository(
         val sessionId: String,
         val date: String,
         val subject: String,
+        val subjectId: String,
         val startedAt: Long,
     )
 
@@ -800,6 +815,15 @@ internal fun parentChildFrom(id: String, data: Map<String, Any?>): ParentChild? 
 
 private const val FIELD_TUTOR_IDS = "tutorIds"
 private const val FIELD_FULL_NAME = "fullName"
+/**
+ * Sessions written before the subject filter only carry a display label. Derive
+ * the canonical id on read, without rewriting any Firestore document. A label
+ * that is not in the catalog keeps an empty id: the tutor still sees it under
+ * "Todas", but it never answers a concrete subject filter.
+ */
+internal fun parentSubjectId(storedId: String, label: String, grade: Int?): String =
+    storedId.takeIf { it.isNotBlank() } ?: subjectIdFromLabel(label, grade).orEmpty()
+
 private const val FIELD_FIRST_NAME = "firstName"
 private const val FIELD_LAST_NAME = "lastName"
 private const val FIELD_LIST_NUMBER = "listNumber"
@@ -809,6 +833,7 @@ private const val FIELD_ACTIVE = "active"
 private const val FIELD_NAME = "name"
 private const val FIELD_DATE = "date"
 private const val FIELD_SUBJECT = "subject"
+private const val FIELD_SUBJECT_ID = "subjectId"
 private const val FIELD_STARTED_AT = "startedAt"
 private const val FIELD_STATUS = "status"
 private const val FIELD_TIME = "time"

@@ -40,6 +40,9 @@ class ParentAttendanceViewModel(
     private var selected = 0
     private var year = 0
     private var month = 0
+    /** `null` keeps the current "Todas" behaviour: one worst-of-day mark per day. */
+    private var selectedSubjectId: String? = null
+    private var availableSubjects: List<ParentSubjectUi> = emptyList()
 
     init {
         val calendar = Calendar.getInstance(zone).apply { timeInMillis = now() }
@@ -50,6 +53,13 @@ class ParentAttendanceViewModel(
 
     fun refresh() {
         if (children.isEmpty()) loadChildren() else reload()
+    }
+
+    /** Switching to a subject re-reads the month; "Todas" restores every mark. */
+    fun selectSubject(subjectId: String?) {
+        if (selectedSubjectId == subjectId) return
+        selectedSubjectId = subjectId
+        reload()
     }
 
     fun previousMonth() = moveMonth(-1)
@@ -106,7 +116,7 @@ class ParentAttendanceViewModel(
 
     private suspend fun loadMonth() {
         val child = children[selected]
-        _state.value = when (val result = parents.loadMonth(child, year, month)) {
+        _state.value = when (val result = parents.loadMonth(child, year, month, selectedSubjectId)) {
             is ParentMonthResult.Loaded -> loaded(child, result.month)
             ParentMonthResult.SignedOut -> ParentAttendanceUiState.Failed("Vuelve a iniciar sesión.")
             is ParentMonthResult.Failed -> ParentAttendanceUiState.Failed(
@@ -132,6 +142,11 @@ class ParentAttendanceViewModel(
     ): ParentAttendanceUiState.Loaded {
         val moment = now()
         val calendar = Calendar.getInstance(zone).apply { timeInMillis = moment }
+        // Keep the options from the unfiltered load so the selector does not
+        // shrink to one chip after the tutor picks a subject.
+        if (selectedSubjectId == null || availableSubjects.isEmpty()) {
+            availableSubjects = subjectOptionsOf(monthData.days)
+        }
 
         return ParentAttendanceUiState.Loaded(
             childName = child.firstName.ifBlank { child.fullName },
@@ -154,6 +169,8 @@ class ParentAttendanceViewModel(
             ),
             recent = monthData.days.take(RECENT_LIMIT).map { it.toRecentUi(zone) },
             canGoNext = !isCurrentMonth(),
+            subjects = availableSubjects,
+            selectedSubjectId = selectedSubjectId,
         )
     }
 

@@ -202,6 +202,7 @@ private class FakeParents(
         child: ParentChild,
         year: Int,
         month: Int,
+        subjectId: String?,
     ): ParentMonthResult = ParentMonthResult.Loaded(
         com.example.aulasegura.domain.model.ParentMonthAttendance(
             year = year,
@@ -211,7 +212,7 @@ private class FakeParents(
         ),
     )
 
-    override suspend fun loadHome(): ParentHomeResult = ParentHomeResult.Loaded(emptyList())
+    override suspend fun loadHome(subjectId: String?): ParentHomeResult = ParentHomeResult.Loaded(emptyList())
 
     override suspend fun loadTasks(child: ParentChild): ParentTasksResult {
         taskReads++

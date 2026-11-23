@@ -202,12 +202,13 @@ class LoadAssistantContextUseCaseTest {
         override suspend fun loadChildren(): ParentChildrenResult =
             ParentChildrenResult.Loaded(overviews.map { it.child })
 
-        override suspend fun loadHome(): ParentHomeResult = ParentHomeResult.Loaded(overviews)
+        override suspend fun loadHome(subjectId: String?): ParentHomeResult = ParentHomeResult.Loaded(overviews)
 
         override suspend fun loadMonth(
             child: ParentChild,
             year: Int,
             month: Int,
+            subjectId: String?,
         ): ParentMonthResult {
             monthsRead += year to month
             return ParentMonthResult.Loaded(

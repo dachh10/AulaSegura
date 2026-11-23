@@ -504,6 +504,7 @@ fun AulaSeguraNavHost(
                 onPreviousMonth = attendanceViewModel::previousMonth,
                 onNextMonth = attendanceViewModel::nextMonth,
                 onCycleChild = attendanceViewModel::cycleChild,
+                onSelectSubject = attendanceViewModel::selectSubject,
                 onSelectTab = { navController.openParentTab(it) },
             )
         }

@@ -184,11 +184,12 @@ private class FakeIncidentParents(
         child: ParentChild,
         year: Int,
         month: Int,
+        subjectId: String?,
     ): ParentMonthResult = ParentMonthResult.Loaded(
         ParentMonthAttendance(year, month, ParentAttendanceCounts(), emptyList()),
     )
 
-    override suspend fun loadHome(): ParentHomeResult = ParentHomeResult.Loaded(emptyList())
+    override suspend fun loadHome(subjectId: String?): ParentHomeResult = ParentHomeResult.Loaded(emptyList())
 
     override suspend fun loadTasks(child: ParentChild): ParentTasksResult =
         ParentTasksResult.Loaded(emptyList())

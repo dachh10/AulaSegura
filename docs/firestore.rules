@@ -558,10 +558,15 @@ service cloud.firestore {
         && request.resource.data.studentId in myStudents()
         && request.resource.data.status == 'pendiente';
 
-      // Only the school decides the outcome. A tutor cannot approve their own
-      // justification, which is the whole point of the flow.
-      allow update: if isDirectivo()
+      // The teacher who marked the absence decides: they own the session whose
+      // record will be flipped in the same batch. A tutor cannot approve their
+      // own report, and the principal keeps only the supervisory read above.
+      allow update: if isDocente()
         && resource.data.schoolId == mySchool()
+        && resource.data.groupId in myGroups()
+        && exists(/databases/$(database)/documents/attendanceSessions/$(resource.data.sessionId))
+        && get(/databases/$(database)/documents/attendanceSessions/$(resource.data.sessionId))
+             .data.teacherId == request.auth.uid
         && changedKeys().hasOnly([
           'status', 'reviewedBy', 'reviewedAt', 'reviewNote'
         ]);

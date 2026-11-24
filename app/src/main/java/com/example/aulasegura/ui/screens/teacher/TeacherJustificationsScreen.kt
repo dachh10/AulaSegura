@@ -34,6 +34,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.aulasegura.ui.screens.access.Reveal
 import com.example.aulasegura.ui.screens.justifications.JustificationCard
+import com.example.aulasegura.ui.screens.admin.NoticeCard
+import com.example.aulasegura.ui.screens.justifications.JustificationDecisionControls
 import com.example.aulasegura.ui.theme.BrandCream
 import com.example.aulasegura.ui.theme.BricolageGrotesque
 import com.example.aulasegura.ui.theme.DmSans
@@ -55,6 +57,9 @@ fun TeacherJustificationsScreen(
     ui: TeacherJustificationsUiState,
     onBack: () -> Unit,
     onRefresh: () -> Unit,
+    onDecide: (String, Boolean, String) -> Unit = { _, _, _ -> },
+    onNoticeShown: () -> Unit = {},
+    onErrorShown: () -> Unit = {},
 ) {
     Box(
         modifier = Modifier
@@ -71,6 +76,13 @@ fun TeacherJustificationsScreen(
         ) {
             Reveal(0) {
                 JustificationsHeader(onBack = onBack, onRefresh = onRefresh)
+            }
+
+            (ui as? TeacherJustificationsUiState.Loaded)?.notice?.let { text ->
+                NoticeCard(text = text, tint = PrimaryContainer, onClick = onNoticeShown)
+            }
+            (ui as? TeacherJustificationsUiState.Loaded)?.error?.let { text ->
+                NoticeCard(text = text, tint = Error, onClick = onErrorShown)
             }
 
             when (ui) {
@@ -91,7 +103,14 @@ fun TeacherJustificationsScreen(
                     } else {
                         if (ui.pending.isNotEmpty()) {
                             SectionTitle("Pendientes")
-                            ui.pending.forEach { card -> JustificationCard(card = card) }
+                            ui.pending.forEach { card ->
+                                JustificationCard(card = card) {
+                                    JustificationDecisionControls(
+                                        busy = ui.busyId == card.id,
+                                        onDecide = { approve, note -> onDecide(card.id, approve, note) },
+                                    )
+                                }
+                            }
                         }
                         if (ui.reviewed.isNotEmpty()) {
                             SectionTitle("Revisadas")

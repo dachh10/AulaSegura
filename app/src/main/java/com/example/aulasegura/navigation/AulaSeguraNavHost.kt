@@ -1155,6 +1155,9 @@ fun AulaSeguraNavHost(
                 ui = justificationsUi,
                 onBack = { navController.popBackStack() },
                 onRefresh = justificationsViewModel::refresh,
+                onDecide = justificationsViewModel::decide,
+                onNoticeShown = justificationsViewModel::noticeShown,
+                onErrorShown = justificationsViewModel::errorShown,
             )
         }
         composable(Routes.TEACHER_NOTIFICATIONS) {
@@ -1304,7 +1307,6 @@ fun AulaSeguraNavHost(
                 ui = justificationsUi,
                 onBack = { navController.popBackStack() },
                 onRefresh = justificationsViewModel::refresh,
-                onDecide = justificationsViewModel::decide,
                 onNoticeShown = justificationsViewModel::noticeShown,
                 onErrorShown = justificationsViewModel::errorShown,
             )

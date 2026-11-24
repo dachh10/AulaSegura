@@ -34,6 +34,18 @@ import kotlinx.coroutines.tasks.await
 import kotlinx.coroutines.withTimeout
 
 /**
+ * Only the teacher who marked the absence may decide on that report.
+ *
+ * The principal keeps a school-wide read for supervision but never a decision
+ * button: the rules grant `update` on `justifications` only to that session's
+ * teacher, and the same identity is what authorizes the attendance write in the
+ * batch. Checking it here turns a mid-batch `PERMISSION_DENIED` into a clear
+ * answer before any document changes.
+ */
+internal fun canDecideJustification(role: UserRole, isSessionTeacher: Boolean): Boolean =
+    role == UserRole.TEACHER && isSessionTeacher
+
+/**
  * Online inbox of the tutor's justifications.
  *
  * Reads `Source.SERVER` on purpose: an empty cached snapshot would read as "no
@@ -113,9 +125,7 @@ class FirestoreJustificationInboxRepository(
 
     override suspend fun review(request: JustificationReview): JustificationReviewResult {
         val user = auth.currentUser ?: return JustificationReviewResult.SignedOut
-        // Same guard as the read: the rules are the authority, this is the
-        // explanation the screen can print without waiting for a denial.
-        if (user.role != UserRole.ADMIN) {
+        if (user.role != UserRole.TEACHER) {
             return JustificationReviewResult.Failed(JustificationReviewFailure.DENIED)
         }
         val id = request.justificationId
@@ -157,8 +167,31 @@ class FirestoreJustificationInboxRepository(
                     FIELD_REVIEW_NOTE to request.note.trim(),
                 )
 
+                val session = loadSessionOwner(if (record.sessionId.isBlank()) {
+                    resolveLegacySession(
+                        user.schoolId,
+                        record.groupId,
+                        record.studentId,
+                        record.dateFromMillis,
+                        requiredTeacherId = user.uid,
+                    ) ?: return@withTimeout JustificationReviewResult.Failed(
+                        JustificationReviewFailure.ABSENCE_NOT_FOUND,
+                    )
+                } else {
+                    record.sessionId
+                }) ?: return@withTimeout JustificationReviewResult.Failed(
+                    JustificationReviewFailure.ABSENCE_NOT_FOUND,
+                )
+                if (session.schoolId != user.schoolId ||
+                    !canDecideJustification(user.role, session.teacherId == user.uid)
+                ) {
+                    return@withTimeout JustificationReviewResult.Failed(
+                        JustificationReviewFailure.DENIED,
+                    )
+                }
+
                 val effect = if (request.decision == JustificationDecision.APPROVE) {
-                    when (val target = approvalTarget(user.schoolId, record)) {
+                    when (val target = approvalTarget(user.schoolId, record, session.teacherId)) {
                         is ApprovalTarget.Ready -> target.effect
                         ApprovalTarget.AbsenceMissing -> return@withTimeout JustificationReviewResult.Failed(
                             JustificationReviewFailure.ABSENCE_NOT_FOUND,
@@ -206,9 +239,16 @@ class FirestoreJustificationInboxRepository(
     private suspend fun approvalTarget(
         schoolId: String,
         record: JustificationRecord,
+        teacherId: String,
     ): ApprovalTarget {
         val sessionId = record.sessionId.ifBlank {
-            resolveLegacySession(schoolId, record.groupId, record.studentId, record.dateFromMillis)
+            resolveLegacySession(
+                schoolId,
+                record.groupId,
+                record.studentId,
+                record.dateFromMillis,
+                requiredTeacherId = teacherId,
+            )
         } ?: return ApprovalTarget.AbsenceMissing
 
         val snapshot = loadSession(sessionId) ?: return ApprovalTarget.AbsenceMissing
@@ -239,10 +279,11 @@ class FirestoreJustificationInboxRepository(
         groupId: String,
         studentId: String,
         dateFromMillis: Long,
+        requiredTeacherId: String? = null,
     ): String? {
         if (schoolId.isBlank() || groupId.isBlank() || studentId.isBlank() || dateFromMillis <= 0L) return null
         // A list query is provable only from its own constraints: without schoolId
-        // the principal's read rule denies this lookup with PERMISSION_DENIED.
+        // a teacher's read rule denies this lookup with PERMISSION_DENIED.
         val sessions = firestore.collection(SESSIONS)
             .whereEqualTo(FIELD_SCHOOL_ID, schoolId)
             .whereEqualTo(FIELD_GROUP_ID, groupId)
@@ -253,21 +294,32 @@ class FirestoreJustificationInboxRepository(
             .sorted()
         for (sessionId in sessions) {
             val snapshot = loadSession(sessionId) ?: continue
+            if (requiredTeacherId != null && snapshot.teacherId != requiredTeacherId) continue
             if (snapshot.statuses[studentId] == AttendanceMark.ABSENT.wire) return sessionId
         }
         return null
     }
 
     private suspend fun loadSession(sessionId: String): AttendanceSessionSnapshot? {
-        val session = firestore.collection(SESSIONS).document(sessionId)
-            .get(Source.SERVER).await().takeIf { it.exists() } ?: return null
+        val owner = loadSessionOwner(sessionId) ?: return null
         val records = firestore.collection(SESSIONS).document(sessionId)
             .collection(RECORDS).get(Source.SERVER).await().documents
         return AttendanceSessionSnapshot(
-            schoolId = session.getString(FIELD_SCHOOL_ID) ?: "",
+            schoolId = owner.schoolId,
+            teacherId = owner.teacherId,
             statuses = records.associate { document ->
                 document.id to (document.getString(FIELD_STATUS) ?: "")
             },
+        )
+    }
+
+    /** Identity only: who owns the session, without reading its subcollection. */
+    private suspend fun loadSessionOwner(sessionId: String): JustificationSessionOwner? {
+        val session = firestore.collection(SESSIONS).document(sessionId)
+            .get(Source.SERVER).await().takeIf { it.exists() } ?: return null
+        return JustificationSessionOwner(
+            schoolId = session.getString(FIELD_SCHOOL_ID) ?: "",
+            teacherId = session.getString(FIELD_TEACHER_ID) ?: "",
         )
     }
 
@@ -287,6 +339,7 @@ class FirestoreJustificationInboxRepository(
         const val RECORDS = "records"
         const val FIELD_GROUP_ID = "groupId"
         const val FIELD_SCHOOL_ID = "schoolId"
+        const val FIELD_TEACHER_ID = "teacherId"
         const val FIELD_STATUS = "status"
         const val FIELD_DATE = "date"
         const val FIELD_REVIEWED_BY = "reviewedBy"
@@ -314,9 +367,16 @@ private sealed interface ApprovalTarget {
     data object Denied : ApprovalTarget
 }
 
+/** Who owns a session: the only identity allowed to decide on its absences. */
+private data class JustificationSessionOwner(
+    val schoolId: String,
+    val teacherId: String,
+)
+
 /** One session and the marks of its records, keyed by student id. */
 private data class AttendanceSessionSnapshot(
     val schoolId: String,
+    val teacherId: String,
     val statuses: Map<String, String>,
 )
 

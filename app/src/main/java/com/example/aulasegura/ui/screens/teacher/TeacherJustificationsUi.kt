@@ -10,6 +10,9 @@ sealed interface TeacherJustificationsUiState {
     data class Loaded(
         val pending: List<JustificationCardUi>,
         val reviewed: List<JustificationCardUi>,
+        val busyId: String? = null,
+        val notice: String? = null,
+        val error: String? = null,
     ) : TeacherJustificationsUiState {
 
         val isEmpty: Boolean get() = pending.isEmpty() && reviewed.isEmpty()

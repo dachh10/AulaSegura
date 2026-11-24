@@ -79,69 +79,8 @@ class AdminJustificationsViewModelTest {
         )
     }
 
-    @Test
-    fun `approving writes the decision, reloads and confirms`() = runTest(dispatcher) {
-        val inbox = FakeInbox(
-            JustificationInboxResult.Loaded(listOf(record("just-1", JustificationStatus.PENDING))),
-        )
-        val viewModel = AdminJustificationsViewModel(inbox, zone)
-        advanceUntilIdle()
-
-        viewModel.decide("just-1", approve = true, note = "  Comprobante revisado  ")
-        advanceUntilIdle()
-
-        assertEquals(1, inbox.requests.size)
-        assertEquals("just-1", inbox.requests.single().justificationId)
-        assertEquals(JustificationDecision.APPROVE, inbox.requests.single().decision)
-        assertEquals("  Comprobante revisado  ", inbox.requests.single().note)
-        assertEquals("Justificación aprobada.", viewModel.state.value.notice)
-        assertNull(viewModel.state.value.busyId)
-        // The list is read again so the chip changes without leaving the screen.
-        assertEquals(2, inbox.schoolReads)
-    }
-
-    @Test
-    fun `a missing report says so instead of pretending the decision was saved`() =
-        runTest(dispatcher) {
-            val inbox = FakeInbox(
-                JustificationInboxResult.Loaded(listOf(record("just-1", JustificationStatus.PENDING))),
-                reviewResult = JustificationReviewResult.Failed(JustificationReviewFailure.NOT_FOUND),
-            )
-            val viewModel = AdminJustificationsViewModel(inbox, zone)
-            advanceUntilIdle()
-
-            viewModel.decide("just-1", approve = false, note = "")
-            advanceUntilIdle()
-
-            assertEquals(JustificationDecision.REJECT, inbox.requests.single().decision)
-            assertEquals(
-                "La justificación ya no existe. Actualiza la lista.",
-                viewModel.state.value.error,
-            )
-            assertNull(viewModel.state.value.notice)
-            assertNull(viewModel.state.value.busyId)
-        }
-
-    @Test
-    fun `a second tap while the write is in flight is ignored`() = runTest(dispatcher) {
-        val gate = CompletableDeferred<Unit>()
-        val inbox = FakeInbox(
-            JustificationInboxResult.Loaded(listOf(record("just-1", JustificationStatus.PENDING))),
-            reviewGate = gate,
-        )
-        val viewModel = AdminJustificationsViewModel(inbox, zone)
-        advanceUntilIdle()
-
-        viewModel.decide("just-1", approve = true, note = "")
-        advanceUntilIdle()
-        assertEquals("just-1", viewModel.state.value.busyId)
-
-        viewModel.decide("just-1", approve = true, note = "otra")
-        gate.complete(Unit)
-        advanceUntilIdle()
-
-        assertEquals(1, inbox.requests.size)
-    }
+    // Decision tests live in TeacherJustificationsViewModelTest: the principal
+    // keeps a read-only inbox and no longer writes a review.
 
     private fun record(id: String, status: JustificationStatus) = JustificationRecord(
         justificationId = id,

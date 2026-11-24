@@ -1,6 +1,7 @@
 package com.example.aulasegura.ui.screens.teacher
 
 import com.example.aulasegura.domain.model.Group
+import com.example.aulasegura.domain.model.JustificationDecision
 import com.example.aulasegura.domain.model.JustificationRecord
 import com.example.aulasegura.domain.model.JustificationStatus
 import com.example.aulasegura.domain.model.JustificationReview
@@ -135,6 +136,45 @@ class TeacherJustificationsViewModelTest {
         cycle = "2026-2027",
     )
 
+    @Test
+    fun `the teacher decides and the inbox reloads with a confirmation`() = runTest(dispatcher) {
+        val inbox = FakeInbox(
+            result = JustificationInboxResult.Loaded(listOf(record("just-1", JustificationStatus.PENDING))),
+        )
+        val viewModel = TeacherJustificationsViewModel(FakeGroups(listOf(group("3B"))), inbox, zone)
+        advanceUntilIdle()
+
+        viewModel.decide("just-1", approve = true, note = "Comprobante revisado")
+        advanceUntilIdle()
+
+        assertEquals(1, inbox.requests.size)
+        assertEquals(JustificationDecision.APPROVE, inbox.requests.single().decision)
+        assertEquals("Comprobante revisado", inbox.requests.single().note)
+        val state = viewModel.state.value as TeacherJustificationsUiState.Loaded
+        assertEquals("Justificación aprobada. La falta marcó como justificada.", state.notice)
+        assertEquals(null, state.busyId)
+    }
+
+    @Test
+    fun `a rejected decision keeps the form usable`() = runTest(dispatcher) {
+        val inbox = FakeInbox(
+            result = JustificationInboxResult.Loaded(listOf(record("just-1", JustificationStatus.PENDING))),
+            reviewResult = JustificationReviewResult.Failed(
+                com.example.aulasegura.domain.repository.JustificationReviewFailure.DENIED,
+            ),
+        )
+        val viewModel = TeacherJustificationsViewModel(FakeGroups(listOf(group("3B"))), inbox, zone)
+        advanceUntilIdle()
+
+        viewModel.decide("just-1", approve = false, note = "")
+        advanceUntilIdle()
+
+        assertEquals(JustificationDecision.REJECT, inbox.requests.single().decision)
+        val state = viewModel.state.value as TeacherJustificationsUiState.Loaded
+        assertTrue(state.error!!.isNotBlank())
+        assertEquals(null, state.busyId)
+    }
+
     private fun record(id: String, status: JustificationStatus) = JustificationRecord(
         justificationId = id,
         studentId = "alumno-1",
@@ -167,9 +207,12 @@ private class FakeGroups(
 
 private class FakeInbox(
     private val result: JustificationInboxResult,
+    private val reviewResult: JustificationReviewResult = JustificationReviewResult.Success,
 ) : JustificationInboxRepository {
 
     var requestedGroups: List<String> = emptyList()
+        private set
+    var requests: List<JustificationReview> = emptyList()
         private set
 
     override suspend fun loadForGroups(groupIds: List<String>): JustificationInboxResult {
@@ -180,6 +223,8 @@ private class FakeInbox(
     override suspend fun loadForSchool(): JustificationInboxResult =
         throw UnsupportedOperationException("school-wide reads belong to the principal")
 
-    override suspend fun review(request: JustificationReview): JustificationReviewResult =
-        throw UnsupportedOperationException("the teacher inbox is read only")
+    override suspend fun review(request: JustificationReview): JustificationReviewResult {
+        requests = requests + request
+        return reviewResult
+    }
 }

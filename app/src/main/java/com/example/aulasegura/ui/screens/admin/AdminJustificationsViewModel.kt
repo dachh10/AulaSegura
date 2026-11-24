@@ -74,46 +74,8 @@ class AdminJustificationsViewModel(
         }
     }
 
-    fun decide(justificationId: String, approve: Boolean, note: String) {
-        // A double tap on the confirmation button would otherwise fire two writes.
-        if (_state.value.busyId != null) return
-        _state.update { it.copy(busyId = justificationId, error = null, notice = null) }
-        viewModelScope.launch {
-            val request = JustificationReview(
-                justificationId = justificationId,
-                decision = if (approve) JustificationDecision.APPROVE else JustificationDecision.REJECT,
-                note = note,
-            )
-            when (val result = inbox.review(request)) {
-                JustificationReviewResult.Success -> {
-                    _state.update {
-                        it.copy(
-                            busyId = null,
-                            notice = if (approve) {
-                                "Justificación aprobada."
-                            } else {
-                                "Justificación rechazada."
-                            },
-                        )
-                    }
-                    // Reload in place: refresh() would be skipped if a resume read
-                    // happened to be in flight, leaving the card on the old status.
-                    load()
-                }
-
-                is JustificationReviewResult.Failed -> _state.update {
-                    it.copy(
-                        busyId = null,
-                        error = justificationReviewFailureMessage(result.reason),
-                    )
-                }
-
-                JustificationReviewResult.SignedOut -> _state.update {
-                    it.copy(busyId = null, error = "Vuelve a iniciar sesión.")
-                }
-            }
-        }
-    }
+    // Read-only on purpose: the teacher who marked the absence owns the decision.
+    // The principal keeps this screen only for supervision.
 
     fun noticeShown() = _state.update { it.copy(notice = null) }
 

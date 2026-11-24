@@ -68,13 +68,9 @@ fun AdminJustificationsScreen(
     ui: AdminJustificationsUiState,
     onBack: () -> Unit,
     onRefresh: () -> Unit,
-    onDecide: (String, Boolean, String) -> Unit,
     onNoticeShown: () -> Unit,
     onErrorShown: () -> Unit,
 ) {
-    var decision by remember { mutableStateOf<PendingDecision?>(null) }
-    var note by remember { mutableStateOf("") }
-
     Box(
         modifier = Modifier
             .fillMaxSize()
@@ -114,17 +110,9 @@ fun AdminJustificationsScreen(
                 else -> {
                     if (ui.pending.isNotEmpty()) {
                         SectionTitle("Pendientes (${ui.pendingCount})")
-                        ui.pending.forEach { card ->
-                            JustificationCard(card = card) {
-                                DecisionActions(
-                                    busy = ui.busyId == card.id,
-                                    onDecide = { approve ->
-                                        note = ""
-                                        decision = PendingDecision(card, approve)
-                                    },
-                                )
-                            }
-                        }
+                        // The principal keeps a supervisory read, but the teacher
+                        // who marked the absence is the only one who decides.
+                        ui.pending.forEach { card -> JustificationCard(card = card) }
                     }
                     if (ui.reviewed.isNotEmpty()) {
                         SectionTitle("Revisadas")
@@ -135,18 +123,6 @@ fun AdminJustificationsScreen(
         }
     }
 
-    decision?.let { pending ->
-        DecisionDialog(
-            decision = pending,
-            note = note,
-            onNoteChange = { note = it },
-            onDismiss = { decision = null },
-            onConfirm = {
-                onDecide(pending.card.id, pending.approve, note)
-                decision = null
-            },
-        )
-    }
 }
 
 @Composable
@@ -224,7 +200,7 @@ private fun SectionTitle(text: String) {
 }
 
 @Composable
-private fun NoticeCard(text: String, tint: Color, onClick: () -> Unit) {
+internal fun NoticeCard(text: String, tint: Color, onClick: () -> Unit) {
     Row(
         modifier = Modifier
             .fillMaxWidth()

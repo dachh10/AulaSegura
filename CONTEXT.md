@@ -765,6 +765,51 @@ ui/screens/parent/ParentAIViewModel.kt          → historial en memoria, envío
 ui/screens/parent/ParentAIScreen.kt             → render del estado
 ```
 
+### 9.3 Entrega del APK: release firmado y Play Integrity
+
+El APK que se entrega a compañeros **debe** ser el de release. Un APK de debug instala
+`DebugAppCheckProviderFactory`, que genera un token de depuración distinto en cada
+instalación; si ese token no está registrado en la consola, AI Logic responde
+`403 PERMISSION_DENIED` (la app lo muestra como "no configurado"). Desde el 2 de noviembre
+de 2026 App Check está forzado para AI Logic, así que esto ya no es opcional.
+
+Un build de release toma `PlayIntegrityAppCheckProviderFactory` (`AulaSeguraApp.kt`) y la
+identidad pasa a ser el certificado que firma el APK: no hay nada que registrar por
+dispositivo.
+
+**Firma (solo el dueño del proyecto):**
+
+- Keystore: `keystore/aulasegura-release.jks` (alias `aulasegura`, RSA 4096, 10 000 días).
+- Credenciales: `keystore.properties` en la raíz. Ambos están en `.gitignore`.
+- Sin `keystore.properties` el release se arma **sin firmar** en vez de romper el build.
+- Certificado de release: SHA-256 `4c17ebc39016d9fb976086a0885de2fc29b9f933924f1c67868687bd246d08a2`,
+  SHA-1 `b16303d93386ef616fe9204a9fd2431537e5e1f6`.
+- **Respaldo obligatorio:** si se pierden el `.jks` y las contraseñas, no se puede volver a
+  actualizar la app en los teléfonos que ya la tengan instalada.
+
+**Pasos para armar y habilitar una entrega:**
+
+1. `./gradlew assembleRelease`.
+2. `apksigner verify --print-certs app/build/outputs/apk/release/app-release.apk`.
+3. Registrar el SHA-256 del certificado en Firebase:
+   `firebase apps:android:sha:create 1:63329976744:android:da967fd2d6922621625d9d <sha256>`.
+4. Firebase Console → **Security → App Check → Apps → AulaSegura**: proveedor **Play
+   Integrity**. Dos ajustes obligatorios porque el APK se instala por sideload:
+   - **Huella digital del certificado SHA-256**: la del release
+     (`4C:17:EB:C3:…:08:A2`). La de debug no sirve para esto — un build de debug usa el
+     proveedor de depuración y nunca pide tokens a Play Integrity.
+   - **Configuración avanzada**: destildar *PLAY_RECOGNIZED* (una app que no pasó por Play
+     siempre recibe `UNRECOGNIZED_VERSION`; dejarlo tildado devuelve
+     `403 App attestation failed`), dejar *LICENSED* destildado, y elegir
+     **"Integridad del dispositivo"** como nivel mínimo. Esa combinación es exactamente la
+     fila "solo fuera de Google Play" de la tabla oficial de Firebase.
+   - Los cambios tardan unos 30 segundos en propagar.
+5. **Security → App Check → APIs**: AI Logic ya queda aplicado automáticamente; Firestore y
+   RTDB se fuerzan a mano cuando corresponda.
+
+**Al instalar:** el APK de release tiene una firma distinta a la del debug, así que hay que
+**desinstalar** la versión anterior antes de instalar ésta.
+
 ### Eventos de Analytics
 
 `login_success` (role), `roll_call_started`, `roll_call_saved` (synced: bool), `incident_created` (severity, media_count), `task_published`, `notice_published`, `chat_message_sent`, `justification_created`, `ai_query` (role), `sync_failed` (op_type, attempts).

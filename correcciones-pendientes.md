@@ -32,7 +32,7 @@ release.
 | 2 | D3 | Deja la pantalla de "Solicitud rechazada" inusable. La causa está confirmada y el arreglo es chico. |
 | 3 | D5 | Visible en el perfil, arreglo local y de bajo riesgo. |
 | 4 | D2 | El botón de ubicación no da feedback; arreglo mediano. |
-| 5 | D4 | Es el más importante para los usuarios, pero es un feature nuevo: necesita una decisión de producto de Diego antes de programar. Si se decide hoy el alcance mínimo (etapa 1), se puede subir al lugar 1. |
+| 5 | D4 | ✅ **Completado 2026-11-24.** Bandeja en el docente dueño de la sesión; directora solo lectura; foto obligatoria salvo "Asunto familiar"; falta → `justified`. |
 
 ---
 
@@ -138,7 +138,15 @@ pantalla queda quieta y "Cerrar sesión" responde al primer toque.
 
 ---
 
-## D4 — La justificación del tutor no le llega al docente (ANÁLISIS PROFUNDO)
+## D4 — La justificación del tutor no le llega al docente — ✅ COMPLETADO (2026-11-24)
+
+> **Estado final:** el docente **dueño de la sesión donde se marcó la falta** ve las
+> justificaciones de sus grupos y es el único que aprueba o rechaza; la directora conserva
+> solo lectura supervisora y no tiene acceso desde Inicio ni desde Más. Al aprobar, la falta
+> pasa a `justified` (sin cambios en ese efecto). El tutor debe adjuntar foto salvo en
+> "Asunto familiar". Verificado en dispositivo por Diego el 2026-11-24.
+> Implementado en los commits `0fc25a9` (paso 1) y `cc30a9c` (paso 2); reglas desplegadas
+> con `firebase deploy --only firestore:rules`. Suite final: 766 tests, 0 fallos.
 
 > **Avance 2026-11-23 (rama `fix/d4-justification-inbox`):** Etapas 1, 2 y 3 implementadas
 > y verificadas con tests unitarios. Etapa 1 = bandeja de lectura del docente; Etapa 2 =
@@ -316,9 +324,8 @@ Orden de trabajo:
    "Ubicando…", esperar un fix con timeout y mostrar error visible si no llega. Extraé la
    decisión a una función pura y testeala.
 
-5) D4 — NO lo implementes todavía. Requiere una decisión de producto de Diego (quién
-   aprueba, si la falta pasa a "justified" o a "present", y dónde la ve el docente).
-   Leé el análisis, hacé preguntas concretas si algo no está claro, y esperá confirmación.
+5) D4 — YA NO HACER: quedó completado y verificado en dispositivo el 2026-11-24.
+   No reabrir este ítem salvo petición explícita de Diego.
 
 Entregable por cada ítem: rama, archivos tocados, comando de test con su resultado, y
 cualquier decisión o duda abierta. No toques los otros ítems aunque veas algo cercano.

@@ -167,7 +167,11 @@ class ParentJustifyViewModelTest {
         runTest(dispatcher) {
             val parents = FakeParentRepository(
                 months = mapOf(
-                    "2026-11" to month(2026, 11, day("2026-11-19", AttendanceMark.ABSENT)),
+                    "2026-11" to month(
+                        2026,
+                        11,
+                        day("2026-11-19", AttendanceMark.ABSENT, sessionId = "sesion-19"),
+                    ),
                 ),
             )
             val justifications = FakeJustificationRepository()
@@ -194,6 +198,9 @@ class ParentJustifyViewModelTest {
             )
             assertEquals("receta.jpg", draft?.attachment?.fileName)
             assertEquals(3, draft?.attachment?.bytes?.size ?: 0)
+            assertEquals("the principal flips exactly this record", "sesion-19", draft?.sessionId)
+            assertEquals("Mariana Gómez Ruiz", draft?.studentName)
+            assertEquals("3° B", draft?.groupLabel)
 
             val state = viewModel.state.value as ParentJustifyUiState.Loaded
             assertTrue(state.sent)
@@ -330,13 +337,18 @@ private val CHILD = ParentChild(
     groupLabel = "3° B",
 )
 
-private fun day(date: String, mark: AttendanceMark?) = ParentDayAttendance(
+private fun day(
+    date: String,
+    mark: AttendanceMark?,
+    sessionId: String = "",
+) = ParentDayAttendance(
     date = date,
     subject = "Matemáticas",
     startedAt = 0L,
     mark = mark,
     time = null,
     note = null,
+    sessionId = sessionId,
 )
 
 private fun month(year: Int, month: Int, vararg days: ParentDayAttendance) =

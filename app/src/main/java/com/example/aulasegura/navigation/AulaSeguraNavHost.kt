@@ -69,6 +69,8 @@ import com.example.aulasegura.ui.screens.admin.AdminCampusScreen
 import com.example.aulasegura.ui.screens.admin.AdminGroupsScreen
 import com.example.aulasegura.ui.screens.admin.AdminGroupDetailScreen
 import com.example.aulasegura.ui.screens.admin.AdminIncidentsScreen
+import com.example.aulasegura.ui.screens.admin.AdminJustificationsScreen
+import com.example.aulasegura.ui.screens.admin.AdminJustificationsViewModel
 import com.example.aulasegura.ui.screens.admin.AdminMoreScreen
 import com.example.aulasegura.ui.screens.admin.AdminNewStudentScreen
 import com.example.aulasegura.ui.screens.admin.AdminNotificationsScreen
@@ -127,6 +129,8 @@ import com.example.aulasegura.ui.screens.teacher.TeacherIncidentNewScreen
 import com.example.aulasegura.ui.screens.teacher.TeacherIncidentViewModel
 import com.example.aulasegura.ui.screens.teacher.TeacherHomeScreen
 import com.example.aulasegura.ui.screens.teacher.TeacherHomeViewModel
+import com.example.aulasegura.ui.screens.teacher.TeacherJustificationsScreen
+import com.example.aulasegura.ui.screens.teacher.TeacherJustificationsViewModel
 import com.example.aulasegura.ui.screens.teacher.TeacherLocationVerifyingScreen
 import com.example.aulasegura.ui.screens.teacher.TeacherNoClassScreen
 import com.example.aulasegura.ui.screens.teacher.TeacherNoticeNewScreen
@@ -802,6 +806,8 @@ fun AulaSeguraNavHost(
                 onIrARegistrarIncidente = { navController.navigate(Routes.TEACHER_INCIDENT_NEW) },
                 onIrAPublicarTarea = { navController.navigate(Routes.TEACHER_TASK_NEW) },
                 onIrAPublicarAviso = { navController.navigate(Routes.TEACHER_NOTICE_NEW) },
+                onIrAJustificaciones = { navController.navigate(Routes.TEACHER_JUSTIFICATIONS) },
+                onRefreshJustifications = homeViewModel::refreshJustifications,
                 onIrAChat = { navController.navigate(Routes.TEACHER_CHAT) },
                 onIrAHistorial = { navController.navigate(Routes.TEACHER_HISTORY) },
                 onIrANotificaciones = { navController.navigate(Routes.TEACHER_NOTIFICATIONS) },
@@ -1140,6 +1146,17 @@ fun AulaSeguraNavHost(
                 onMonthChange = historyViewModel::changeMonth,
             )
         }
+        composable(Routes.TEACHER_JUSTIFICATIONS) {
+            val justificationsViewModel: TeacherJustificationsViewModel =
+                viewModel(factory = rememberAppContainer().viewModelFactory)
+            val justificationsUi by justificationsViewModel.state.collectAsState()
+
+            TeacherJustificationsScreen(
+                ui = justificationsUi,
+                onBack = { navController.popBackStack() },
+                onRefresh = justificationsViewModel::refresh,
+            )
+        }
         composable(Routes.TEACHER_NOTIFICATIONS) {
             val container = rememberAppContainer()
             val notificationsViewModel: TeacherNotificationsViewModel =
@@ -1196,6 +1213,7 @@ fun AulaSeguraNavHost(
                 onUsuarios = { navController.navigate(Routes.ADMIN_USERS) },
                 onGrupos = { navController.navigate(Routes.ADMIN_GROUPS) },
                 onReportes = { navController.navigate(Routes.ADMIN_REPORTS) },
+                onJustificaciones = { navController.navigate(Routes.ADMIN_JUSTIFICATIONS) },
                 onMas = { navController.navigate(Routes.ADMIN_MORE) },
             )
         }
@@ -1278,6 +1296,20 @@ fun AulaSeguraNavHost(
                 onMas = { navController.navigate(Routes.ADMIN_MORE) },
             )
         }
+        composable(Routes.ADMIN_JUSTIFICATIONS) {
+            val justificationsViewModel: AdminJustificationsViewModel =
+                viewModel(factory = rememberAppContainer().viewModelFactory)
+            val justificationsUi by justificationsViewModel.state.collectAsState()
+
+            AdminJustificationsScreen(
+                ui = justificationsUi,
+                onBack = { navController.popBackStack() },
+                onRefresh = justificationsViewModel::refresh,
+                onDecide = justificationsViewModel::decide,
+                onNoticeShown = justificationsViewModel::noticeShown,
+                onErrorShown = justificationsViewModel::errorShown,
+            )
+        }
         composable(Routes.ADMIN_INCIDENTS) {
             AdminIncidentsScreen(
                 onBack = { navController.popBackStack() },
@@ -1299,6 +1331,7 @@ fun AulaSeguraNavHost(
             AdminMoreScreen(
                 onCampus = { navController.navigate(Routes.ADMIN_CAMPUS) },
                 onIncidents = { navController.navigate(Routes.ADMIN_INCIDENTS) },
+                onJustificaciones = { navController.navigate(Routes.ADMIN_JUSTIFICATIONS) },
                 onNotifications = { navController.navigate(Routes.ADMIN_NOTIFICATIONS) },
                 onProfile = { navController.navigate(Routes.ADMIN_PROFILE) },
                 onPanel = { navController.navigate(Routes.ADMIN_DASHBOARD) },

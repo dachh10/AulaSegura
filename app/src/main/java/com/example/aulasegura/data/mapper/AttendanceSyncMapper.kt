@@ -3,6 +3,8 @@ package com.example.aulasegura.data.mapper
 import com.example.aulasegura.data.local.entity.AttendanceRecordEntity
 import com.example.aulasegura.data.local.entity.AttendanceSessionEntity
 import com.example.aulasegura.data.local.mapper.toTimestamp
+import com.example.aulasegura.domain.model.AttendanceCounts
+import com.example.aulasegura.domain.model.AttendanceMark
 
 /**
  * Room entity to Firestore document maps for the attendance flow.
@@ -16,6 +18,17 @@ import com.example.aulasegura.data.local.mapper.toTimestamp
 object AttendanceSyncMapper {
 
     /**
+     * The `counts` sub-document of a session. Shared by the roll-call write and
+     * by the justification flip so both paths store the same types and keys.
+     */
+    fun AttendanceCounts.toFirestoreMap(): Map<String, Any> = mapOf(
+        "present" to present.toLong(),
+        "absent" to absent.toLong(),
+        "late" to late.toLong(),
+        "justified" to justified.toLong(),
+    )
+
+    /**
      * Recomputes the four counters from the actual records.
      *
      * Counters are denormalised in Firestore for list screens, so they must be
@@ -26,12 +39,12 @@ object AttendanceSyncMapper {
     fun AttendanceSessionEntity.withCountsFrom(
         records: List<AttendanceRecordEntity>,
     ): AttendanceSessionEntity {
-        val byStatus = records.groupingBy { it.status }.eachCount()
+        val counts = AttendanceCounts.of(records.map { AttendanceMark.fromWire(it.status) })
         return copy(
-            presentCount = byStatus[STATUS_PRESENT] ?: 0,
-            absentCount = byStatus[STATUS_ABSENT] ?: 0,
-            lateCount = byStatus[STATUS_LATE] ?: 0,
-            justifiedCount = byStatus[STATUS_JUSTIFIED] ?: 0,
+            presentCount = counts.present,
+            absentCount = counts.absent,
+            lateCount = counts.late,
+            justifiedCount = counts.justified,
         )
     }
 
@@ -46,12 +59,12 @@ object AttendanceSyncMapper {
             "date" to date,
             "startedAt" to startedAt.toTimestamp(),
             "status" to status,
-            "counts" to mapOf(
-                "present" to presentCount.toLong(),
-                "absent" to absentCount.toLong(),
-                "late" to lateCount.toLong(),
-                "justified" to justifiedCount.toLong(),
-            ),
+            "counts" to AttendanceCounts(
+                present = presentCount,
+                absent = absentCount,
+                late = lateCount,
+                justified = justifiedCount,
+            ).toFirestoreMap(),
             "createdAt" to createdAt.toTimestamp(),
             "updatedAt" to updatedAt.toTimestamp(),
         )
@@ -80,9 +93,4 @@ object AttendanceSyncMapper {
         note?.let { data["note"] = it }
         return data
     }
-
-    private const val STATUS_PRESENT = "present"
-    private const val STATUS_ABSENT = "absent"
-    private const val STATUS_LATE = "late"
-    private const val STATUS_JUSTIFIED = "justified"
 }

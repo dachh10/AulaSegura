@@ -33,6 +33,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.QrCodeScanner
 import androidx.compose.material.icons.filled.Badge
+import androidx.compose.material.icons.filled.Description
 import androidx.compose.material.icons.filled.CloudOff
 import androidx.compose.material.icons.filled.Error
 import androidx.compose.material.icons.filled.Groups
@@ -111,6 +112,7 @@ fun AdminDashboardScreen(
     onUsuarios: () -> Unit = {},
     onGrupos: () -> Unit = {},
     onReportes: () -> Unit = {},
+    onJustificaciones: () -> Unit = {},
     onMas: () -> Unit = {},
 ) {
     val viewModel: AdminDashboardViewModel = viewModel(
@@ -194,6 +196,60 @@ fun AdminDashboardScreen(
                         tint = Primary,
                         onClick = onAlumnosSinGrupo,
                         modifier = Modifier.weight(1f),
+                    )
+                }
+            }
+            Reveal(45) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(20.dp))
+                        .background(SurfaceContainerLowest)
+                        .border(1.dp, Outline.copy(alpha = 0.4f), RoundedCornerShape(20.dp))
+                        .clickable(onClick = onJustificaciones)
+                        .padding(12.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(36.dp)
+                            .clip(CircleShape)
+                            .background(Primary.copy(alpha = 0.12f)),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Icon(
+                            Icons.Filled.Description,
+                            contentDescription = null,
+                            tint = Primary,
+                            modifier = Modifier.size(20.dp),
+                        )
+                    }
+                    Spacer(modifier = Modifier.width(10.dp))
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = "Justificaciones de familias",
+                            color = OnSurface,
+                            fontFamily = DmSans,
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 13.sp,
+                        )
+                        Text(
+                            text = "Revisa y decide sobre las faltas reportadas",
+                            color = Outline,
+                            fontFamily = DmSans,
+                            fontSize = 11.sp,
+                        )
+                    }
+                    Text(
+                        text = "Revisar",
+                        color = Color.White,
+                        fontFamily = DmSans,
+                        fontWeight = FontWeight.SemiBold,
+                        fontSize = 11.sp,
+                        modifier = Modifier
+                            .clip(PillShape)
+                            .background(Primary)
+                            .padding(horizontal = 12.dp, vertical = 6.dp),
                     )
                 }
             }

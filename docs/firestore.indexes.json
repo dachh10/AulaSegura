@@ -61,6 +61,15 @@
       "collectionGroup": "attendanceSessions",
       "queryScope": "COLLECTION",
       "fields": [
+        { "fieldPath": "schoolId", "order": "ASCENDING" },
+        { "fieldPath": "groupId", "order": "ASCENDING" },
+        { "fieldPath": "date", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "attendanceSessions",
+      "queryScope": "COLLECTION",
+      "fields": [
         { "fieldPath": "teacherId", "order": "ASCENDING" },
         { "fieldPath": "date", "order": "DESCENDING" }
       ]

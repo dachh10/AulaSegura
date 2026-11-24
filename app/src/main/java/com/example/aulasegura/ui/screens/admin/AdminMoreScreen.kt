@@ -22,6 +22,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Description
 import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Shield
@@ -76,6 +77,7 @@ private data class MoreEntry(
 fun AdminMoreScreen(
     onCampus: () -> Unit = {},
     onIncidents: () -> Unit = {},
+    onJustificaciones: () -> Unit = {},
     onNotifications: () -> Unit = {},
     onProfile: () -> Unit = {},
     onPanel: () -> Unit = {},
@@ -97,6 +99,13 @@ fun AdminMoreScreen(
             subtitle = "Revisa los reportes del plantel",
             badge = null,
             onClick = onIncidents,
+        ),
+        MoreEntry(
+            icon = Icons.Filled.Description,
+            title = "Justificaciones",
+            subtitle = "Decide sobre las faltas que reportan las familias",
+            badge = null,
+            onClick = onJustificaciones,
         ),
         MoreEntry(
             icon = Icons.Filled.Notifications,

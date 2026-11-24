@@ -17,6 +17,15 @@ data class JustificationDraft(
     val reasonCode: String,
     val description: String,
     val attachment: JustificationAttachmentDraft? = null,
+    /**
+     * Session the absence belongs to. New reports carry it so the principal can
+     * flip exactly one record to "justified"; legacy reports resolve it by
+     * group and date instead.
+     */
+    val sessionId: String = "",
+    /** Denormalised for the inbox; the reader has no roster open. */
+    val studentName: String = "",
+    val groupLabel: String = "",
 )
 
 /** The receipt the tutor picked, already in memory and ready to be stored. */

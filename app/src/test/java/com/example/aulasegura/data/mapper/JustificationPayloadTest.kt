@@ -38,6 +38,20 @@ class JustificationPayloadTest {
         assertEquals("enfermedad", document["reason"])
         assertEquals("Fiebre de 38 grados", document["description"])
         assertEquals("the tutor only creates; the school decides", "pendiente", document["status"])
+        assertEquals("sesion-1", document["sessionId"])
+        assertEquals("Mariana Gómez Ruiz", document["studentName"])
+        assertEquals("3° B", document["groupLabel"])
+    }
+
+    @Test
+    fun `a legacy draft without session or display data does not write empty keys`() {
+        val document = payload()
+            .copy(sessionId = "", studentName = "", groupLabel = "")
+            .toDocument()
+
+        assertFalse(document.containsKey("sessionId"))
+        assertFalse(document.containsKey("studentName"))
+        assertFalse(document.containsKey("groupLabel"))
     }
 
     @Test
@@ -112,6 +126,9 @@ class JustificationPayloadTest {
         description = "Fiebre de 38 grados",
         createdAtMillis = 1_763_100_000_000L,
         attachment = attachment,
+        sessionId = "sesion-1",
+        studentName = "Mariana Gómez Ruiz",
+        groupLabel = "3° B",
     )
 
     private fun pending() = StoredJustificationAttachment(

@@ -372,13 +372,16 @@ expiresAt    timestamp?
 #### `justifications/{justificationId}`
 ```
 studentId         string
+studentName       string   // denormalised for the teacher/principal inbox
 tutorId           string
 schoolId, groupId string
+groupLabel        string   // "3° B", denormalised for the inbox
+sessionId         string?  // absence record the principal flips to "justified"
 dateFrom, dateTo  timestamp
 reason            string   "enfermedad" | "cita" | "viaje" | "otro"
 description       string
 attachment        map { publicId, url, type }
-status            string   "pendiente" | "aceptada" | "rechazada"
+status            string   "pendiente" | "aprobada" | "rechazada"
 reviewedBy        string?
 reviewedAt        timestamp?
 reviewNote        string?
@@ -656,7 +659,10 @@ vigente.
 - **Pase de lista:** gana la última escritura por `updatedAt`, pero los registros se mergean por alumno (nunca se pisa el grupo completo). Una sesión `closed` solo la puede reabrir el directivo.
 - **Pase de lista — completitud:** los cuatro estados son `present | absent | late | justified`; no existe "sin marcar". Con alumnos sin marcar no se guarda: `SaveRollCallUseCase` devuelve `Incomplete(n)` y la pantalla avisa. Escribir `absent` por alguien que el docente no tocó sería mentirle al tutor.
 - **Incidentes:** el docente es el único que edita el suyo mientras esté en `nuevo`; después, solo el directivo cambia estado.
-- **Justificantes:** el tutor solo crea; el directivo solo cambia estado y nota de revisión.
+- **Justificantes:** el tutor solo crea; el directivo cambia estado y nota de revisión y,
+  al aprobar, pasa la falta a `justified` en el mismo `WriteBatch` que actualiza los
+  `counts` de la sesión. Si el registro de la falta ya no existe, la aprobación no se
+  escribe y se informa al directivo.
 - Nunca se borra un documento de forma destructiva: `active = false` para usuarios y alumnos.
 
 ---

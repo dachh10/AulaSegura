@@ -108,6 +108,9 @@ class ParentJustifyViewModel(
                 absenceDateMillis = dateMillis,
                 reasonCode = reason.code,
                 description = details.trim(),
+                sessionId = target.sessionId,
+                studentName = current.fullName,
+                groupLabel = current.groupLabel,
                 attachment = receipt?.let {
                     JustificationAttachmentDraft(
                         fileName = it.fileName,

@@ -35,11 +35,17 @@ import androidx.compose.material.icons.filled.LocationOn
 import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.Report
 import androidx.compose.material.icons.filled.Shield
+import androidx.compose.material.icons.outlined.ChevronRight
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalLifecycleOwner
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.layout.ContentScale
@@ -67,6 +73,7 @@ import com.example.aulasegura.ui.theme.JetBrainsMono
 import com.example.aulasegura.ui.theme.OnboardingHeading
 import com.example.aulasegura.ui.theme.OnboardingMuted
 import com.example.aulasegura.ui.theme.OnPrimary
+import com.example.aulasegura.ui.theme.OutlineVariant
 import com.example.aulasegura.ui.theme.PrimaryContainer
 import com.example.aulasegura.ui.theme.SurfaceContainerLowest
 import com.example.aulasegura.ui.theme.TertiaryFixed
@@ -96,11 +103,24 @@ fun TeacherHomeScreen(
     onIrARegistrarIncidente: () -> Unit = {},
     onIrAPublicarTarea: () -> Unit = {},
     onIrAPublicarAviso: () -> Unit = {},
+    onIrAJustificaciones: () -> Unit = {},
+    /** Re-reads the report backlog; called every time the home resumes. */
+    onRefreshJustifications: () -> Unit = {},
     onIrAChat: () -> Unit = {},
     onIrAHistorial: () -> Unit = {},
     onIrANotificaciones: () -> Unit = {},
     onIrAPerfil: () -> Unit = {},
 ) {
+    val lifecycleOwner = LocalLifecycleOwner.current
+    val refreshJustifications = rememberUpdatedState(onRefreshJustifications)
+    DisposableEffect(lifecycleOwner) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_RESUME) refreshJustifications.value()
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+    }
+
     Box(
         modifier = Modifier
             .fillMaxSize()
@@ -136,6 +156,12 @@ fun TeacherHomeScreen(
                 )
             }
             Reveal(120) { TeacherTodaySummary(summary = ui.summary) }
+            Reveal(160) {
+                PendingJustificationsCard(
+                    count = ui.pendingJustifications,
+                    onClick = onIrAJustificaciones,
+                )
+            }
             Reveal(180) {
                 TeacherQuickActions(
                     onRegistrarIncidente = onIrARegistrarIncidente,
@@ -549,6 +575,77 @@ private fun SectionTitle(text: String) {
         fontSize = 16.sp,
         lineHeight = 22.sp,
     )
+}
+
+/**
+ * The report backlog and the way into the inbox.
+ *
+ * It stays visible at zero: the reviewed reports are still worth reading, and a
+ * card that disappears would leave the teacher without a door to them.
+ */
+@Composable
+private fun PendingJustificationsCard(count: Int, onClick: () -> Unit) {
+    val (interaction, pressModifier) = rememberPressScale(0.98f)
+    val tint = if (count > 0) DangerRed else PrimaryContainer
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp)
+            .then(pressModifier)
+            .clip(StatShape)
+            .background(SurfaceContainerLowest)
+            .border(1.dp, Hairline, StatShape)
+            .clickable(
+                interactionSource = interaction,
+                indication = null,
+                onClick = onClick,
+            )
+            .padding(14.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Box(
+            modifier = Modifier
+                .size(40.dp)
+                .clip(CircleShape)
+                .background(tint.copy(alpha = 0.10f)),
+            contentAlignment = Alignment.Center,
+        ) {
+            Icon(
+                imageVector = Icons.AutoMirrored.Outlined.Assignment,
+                contentDescription = null,
+                tint = tint,
+                modifier = Modifier.size(21.dp),
+            )
+        }
+        Spacer(modifier = Modifier.width(12.dp))
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = "Justificaciones pendientes",
+                color = OnboardingHeading,
+                fontFamily = BricolageGrotesque,
+                fontWeight = FontWeight.Bold,
+                fontSize = 15.sp,
+                lineHeight = 20.sp,
+            )
+            Text(
+                text = when (count) {
+                    0 -> "Sin reportes por revisar"
+                    1 -> "1 reporte por revisar"
+                    else -> "$count reportes por revisar"
+                },
+                color = OnboardingMuted,
+                fontFamily = DmSans,
+                fontSize = 12.sp,
+                lineHeight = 16.sp,
+            )
+        }
+        Icon(
+            imageVector = Icons.Outlined.ChevronRight,
+            contentDescription = null,
+            tint = OutlineVariant,
+            modifier = Modifier.size(20.dp),
+        )
+    }
 }
 
 // ZONE 4 — Quick actions

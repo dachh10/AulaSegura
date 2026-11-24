@@ -1,6 +1,7 @@
 # Correcciones pendientes — presentación del proyecto
 
-Fecha: 2026-11-23. Estado del repo: `main` == `origin/main` en `05d205b`.
+Fecha: 2026-11-23. Estado del repo: `main` alineado con `origin/main` (incluye el APK firmado
+con Play Integrity y el fix del mapeo de error de atestación).
 APK de entrega: `C:\Users\diego\Documents\AulaSegura.apk`, firmado con el keystore de
 release. **No se regenera hasta que estos arreglos estén mergeados.**
 
@@ -219,7 +220,7 @@ en `TeacherProfileUi`, recolectar `observeSchool()` y mostrar `site.name` con fa
 
 ```text
 Trabajás en C:\Users\diego\AndroidStudioProjects\AulaSegura. Antes de tocar nada, leé
-docs/correcciones-pendientes.md completo: ahí están los cinco detalles, la evidencia con
+correcciones-pendientes.md (en la raíz del repo, al lado de FASE0.md…) completo: ahí están los cinco detalles, la evidencia con
 archivo:línea y el orden de prioridad (D1 → D3 → D5 → D2 → D4).
 
 Reglas obligatorias:

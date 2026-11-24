@@ -153,7 +153,9 @@ class AccessStateViewModel(
                             ui.proceed || shouldAutoProceed(startedLinked, link.vinculacion)
                         }
                         UserRole.TEACHER ->
-                            ui.proceed || link.estado == "aprobado" || link.estado == "rechazado"
+                            // A rejection must never grant navigation: nextRoute() maps it
+                            // back to ACCOUNT_REVIEW and recreates this screen in a loop.
+                            ui.proceed || link.estado == "aprobado"
                         else -> ui.proceed
                     }
                     ui.copy(
@@ -271,7 +273,7 @@ class AccessStateViewModel(
                     estado = user?.estado ?: "pendiente",
                     vinculacion = user?.vinculacion ?: "pendiente",
                     proceed = when (user?.role) {
-                        UserRole.TEACHER -> user.estado == "aprobado" || user.estado == "rechazado"
+                        UserRole.TEACHER -> user.estado == "aprobado"
                         UserRole.TUTOR -> user.vinculacion == "vinculado"
                         UserRole.ADMIN -> true
                         else -> false
@@ -465,7 +467,11 @@ fun AccountReviewScreen(
     // link while the app is already on this screen. refreshState() re-persists
     // the flag via markEmailVerified() (fresh token), so the director sees them
     // without the user having to discover the "Actualizar estado" button.
-    LaunchedEffect(Unit) { onRefresh() }
+    // A rejected request must stay put: auto-refresh was granting proceed again
+    // and the NavHost bounced back into this same screen forever.
+    LaunchedEffect(Unit) {
+        if (shouldAutoRefreshOnEntry(rejected)) onRefresh()
+    }
 
     AccessScaffold(
         title = if (rejected) "Solicitud rechazada" else "Tu cuenta está en revisión",
@@ -681,6 +687,9 @@ fun LinkChildScreen(
  */
 internal fun shouldAutoProceed(wasLinkedOnEntry: Boolean, vinculacion: String): Boolean =
     !wasLinkedOnEntry && vinculacion == "vinculado"
+
+/** A rejected account must not re-read its state on entry; it only resets the loop. */
+internal fun shouldAutoRefreshOnEntry(rejected: Boolean): Boolean = !rejected
 
 /** Resolves where to go once the current account is allowed in. */
 fun AccessStateUiState.nextRoute(): String = when (role) {

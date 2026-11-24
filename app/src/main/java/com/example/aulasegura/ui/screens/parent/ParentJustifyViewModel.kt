@@ -90,6 +90,15 @@ class ParentJustifyViewModel(
         val current = child ?: return
         if (sending || sent) return
 
+        // Every reason except "Asunto familiar" needs the photo of the receipt.
+        // A report without evidence must not reach Firestore: the reviewer would
+        // decide over a claim the school cannot verify.
+        if (reason != JustificationReason.FAMILY && receipt == null) {
+            error = "Adjunta la foto del comprobante para enviar el justificante."
+            publish()
+            return
+        }
+
         val dateMillis = AttendanceTimes.isoDateToMillis(target.isoDate, zone)
         if (dateMillis == null) {
             error = "No se pudo leer la fecha de la falta."

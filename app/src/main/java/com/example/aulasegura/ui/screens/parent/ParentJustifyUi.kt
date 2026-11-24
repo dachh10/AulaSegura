@@ -31,8 +31,11 @@ sealed interface ParentJustifyUiState {
         val emptyMessage: String?,
     ) : ParentJustifyUiState {
 
+        /** "Asunto familiar" is the only reason that needs no photo. */
+        val needsPhoto: Boolean get() = reason != JustificationReason.FAMILY
+
         val canSend: Boolean
-            get() = absence != null && !sending && !sent
+            get() = absence != null && !sending && !sent && (!needsPhoto || receipt != null)
     }
 
     data object NoChildren : ParentJustifyUiState

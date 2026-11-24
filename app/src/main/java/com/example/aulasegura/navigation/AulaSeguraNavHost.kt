@@ -1213,7 +1213,6 @@ fun AulaSeguraNavHost(
                 onUsuarios = { navController.navigate(Routes.ADMIN_USERS) },
                 onGrupos = { navController.navigate(Routes.ADMIN_GROUPS) },
                 onReportes = { navController.navigate(Routes.ADMIN_REPORTS) },
-                onJustificaciones = { navController.navigate(Routes.ADMIN_JUSTIFICATIONS) },
                 onMas = { navController.navigate(Routes.ADMIN_MORE) },
             )
         }
@@ -1331,7 +1330,6 @@ fun AulaSeguraNavHost(
             AdminMoreScreen(
                 onCampus = { navController.navigate(Routes.ADMIN_CAMPUS) },
                 onIncidents = { navController.navigate(Routes.ADMIN_INCIDENTS) },
-                onJustificaciones = { navController.navigate(Routes.ADMIN_JUSTIFICATIONS) },
                 onNotifications = { navController.navigate(Routes.ADMIN_NOTIFICATIONS) },
                 onProfile = { navController.navigate(Routes.ADMIN_PROFILE) },
                 onPanel = { navController.navigate(Routes.ADMIN_DASHBOARD) },

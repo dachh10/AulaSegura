@@ -97,7 +97,7 @@ class ParentJustifyViewModelTest {
         val state = viewModel.state.value as ParentJustifyUiState.Loaded
         assertEquals("2026-11-19", state.absence?.isoDate)
         assertEquals("Jueves 19 de noviembre", state.absence?.dateLabel)
-        assertTrue(state.canSend)
+        assertFalse("enfermedad needs the photo before sending", state.canSend)
     }
 
     @Test
@@ -206,6 +206,51 @@ class ParentJustifyViewModelTest {
             assertTrue(state.sent)
             assertFalse("a queued report cannot be sent twice", state.canSend)
         }
+
+    @Test
+    fun `a justification without a photo cannot be sent`() = runTest(dispatcher) {
+        val parents = FakeParentRepository(
+            months = mapOf(
+                "2026-11" to month(
+                    2026,
+                    11,
+                    day("2026-11-19", AttendanceMark.ABSENT, sessionId = "sesion-19"),
+                ),
+            ),
+        )
+        val justifications = FakeJustificationRepository()
+        val viewModel = viewModel(parents, justifications = justifications)
+        advanceUntilIdle()
+
+        viewModel.selectReason(JustificationReason.APPOINTMENT)
+        viewModel.send()
+        advanceUntilIdle()
+
+        val state = viewModel.state.value as ParentJustifyUiState.Loaded
+        assertFalse(state.canSend)
+        assertNotNull(state.error)
+        assertNull("nothing may reach Firestore without the photo", justifications.lastDraft)
+    }
+
+    @Test
+    fun `a family reason is the only one allowed without a photo`() = runTest(dispatcher) {
+        val parents = FakeParentRepository(
+            months = mapOf(
+                "2026-11" to month(2026, 11, day("2026-11-19", AttendanceMark.ABSENT)),
+            ),
+        )
+        val justifications = FakeJustificationRepository()
+        val viewModel = viewModel(parents, justifications = justifications)
+        advanceUntilIdle()
+
+        viewModel.selectReason(JustificationReason.FAMILY)
+        viewModel.send()
+        advanceUntilIdle()
+
+        assertNotNull(justifications.lastDraft)
+        assertNull(justifications.lastDraft?.attachment)
+        assertTrue("the exception is visible before sending", viewModel.state.value is ParentJustifyUiState.Loaded)
+    }
 
     @Test
     fun `a receipt that cannot be stored keeps the form open`() = runTest(dispatcher) {

@@ -40,6 +40,33 @@ import java.security.SecureRandom
 import java.util.Date
 import java.util.UUID
 
+/** Sentinel for a Firestore `increment`, so the write plan is testable on the JVM. */
+internal data class Increment(val by: Int)
+
+/**
+ * What a roster assignment writes to the classroom document.
+ *
+ * `teacherIds` is calculated by the approval/assignment flows, not by the roster:
+ * merging the template's empty list into an existing group silently unassigns
+ * every teacher the director had put there. Only a newly created group gets it.
+ */
+internal fun assignmentGroupFields(
+    groupExists: Boolean,
+    name: String,
+    grade: Int,
+    section: String,
+    schoolId: String,
+    newStudents: Int,
+): Map<String, Any> = buildMap {
+    put(AdminGroupFields.NAME, name.trim())
+    put(AdminGroupFields.GRADE, grade)
+    put(AdminGroupFields.SECTION, section.trim())
+    put(AdminGroupFields.SCHOOL_ID, schoolId)
+    put(AdminGroupFields.CYCLE, AdminGroupFields.DEFAULT_CYCLE)
+    if (!groupExists) put(AdminGroupFields.TEACHER_IDS, emptyList<String>())
+    put(AdminGroupFields.STUDENT_COUNT, Increment(newStudents))
+}
+
 /**
  * The principal's students, straight from Firestore.
  *
@@ -304,17 +331,21 @@ class FirestoreAdminStudentRepository(
         val canonicalName = groupNameFor(grado, grupo)
         val schoolId = director.schoolId.ifBlank { auth.currentUser?.schoolId.orEmpty() }
         val groupRef = firestore.collection(AdminStudentFields.GROUP_COLLECTION).document(resolvedId)
-        val groupDocument = AdminGroupFields.newGroupDocument(
+        val groupSnapshot = withTimeout(READ_TIMEOUT_MILLIS) { groupRef.get(Source.SERVER).await() }
+        val groupDocument = assignmentGroupFields(
+            groupExists = groupSnapshot.exists(),
             name = canonicalName,
             grade = grado,
             section = grupo.trim().uppercase(),
             schoolId = schoolId,
-        ).toMutableMap().apply {
+            newStudents = studentIds.size,
+        ).mapValues { (_, value) ->
+            if (value is Increment) FieldValue.increment(value.by.toLong()) else value
+        }.toMutableMap().apply {
             // ONE write per document per batch. Put the increment INSIDE the
             // set(merge) so the counter accumulates across assignments; a second
             // batch.update on the same groupRef would be ignored/overwritten and
             // leave the count stuck at 1.
-            put(AdminGroupFields.STUDENT_COUNT, FieldValue.increment(studentIds.size.toLong()))
             put(AdminGroupFields.UPDATED_AT, FieldValue.serverTimestamp())
         }
 

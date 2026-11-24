@@ -462,6 +462,7 @@ fun AccountReviewScreen(
     onBack: () -> Unit = {},
     onRefresh: () -> Unit = {},
     onSignOut: () -> Unit = {},
+    onResubmit: () -> Unit = {},
 ) {
     // On entry, self-heal the verified-email flag: a teacher may confirm the
     // link while the app is already on this screen. refreshState() re-persists
@@ -496,7 +497,23 @@ fun AccountReviewScreen(
                 fontSize = 13.sp,
             )
         }
-        Spacer(Modifier.height(28.dp))
+        Spacer(Modifier.height(20.dp))
+        if (rejected) {
+            PillButton(
+                text = "Volver a enviar solicitud",
+                onClick = onResubmit,
+                containerColor = PrimaryContainer,
+                contentColor = SurfaceContainerLowest,
+            )
+            Spacer(Modifier.height(10.dp))
+            Text(
+                text = "Podrás elegir de nuevo el grupo y la materia.",
+                color = OnSurfaceVariant,
+                fontFamily = DmSans,
+                fontSize = 12.sp,
+            )
+            Spacer(Modifier.height(16.dp))
+        }
         PillButton(
             text = if (isLoading) "Actualizando…" else "Actualizar estado",
             onClick = { if (!isLoading) onRefresh() },

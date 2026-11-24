@@ -716,7 +716,7 @@ private fun RegisterBottomBar(
  * invariant the approval transaction enforces atomically.
  */
 @Composable
-private fun TeacherAssignmentFields(
+internal fun TeacherAssignmentFields(
     grade: Int?,
     section: String,
     subjectId: String,

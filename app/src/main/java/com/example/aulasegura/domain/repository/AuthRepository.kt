@@ -64,6 +64,16 @@ interface AuthRepository {
     suspend fun refreshProfile(): AuthResult =
         AuthResult.Failure(AuthFailure.NO_SESSION)
 
+    /**
+     * Reopens a rejected teacher application with the assignment they choose now.
+     * No Auth account is created or deleted: the same profile goes back to
+     * 'pendiente' and the director decides again. Returns the refreshed session.
+     */
+    suspend fun resubmitTeacherApplication(
+        groupId: String,
+        subjectId: String,
+    ): AuthResult = AuthResult.Failure(AuthFailure.NO_SESSION)
+
     /** Resolves the persisted session, if any. Used by Splash. */
     suspend fun restoreSession(): AuthResult
 

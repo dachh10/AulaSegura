@@ -9,6 +9,7 @@ import com.example.aulasegura.ui.profile.uploadProfileAvatar
 import androidx.lifecycle.viewModelScope
 import com.example.aulasegura.domain.repository.AccountRegistrationInput
 import com.example.aulasegura.domain.repository.AccountRegistrationResult
+import com.example.aulasegura.domain.repository.AuthResult
 import com.example.aulasegura.domain.repository.AuthRepository
 import com.example.aulasegura.domain.repository.RegistrationKind
 import com.example.aulasegura.domain.model.groupIdFor
@@ -141,6 +142,44 @@ class RegisterViewModel(
                     else -> it.copy(
                         isLoading = false,
                         errorMessage = accountRegistrationMessage(result),
+                    )
+                }
+            }
+        }
+    }
+
+    /**
+     * Reopens a rejected application with the assignment just chosen. The Auth
+     * account and its email stay exactly as they are; only the teacher's own
+     * profile goes back to pending.
+     */
+    fun submitResubmission(onDone: () -> Unit) {
+        if (_uiState.value.isLoading) return
+        val state = _uiState.value
+        // Identity and password already exist: only the assignment is re-sent.
+        val error = when {
+            state.grade == null || state.section.isBlank() || state.subjectId.isBlank() ->
+                "Elige el grado, el grupo y la materia."
+            state.subjectId in state.takenSubjects ->
+                "Esa materia ya está asignada en ese grupo. Elige otra."
+            else -> null
+        }
+        if (error != null) {
+            _uiState.update { it.copy(errorMessage = error) }
+            return
+        }
+
+        _uiState.update { it.copy(isLoading = true, errorMessage = null) }
+        viewModelScope.launch {
+            val groupId = groupIdFor(state.grade!!, state.section)
+            val result = auth.resubmitTeacherApplication(groupId, state.subjectId)
+            if (result is AuthResult.Success) {
+                onDone()
+            } else {
+                _uiState.update {
+                    it.copy(
+                        isLoading = false,
+                        errorMessage = "No pudimos enviar la solicitud. Inténtalo de nuevo.",
                     )
                 }
             }

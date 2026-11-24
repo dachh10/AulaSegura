@@ -120,7 +120,16 @@ función pura y cubrirla con tests; verificar en dispositivo con GPS activado y 
 
 ---
 
-## D3 — Pantalla "Solicitud rechazada" se reinicia en bucle
+## D3 — Pantalla "Solicitud rechazada" se reinicia en bucle — ✅ COMPLETADO + reenvío (2026-11-24)
+
+> **Extensión 2026-11-24:** un rechazo por error dejaba al docente atrapado: la cuenta de
+> Auth y su `users/{uid}` seguían existiendo con `estado: rechazado`, así que no podía
+> registrarse de nuevo (*"Ya existe una cuenta con ese correo"*) ni entrar. La pantalla
+> rechazada ahora tiene **"Volver a enviar solicitud"**, que abre un formulario para elegir
+> de nuevo grado, grupo y materia y vuelve el perfil a `pendiente` sin crear ni borrar
+> ninguna cuenta de Auth. `firestore.rules` permite ese único write al propio documento
+> (`estado`, `requestedGroupId`, `requestedSubject`, `subjects`, `updatedAt`), manteniendo
+> intactos identidad, escuela y `active`. Reglas desplegadas; suite 770/770.
 
 **Causa CONFIRMADA: ciclo infinito de navegación.** Cadena de evidencia:
 

@@ -58,6 +58,7 @@ import com.example.aulasegura.ui.screens.access.OnboardingScreen
 import com.example.aulasegura.ui.screens.access.PermissionsScreen
 import com.example.aulasegura.ui.screens.access.RegisterScreen
 import com.example.aulasegura.ui.screens.access.RegisterViewModel
+import com.example.aulasegura.ui.screens.access.ResubmitTeacherScreen
 import com.example.aulasegura.ui.screens.access.SessionState
 import com.example.aulasegura.ui.screens.access.SessionViewModel
 import com.example.aulasegura.ui.screens.access.SplashScreen
@@ -312,6 +313,35 @@ fun AulaSeguraNavHost(
                 errorMessage = registerUi.errorMessage,
             )
         }
+        composable(Routes.RESUBMIT_TEACHER) {
+            val container = rememberAppContainer()
+            val vm: RegisterViewModel = viewModel(factory = container.viewModelFactory)
+            val ui by vm.uiState.collectAsState()
+            val submitting = remember { mutableStateOf(false) }
+
+            fun submitResubmission() {
+                if (submitting.value) return
+                submitting.value = true
+                vm.submitResubmission(onDone = {
+                    submitting.value = false
+                    navController.navigate(Routes.ACCOUNT_REVIEW) {
+                        popUpTo(Routes.RESUBMIT_TEACHER) { inclusive = true }
+                    }
+                })
+            }
+
+            ResubmitTeacherScreen(
+                ui = ui.copy(kind = RegistrationKind.DOCENTE, accepted = true),
+                onGradeChange = vm::setGrade,
+                onSectionChange = vm::setSection,
+                onSubjectIdChange = vm::setSubjectId,
+                onRefreshTakenSubjects = vm::refreshTakenSubjects,
+                onSubmit = { submitResubmission() },
+                onBack = { navController.popBackStack() },
+                isLoading = submitting.value,
+                errorMessage = ui.errorMessage,
+            )
+        }
         composable(Routes.VERIFY_EMAIL) {
             val container = rememberAppContainer()
             val vm: AccessStateViewModel = viewModel(factory = container.viewModelFactory)
@@ -360,6 +390,7 @@ fun AulaSeguraNavHost(
                 isLoading = ui.isLoading,
                 onBack = { navController.popBackStack() },
                 onRefresh = vm::refreshState,
+                onResubmit = { navController.navigate(Routes.RESUBMIT_TEACHER) },
                 onSignOut = {
                     sessionViewModel.signOut()
                     navController.navigate(Routes.LOGIN) {

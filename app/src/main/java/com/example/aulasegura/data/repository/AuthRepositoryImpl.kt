@@ -22,6 +22,8 @@ import com.example.aulasegura.domain.repository.ProfilePhotoResult
 import com.example.aulasegura.domain.repository.ProfileUpdateResult
 import com.example.aulasegura.domain.repository.TutorRegistrationInput
 import com.example.aulasegura.domain.repository.TutorRegistrationResult
+import com.example.aulasegura.domain.repository.teacherResubmitPatch
+import com.example.aulasegura.domain.repository.validateResubmit
 import com.example.aulasegura.domain.repository.isValidStudentCode
 import com.example.aulasegura.domain.repository.normalizeStudentCode
 import com.example.aulasegura.domain.repository.passwordChangeErrorFromCode
@@ -309,6 +311,25 @@ class AuthRepositoryImpl(
         runCatching { auth.currentUser?.sendEmailVerification()?.await() ?: Unit }
 
     override suspend fun refreshProfile(): AuthResult = resolveProfile()
+
+    override suspend fun resubmitTeacherApplication(
+        groupId: String,
+        subjectId: String,
+    ): AuthResult {
+        val firebaseUser = auth.currentUser ?: return AuthResult.Failure(AuthFailure.NO_SESSION)
+        val input = validateResubmit(groupId, subjectId)
+            ?: return AuthResult.Failure(AuthFailure.UNKNOWN)
+        return try {
+            withTimeout(WRITE_TIMEOUT_MILLIS) {
+                firestore.collection(USERS).document(firebaseUser.uid)
+                    .update(teacherResubmitPatch(input.groupId, input.subjectId, System.currentTimeMillis()))
+                    .await()
+            }
+            resolveProfile()
+        } catch (error: Exception) {
+            AuthResult.Failure(AuthFailure.NETWORK)
+        }
+    }
 
     /**
      * A half-registered account is worse than a failed one: the email stays

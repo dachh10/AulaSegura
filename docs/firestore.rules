@@ -268,12 +268,15 @@ service cloud.firestore {
         // groupIds is deliberately absent here so no teacher can self-assign.
         (request.auth.uid == uid
           && resource.data.get('role', '') == 'docente'
-          && resource.data.get('estado', '') == 'pendiente'
-          && changedKeys().hasOnly([
-            'requestedGroupId', 'requestedSubject', 'subjects', 'updatedAt'
-          ])
+          && resource.data.get('estado', '') in ['pendiente', 'rechazado']
+          && changedKeys().hasOnly(
+            request.resource.data.estado == 'pendiente'
+              ? ['estado', 'requestedGroupId', 'requestedSubject', 'subjects', 'updatedAt']
+              : ['requestedGroupId', 'requestedSubject', 'subjects', 'updatedAt']
+          )
           && request.resource.data.schoolId == resource.data.schoolId
-          && request.resource.data.role == resource.data.role)
+          && request.resource.data.role == resource.data.role
+          && request.resource.data.active == resource.data.active)
         ||
         // The principal edits users of their own school. `changedKeys().hasOnly`
         // is what guarantees no identity field travels in the write.

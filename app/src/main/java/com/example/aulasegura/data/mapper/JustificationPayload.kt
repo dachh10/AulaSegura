@@ -33,6 +33,18 @@ data class JustificationPayload(
     val description: String,
     val createdAtMillis: Long,
     val attachment: StoredJustificationAttachment? = null,
+    /**
+     * Session the absence belongs to. Optional so payloads queued by older
+     * builds still decode; the principal then resolves the session by group and
+     * date.
+     */
+    val sessionId: String = "",
+    /**
+     * Display data for the inbox. The principal and the teacher have no roster
+     * open when they read the justification, and a document id is not a name.
+     */
+    val studentName: String = "",
+    val groupLabel: String = "",
 )
 
 /**
@@ -109,6 +121,9 @@ fun JustificationPayload.toDocument(): Map<String, Any?> = buildMap {
     put("tutorId", tutorId)
     put("schoolId", schoolId)
     put("groupId", groupId)
+    if (sessionId.isNotBlank()) put("sessionId", sessionId)
+    if (studentName.isNotBlank()) put("studentName", studentName)
+    if (groupLabel.isNotBlank()) put("groupLabel", groupLabel)
     put("dateFrom", Timestamp(Date(dateFromMillis)))
     put("dateTo", Timestamp(Date(dateToMillis)))
     put("reason", reason)

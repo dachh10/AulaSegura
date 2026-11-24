@@ -45,6 +45,8 @@ data class JustifyAbsenceUi(
     val isoDate: String,
     /** "Viernes 31 de octubre". */
     val dateLabel: String,
+    /** Session the record belongs to; empty when the school stored none. */
+    val sessionId: String = "",
 )
 
 /**
@@ -95,4 +97,5 @@ internal fun ParentDayAttendance.toAbsenceUi(
 ): JustifyAbsenceUi = JustifyAbsenceUi(
     isoDate = date,
     dateLabel = AttendanceTimes.longDateLabel(date, zone),
+    sessionId = sessionId,
 )

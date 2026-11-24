@@ -372,13 +372,16 @@ expiresAt    timestamp?
 #### `justifications/{justificationId}`
 ```
 studentId         string
+studentName       string   // denormalised for the teacher/principal inbox
 tutorId           string
 schoolId, groupId string
+groupLabel        string   // "3° B", denormalised for the inbox
+sessionId         string?  // absence record the principal flips to "justified"
 dateFrom, dateTo  timestamp
 reason            string   "enfermedad" | "cita" | "viaje" | "otro"
 description       string
 attachment        map { publicId, url, type }
-status            string   "pendiente" | "aceptada" | "rechazada"
+status            string   "pendiente" | "aprobada" | "rechazada"
 reviewedBy        string?
 reviewedAt        timestamp?
 reviewNote        string?

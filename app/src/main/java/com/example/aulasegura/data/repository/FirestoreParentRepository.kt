@@ -196,6 +196,7 @@ class FirestoreParentRepository(
                     time = record.time,
                     note = record.note,
                     subjectId = session.subjectId,
+                    sessionId = session.sessionId,
                 )
             }
             .sortedWith(compareByDescending<ParentDayAttendance> { it.date }.thenByDescending { it.startedAt })

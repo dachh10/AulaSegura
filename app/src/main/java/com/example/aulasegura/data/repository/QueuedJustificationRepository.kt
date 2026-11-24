@@ -64,6 +64,9 @@ class QueuedJustificationRepository(
             reason = draft.reasonCode,
             description = draft.description,
             createdAtMillis = now,
+            sessionId = draft.sessionId,
+            studentName = draft.studentName,
+            groupLabel = draft.groupLabel,
             attachment = kept?.let {
                 StoredJustificationAttachment(
                     fileName = it.fileName,

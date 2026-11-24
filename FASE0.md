@@ -423,9 +423,9 @@ para sus dos hijos, para no borrar un vínculo que agregue el flujo real más ad
 
 ## Bloque L — Pendiente para la Fase 4
 
-- [ ] **L1** Encender enforcement de App Check (Firestore, RTDB, AI Logic)
-- [ ] **L2** Registrar SHA-256 del keystore de **release**
-- [ ] **L3** Regenerar el debug token en cada instalación nueva si hace falta
+- [x] **L1** Enforcement de App Check: AI Logic quedó forzado por Firebase el 2026-11-02; Firestore y RTDB se fuerzan a mano en la consola.
+- [x] **L2** SHA-256 del keystore de **release** registrado en Firebase (`4c17ebc39016d9fb976086a0885de2fc29b9f933924f1c67868687bd246d08a2`).
+- [x] **L3** El APK de release ya no depende de tokens de depuración: la entrega usa Play Integrity (ver `CONTEXT.md` §9.3).
 
 ---
 

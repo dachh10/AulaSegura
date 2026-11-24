@@ -28,7 +28,7 @@ release.
 
 | Orden | ID | Por qué |
 | --- | --- | --- |
-| 1 | D1 | Rompe el flujo normal del docente: publicar un aviso a un grupo, tal cual se va a demostrar. |
+| 1 | D1 | ✅ **Completado 2026-11-24.** Preselección validada contra el roster; aviso a un grupo específico funciona. |
 | 2 | D3 | Deja la pantalla de "Solicitud rechazada" inusable. La causa está confirmada y el arreglo es chico. |
 | 3 | D5 | Visible en el perfil, arreglo local y de bajo riesgo. |
 | 4 | D2 | El botón de ubicación no da feedback; arreglo mediano. |
@@ -36,7 +36,16 @@ release.
 
 ---
 
-## D1 — Aviso a un grupo específico falla; "Todos mis grupos" funciona
+## D1 — Aviso a un grupo específico falla; "Todos mis grupos" funciona — ✅ COMPLETADO (2026-11-24)
+
+> **Resuelto:** al abrir "Publicar aviso" desde el detalle de un grupo, el ID de la ruta se
+> preseleccionaba sin validarlo contra el roster vigente. Ese ID podía estar vencido; al
+> publicar, `RoomNoticeRepository.publish()` no lo encontraba en `observeMyGroups()` y devolvía
+> `GroupNotMine`, mientras "Todos mis grupos" funcionaba porque recalcula desde el roster en
+> vivo. `preselectGroup()` ahora ignora IDs que no estén en los grupos del docente. Datos
+> verificados en Firestore: `grp-1a` sí tiene al docente asignado, así que no era un problema
+> de vinculación. Commit `a932dfc`, 2 tests nuevos, suite 768/768. Verificado en dispositivo
+> por Diego.
 
 **Síntoma (texto literal):** «Ese grupo ya no está en tu lista. Actualiza tus grupos.»
 Aparece al publicar con "1° A" seleccionado, aunque el grupo esté en la lista. Con
@@ -307,11 +316,8 @@ Reglas obligatorias:
 
 Orden de trabajo:
 
-1) D1 — aviso a un grupo específico. NO arregles a ciegas: primero agregá un log temporal
-   en RoomNoticeRepository.publish() con selectedGroupIds, los IDs de
-   observeMyGroups().first() y auth.currentUser.schoolId; reproducí en dispositivo y reportá
-   qué conjuntos se comparan. Recién entonces aplicá la corrección que indique ese log, sin
-   relajar la validación de pertenencia del grupo.
+1) D1 — YA NO HACER: quedó completado y verificado en dispositivo el 2026-11-24.
+   No reabrir salvo petición explícita de Diego.
 
 2) D3 — ciclo infinito en "Solicitud rechazada". La causa está confirmada en el .md.
    Arreglá refreshState() para que un docente rechazado nunca setee proceed=true, y evitá

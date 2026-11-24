@@ -146,6 +146,21 @@ pantalla queda quieta y "Cerrar sesión" responde al primer toque.
     `groupId` esté en `myGroups()`**. O sea: el permiso de lectura del docente **ya existe**.
   - `create`: solo tutor, con `status == 'pendiente'`.
   - `update`: **solo directivo**, y solo sobre `status`, `reviewedBy`, `reviewedAt`, `reviewNote`.
+
+> **Seguimiento 2026-11-23 (bandeja vacía, sin importar el estado):** el docente no ve
+> ninguna justificación, pendiente o aprobada. Hipótesis con evidencia en código: conviven
+> dos vocabularios de ID de grupo. `assignGroup()`/QR escriben `grp-{grado}{letra}`
+> (`groupIdFor()`, `FirestoreAdminStudentRepository.kt:303`), pero "Crear grupo" usa
+> `.document()` con ID random (`FirestoreAdminGroupRepository.kt:83`). La bandeja consulta
+> por los IDs de `groups` (`observeMyGroups()`), mientras la justificación lleva el ID del
+> alumno. Si no coinciden, la query da 0 y la directora —que lee por `schoolId`— igual ve
+> y aprueba. **Confirmado con `node tools/seed/repair-group-ids.mjs`** (dry-run, solo lectura):
+> con `--write` reescribe las referencias al ID canónico sin borrar documentos. La llave de
+> servicio va en `~/.aulasegura/firebase-adminsdk.json` o en `GOOGLE_APPLICATION_CREDENTIALS`;
+> si ninguna existe, el script usa el ADC de `gcloud auth application-default login` con el
+> proyecto `aulasegu`. El dry-run de 2026-11-23 dio «No hay grupos con id no canónico»: los
+> 2 grupos, 4 alumnos y 2 justificaciones actuales ya usan `grp-1a`/`grp-2a` y los
+> docentes/tutores tienen esos IDs en `groupIds`. No hubo nada que reparar en los datos.
 - Búsqueda exhaustiva en `app/src/main`: no hay `JustificationDao`, no hay
   `observeJustifications`, ninguna pantalla consulta la colección `justifications`, y las
   variables `reviewedBy` / `reviewNote` no aparecen en código de app.

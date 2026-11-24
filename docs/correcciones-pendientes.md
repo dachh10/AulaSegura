@@ -1,0 +1,263 @@
+# Correcciones pendientes — presentación del proyecto
+
+Fecha: 2026-11-23. Estado del repo: `main` == `origin/main` en `05d205b`.
+APK de entrega: `C:\Users\diego\Documents\AulaSegura.apk`, firmado con el keystore de
+release. **No se regenera hasta que estos arreglos estén mergeados.**
+
+## Reglas de trabajo
+
+- No tocar `app/build.gradle.kts` (firma, lint, `testOptions`), `keystore*`, `google-services.json`
+  ni `local.properties`. No generar un APK de release ni crear un keystore nuevo.
+- No cambiar la configuración de App Check en Firebase Console.
+- No hacer push a `main`: trabajar en una rama por arreglo y avisar a Diego para el merge.
+- Texto visible en español; identificadores, nombres de archivo y mensajes de commit en inglés.
+- Todo cambio de comportamiento lleva su test. Si no hay runner determinista, documentar la
+  excepción y hacer una verificación estructural.
+
+## Orden recomendado
+
+| Orden | ID | Por qué |
+| --- | --- | --- |
+| 1 | D1 | Rompe el flujo normal del docente: publicar un aviso a un grupo, tal cual se va a demostrar. |
+| 2 | D3 | Deja la pantalla de "Solicitud rechazada" inusable. La causa está confirmada y el arreglo es chico. |
+| 3 | D5 | Visible en el perfil, arreglo local y de bajo riesgo. |
+| 4 | D2 | El botón de ubicación no da feedback; arreglo mediano. |
+| 5 | D4 | Es el más importante para los usuarios, pero es un feature nuevo: necesita una decisión de producto de Diego antes de programar. Si se decide hoy el alcance mínimo (etapa 1), se puede subir al lugar 1. |
+
+---
+
+## D1 — Aviso a un grupo específico falla; "Todos mis grupos" funciona
+
+**Síntoma (texto literal):** «Ese grupo ya no está en tu lista. Actualiza tus grupos.»
+Aparece al publicar con "1° A" seleccionado, aunque el grupo esté en la lista. Con
+"Todos mis grupos" el aviso llega bien al mismo grupo.
+
+**Ruta confirmada:**
+- `ui/screens/teacher/TeacherTaskNewUi.kt:89,97` produce el mensaje para tasks y avisos.
+- `data/repository/RoomNoticeRepository.kt:47-54` (y `RoomTaskRepository.kt:50-56`) es el
+  único origen del error: compara cada ID de `NewNotice.groupIds` contra
+  `groups.observeMyGroups().first()` y devuelve `GroupNotMine(id)` si no lo encuentra.
+- `ui/screens/teacher/TeacherNoticeNewViewModel.kt:35,96-119,138-162` guarda la selección en
+  un `MutableStateFlow<Set<String>>`. `toggleAllGroups()` recalcula el conjunto desde
+  `myGroups.value` **en el momento del clic**; `toggleGroup()` y `preselectGroup()` guardan un
+  ID que puede quedar guardado mucho antes de `publish()`.
+- `data/repository/FirestoreRosterRepository.kt:57-64`: `observeMyGroups()` filtra por
+  `user.schoolId` y por `user.uid in teacherIds`. Si el `schoolId` de la sesión cambia
+  (ver D5) o el roster se recarga entre la selección y el envío, el conjunto de IDs válidos
+  cambia y el ID guardado deja de existir.
+- Descartado: mezcla de etiqueta/ID en la navegación. `TeacherGroupsScreen.kt:198`,
+  `Routes.kt:102`, `AulaSeguraNavHost.kt:827,833,846-847` pasan `group.id` de principio a fin.
+
+**Causa:** confirmada la condición exacta que dispara el error; la razón por la que el ID
+seleccionado deja de estar en la lista es una hipótesis (selección vencida tras recarga de
+roster o de `schoolId`). **No arreglar a ciegas.**
+
+**Paso 1 obligatorio — instrumentar y reproducir en dispositivo:**
+en `publish()`, loguear `selectedGroupIds.value`, los IDs de `observeMyGroups().first()` y
+`auth.currentUser.schoolId`; verificar con el caso del usuario. Adjuntar el log al informe.
+
+**Dirección de arreglo (según lo que muestre el log):**
+- Si el ID no está en la lista al publicar: recargar grupos antes de validar y podar la
+  selección cuando el roster cambie; o hacer que publish valide contra el mismo snapshot que
+  usó la UI. No debilitar la validación de propiedad del grupo (es una regla de seguridad).
+- Si el `schoolId` cambió: correlacionar con D5 y resolver la identidad de la escuela desde
+  la fuente canónica antes de publicar.
+
+**Aceptación:** publicar a un grupo específico funciona sin pasar por "Todos"; publicar a un
+grupo ajeno sigue devolviendo el error. Test de repositorio con recarga de roster entre
+selección y publicación.
+
+---
+
+## D2 — "Usar mi ubicación actual" no hace nada
+
+**Ruta confirmada:**
+- `ui/screens/teacher/TeacherIncidentNewScreen.kt:191-200`: si `location.fix == null`, el
+  handler solo llama a `requestPermission()` o a `retry()` y termina. No hay estado visible
+  de "ubicando" ni mensaje de error en ese botón.
+- `location/LocationSupport.kt:42-90`: `retry()` incrementa un contador y dispara **una**
+  lectura de `provider.currentFix()`; `locating` existe pero el botón no lo muestra.
+- `location/LocationProvider.kt:56-76`: `currentFix()` usa `getCurrentLocation` con timeout y
+  hace fallback a last-known; puede devolver `null` si todavía no hay fix.
+
+**Causa:** con permiso concedido pero sin fix disponible, la pulsación hace una tentativa
+silenciosa y no deja rastro en la UI: para el docente el botón está muerto.
+
+**Corrección:** el botón debe ser async-aware. Si no hay permiso → pedirlo; si hay permiso
+pero no hay fix → mostrar "Ubicando…" mientras se espera una lectura fresca con timeout
+visible; si falla → mensaje concreto ("No pudimos obtener tu ubicación. Intenta de nuevo.").
+No tocar la lógica de geocerca ni el guardado del incidente. Extraer la decisión a una
+función pura y cubrirla con tests; verificar en dispositivo con GPS activado y desactivado.
+
+---
+
+## D3 — Pantalla "Solicitud rechazada" se reinicia en bucle
+
+**Causa CONFIRMADA: ciclo infinito de navegación.** Cadena de evidencia:
+
+1. `ui/screens/access/AccessStateScreens.kt:468` — `LaunchedEffect(Unit) { onRefresh() }` al entrar.
+2. `AccessStateScreens.kt:255-281` — `refreshState()` setea `proceed = true` también cuando
+   `estado == "rechazado"` (línea 274).
+3. `navigation/AulaSeguraNavHost.kt:346-352` — `LaunchedEffect(ui.proceed)` navega con
+   `popUpTo(Routes.ACCOUNT_REVIEW) { inclusive = true }`.
+4. `AccessStateScreens.kt:686-690` — `nextRoute()` para un docente rechazado devuelve
+   **`"account_review"`**: el composable se destruye y se recrea, vuelve el
+   `LaunchedEffect(Unit)`, vuelve el refresh, vuelve `proceed` → bucle.
+
+Eso explica exactamente el movimiento "de arriba hacia abajo" (se reinicia el scroll) y que
+"Cerrar sesión" sea casi imposible de presionar.
+
+**Corrección (chica):** en `refreshState()`, para `UserRole.TEACHER` setear
+`proceed = user.estado == "aprobado"` — un rechazo nunca habilita navegación. Además, no
+auto-refreshear al entrar cuando `rejected == true` (evita trabajo de red innecesario).
+Opcional: guardia idempotente en `consumeProceed()`.
+
+**Aceptación:** test de `AccessStateViewModel` donde un docente rechazado queda con
+`proceed == false` después de `refreshState()`; verificación en dispositivo de que la
+pantalla queda quieta y "Cerrar sesión" responde al primer toque.
+
+---
+
+## D4 — La justificación del tutor no le llega al docente (ANÁLISIS PROFUNDO)
+
+### Qué pasa hoy, con evidencia
+
+- `data/repository/QueuedJustificationRepository.kt:43-94`: `submit()` guarda el comprobante
+  en disco y encola **una fila** en outbox. El comentario de las líneas 77-78 lo dice:
+  «there is no cache entity to keep in step».
+- `sync/JustificationSyncHandler.kt:64-69`: el worker sube el comprobante a Cloudinary y
+  hace `set()` en `justifications/{uuid}`. No escribe nada más.
+- `data/mapper/JustificationPayload.kt:13-16,101-122`: el documento lleva `studentId`,
+  `tutorId`, `schoolId`, `groupId`, rango de fechas, motivo, descripción, `attachment` y
+  `status: "pendiente"`. El comentario es explícito: **«a justification is write only — no
+  tutor screen reads one back»**.
+- `docs/firestore.rules:548-567`:
+  - `read`: permitido a directivo de la escuela, al tutor autor **y al docente cuyo
+    `groupId` esté en `myGroups()`**. O sea: el permiso de lectura del docente **ya existe**.
+  - `create`: solo tutor, con `status == 'pendiente'`.
+  - `update`: **solo directivo**, y solo sobre `status`, `reviewedBy`, `reviewedAt`, `reviewNote`.
+- Búsqueda exhaustiva en `app/src/main`: no hay `JustificationDao`, no hay
+  `observeJustifications`, ninguna pantalla consulta la colección `justifications`, y las
+  variables `reviewedBy` / `reviewNote` no aparecen en código de app.
+
+**Conclusión:** no es un problema de notificación ni de sincronización. La justificación se
+escribe en un documento que **nadie lee en la app**. No existe bandeja del docente ni
+pantalla de aprobación de la directora. El dato está en Firestore; la funcionalidad no existe.
+
+### Qué pasa con la asistencia
+
+- `domain/model/Attendance.kt:15-21` ya define `JUSTIFIED("justified")` como uno de los cuatro
+  estados válidos. No hay que inventar un quinto.
+- La UI ya lo renderiza: `RollCallUi.kt:84`, `TeacherHistoryScreen.kt:1121,1300`,
+  `ParentAttendanceUi.kt:171-179` ("Justificada por Dirección"),
+  `AssistantPrompt.kt:113` ("falta justificada").
+- La fuente de verdad es `attendanceSessions/{sessionId}/records/{studentId}.status`
+  (`docs/firestore.rules:403-425`; update permitido a directivo y al docente dueño de la sesión).
+- Hoy nadie cambia ese `status` al justificar: el tutor solo encola el documento y el worker
+  solo escribe `justifications/{id}`.
+
+### Decisión de producto que Diego debe tomar ANTES de programar
+
+1. **¿Quién aprueba?** Recomendación: la **directora**. Las reglas ya lo permiten solo a ella;
+   el docente sería lector. Si se quiere que apruebe el docente, hay que cambiar
+   `docs/firestore.rules` y perder la propiedad de "la escuela decide".
+2. **¿La falta pasa a "presente"?** Recomendación: **NO**. Pasa a **`justified`**.
+   Razones: conserva el historial y la auditoría, los contadores ya tienen el bucket
+   `justified`, el tutor ya ve "Justificada por Dirección", y marcar `present` borraría que
+   hubo una inasistencia. "Justificada" no es "presente".
+3. **¿Dónde la ve el docente?** Recomendación: (a) una tarjeta "Justificaciones pendientes"
+   en el inicio del docente con el número de solicitudes de sus grupos; (b) una pantalla de
+   lista con alumno, fecha, motivo, descripción, comprobante y estado; (c) el detalle
+   accesible también desde el historial de asistencia del grupo/sección.
+
+### Implementación por etapas
+
+- **Etapa 1 — bandeja de lectura del docente (slice mínimo para la demo, sin tocar reglas).**
+  Nuevo método en el repositorio de justificaciones: `observeForGroups(groupIds)` consultando
+  `justifications` filtrando por `groupId` (ojo: `whereIn` de Firestore acepta máximo 10
+  valores por consulta — particionar). Mapear a un modelo de dominio (incluido el attachment
+  de Cloudinary). Tarjeta + lista en el rol docente. Sin escribir estados, sin tocar asistencia.
+- **Etapa 2 — aprobación de la directora.** Pantalla que haga `update()` de
+  `status` (`aprobada` / `rechazada`), `reviewedBy`, `reviewedAt` y `reviewNote`, respetando
+  `changedKeys().hasOnly(...)` de las reglas actuales.
+- **Etapa 3 — efecto en asistencia.** En un **único `WriteBatch`**: actualizar el
+  `justifications/{id}` **y** el `status` del registro en
+  `attendanceSessions/{sessionId}/records/{studentId}` a `"justified"`, recalculando los
+  `counts` con la lógica existente (`AttendanceSyncMapper.withCountsFrom`). Para ubicar la
+  sesión hace falta el `sessionId` en el documento de justificación: agregarlo al payload
+  cuando se envía (campo nuevo, compatible con documentos viejos; para esos, resolver por
+  `groupId` + fecha). Después de esto, los pantallazos de docente y tutor ya muestran
+  "Justificado" sin UI nueva.
+
+**Tests requeridos:** mapeo del documento (incluido attachment ausente), consulta por grupos
+con troceo de 10, transiciones de estado, write batch atómico, y recálculo de contadores.
+Si se cambian reglas, agregar el test de reglas correspondiente.
+
+---
+
+## D5 — El perfil del docente muestra "sch-benito-juarez" en vez del nombre del plantel
+
+**Causa CONFIRMADA:** se está mostrando el **ID** de la escuela como si fuera el nombre.
+- `ui/screens/teacher/TeacherProfileScreen.kt:429-432` → `"Escuela · ${ui.schoolId}"`.
+- `TeacherProfileScreen.kt:502,529` → `SettingsValueRow(label = "Escuela", value = schoolId…)`.
+- `ui/screens/teacher/TeacherProfileViewModel.kt:35-55` solo observa los grupos; no consulta
+  la escuela.
+- La fuente correcta ya existe: `domain/repository/SchoolRepository.kt:28` →
+  `observeSchool(): Flow<SchoolSite?>`; implementado en
+  `data/repository/FirestoreSchoolRepository.kt:36-39` y cacheado por
+  `data/local/dao/SchoolDao.kt:14`. La directora escribe ese mismo documento desde
+  `FirestoreAdminSchoolRepository`.
+
+**Corrección:** inyectar `SchoolRepository` en `TeacherProfileViewModel`, exponer `schoolName`
+en `TeacherProfileUi`, recolectar `observeSchool()` y mostrar `site.name` con fallback
+("Sin asignar"). Mantener el ID solo como dato secundario si hace falta. Actualizar
+`TeacherProfileUiTest` (hoy usa `schoolId = "sch-benito-juarez"`, líneas 34 y siguientes).
+
+---
+
+## Prompt para la colaboradora (copiar y pegar)
+
+```text
+Trabajás en C:\Users\diego\AndroidStudioProjects\AulaSegura. Antes de tocar nada, leé
+docs/correcciones-pendientes.md completo: ahí están los cinco detalles, la evidencia con
+archivo:línea y el orden de prioridad (D1 → D3 → D5 → D2 → D4).
+
+Reglas obligatorias:
+- No modifiques app/build.gradle.kts, keystore*, google-services.json ni local.properties.
+  No generes un APK de release, no crees un keystore nuevo y no cambies nada de App Check
+  en Firebase Console. Diego arma y reparte el APK.
+- No hagas push a main. Para cada arreglo creá una rama desde un main actualizado
+  (fix/d1-group-notice, fix/d3-rejected-loop, fix/d5-school-name, fix/d2-location-button)
+  y pusheá la rama. Avisá a Diego con el nombre de la rama y el resumen.
+- Texto visible en español neutro; identificadores, nombres de archivo y commits en inglés.
+- Todo cambio de comportamiento lleva su test. Corré
+  `$env:JAVA_HOME="C:\Program Files\Android\Android Studio\jbr"; .\gradlew.bat testDebugUnitTest`
+  antes de reportar, y pegá el resultado (número de tests y fallos).
+- Si algo no se puede verificar, decilo explícitamente en vez de asumir que funciona.
+
+Orden de trabajo:
+
+1) D1 — aviso a un grupo específico. NO arregles a ciegas: primero agregá un log temporal
+   en RoomNoticeRepository.publish() con selectedGroupIds, los IDs de
+   observeMyGroups().first() y auth.currentUser.schoolId; reproducí en dispositivo y reportá
+   qué conjuntos se comparan. Recién entonces aplicá la corrección que indique ese log, sin
+   relajar la validación de pertenencia del grupo.
+
+2) D3 — ciclo infinito en "Solicitud rechazada". La causa está confirmada en el .md.
+   Arreglá refreshState() para que un docente rechazado nunca setee proceed=true, y evitá
+   el auto-refresh al entrar cuando rejected. Agregá el test del ViewModel.
+
+3) D5 — perfil del docente. Mostrá SchoolSite.name desde SchoolRepository.observeSchool()
+   en vez de ui.schoolId. Actualizá el test de TeacherProfileUi.
+
+4) D2 — botón "Usar mi ubicación actual". Hacelo async-aware: pedir permiso, mostrar
+   "Ubicando…", esperar un fix con timeout y mostrar error visible si no llega. Extraé la
+   decisión a una función pura y testeala.
+
+5) D4 — NO lo implementes todavía. Requiere una decisión de producto de Diego (quién
+   aprueba, si la falta pasa a "justified" o a "present", y dónde la ve el docente).
+   Leé el análisis, hacé preguntas concretas si algo no está claro, y esperá confirmación.
+
+Entregable por cada ítem: rama, archivos tocados, comando de test con su resultado, y
+cualquier decisión o duda abierta. No toques los otros ítems aunque veas algo cercano.
+```

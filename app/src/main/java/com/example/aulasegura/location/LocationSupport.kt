@@ -24,6 +24,8 @@ data class LocationUiState(
     val permissionGranted: Boolean,
     val fix: LocationFix?,
     val locating: Boolean,
+    /** A read with permission returned nothing: the button must say so. */
+    val failed: Boolean,
     val deniedPermanently: Boolean,
     val requestPermission: () -> Unit,
     val retry: () -> Unit,
@@ -45,6 +47,7 @@ fun rememberCurrentLocation(): LocationUiState {
     var granted by remember { mutableStateOf(provider.hasPermission()) }
     var fix by remember { mutableStateOf<LocationFix?>(null) }
     var locating by remember { mutableStateOf(false) }
+    var failed by remember { mutableStateOf(false) }
     var deniedPermanently by remember { mutableStateOf(false) }
     var attempt by remember { mutableStateOf(0) }
 
@@ -55,6 +58,8 @@ fun rememberCurrentLocation(): LocationUiState {
             result[Manifest.permission.ACCESS_COARSE_LOCATION] == true
         granted = accepted || provider.hasPermission()
         deniedPermanently = !granted
+        // Without permission the request is the answer, not a stale read failure.
+        failed = false
         if (granted) attempt++
     }
 
@@ -75,15 +80,17 @@ fun rememberCurrentLocation(): LocationUiState {
     LaunchedEffect(granted, attempt) {
         if (!granted) return@LaunchedEffect
         locating = true
+        failed = false
         val updated = provider.currentFix()
-        if (updated != null) fix = updated
         locating = false
+        if (updated != null) fix = updated else failed = true
     }
 
     return LocationUiState(
         permissionGranted = granted,
         fix = fix,
         locating = locating,
+        failed = failed,
         deniedPermanently = deniedPermanently,
         requestPermission = requestPermission,
         retry = { attempt++ },

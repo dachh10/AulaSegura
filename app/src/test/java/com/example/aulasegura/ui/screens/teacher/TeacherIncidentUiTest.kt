@@ -220,4 +220,105 @@ class TeacherIncidentUiTest {
         assertNull("the local file has nothing to report yet", mediaPhaseLabel(null))
         assertEquals("No se pudo subir", mediaPhaseLabel(MediaUploadPhase.FAILED))
     }
+
+    // D2: el botón de ubicación tiene que pedir permiso, esperar con copy visible
+    // y fallar en voz alta. La decisión es pura para que el handler y la etiqueta
+    // no puedan diverger.
+
+    @Test
+    fun `without permission the button asks instead of starting a silent read`() {
+        val button = locationButtonUi(
+            permissionGranted = false,
+            hasFix = false,
+            locating = false,
+            failed = true,
+        )
+
+        assertEquals(LocationButtonAction.REQUEST_PERMISSION, button.action)
+        assertEquals("Usar mi ubicación actual", button.label)
+        assertTrue(button.enabled)
+        assertNull("a stale failure must not show when the fix is permission", button.message)
+    }
+
+    @Test
+    fun `a known fix wins over a read that is still in flight`() {
+        val button = locationButtonUi(
+            permissionGranted = true,
+            hasFix = true,
+            locating = true,
+            failed = true,
+        )
+
+        assertEquals(LocationButtonAction.USE_FIX, button.action)
+        assertTrue(button.enabled)
+        assertNull(button.message)
+    }
+
+    @Test
+    fun `a read in flight shows locating and stops accepting taps`() {
+        val button = locationButtonUi(
+            permissionGranted = true,
+            hasFix = false,
+            locating = true,
+            failed = false,
+        )
+
+        assertEquals(LocationButtonAction.WAIT, button.action)
+        assertEquals("Ubicando…", button.label)
+        assertFalse("extra taps would stack reads", button.enabled)
+        assertNull(button.message)
+    }
+
+    @Test
+    fun `a failed read offers a retry with a concrete message`() {
+        val button = locationButtonUi(
+            permissionGranted = true,
+            hasFix = false,
+            locating = false,
+            failed = true,
+        )
+
+        assertEquals(LocationButtonAction.RETRY, button.action)
+        assertEquals("Reintentar ubicación", button.label)
+        assertTrue("the teacher must be able to try again", button.enabled)
+        assertEquals("No pudimos obtener tu ubicación. Intenta de nuevo.", button.message)
+    }
+
+    @Test
+    fun `with permission and no fix yet the first tap starts a read`() {
+        val button = locationButtonUi(
+            permissionGranted = true,
+            hasFix = false,
+            locating = false,
+            failed = false,
+        )
+
+        assertEquals(LocationButtonAction.RETRY, button.action)
+        assertEquals("Usar mi ubicación actual", button.label)
+        assertTrue(button.enabled)
+        assertNull("nothing failed yet", button.message)
+    }
+
+    @Test
+    fun `every state has a label and only locating disables the button`() {
+        val states = listOf(false, true).flatMap { granted ->
+            listOf(false, true).flatMap { hasFix ->
+                listOf(false, true).flatMap { locating ->
+                    listOf(false, true).map { failed ->
+                        locationButtonUi(granted, hasFix, locating, failed)
+                    }
+                }
+            }
+        }
+
+        assertEquals(16, states.size)
+        states.forEach { button ->
+            assertTrue("no label for $button", button.label.isNotBlank())
+            assertEquals(
+                "only an in-flight read may disable the button",
+                button.action == LocationButtonAction.WAIT,
+                !button.enabled,
+            )
+        }
+    }
 }

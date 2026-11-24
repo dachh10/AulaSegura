@@ -159,6 +159,12 @@ fun TeacherIncidentNewScreen(
     // Lectura real del GPS. Si el permiso ya está concedido, llega la primera
     // lectura sola y el formulario abre con el pin puesto.
     val location = rememberCurrentLocation()
+    val locationButton = locationButtonUi(
+        permissionGranted = location.permissionGranted,
+        hasFix = location.fix != null,
+        locating = location.locating,
+        failed = location.failed,
+    )
 
     var pin by remember { mutableStateOf<LatLng?>(null) }
     var placedByTeacher by remember { mutableStateOf(false) }
@@ -189,14 +195,19 @@ fun TeacherIncidentNewScreen(
     }
 
     fun useCurrentLocation() {
-        val fix = location.fix
-        if (fix == null) {
-            if (location.permissionGranted) location.retry() else location.requestPermission()
-            return
+        when (locationButton.action) {
+            LocationButtonAction.REQUEST_PERMISSION -> location.requestPermission()
+            LocationButtonAction.USE_FIX -> {
+                val fix = location.fix ?: return
+                pin = LatLng(fix.latitude, fix.longitude)
+                pinAccuracy = fix.accuracyMeters?.toDouble()
+                placedByTeacher = true
+            }
+            // La lectura ya está en curso: el botón está deshabilitado y un toque
+            // extra no debe apilar tentativas.
+            LocationButtonAction.WAIT -> Unit
+            LocationButtonAction.RETRY -> location.retry()
         }
-        pin = LatLng(fix.latitude, fix.longitude)
-        pinAccuracy = fix.accuracyMeters?.toDouble()
-        placedByTeacher = true
     }
 
     val verdict = incidentPinVerdict(pin?.latitude, pin?.longitude, school)
@@ -334,6 +345,7 @@ fun TeacherIncidentNewScreen(
                     verdict = verdict,
                     locating = location.locating,
                     permissionGranted = location.permissionGranted,
+                    button = locationButton,
                     onPinChange = ::placePin,
                     onUseCurrentLocation = { useCurrentLocation() },
                 )
@@ -866,6 +878,7 @@ private fun IncidentLocationCard(
     verdict: IncidentPinVerdict,
     locating: Boolean,
     permissionGranted: Boolean,
+    button: LocationButtonUi,
     onPinChange: (LatLng) -> Unit,
     onUseCurrentLocation: () -> Unit,
 ) {
@@ -1011,38 +1024,76 @@ private fun IncidentLocationCard(
         }
 
         val (useInteraction, usePress) = rememberPressScale(0.97f)
+        val useLocationModifier = Modifier
+            .fillMaxWidth()
+            .height(36.dp)
+            .clip(RoundedCornerShape(percent = 50))
+            .background(SurfaceContainerLowest)
+            .border(
+                1.dp,
+                if (button.enabled) Primary.copy(alpha = 0.30f)
+                else OutlineVariant.copy(alpha = 0.50f),
+                RoundedCornerShape(percent = 50),
+            )
+            .let { base ->
+                if (button.enabled) {
+                    base.then(usePress).clickable(
+                        interactionSource = useInteraction,
+                        indication = null,
+                        onClick = onUseCurrentLocation,
+                    )
+                } else {
+                    base
+                }
+            }
         Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(36.dp)
-                .then(usePress)
-                .clip(RoundedCornerShape(percent = 50))
-                .background(SurfaceContainerLowest)
-                .border(1.dp, Primary.copy(alpha = 0.30f), RoundedCornerShape(percent = 50))
-                .clickable(
-                    interactionSource = useInteraction,
-                    indication = null,
-                    onClick = onUseCurrentLocation,
-                ),
+            modifier = useLocationModifier,
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.Center,
         ) {
             Icon(
                 imageVector = Icons.Outlined.NearMe,
                 contentDescription = null,
-                tint = Primary,
+                tint = if (button.enabled) Primary else Outline,
                 modifier = Modifier.size(16.dp),
             )
             Spacer(modifier = Modifier.width(6.dp))
             Text(
-                text = "Usar mi ubicación actual",
-                color = Primary,
+                text = button.label,
+                color = if (button.enabled) Primary else Outline,
                 fontFamily = DmSans,
                 fontWeight = FontWeight.SemiBold,
                 fontSize = 12.sp,
                 lineHeight = 16.sp,
                 letterSpacing = 0.02.em,
             )
+        }
+
+        button.message?.let { message ->
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(Color(0xFFFFF8E1))
+                    .border(1.dp, Color(0xFFF2C94C), RoundedCornerShape(12.dp))
+                    .padding(horizontal = 10.dp, vertical = 8.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Icon(
+                    imageVector = Icons.Outlined.Warning,
+                    contentDescription = null,
+                    tint = Color(0xFF9E640B),
+                    modifier = Modifier.size(15.dp),
+                )
+                Spacer(modifier = Modifier.width(6.dp))
+                Text(
+                    text = message,
+                    color = Color(0xFF9E640B),
+                    fontFamily = DmSans,
+                    fontSize = 11.5.sp,
+                    lineHeight = 16.sp,
+                )
+            }
         }
 
         PinVerdictChip(verdict = verdict)

@@ -1,6 +1,10 @@
 package com.example.aulasegura.data.repository
 
+import com.example.aulasegura.data.remote.Increment
+import com.example.aulasegura.data.remote.approvedGroupFields
+import com.example.aulasegura.data.remote.assignmentGroupFields
 import com.example.aulasegura.domain.repository.AdminGroupFields
+import com.example.aulasegura.domain.repository.ApprovedGroup
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
@@ -52,5 +56,28 @@ class AssignGroupWriteTest {
     fun `the legacy titular field is never written`() {
         val fields = assignmentGroupFields(false, "1° A", 1, "A", "sch", 1)
         assertFalse("titularTeacherId" in fields)
+    }
+
+    private val approved = ApprovedGroup(
+        grade = 1,
+        section = "A",
+        groupId = "grp-1a",
+        name = "1° A",
+    )
+
+    @Test
+    fun `a QR approval of an existing group keeps its teachers`() {
+        val fields = approvedGroupFields(approved, "sch-benito-juarez", groupExists = true)
+
+        assertFalse("teacherIds must not be written by a QR approval", AdminGroupFields.TEACHER_IDS in fields)
+        assertEquals(Increment(1), fields[AdminGroupFields.STUDENT_COUNT])
+    }
+
+    @Test
+    fun `a QR approval creating a group starts with no teachers`() {
+        val fields = approvedGroupFields(approved, "sch-benito-juarez", groupExists = false)
+
+        assertTrue(AdminGroupFields.TEACHER_IDS in fields)
+        assertEquals(emptyList<String>(), fields[AdminGroupFields.TEACHER_IDS])
     }
 }

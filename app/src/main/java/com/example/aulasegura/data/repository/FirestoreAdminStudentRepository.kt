@@ -1,6 +1,8 @@
 package com.example.aulasegura.data.repository
 
 import com.example.aulasegura.data.remote.approvedGroupDocument
+import com.example.aulasegura.data.remote.assignmentGroupFields
+import com.example.aulasegura.data.remote.Increment
 import com.example.aulasegura.data.remote.tutorApprovalFirestoreUpdate
 import com.example.aulasegura.domain.model.AdminStudent
 import com.example.aulasegura.domain.model.groupIdFor
@@ -39,33 +41,6 @@ import kotlinx.coroutines.withTimeout
 import java.security.SecureRandom
 import java.util.Date
 import java.util.UUID
-
-/** Sentinel for a Firestore `increment`, so the write plan is testable on the JVM. */
-internal data class Increment(val by: Int)
-
-/**
- * What a roster assignment writes to the classroom document.
- *
- * `teacherIds` is calculated by the approval/assignment flows, not by the roster:
- * merging the template's empty list into an existing group silently unassigns
- * every teacher the director had put there. Only a newly created group gets it.
- */
-internal fun assignmentGroupFields(
-    groupExists: Boolean,
-    name: String,
-    grade: Int,
-    section: String,
-    schoolId: String,
-    newStudents: Int,
-): Map<String, Any> = buildMap {
-    put(AdminGroupFields.NAME, name.trim())
-    put(AdminGroupFields.GRADE, grade)
-    put(AdminGroupFields.SECTION, section.trim())
-    put(AdminGroupFields.SCHOOL_ID, schoolId)
-    put(AdminGroupFields.CYCLE, AdminGroupFields.DEFAULT_CYCLE)
-    if (!groupExists) put(AdminGroupFields.TEACHER_IDS, emptyList<String>())
-    put(AdminGroupFields.STUDENT_COUNT, Increment(newStudents))
-}
 
 /**
  * The principal's students, straight from Firestore.
@@ -212,9 +187,12 @@ class FirestoreAdminStudentRepository(
             if (approvedGroup != null) {
                 val groupRef = firestore.collection(AdminStudentFields.GROUP_COLLECTION)
                     .document(approvedGroup.groupId)
+                val groupExists = withTimeout(READ_TIMEOUT_MILLIS) {
+                    groupRef.get(Source.SERVER).await().exists()
+                }
                 batch.set(
                     groupRef,
-                    approvedGroupDocument(approvedGroup, schoolId),
+                    approvedGroupDocument(approvedGroup, schoolId, groupExists),
                     com.google.firebase.firestore.SetOptions.merge(),
                 )
             }

@@ -55,9 +55,11 @@ class StudentApprovalSyncHandler(
         return try {
             val batch = firestore.batch()
             if (approvedGroup != null) {
+                val groupRef = firestore.collection("groups").document(approvedGroup.groupId)
+                val groupExists = groupRef.get().await().exists()
                 batch.set(
-                    firestore.collection("groups").document(approvedGroup.groupId),
-                    approvedGroupDocument(approvedGroup, approval.schoolId),
+                    groupRef,
+                    approvedGroupDocument(approvedGroup, approval.schoolId, groupExists),
                     SetOptions.merge(),
                 )
             }

@@ -98,7 +98,6 @@ fun AdminGroupDetailScreen(
     groupId: String = "",
     groupLabel: String = "3° B",
     onBack: () -> Unit = {},
-    onAddStudent: (String) -> Unit = {},
     onStudentClick: () -> Unit = {},
 ) {
     val viewModel: AdminGroupDetailViewModel = viewModel(
@@ -143,10 +142,6 @@ fun AdminGroupDetailScreen(
         viewModel.errorShown()
         menuDialog = GroupMenuDialog.Delete
     }
-    val addStudentFromMenu: () -> Unit = {
-        menuExpanded = false
-        onAddStudent(currentGroupId)
-    }
     val teacherRows = teacherRows(
         users = ui.users,
         assignedIds = group?.teacherIds.orEmpty(),
@@ -170,7 +165,6 @@ fun AdminGroupDetailScreen(
                             menuExpanded = menuExpanded,
                             onMenuDismiss = dismissMenu,
                             onEditGroup = openEdit,
-                            onAddStudent = addStudentFromMenu,
                             onDeleteGroup = openDelete,
                         )
                     }
@@ -192,7 +186,6 @@ fun AdminGroupDetailScreen(
                             menuExpanded = menuExpanded,
                             onMenuDismiss = dismissMenu,
                             onEditGroup = openEdit,
-                            onAddStudent = addStudentFromMenu,
                             onDeleteGroup = openDelete,
                         )
                     }
@@ -217,7 +210,6 @@ fun AdminGroupDetailScreen(
                             menuExpanded = menuExpanded,
                             onMenuDismiss = dismissMenu,
                             onEditGroup = openEdit,
-                            onAddStudent = addStudentFromMenu,
                             onDeleteGroup = openDelete,
                         )
                     }
@@ -309,7 +301,6 @@ fun AdminGroupDetailScreen(
                             GroupTab.Alumnos -> StudentsTab(
                                 students = ui.students,
                                 loading = ui.studentsLoading,
-                                onAddStudent = { onAddStudent(group.id) },
                                 onRenumber = { viewModel.renumberStudents() },
                             )
                             GroupTab.Docentes -> TeachersTab(
@@ -550,7 +541,6 @@ private fun GroupHeader(
     menuExpanded: Boolean,
     onMenuDismiss: () -> Unit,
     onEditGroup: () -> Unit,
-    onAddStudent: () -> Unit,
     onDeleteGroup: () -> Unit,
 ) {
     Column(
@@ -602,13 +592,6 @@ private fun GroupHeader(
                         onClick = {
                             onMenuDismiss()
                             onEditGroup()
-                        },
-                    )
-                    DropdownMenuItem(
-                        text = { Text(text = "Agregar alumno", fontFamily = DmSans, fontSize = 14.sp) },
-                        onClick = {
-                            onMenuDismiss()
-                            onAddStudent()
                         },
                     )
                     DropdownMenuItem(
@@ -790,7 +773,6 @@ private fun GroupTabs(selected: GroupTab, onSelect: (GroupTab) -> Unit) {
 private fun StudentsTab(
     students: List<AdminStudent>,
     loading: Boolean,
-    onAddStudent: () -> Unit,
     onRenumber: () -> Unit,
 ) {
     val ordered = remember(students) { students.sortedBy { it.listNumber } }

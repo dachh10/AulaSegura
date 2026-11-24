@@ -1243,14 +1243,6 @@ fun AulaSeguraNavHost(
                 onGuardar = { navController.popBackStack() },
             )
         }
-        composable(Routes.ADMIN_NEW_STUDENT_FOR_GROUP) { entry ->
-            val groupId = entry.arguments?.getString("groupId").orEmpty()
-            AdminNewStudentScreen(
-                onBack = { navController.popBackStack() },
-                onGuardar = { navController.popBackStack() },
-                presetGroupId = groupId,
-            )
-        }
         composable(Routes.ADMIN_GROUPS) {
             AdminGroupsScreen(
                 onBack = { navController.popBackStack() },
@@ -1258,9 +1250,6 @@ fun AulaSeguraNavHost(
                 onGrupo = { groupId ->
                     // El id del documento no tiene espacios ni "°".
                     navController.navigate(Routes.adminGroupDetail(groupId))
-                },
-                onAddStudent = { groupId ->
-                    navController.navigate(Routes.adminNewStudent(groupId))
                 },
                 onPanel = { navController.navigate(Routes.ADMIN_DASHBOARD) },
                 onUsuarios = { navController.navigate(Routes.ADMIN_USERS) },
@@ -1275,9 +1264,6 @@ fun AulaSeguraNavHost(
                 groupId = groupId,
                 groupLabel = groupLabel,
                 onBack = { navController.popBackStack() },
-                onAddStudent = { groupId ->
-                    navController.navigate(Routes.adminNewStudent(groupId))
-                },
             )
         }
         composable(Routes.ADMIN_REPORTS) {

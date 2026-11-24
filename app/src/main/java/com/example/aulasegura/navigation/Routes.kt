@@ -85,7 +85,6 @@ const val ADMIN_REVIEW_STUDENT = "admin/students/review?uid={uid}&alumno={alumno
 fun reviewStudentRoute(uid: String, alumno: String): String =
     "admin/students/review?uid=${android.net.Uri.encode(uid)}" +
         "&alumno=${android.net.Uri.encode(alumno)}"
-    const val ADMIN_NEW_STUDENT_FOR_GROUP = "admin/users/new/{groupId}"
     const val ADMIN_GROUPS = "admin/groups"
     const val ADMIN_GROUP_DETAIL = "admin/groups/{groupId}"
     const val ADMIN_REPORTS = "admin/reports"
@@ -113,7 +112,6 @@ fun reviewStudentRoute(uid: String, alumno: String): String =
         "teacher/roll-call/offline/$groupId/$subjectId"
     fun teacherConversation(conversationId: String) = "teacher/chat/$conversationId"
     fun adminGroupDetail(groupId: String) = "admin/groups/$groupId"
-    fun adminNewStudent(groupId: String) = "admin/users/new/$groupId"
 
     /**
      * Justificar falta, optionally pointing at one absence.

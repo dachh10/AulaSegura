@@ -28,6 +28,15 @@ val mapsApiKey: String = localProperty("MAPS_API_KEY")
 val cloudinaryCloudName: String = localProperty("CLOUDINARY_CLOUD_NAME")
 val cloudinaryUploadPreset: String = localProperty("CLOUDINARY_UPLOAD_PRESET")
 
+// Firma del APK de release. El keystore y sus contraseñas viven en
+// keystore.properties, que está en .gitignore. Sin ese archivo el release se
+// arma sin firmar en vez de romper la compilación: quien clone el repo puede
+// seguir compilando debug, pero solo quien tenga la llave puede entregar.
+val keystoreProperties: Properties = Properties().apply {
+    val keystoreFile = rootProject.file("keystore.properties")
+    if (keystoreFile.exists()) keystoreFile.inputStream().use(::load)
+}
+
 android {
     namespace = "com.example.aulasegura"
     compileSdk {
@@ -48,11 +57,29 @@ android {
         buildConfigField("String", "CLOUDINARY_UPLOAD_PRESET", "\"$cloudinaryUploadPreset\"")
     }
 
+    signingConfigs {
+        if (keystoreProperties.isNotEmpty()) {
+            create("release") {
+                storeFile = rootProject.file(keystoreProperties.getProperty("storeFile"))
+                storePassword = keystoreProperties.getProperty("storePassword")
+                keyAlias = keystoreProperties.getProperty("keyAlias")
+                keyPassword = keystoreProperties.getProperty("keyPassword")
+            }
+        }
+    }
+
     buildTypes {
         release {
+            // Play Integrity identifica la app por el certificado que la firma:
+            // este signingConfig es lo que hace que el APK entregado tenga el
+            // SHA-256 registrado en Firebase, en lugar del keystore de debug.
+            signingConfig = signingConfigs.findByName("release")
+            // Sin optimización a propósito: este APK se entrega a compañeros y
+            // todavía no hay una prueba en dispositivo que cubra el binario
+            // reducido por R8. Se vuelve a activar cuando exista una matriz de
+            // pruebas en teléfonos reales.
             optimization {
-                enable = true
-                packageScope = setOf("androidx.**", "kotlin.**", "kotlinx.**")
+                enable = false
             }
         }
     }
@@ -63,6 +90,18 @@ android {
     buildFeatures {
         compose = true
         buildConfig = true
+    }
+
+    lint {
+        // Falso positivo de AGP 9 sobre un detector de androidx.activity: la app
+        // es puramente Compose (MainActivity extiende ComponentActivity) y no
+        // declara ningún Fragment, mientras que `fragment` llega transitivo
+        // desde appcompat 1.7.1 y resuelve 1.5.4 — muy por encima del 1.3.0 que
+        // el mensaje pide. El detector compara una coordenada vieja del modelo
+        // de lint y marca el `registerForActivityResult` de MainActivity como
+        // fatal. Se desactiva solo ese chequeo; el resto de lint vital sigue
+        // rompiendo el build.
+        disable += "InvalidFragmentVersionForActivityResult"
     }
 }
 

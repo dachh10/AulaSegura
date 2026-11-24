@@ -59,6 +59,16 @@ class JustificationReviewMappingTest {
     }
 
     @Test
+    fun `a missing absence says the approval could not be applied`() {
+        val failure = JustificationReviewFailure.ABSENCE_NOT_FOUND
+
+        assertEquals(
+            "No se pudo justificar: no se encontró esa falta en la asistencia.",
+            justificationReviewFailureMessage(failure),
+        )
+    }
+
+    @Test
     fun `an unexpected error stays unknown`() {
         val failure = IllegalStateException("what happened?").toReviewFailure()
 

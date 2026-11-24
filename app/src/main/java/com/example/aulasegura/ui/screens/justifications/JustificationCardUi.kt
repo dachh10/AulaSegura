@@ -93,6 +93,9 @@ fun justificationReviewFailureMessage(reason: JustificationReviewFailure): Strin
     JustificationReviewFailure.NOT_FOUND ->
         "La justificación ya no existe. Actualiza la lista."
 
+    JustificationReviewFailure.ABSENCE_NOT_FOUND ->
+        "No se pudo justificar: no se encontró esa falta en la asistencia."
+
     JustificationReviewFailure.UNKNOWN ->
         "No se pudo guardar la decisión. Inténtalo de nuevo."
 }

@@ -1,17 +1,22 @@
 package com.example.aulasegura.data.repository
 
+import com.example.aulasegura.data.mapper.AttendanceSyncMapper.toFirestoreMap
+import com.example.aulasegura.domain.model.AttendanceMark
 import com.example.aulasegura.domain.model.JustificationDecision
 import com.example.aulasegura.domain.model.JustificationEvidence
 import com.example.aulasegura.domain.model.JustificationRecord
 import com.example.aulasegura.domain.model.JustificationReview
 import com.example.aulasegura.domain.model.JustificationStatus
 import com.example.aulasegura.domain.model.UserRole
+import com.example.aulasegura.domain.usecase.JustificationAttendanceEffect
+import com.example.aulasegura.domain.usecase.justifyAbsence
 import com.example.aulasegura.domain.repository.AuthRepository
 import com.example.aulasegura.domain.repository.JustificationInboxRepository
 import com.example.aulasegura.domain.repository.JustificationInboxResult
 import com.example.aulasegura.domain.repository.JustificationReviewFailure
 import com.example.aulasegura.domain.repository.JustificationReviewResult
 import com.example.aulasegura.domain.repository.RosterFailure
+import com.example.aulasegura.util.AttendanceTimes
 import com.google.firebase.Timestamp
 import com.google.firebase.firestore.DocumentSnapshot
 import com.google.firebase.firestore.FirebaseFirestore
@@ -121,23 +126,143 @@ class FirestoreJustificationInboxRepository(
             JustificationDecision.REJECT -> JustificationStatus.REJECTED
         }.wire
 
-        // Exactly the four fields firestore.rules allows in changedKeys(). A
-        // `set()` here would overwrite the tutor's report, so `update()` is the
-        // only safe write.
-        val changes = mapOf<String, Any>(
-            FIELD_STATUS to status,
-            FIELD_REVIEWED_BY to user.uid,
-            FIELD_REVIEWED_AT to FieldValue.serverTimestamp(),
-            FIELD_REVIEW_NOTE to request.note.trim(),
-        )
         return try {
             withTimeout(WRITE_TIMEOUT_MILLIS) {
-                firestore.collection(COLLECTION).document(id).update(changes).await()
+                // The document, not the inbox card, is the authority on which
+                // absence this report is about. A card could be stale; the rules
+                // also check the school on every write in the batch below.
+                val data = firestore.collection(COLLECTION).document(id)
+                    .get(Source.SERVER).await().data
+                    ?: return@withTimeout JustificationReviewResult.Failed(
+                        JustificationReviewFailure.NOT_FOUND,
+                    )
+                val record = justificationFrom(id, data)
+                    ?: return@withTimeout JustificationReviewResult.Failed(
+                        JustificationReviewFailure.NOT_FOUND,
+                    )
+                if (data[FIELD_SCHOOL_ID] != user.schoolId) {
+                    return@withTimeout JustificationReviewResult.Failed(
+                        JustificationReviewFailure.DENIED,
+                    )
+                }
+
+                // Exactly the four fields firestore.rules allows in changedKeys().
+                // A `set()` here would overwrite the tutor's report.
+                val changes = mapOf<String, Any>(
+                    FIELD_STATUS to status,
+                    FIELD_REVIEWED_BY to user.uid,
+                    FIELD_REVIEWED_AT to FieldValue.serverTimestamp(),
+                    FIELD_REVIEW_NOTE to request.note.trim(),
+                )
+
+                val effect = if (request.decision == JustificationDecision.APPROVE) {
+                    when (val target = approvalTarget(user.schoolId, record)) {
+                        is ApprovalTarget.Ready -> target.effect
+                        ApprovalTarget.AbsenceMissing -> return@withTimeout JustificationReviewResult.Failed(
+                            JustificationReviewFailure.ABSENCE_NOT_FOUND,
+                        )
+
+                        ApprovalTarget.Denied -> return@withTimeout JustificationReviewResult.Failed(
+                            JustificationReviewFailure.DENIED,
+                        )
+                    }
+                } else {
+                    null
+                }
+
+                val batch = firestore.batch()
+                batch.update(firestore.collection(COLLECTION).document(id), changes)
+                if (effect != null) {
+                    batch.update(
+                        firestore.collection(SESSIONS).document(effect.sessionId)
+                            .collection(RECORDS).document(effect.studentId),
+                        mapOf<String, Any>(
+                            FIELD_STATUS to effect.status,
+                            "updatedAt" to FieldValue.serverTimestamp(),
+                            "updatedBy" to user.uid,
+                        ),
+                    )
+                    batch.update(
+                        firestore.collection(SESSIONS).document(effect.sessionId),
+                        mapOf<String, Any>("counts" to effect.counts.toFirestoreMap()),
+                    )
+                }
+                batch.commit().await()
+                JustificationReviewResult.Success
             }
-            JustificationReviewResult.Success
         } catch (error: Exception) {
             JustificationReviewResult.Failed(error.toReviewFailure())
         }
+    }
+
+    /**
+     * Resolves the absence an approval has to flip. A [ApprovalTarget.Ready]
+     * with a `null` effect is not an error: the record is already justified or a
+     * later mark won, so there is nothing to downgrade. A missing record is
+     * reported instead of filing an approval that changes nothing for the family.
+     */
+    private suspend fun approvalTarget(
+        schoolId: String,
+        record: JustificationRecord,
+    ): ApprovalTarget {
+        val sessionId = record.sessionId.ifBlank {
+            resolveLegacySession(record.groupId, record.studentId, record.dateFromMillis)
+        } ?: return ApprovalTarget.AbsenceMissing
+
+        val snapshot = loadSession(sessionId) ?: return ApprovalTarget.AbsenceMissing
+        if (snapshot.schoolId != schoolId) return ApprovalTarget.Denied
+        if (!snapshot.statuses.containsKey(record.studentId)) {
+            return ApprovalTarget.AbsenceMissing
+        }
+
+        return ApprovalTarget.Ready(
+            justifyAbsence(
+                decision = JustificationDecision.APPROVE,
+                sessionId = sessionId,
+                studentId = record.studentId,
+                statusesByStudent = snapshot.statuses,
+            ),
+        )
+    }
+
+    /**
+     * Documents queued before `sessionId` existed carry only a group and a day.
+     * Pick the session of that day whose record for the student is still an
+     * absence; sessions are visited in id order so two readers resolve the same
+     * one. Several subjects on the same day are a real case, and the report
+     * describes one absence, not the whole day.
+     */
+    private suspend fun resolveLegacySession(
+        groupId: String,
+        studentId: String,
+        dateFromMillis: Long,
+    ): String? {
+        if (groupId.isBlank() || studentId.isBlank() || dateFromMillis <= 0L) return null
+        val sessions = firestore.collection(SESSIONS)
+            .whereEqualTo(FIELD_GROUP_ID, groupId)
+            .whereEqualTo(FIELD_DATE, AttendanceTimes.isoDate(dateFromMillis))
+            .limit(LEGACY_SESSION_LIMIT)
+            .get(Source.SERVER).await().documents
+            .map { it.id }
+            .sorted()
+        for (sessionId in sessions) {
+            val snapshot = loadSession(sessionId) ?: continue
+            if (snapshot.statuses[studentId] == AttendanceMark.ABSENT.wire) return sessionId
+        }
+        return null
+    }
+
+    private suspend fun loadSession(sessionId: String): AttendanceSessionSnapshot? {
+        val session = firestore.collection(SESSIONS).document(sessionId)
+            .get(Source.SERVER).await().takeIf { it.exists() } ?: return null
+        val records = firestore.collection(SESSIONS).document(sessionId)
+            .collection(RECORDS).get(Source.SERVER).await().documents
+        return AttendanceSessionSnapshot(
+            schoolId = session.getString(FIELD_SCHOOL_ID) ?: "",
+            statuses = records.associate { document ->
+                document.id to (document.getString(FIELD_STATUS) ?: "")
+            },
+        )
     }
 
     private suspend fun loadGroup(groupId: String): List<DocumentSnapshot> =
@@ -152,9 +277,12 @@ class FirestoreJustificationInboxRepository(
 
     private companion object {
         const val COLLECTION = "justifications"
+        const val SESSIONS = "attendanceSessions"
+        const val RECORDS = "records"
         const val FIELD_GROUP_ID = "groupId"
         const val FIELD_SCHOOL_ID = "schoolId"
         const val FIELD_STATUS = "status"
+        const val FIELD_DATE = "date"
         const val FIELD_REVIEWED_BY = "reviewedBy"
         const val FIELD_REVIEWED_AT = "reviewedAt"
         const val FIELD_REVIEW_NOTE = "reviewNote"
@@ -163,8 +291,28 @@ class FirestoreJustificationInboxRepository(
 
         /** A group's term, not a download. */
         const val QUERY_LIMIT = 100L
+
+        /** A handful of subjects a day, never a full history scan. */
+        const val LEGACY_SESSION_LIMIT = 10L
     }
 }
+
+/** The attendance side of the approval lookup, before any write is planned. */
+private sealed interface ApprovalTarget {
+
+    /** [effect] is null when the record needs no change. */
+    data class Ready(val effect: JustificationAttendanceEffect?) : ApprovalTarget
+
+    data object AbsenceMissing : ApprovalTarget
+
+    data object Denied : ApprovalTarget
+}
+
+/** One session and the marks of its records, keyed by student id. */
+private data class AttendanceSessionSnapshot(
+    val schoolId: String,
+    val statuses: Map<String, String>,
+)
 
 /**
  * A failed decision has to say whether retrying could help. Kept as a pure

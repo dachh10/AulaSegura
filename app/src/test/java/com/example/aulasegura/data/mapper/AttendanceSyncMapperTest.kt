@@ -5,6 +5,7 @@ import com.example.aulasegura.data.local.entity.AttendanceSessionEntity
 import com.example.aulasegura.data.local.entity.SyncState
 import com.example.aulasegura.data.mapper.AttendanceSyncMapper.toFirestoreMap
 import com.example.aulasegura.data.mapper.AttendanceSyncMapper.withCountsFrom
+import com.example.aulasegura.domain.model.AttendanceCounts
 import com.google.firebase.Timestamp
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -35,6 +36,17 @@ class AttendanceSyncMapperTest {
         assertEquals(1, withCounts.absentCount)
         assertEquals(1, withCounts.lateCount)
         assertEquals(1, withCounts.justifiedCount)
+    }
+
+    @Test
+    fun countsMapStoresIntegersAsLongForFirestore() {
+        val map = AttendanceCounts(present = 2, absent = 0, late = 1, justified = 3)
+            .toFirestoreMap()
+
+        assertEquals(2L, map["present"] as Long)
+        assertEquals(0L, map["absent"] as Long)
+        assertEquals(1L, map["late"] as Long)
+        assertEquals(3L, map["justified"] as Long)
     }
 
     @Test

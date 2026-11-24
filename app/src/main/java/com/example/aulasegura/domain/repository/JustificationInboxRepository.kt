@@ -30,8 +30,10 @@ interface JustificationInboxRepository {
     suspend fun loadForSchool(): JustificationInboxResult
 
     /**
-     * Records the school's decision. Only the principal may call this: the rules
-     * restrict the update to the four review fields.
+     * Records the school's decision and, on an approval, flips the absence to
+     * `justified`. Only the principal may call this: the rules restrict the
+     * review write to four fields and grant the attendance write to the school.
+     * Both writes commit together or not at all.
      */
     suspend fun review(request: JustificationReview): JustificationReviewResult
 }
@@ -51,6 +53,9 @@ enum class JustificationReviewFailure {
 
     /** The report disappeared between the read and the decision. */
     NOT_FOUND,
+
+    /** An approval was asked for but the absence record is not there to flip. */
+    ABSENCE_NOT_FOUND,
     UNKNOWN,
 }
 

@@ -121,12 +121,14 @@ pantalla queda quieta y "Cerrar sesión" responde al primer toque.
 
 ## D4 — La justificación del tutor no le llega al docente (ANÁLISIS PROFUNDO)
 
-> **Avance 2026-11-23 (rama `fix/d4-justification-inbox`):** Etapa 1 (bandeja de lectura
-> del docente) y Etapa 2 (bandeja de la directora con aprobación/rechazo y nota) quedan
-> implementadas y verificadas con tests unitarios. La tarjeta es compartida por ambos
-> roles. **Etapa 3 (el cambio del registro de asistencia a `justified`) sigue pendiente:**
-> requiere la confirmación de Diego sobre quién aprueba y si la falta debe pasar a
-> `justified` y no a `present`. No se tocó `firestore.rules`.
+> **Avance 2026-11-23 (rama `fix/d4-justification-inbox`):** Etapas 1, 2 y 3 implementadas
+> y verificadas con tests unitarios. Etapa 1 = bandeja de lectura del docente; Etapa 2 =
+> bandeja de la directora con aprobación/rechazo y nota; Etapa 3 = la aprobación pasa la
+> falta a `justified` en el mismo `WriteBatch`. La tarjeta es compartida por ambos roles.
+> Las decisiones de producto ya quedaban registradas en el código y en `CONTEXT.md`: aprueba
+> la directora (las reglas no permiten otra cosa) y la falta pasa a `justified`, nunca a
+> `present`. No se tocó `firestore.rules`: ya autorizan a la directiva a escribir el
+> registro y los `counts` de la sesión.
 
 ### Qué pasa hoy, con evidencia
 
@@ -197,9 +199,27 @@ pantalla de aprobación de la directora. El dato está en Firestore; la funciona
   `groupId` + fecha). Después de esto, los pantallazos de docente y tutor ya muestran
   "Justificado" sin UI nueva.
 
+  **Implementado:** `JustificationPayload.sessionId` ya venía en el payload; el review lee
+  el documento desde `Source.SERVER` (no se fiaba de la tarjeta), resuelve la sesión vieja
+  por `groupId` + fecha ISO con un límite de 10 candidatos en orden de ID, y decide el
+  efecto con la función pura `justifyAbsence()`. El rechazo no toca asistencia; aprobar un
+  registro ya `justified` es idempotente; un mark posterior de `present`/`late` no se
+  degrada. Si no aparece el registro de falta, **no se escribe nada** y se devuelve
+  `ABSENCE_NOT_FOUND` con mensaje visible, para no aprobar una justificación que no cambia
+  la asistencia del tutor. `AttendanceCounts.toFirestoreMap()` es ahora la única fuente del
+  subdocumento `counts`, compartida con `withCountsFrom`.
+
 **Tests requeridos:** mapeo del documento (incluido attachment ausente), consulta por grupos
 con troceo de 10, transiciones de estado, write batch atómico, y recálculo de contadores.
 Si se cambian reglas, agregar el test de reglas correspondiente.
+
+**Verificación del 2026-11-23:** `testDebugUnitTest` en verde (741 tests, 0 fallos). La
+decisión de asistencia (`justifyAbsence`), el recálculo/mapeado de contadores y el mensaje
+de `ABSENCE_NOT_FOUND` están cubiertos por tests JVM. **Excepción documentada:** no hay
+runner determinista de Firestore en la suite unitaria (sin emulador ni tests de
+instrumentación), así que el `WriteBatch` se verificó estructuralmente — una sola
+`batch.commit()` con las tres escrituras, `Source.SERVER` para las lecturas y ninguna
+regla nueva — y queda pendiente la prueba en dispositivo aprobando como directora.
 
 ---
 

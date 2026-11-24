@@ -20,8 +20,8 @@ import kotlinx.coroutines.launch
 
 /**
  * The principal reads every report of the school and decides on the pending
- * ones. The write is a four-field update in [JustificationInboxRepository]; the
- * attendance record is deliberately left alone here.
+ * ones. [JustificationInboxRepository] commits the review together with the
+ * attendance flip; this screen only reports the result.
  */
 class AdminJustificationsViewModel(
     private val inbox: JustificationInboxRepository,

@@ -180,13 +180,13 @@ class FirestoreParentRepository(
             }.awaitAll()
         }
 
-        if (sessions.isNotEmpty() && records.all { it.second == null }) {
-            // Every record failed: that is a read problem, not "the month is empty".
-            return ParentMonthResult.Failed(RosterFailure.UNKNOWN)
-        }
+        val failed = firstRecordFailure(records.map { it.second })
+        if (failed != null) return ParentMonthResult.Failed(failed)
 
         val days = records
-            .mapNotNull { (session, record) -> record?.let { session to it } }
+            .mapNotNull { (session, record) ->
+                (record as? RecordRead.Found)?.let { session to it.row }
+            }
             .map { (session, record) ->
                 ParentDayAttendance(
                     date = session.date,
@@ -504,27 +504,32 @@ class FirestoreParentRepository(
         null
     }
 
-    private suspend fun readRecord(sessionId: String, studentId: String): RecordRow? = try {
-        val document = withTimeout(READ_TIMEOUT_MILLIS) {
-            firestore.collection(SESSIONS)
-                .document(sessionId)
-                .collection(RECORDS)
-                .document(studentId)
-                .get(Source.SERVER)
-                .await()
+    private suspend fun readRecord(sessionId: String, studentId: String): RecordRead<RecordRow> =
+        try {
+            val document = withTimeout(READ_TIMEOUT_MILLIS) {
+                firestore.collection(SESSIONS)
+                    .document(sessionId)
+                    .collection(RECORDS)
+                    .document(studentId)
+                    .get(Source.SERVER)
+                    .await()
+            }
+            if (!document.exists()) {
+                // A newly linked student has no note in older sessions. That is
+                // an empty month, not a failed read.
+                RecordRead.Missing
+            } else {
+                RecordRead.Found(
+                    RecordRow(
+                        status = document.getString(FIELD_STATUS).orEmpty(),
+                        time = document.getString(FIELD_TIME),
+                        note = document.getString(FIELD_NOTE),
+                    ),
+                )
+            }
+        } catch (error: Exception) {
+            RecordRead.Failed(error.toRosterFailure())
         }
-        if (!document.exists()) {
-            null
-        } else {
-            RecordRow(
-                status = document.getString(FIELD_STATUS).orEmpty(),
-                time = document.getString(FIELD_TIME),
-                note = document.getString(FIELD_NOTE),
-            )
-        }
-    } catch (_: Exception) {
-        null
-    }
 
     /**
      * Tasks still due for [groupId], soonest first.
@@ -792,6 +797,17 @@ internal fun parentEpochMillis(value: Any?): Long = when (value) {
 
 private fun parentStringList(value: Any?): List<String> =
     (value as? List<*>)?.mapNotNull { it as? String } ?: emptyList()
+
+/** One session's record read: absent, found, or failed for a specific reason. */
+internal sealed interface RecordRead<out T> {
+    data object Missing : RecordRead<Nothing>
+    data class Found<T>(val row: T) : RecordRead<T>
+    data class Failed(val reason: RosterFailure) : RecordRead<Nothing>
+}
+
+/** The first real read failure, ignoring sessions with no note for this child. */
+internal fun <T> firstRecordFailure(results: List<RecordRead<T>>): RosterFailure? =
+    results.firstNotNullOfOrNull { (it as? RecordRead.Failed)?.reason }
 
 internal fun parentChildFrom(id: String, data: Map<String, Any?>): ParentChild? {
     val groupId = data[FIELD_GROUP_ID] as? String ?: return null

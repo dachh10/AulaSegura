@@ -157,6 +157,69 @@ fun incidentPinChipLabel(verdict: IncidentPinVerdict): String = when {
 }
 
 /**
+ * Qué hace al tocar "Usar mi ubicación actual" y qué muestra mientras lo hace.
+ *
+ * Una sola decisión para el handler y para el botón: así un estado "Ubicando…"
+ * no puede seguir aceptando toques, y un error no puede quedar invisible mientras
+ * el botón sigue diciendo que todo está bien.
+ */
+enum class LocationButtonAction { REQUEST_PERMISSION, USE_FIX, WAIT, RETRY }
+
+/** Copy visible y habilitación del control de ubicación. */
+data class LocationButtonUi(
+    val action: LocationButtonAction,
+    val label: String,
+    val enabled: Boolean,
+    val message: String?,
+)
+
+/**
+ * Sin permiso se pide; con permiso y fix se usa; con permiso sin fix se espera una
+ * lectura fresca; si esa lectura falla se ofrece reintentar con un mensaje concreto.
+ */
+fun locationButtonUi(
+    permissionGranted: Boolean,
+    hasFix: Boolean,
+    locating: Boolean,
+    failed: Boolean,
+): LocationButtonUi = when {
+    !permissionGranted -> LocationButtonUi(
+        action = LocationButtonAction.REQUEST_PERMISSION,
+        label = "Usar mi ubicación actual",
+        enabled = true,
+        message = null,
+    )
+
+    hasFix -> LocationButtonUi(
+        action = LocationButtonAction.USE_FIX,
+        label = "Usar mi ubicación actual",
+        enabled = true,
+        message = null,
+    )
+
+    locating -> LocationButtonUi(
+        action = LocationButtonAction.WAIT,
+        label = "Ubicando…",
+        enabled = false,
+        message = null,
+    )
+
+    failed -> LocationButtonUi(
+        action = LocationButtonAction.RETRY,
+        label = "Reintentar ubicación",
+        enabled = true,
+        message = "No pudimos obtener tu ubicación. Intenta de nuevo.",
+    )
+
+    else -> LocationButtonUi(
+        action = LocationButtonAction.RETRY,
+        label = "Usar mi ubicación actual",
+        enabled = true,
+        message = null,
+    )
+}
+
+/**
  * `"2 de 3 archivos"` — the counter under the evidence grid.
  *
  * The limit is the one Remote Config delivers (`incident_media_max`), never a

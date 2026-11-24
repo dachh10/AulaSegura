@@ -90,6 +90,16 @@ visible; si falla → mensaje concreto ("No pudimos obtener tu ubicación. Inten
 No tocar la lógica de geocerca ni el guardado del incidente. Extraer la decisión a una
 función pura y cubrirla con tests; verificar en dispositivo con GPS activado y desactivado.
 
+> **Avance 2026-11-23 (rama `fix/d2-location-button`):** `LocationUiState` ahora expone
+> `failed` cuando una lectura con permiso no devuelve nada. La decisión del botón vive en
+> `locationButtonUi()` (pura): sin permiso pide permiso, con fix lo aplica, durante la lectura
+> muestra «Ubicando…» con el botón deshabilitado, y si falla muestra «Reintentar ubicación»
+> junto al mensaje «No pudimos obtener tu ubicación. Intenta de nuevo.». El handler del clic y
+> la UI consumen la misma decisión, así que no puede haber etiqueta sin acción. La geocerca y
+> el guardado del incidente quedan intactos. Cubierto por 6 tests JVM. **Excepción
+> documentada:** no hay runner determinista para el estado Compose ni para el GPS real en la
+> suite unitaria; queda pendiente la verificación en dispositivo con GPS activado y desactivado.
+
 ---
 
 ## D3 — Pantalla "Solicitud rechazada" se reinicia en bucle

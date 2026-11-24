@@ -93,9 +93,17 @@ class TeacherNoticeNewViewModel(
             initialValue = TeacherNoticeNewUi(teacherName = teacherName),
         )
 
-    /** Preselects the classroom the teacher was viewing before opening the form. */
+    /**
+     * Preselects the classroom the teacher was viewing before opening the form.
+     *
+     * The route argument can be stale (a group merged or renamed while the screen
+     * was in the back stack). Selecting it anyway would make `publish()` reject a
+     * group the teacher does have, while "Todos mis grupos" — which is rebuilt
+     * from the live roster — works. Only select an id the roster knows.
+     */
     fun preselectGroup(groupId: String) {
         if (published.value) return
+        if (groupId.isBlank() || groupId !in myGroups.value.map { it.id }) return
         selectedGroupIds.value = setOf(groupId)
     }
 

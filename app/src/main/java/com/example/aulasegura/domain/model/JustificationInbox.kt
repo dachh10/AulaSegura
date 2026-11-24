@@ -29,6 +29,21 @@ enum class JustificationStatus(val wire: String) {
     }
 }
 
+/** What the principal decided about a report. */
+enum class JustificationDecision { APPROVE, REJECT }
+
+/**
+ * One decision, as the principal makes it.
+ *
+ * [note] is optional; a blank note clears any previous one, which is what the
+ * dialog shows when it opens empty.
+ */
+data class JustificationReview(
+    val justificationId: String,
+    val decision: JustificationDecision,
+    val note: String = "",
+)
+
 /** The receipt of a justification, already uploaded to Cloudinary. */
 data class JustificationEvidence(
     val publicId: String?,

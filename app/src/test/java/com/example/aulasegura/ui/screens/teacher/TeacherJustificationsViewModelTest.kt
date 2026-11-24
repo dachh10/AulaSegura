@@ -3,9 +3,11 @@ package com.example.aulasegura.ui.screens.teacher
 import com.example.aulasegura.domain.model.Group
 import com.example.aulasegura.domain.model.JustificationRecord
 import com.example.aulasegura.domain.model.JustificationStatus
+import com.example.aulasegura.domain.model.JustificationReview
 import com.example.aulasegura.domain.repository.GroupRepository
 import com.example.aulasegura.domain.repository.JustificationInboxRepository
 import com.example.aulasegura.domain.repository.JustificationInboxResult
+import com.example.aulasegura.domain.repository.JustificationReviewResult
 import com.example.aulasegura.domain.repository.RosterFailure
 import com.example.aulasegura.domain.repository.RosterRefreshResult
 import java.util.TimeZone
@@ -174,4 +176,10 @@ private class FakeInbox(
         requestedGroups = groupIds
         return result
     }
+
+    override suspend fun loadForSchool(): JustificationInboxResult =
+        throw UnsupportedOperationException("school-wide reads belong to the principal")
+
+    override suspend fun review(request: JustificationReview): JustificationReviewResult =
+        throw UnsupportedOperationException("the teacher inbox is read only")
 }

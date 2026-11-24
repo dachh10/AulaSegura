@@ -89,6 +89,7 @@ fun reviewStudentRoute(uid: String, alumno: String): String =
     const val ADMIN_GROUPS = "admin/groups"
     const val ADMIN_GROUP_DETAIL = "admin/groups/{groupId}"
     const val ADMIN_REPORTS = "admin/reports"
+    const val ADMIN_JUSTIFICATIONS = "admin/justifications"
     const val ADMIN_INCIDENTS = "admin/incidents"
     const val ADMIN_CAMPUS = "admin/campus"
     const val ADMIN_MORE = "admin/more"

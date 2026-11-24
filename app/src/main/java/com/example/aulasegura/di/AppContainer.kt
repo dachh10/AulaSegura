@@ -105,6 +105,7 @@ import com.example.aulasegura.ui.screens.admin.AdminDashboardViewModel
 import com.example.aulasegura.ui.screens.admin.AdminGroupDetailViewModel
 import com.example.aulasegura.ui.screens.admin.AdminGroupsViewModel
 import com.example.aulasegura.ui.screens.admin.AdminIncidentsViewModel
+import com.example.aulasegura.ui.screens.admin.AdminJustificationsViewModel
 import com.example.aulasegura.ui.screens.admin.AdminNewStudentViewModel
 import com.example.aulasegura.ui.screens.admin.ReviewStudentViewModel
 import com.example.aulasegura.ui.screens.admin.TeacherRequestsViewModel
@@ -914,6 +915,9 @@ class AppViewModelFactory(
 
         modelClass.isAssignableFrom(AdminIncidentsViewModel::class.java) ->
             AdminIncidentsViewModel(incidents = container.adminIncidentRepository)
+
+        modelClass.isAssignableFrom(AdminJustificationsViewModel::class.java) ->
+            AdminJustificationsViewModel(inbox = container.justificationInboxRepository)
 
         modelClass.isAssignableFrom(TeacherRequestsViewModel::class.java) ->
             TeacherRequestsViewModel(users = container.adminUserRepository)

@@ -1,17 +1,27 @@
 package com.example.aulasegura.data.repository
 
+import com.example.aulasegura.domain.model.JustificationDecision
 import com.example.aulasegura.domain.model.JustificationEvidence
 import com.example.aulasegura.domain.model.JustificationRecord
+import com.example.aulasegura.domain.model.JustificationReview
 import com.example.aulasegura.domain.model.JustificationStatus
+import com.example.aulasegura.domain.model.UserRole
 import com.example.aulasegura.domain.repository.AuthRepository
 import com.example.aulasegura.domain.repository.JustificationInboxRepository
 import com.example.aulasegura.domain.repository.JustificationInboxResult
+import com.example.aulasegura.domain.repository.JustificationReviewFailure
+import com.example.aulasegura.domain.repository.JustificationReviewResult
+import com.example.aulasegura.domain.repository.RosterFailure
 import com.google.firebase.Timestamp
 import com.google.firebase.firestore.DocumentSnapshot
 import com.google.firebase.firestore.FirebaseFirestore
+import com.google.firebase.firestore.FirebaseFirestoreException
+import com.google.firebase.firestore.FieldValue
 import com.google.firebase.firestore.Source
+import com.google.firebase.FirebaseNetworkException
 import java.util.Date
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
@@ -66,6 +76,70 @@ class FirestoreJustificationInboxRepository(
         return JustificationInboxResult.Loaded(records)
     }
 
+    override suspend fun loadForSchool(): JustificationInboxResult {
+        val user = auth.currentUser ?: return JustificationInboxResult.SignedOut
+        // The rule grants the school-wide read to a principal only. Asking as
+        // anyone else would be denied by the backend, but saying it here keeps
+        // the screen message honest and saves a round trip.
+        if (user.role != UserRole.ADMIN) {
+            return JustificationInboxResult.Failed(RosterFailure.DENIED)
+        }
+
+        val documents = try {
+            withTimeout(READ_TIMEOUT_MILLIS) {
+                firestore.collection(COLLECTION)
+                    .whereEqualTo(FIELD_SCHOOL_ID, user.schoolId)
+                    .limit(QUERY_LIMIT)
+                    .get(Source.SERVER)
+                    .await()
+                    .documents
+            }
+        } catch (error: Exception) {
+            return JustificationInboxResult.Failed(error.toRosterFailure())
+        }
+
+        val records = documents
+            .mapNotNull { document -> document.data?.let { justificationFrom(document.id, it) } }
+            .sortedByDescending { it.createdAtMillis }
+        return JustificationInboxResult.Loaded(records)
+    }
+
+    override suspend fun review(request: JustificationReview): JustificationReviewResult {
+        val user = auth.currentUser ?: return JustificationReviewResult.SignedOut
+        // Same guard as the read: the rules are the authority, this is the
+        // explanation the screen can print without waiting for a denial.
+        if (user.role != UserRole.ADMIN) {
+            return JustificationReviewResult.Failed(JustificationReviewFailure.DENIED)
+        }
+        val id = request.justificationId
+        if (id.isBlank()) {
+            return JustificationReviewResult.Failed(JustificationReviewFailure.NOT_FOUND)
+        }
+
+        val status = when (request.decision) {
+            JustificationDecision.APPROVE -> JustificationStatus.APPROVED
+            JustificationDecision.REJECT -> JustificationStatus.REJECTED
+        }.wire
+
+        // Exactly the four fields firestore.rules allows in changedKeys(). A
+        // `set()` here would overwrite the tutor's report, so `update()` is the
+        // only safe write.
+        val changes = mapOf<String, Any>(
+            FIELD_STATUS to status,
+            FIELD_REVIEWED_BY to user.uid,
+            FIELD_REVIEWED_AT to FieldValue.serverTimestamp(),
+            FIELD_REVIEW_NOTE to request.note.trim(),
+        )
+        return try {
+            withTimeout(WRITE_TIMEOUT_MILLIS) {
+                firestore.collection(COLLECTION).document(id).update(changes).await()
+            }
+            JustificationReviewResult.Success
+        } catch (error: Exception) {
+            JustificationReviewResult.Failed(error.toReviewFailure())
+        }
+    }
+
     private suspend fun loadGroup(groupId: String): List<DocumentSnapshot> =
         withTimeout(READ_TIMEOUT_MILLIS) {
             firestore.collection(COLLECTION)
@@ -79,11 +153,41 @@ class FirestoreJustificationInboxRepository(
     private companion object {
         const val COLLECTION = "justifications"
         const val FIELD_GROUP_ID = "groupId"
+        const val FIELD_SCHOOL_ID = "schoolId"
+        const val FIELD_STATUS = "status"
+        const val FIELD_REVIEWED_BY = "reviewedBy"
+        const val FIELD_REVIEWED_AT = "reviewedAt"
+        const val FIELD_REVIEW_NOTE = "reviewNote"
         const val READ_TIMEOUT_MILLIS = 15_000L
+        const val WRITE_TIMEOUT_MILLIS = 15_000L
 
         /** A group's term, not a download. */
         const val QUERY_LIMIT = 100L
     }
+}
+
+/**
+ * A failed decision has to say whether retrying could help. Kept as a pure
+ * mapping so the message a principal sees is pinned by a test, not guessed from
+ * an exception type at the call site.
+ */
+internal fun Exception.toReviewFailure(): JustificationReviewFailure = when {
+    this is TimeoutCancellationException -> JustificationReviewFailure.OFFLINE
+    this is FirebaseNetworkException -> JustificationReviewFailure.OFFLINE
+    this is FirebaseFirestoreException && (
+        code == FirebaseFirestoreException.Code.UNAVAILABLE ||
+            code == FirebaseFirestoreException.Code.DEADLINE_EXCEEDED
+        ) -> JustificationReviewFailure.OFFLINE
+
+    this is FirebaseFirestoreException && (
+        code == FirebaseFirestoreException.Code.PERMISSION_DENIED ||
+            code == FirebaseFirestoreException.Code.UNAUTHENTICATED
+        ) -> JustificationReviewFailure.DENIED
+
+    this is FirebaseFirestoreException &&
+        code == FirebaseFirestoreException.Code.NOT_FOUND -> JustificationReviewFailure.NOT_FOUND
+
+    else -> JustificationReviewFailure.UNKNOWN
 }
 
 /**

@@ -5,6 +5,9 @@ import androidx.lifecycle.viewModelScope
 import com.example.aulasegura.domain.repository.GroupRepository
 import com.example.aulasegura.domain.repository.JustificationInboxRepository
 import com.example.aulasegura.domain.repository.JustificationInboxResult
+import com.example.aulasegura.ui.screens.justifications.justificationFailureMessage
+import com.example.aulasegura.ui.screens.justifications.justificationSections
+import com.example.aulasegura.ui.screens.justifications.toCardUi
 import java.util.TimeZone
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow

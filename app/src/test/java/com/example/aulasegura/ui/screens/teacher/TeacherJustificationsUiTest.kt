@@ -4,6 +4,9 @@ import com.example.aulasegura.domain.model.JustificationEvidence
 import com.example.aulasegura.domain.model.JustificationRecord
 import com.example.aulasegura.domain.model.JustificationStatus
 import com.example.aulasegura.domain.repository.RosterFailure
+import com.example.aulasegura.ui.screens.justifications.justificationFailureMessage
+import com.example.aulasegura.ui.screens.justifications.justificationSections
+import com.example.aulasegura.ui.screens.justifications.toCardUi
 import java.util.TimeZone
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull

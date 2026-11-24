@@ -121,6 +121,13 @@ pantalla queda quieta y "Cerrar sesión" responde al primer toque.
 
 ## D4 — La justificación del tutor no le llega al docente (ANÁLISIS PROFUNDO)
 
+> **Avance 2026-11-23 (rama `fix/d4-justification-inbox`):** Etapa 1 (bandeja de lectura
+> del docente) y Etapa 2 (bandeja de la directora con aprobación/rechazo y nota) quedan
+> implementadas y verificadas con tests unitarios. La tarjeta es compartida por ambos
+> roles. **Etapa 3 (el cambio del registro de asistencia a `justified`) sigue pendiente:**
+> requiere la confirmación de Diego sobre quién aprueba y si la falta debe pasar a
+> `justified` y no a `present`. No se tocó `firestore.rules`.
+
 ### Qué pasa hoy, con evidencia
 
 - `data/repository/QueuedJustificationRepository.kt:43-94`: `submit()` guarda el comprobante

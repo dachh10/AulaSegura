@@ -40,8 +40,10 @@ import kotlinx.coroutines.withTimeout
  * justifications", the one answer that would hide a family's report.
  *
  * The rules authorize a teacher by `groupId in myGroups()` and the principal by
- * `schoolId == mySchool()`. Every query here uses exactly one of those clauses,
- * which keeps it provable without a composite index.
+ * `schoolId == mySchool()`. Every inbox query uses exactly one of those clauses,
+ * which keeps it provable without a composite index. The legacy session lookup
+ * is the exception: the principal's read needs `schoolId`, so it carries all
+ * three equality filters and its composite index lives in firestore.indexes.json.
  */
 class FirestoreJustificationInboxRepository(
     private val firestore: FirebaseFirestore,
@@ -206,7 +208,7 @@ class FirestoreJustificationInboxRepository(
         record: JustificationRecord,
     ): ApprovalTarget {
         val sessionId = record.sessionId.ifBlank {
-            resolveLegacySession(record.groupId, record.studentId, record.dateFromMillis)
+            resolveLegacySession(schoolId, record.groupId, record.studentId, record.dateFromMillis)
         } ?: return ApprovalTarget.AbsenceMissing
 
         val snapshot = loadSession(sessionId) ?: return ApprovalTarget.AbsenceMissing
@@ -233,12 +235,16 @@ class FirestoreJustificationInboxRepository(
      * describes one absence, not the whole day.
      */
     private suspend fun resolveLegacySession(
+        schoolId: String,
         groupId: String,
         studentId: String,
         dateFromMillis: Long,
     ): String? {
-        if (groupId.isBlank() || studentId.isBlank() || dateFromMillis <= 0L) return null
+        if (schoolId.isBlank() || groupId.isBlank() || studentId.isBlank() || dateFromMillis <= 0L) return null
+        // A list query is provable only from its own constraints: without schoolId
+        // the principal's read rule denies this lookup with PERMISSION_DENIED.
         val sessions = firestore.collection(SESSIONS)
+            .whereEqualTo(FIELD_SCHOOL_ID, schoolId)
             .whereEqualTo(FIELD_GROUP_ID, groupId)
             .whereEqualTo(FIELD_DATE, AttendanceTimes.isoDate(dateFromMillis))
             .limit(LEGACY_SESSION_LIMIT)

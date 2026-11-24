@@ -1,9 +1,18 @@
 # Correcciones pendientes — presentación del proyecto
 
-Fecha: 2026-11-23. Estado del repo: `main` alineado con `origin/main` (incluye el APK firmado
-con Play Integrity y el fix del mapeo de error de atestación).
+Fecha: 2026-11-24. Estado del repo: `main` con los arreglos de la colaboradora mergeados
+(justificaciones, ubicación, pantalla rechazada) y el fix de asistencia de tutor.
 APK de entrega: `C:\Users\diego\Documents\AulaSegura.apk`, firmado con el keystore de
-release. **No se regenera hasta que estos arreglos estén mergeados.**
+release.
+
+> **Resuelto 2026-11-24 — "No se pudo cargar" en Inicio/Asistencia de un tutor nuevo.**
+> No era la base de datos. Lectura de solo lectura de Firestore: los 3 tutores tienen
+> `studentIds`, `groupIds` y `tutorIds` coherentes; el tutor afectado tiene un alumno con
+> 3 sesiones de asistencia y **0 registros** del alumno en esas sesiones. Los otros tutores
+> sí tienen 1–3 registros. `readRecord()` tragaba todas las excepciones y devolvía `null`,
+> y `loadMonth()` interpretaba "todos null" como fallo de carga. Ahora `Missing` es un mes
+> vacío y `Failed` conserva el motivo real (denegado / sin conexión). Ver commit
+> `e1b11c4` y `ParentRecordReadTest`.
 
 ## Reglas de trabajo
 

@@ -594,3 +594,85 @@ class RegisterViewModelTest {
         assertEquals("Ana Pérez Ruiz", vm.uiState.value.childName)
     }
 }
+
+/** A rejected teacher must never be handed a proceed: it points back to itself. */
+@OptIn(ExperimentalCoroutinesApi::class)
+class AccessStateRejectionTest {
+
+    private val dispatcher = StandardTestDispatcher()
+
+    @Before
+    fun setUp() = Dispatchers.setMain(dispatcher)
+
+    @After
+    fun tearDown() = Dispatchers.resetMain()
+
+    private fun teacher(estado: String) = user(UserRole.TEACHER).copy(estado = estado)
+
+    @Test
+    fun `a rejected teacher stays put after refreshState`() = runTest(dispatcher) {
+        val repo = FakeAuthRepository()
+        repo.currentUser = teacher("rechazado")
+        val vm = AccessStateViewModel(repo)
+        advanceUntilIdle()
+        assertFalse(vm.uiState.value.proceed)
+
+        vm.refreshState()
+        advanceUntilIdle()
+
+        assertFalse(vm.uiState.value.proceed)
+        assertTrue(vm.uiState.value.isRejected)
+        assertEquals(Routes.ACCOUNT_REVIEW, vm.uiState.value.nextRoute())
+    }
+
+    @Test
+    fun `an approved teacher still proceeds after refreshState`() = runTest(dispatcher) {
+        val repo = FakeAuthRepository()
+        repo.currentUser = teacher("aprobado")
+        val vm = AccessStateViewModel(repo)
+        advanceUntilIdle()
+
+        vm.refreshState()
+        advanceUntilIdle()
+
+        assertTrue(vm.uiState.value.proceed)
+        assertEquals(Routes.TEACHER_HOME, vm.uiState.value.nextRoute())
+    }
+
+    @Test
+    fun `a rejected linking snapshot never grants proceed`() = runTest(dispatcher) {
+        val state = MutableStateFlow(LinkingState(estado = "rechazado"))
+        val repo = FakeAuthRepository(linkingState = state)
+        repo.currentUser = teacher("rechazado")
+        val vm = AccessStateViewModel(repo)
+        advanceUntilIdle()
+
+        assertFalse(vm.uiState.value.proceed)
+        assertEquals("rechazado", vm.uiState.value.estado)
+
+        state.value = LinkingState(estado = "rechazado")
+        advanceUntilIdle()
+        assertFalse(vm.uiState.value.proceed)
+    }
+
+    @Test
+    fun `an approved linking snapshot still grants proceed`() = runTest(dispatcher) {
+        val state = MutableStateFlow(LinkingState(estado = "pendiente"))
+        val repo = FakeAuthRepository(linkingState = state)
+        repo.currentUser = teacher("pendiente")
+        val vm = AccessStateViewModel(repo)
+        advanceUntilIdle()
+        assertFalse(vm.uiState.value.proceed)
+
+        state.value = LinkingState(estado = "aprobado")
+        advanceUntilIdle()
+
+        assertTrue(vm.uiState.value.proceed)
+    }
+
+    @Test
+    fun `entry refresh is skipped only for a rejected account`() {
+        assertFalse(shouldAutoRefreshOnEntry(rejected = true))
+        assertTrue(shouldAutoRefreshOnEntry(rejected = false))
+    }
+}

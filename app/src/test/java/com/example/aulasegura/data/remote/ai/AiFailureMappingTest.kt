@@ -1,6 +1,7 @@
 package com.example.aulasegura.data.remote.ai
 
 import com.example.aulasegura.domain.repository.AiFailure
+import com.google.firebase.FirebaseException
 import java.io.IOException
 import java.net.UnknownHostException
 import org.junit.Assert.assertEquals
@@ -86,6 +87,30 @@ class AiFailureMappingTest {
     @Test
     fun `anything unexpected falls back to unknown`() {
         assertEquals(AiFailure.UNKNOWN, aiFailureFor(IllegalStateException("boom")))
+    }
+
+    @Test
+    fun `an app check attestation rejection is a configuration problem, not a retry`() {
+        // Observed on a release APK whose signing certificate was not accepted by
+        // the App Check Play Integrity provider: the AI SDK wraps the App Check
+        // failure in a plain FirebaseException with this exact body. Telling the
+        // tutor to "try again in a while" is wrong — no retry clears it.
+        assertEquals(
+            AiFailure.NOT_CONFIGURED,
+            aiFailureFor(
+                FirebaseException(
+                    "Error returned from API. code: 403 body: App attestation failed.",
+                ),
+            ),
+        )
+    }
+
+    @Test
+    fun `a firebase error that is not about attestation keeps the generic message`() {
+        assertEquals(
+            AiFailure.UNKNOWN,
+            aiFailureFor(FirebaseException("Error returned from API. code: 500 body: internal")),
+        )
     }
 
     @Test

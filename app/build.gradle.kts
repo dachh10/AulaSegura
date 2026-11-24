@@ -92,6 +92,16 @@ android {
         buildConfig = true
     }
 
+    testOptions {
+        unitTests {
+            // `FirebaseException` valida su mensaje con `Preconditions.checkNotEmpty`,
+            // que termina en `android.text.TextUtils`. Sin esto, construir uno en un
+            // test JVM lanza "Method isEmpty in android.text.TextUtils not mocked"
+            // antes de poder comprobar el mapeo.
+            isReturnDefaultValues = true
+        }
+    }
+
     lint {
         // Falso positivo de AGP 9 sobre un detector de androidx.activity: la app
         // es puramente Compose (MainActivity extiende ComponentActivity) y no

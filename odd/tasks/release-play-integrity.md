@@ -102,3 +102,17 @@ the change took roughly 30 seconds to propagate: a 19:10:20 attempt still return
 19:10:55 attempt succeeded. Verified end to end at 19:13: the model answered
 "Sobre Enrique Peña Nieto: tareas pendientes, sin registro. Sobre Juan Pablo Rios Trujillo:
 tareas pendientes, sin registro." with no App Check error in logcat.
+
+L10 — Error mapping follow-up: an App Check attestation rejection reached the tutor as
+`AiFailure.UNKNOWN` ("intenta de nuevo en un rato"), which is wrong copy for a setup
+problem. `aiFailureFor` now maps a `FirebaseException` whose message contains
+`App attestation failed` to `NOT_CONFIGURED`, and leaves every other `FirebaseException`
+in `UNKNOWN`. Two JVM tests pin both branches. Constructing `FirebaseException` in a unit
+test needs `testOptions.unitTests.isReturnDefaultValues = true`, because its constructor
+calls `Preconditions.checkNotEmpty` → `android.text.TextUtils`; the flag is scoped to unit
+tests and documented in `app/build.gradle.kts`. Suite: 111 suites / 705 tests / 0 failures.
+Rebuilt artifact after the change: `C:\Users\diego\Documents\AulaSegura.apk`, 26 731 965
+bytes, SHA-256 `794F979EF44F3F6AFF2DE87D63227DBF04713F972622F913533B55A03F420A0F`, same
+release certificate (`4c17ebc3…`) so it installs over the previous build with `-r`.
+Smoke test on the device at 19:30: the assistant answered and logcat had no App Check or
+quota error.

@@ -348,7 +348,7 @@ lo que necesita un asistente de preguntas cortas.
 | J1 | Service Usage API: `generativelanguage` y `firebasevertexai` en `ENABLED` |
 | J2 | Cloud Billing API: `billingEnabled=False` para `aulasegu` |
 | J3 | Device: `session: Success(uid=3lXeJEvp…)`, `ask: starting, assistant available=true`, `ask: finished with Answer` — 3.5 s, `OK (1 test)` |
-| J4 | `AiFailureMappingTest`: 8 casos con las excepciones reales del SDK (construidas por reflexión, porque los constructores son `internal`) + un `429` real observado al insistir |
+| J4 | `AiFailureMappingTest`: 10 casos con las excepciones reales del SDK (construidas por reflexión, porque los constructores son `internal`) + un `429` real observado al insistir + el `403 App attestation failed` de App Check, que ahora se mapea a `NOT_CONFIGURED` |
 
 > **Si el asistente "no contesta", mirá el modelo antes que el código.** El 2026-11-13
 > `gemini-3.8-flash` devolvía `500 high demand` o dejaba la conexión abierta sin responder

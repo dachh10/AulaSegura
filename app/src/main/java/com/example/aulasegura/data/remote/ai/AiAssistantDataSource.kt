@@ -6,6 +6,7 @@ import com.example.aulasegura.domain.repository.AiAnswer
 import com.example.aulasegura.domain.repository.AiAssistant
 import com.example.aulasegura.domain.repository.AiFailure
 import com.google.firebase.Firebase
+import com.google.firebase.FirebaseException
 import com.google.firebase.ai.GenerativeModel
 import com.google.firebase.ai.ai
 import com.google.firebase.ai.type.APINotConfiguredException
@@ -146,6 +147,16 @@ internal fun aiFailureFor(error: Throwable): AiFailure = when (error) {
     is ContentBlockedException,
     -> AiFailure.BLOCKED
 
+    // App Check refused the attestation, which is what a release APK gets when the
+    // provider in the console does not accept its signing certificate. The SDK
+    // wraps that in a plain FirebaseException whose body is the only clue, and no
+    // retry clears it: the tutor has to reach the school.
+    is FirebaseException -> if (error.isAttestationFailure()) {
+        AiFailure.NOT_CONFIGURED
+    } else {
+        AiFailure.UNKNOWN
+    }
+
     is RequestTimeoutException -> AiFailure.NETWORK
 
     is IOException -> AiFailure.NETWORK
@@ -157,3 +168,7 @@ private fun ServerException.looksLikeQuotaExhaustion(): Boolean {
     val text = message?.uppercase() ?: return false
     return "RESOURCE_EXHAUSTED" in text || "429" in text || "QUOTA" in text
 }
+
+/** The App Check body, which is the only thing the SDK exposes for this case. */
+private fun FirebaseException.isAttestationFailure(): Boolean =
+    message?.contains("App attestation failed", ignoreCase = true) == true

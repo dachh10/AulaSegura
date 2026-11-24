@@ -70,6 +70,7 @@ fun linkChildRoute(mode: String): String = "link_child?mode=$mode"
     const val TEACHER_CHAT = "teacher/chat"
     const val TEACHER_CONVERSATION = "teacher/chat/{conversationId}"
     const val TEACHER_HISTORY = "teacher/history"
+    const val TEACHER_JUSTIFICATIONS = "teacher/justifications"
     const val TEACHER_NOTIFICATIONS = "teacher/notifications"
     const val TEACHER_PROFILE = "teacher/profile"
 

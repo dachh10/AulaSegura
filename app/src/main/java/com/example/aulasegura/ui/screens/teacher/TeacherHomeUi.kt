@@ -29,6 +29,8 @@ data class TeacherHomeUi(
     val summary: TodaySummaryUi = TodaySummaryUi(),
     val activity: List<ActivityRowUi> = emptyList(),
     val unreadNotifications: Int = 0,
+    /** Families' reports waiting for the school; the card hides at zero. */
+    val pendingJustifications: Int = 0,
     val loading: Boolean = true,
 )
 

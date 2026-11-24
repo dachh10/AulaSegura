@@ -4,7 +4,10 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.aulasegura.domain.repository.AttendanceHistoryRepository
 import com.example.aulasegura.domain.repository.GroupRepository
+import com.example.aulasegura.domain.model.JustificationStatus
 import com.example.aulasegura.domain.repository.IncidentHistoryRepository
+import com.example.aulasegura.domain.repository.JustificationInboxRepository
+import com.example.aulasegura.domain.repository.JustificationInboxResult
 import com.example.aulasegura.domain.repository.NoticeRepository
 import com.example.aulasegura.domain.repository.NotificationRepository
 import com.example.aulasegura.domain.repository.RosterFailure
@@ -18,6 +21,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
@@ -31,7 +35,7 @@ import kotlinx.coroutines.launch
  * instead of printing a number that looks real.
  */
 class TeacherHomeViewModel(
-    groups: GroupRepository,
+    private val groups: GroupRepository,
     schedule: ScheduleRepository,
     history: AttendanceHistoryRepository,
     incidents: IncidentHistoryRepository,
@@ -39,11 +43,13 @@ class TeacherHomeViewModel(
     notices: NoticeRepository,
     notifications: NotificationRepository,
     pending: SyncQueueRepository,
+    private val justifications: JustificationInboxRepository,
     private val now: () -> Long = System::currentTimeMillis,
     private val zone: TimeZone = TimeZone.getDefault(),
 ) : ViewModel() {
 
     private val scheduleState = MutableStateFlow<ScheduleLoadResult?>(null)
+    private val pendingJustifications = MutableStateFlow(0)
 
     private val myGroups = groups.observeMyGroups()
     private val sessions = history.observeHistory()
@@ -51,6 +57,29 @@ class TeacherHomeViewModel(
 
     init {
         viewModelScope.launch { scheduleState.value = schedule.loadSchedule() }
+        refreshJustifications()
+    }
+
+    /**
+     * Re-reads the pending report count. The screen calls it again when it comes
+     * back from another tab: a report approved while the teacher was elsewhere
+     * must not keep a stale badge.
+     */
+    fun refreshJustifications() {
+        viewModelScope.launch {
+            val groupIds = runCatching {
+                groups.observeMyGroups().first().map { it.id }
+            }.getOrDefault(emptyList())
+
+            pendingJustifications.value = when (val result = justifications.loadForGroups(groupIds)) {
+                is JustificationInboxResult.Loaded ->
+                    result.justifications.count { it.status == JustificationStatus.PENDING }
+
+                // The card is an extra, not the home: a failed count is zero and
+                // the teacher still has the whole dashboard.
+                else -> 0
+            }
+        }
     }
 
     private val activity = combine(
@@ -75,7 +104,7 @@ class TeacherHomeViewModel(
         )
     }
 
-    val state: StateFlow<TeacherHomeUi> = combine(
+    private val dashboard = combine(
         myGroups,
         scheduleState,
         activity,
@@ -99,6 +128,13 @@ class TeacherHomeViewModel(
             unreadNotifications = unread,
             loading = schedule == null,
         )
+    }
+
+    val state: StateFlow<TeacherHomeUi> = combine(
+        dashboard,
+        pendingJustifications,
+    ) { home, pending ->
+        home.copy(pendingJustifications = pending)
     }.stateIn(
         scope = viewModelScope,
         started = SharingStarted.WhileSubscribed(STOP_MILLIS),

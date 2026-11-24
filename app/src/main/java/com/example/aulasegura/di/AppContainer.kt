@@ -42,6 +42,7 @@ import com.example.aulasegura.data.repository.RoomAttendanceRepository
 import com.example.aulasegura.data.repository.RoomIncidentRepository
 import com.example.aulasegura.data.repository.FirestoreChatRepository
 import com.example.aulasegura.data.repository.FirestoreNotificationRepository
+import com.example.aulasegura.data.repository.FirestoreJustificationInboxRepository
 import com.example.aulasegura.data.repository.FirestoreParentRepository
 import com.example.aulasegura.data.repository.FirestorePushTokenRepository
 import com.example.aulasegura.data.repository.QueuedJustificationRepository
@@ -61,6 +62,7 @@ import com.example.aulasegura.domain.repository.AttendanceRepository
 import com.example.aulasegura.domain.repository.AuthRepository
 import com.example.aulasegura.domain.repository.ChatRepository
 import com.example.aulasegura.domain.repository.NotificationRepository
+import com.example.aulasegura.domain.repository.JustificationInboxRepository
 import com.example.aulasegura.domain.repository.JustificationRepository
 import com.example.aulasegura.domain.repository.ParentRepository
 import com.example.aulasegura.domain.repository.PushTokenRepository
@@ -129,6 +131,7 @@ import com.example.aulasegura.ui.screens.teacher.TeacherGroupsViewModel
 import com.example.aulasegura.ui.screens.teacher.TeacherHistoryViewModel
 import com.example.aulasegura.ui.screens.teacher.TeacherHomeViewModel
 import com.example.aulasegura.ui.screens.teacher.TeacherIncidentViewModel
+import com.example.aulasegura.ui.screens.teacher.TeacherJustificationsViewModel
 import com.example.aulasegura.ui.screens.teacher.TeacherChatViewModel
 import com.example.aulasegura.ui.screens.teacher.TeacherConversationViewModel
 import com.example.aulasegura.ui.screens.teacher.TeacherNoticeNewViewModel
@@ -332,6 +335,18 @@ class AppContainer(context: Context) {
             auth = authRepository,
             scheduling = syncScheduler,
             analytics = analyticsLogger,
+        )
+    }
+
+    /**
+     * The read side of the same documents, for the teacher inbox and the
+     * principal's review. Online-only on purpose: a cached empty list would read
+     * as "no family reported anything".
+     */
+    val justificationInboxRepository: JustificationInboxRepository by lazy {
+        FirestoreJustificationInboxRepository(
+            firestore = firestore,
+            auth = authRepository,
         )
     }
 
@@ -772,6 +787,13 @@ class AppViewModelFactory(
                 notices = container.noticeRepository,
                 notifications = container.notificationRepository,
                 pending = container.syncQueueRepository,
+                justifications = container.justificationInboxRepository,
+            )
+
+        modelClass.isAssignableFrom(TeacherJustificationsViewModel::class.java) ->
+            TeacherJustificationsViewModel(
+                groups = container.groupRepository,
+                inbox = container.justificationInboxRepository,
             )
 
         modelClass.isAssignableFrom(TeacherHistoryViewModel::class.java) ->

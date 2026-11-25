@@ -5,11 +5,14 @@ Estado de los cinco ítems originales: **D1 ✅, D2 ✅, D3 ✅, D4 ✅, D5 ✅*
 **Todos los ítems del documento están cerrados y verificados en dispositivo.**
 Además se cerraron los subdetalles derivados de grupos: grupos duplicados, materia por grupo,
 crash de arranque por una query denegada y selector de materias en tareas.
-Suite final: 125 suites / 777 tests / 0 fallos.
+Suite final: 129 suites / 787 tests / 0 fallos.
 
 > **APK de entrega actual:** `C:\Users\diego\Documents\AulaSegura.apk` (SHA-256
-> `C7438D4…`) es el build **anterior**: NO incluye nada de lo documentado abajo. Falta
-> reconstruirlo con todo antes de repartirlo.
+> `6945A120D5B0A0C68FEEF7BE79A3F270DC6AD6F9C18B8C4AA567909DADBAE711`, 25.57 MB)
+> es el **release firmado** construido desde `4c1c07a`: incluye todos los cambios
+> documentados abajo, con la firma de release verificada (`minSdk 24`, `targetSdk 37`,
+> sin flag `debuggable`). Quien tenga el build de debug debe desinstalarlo antes de
+> instalar este, porque la firma es distinta.
 
 ## Pulido visual final (2026-11-24) — 20 detalles reportados
 
@@ -51,8 +54,8 @@ la prueba en dispositivo**, que hace Diego porque no hay equipo conectado.
 | 2 | Filtros de grado en Grupos (directora) amontonados y sin 6° | Los siete chips (Todos + 1°…6°) van en `FlowRow`, con salto de línea y separación vertical. Los seis grados ya estaban en el enum; el problema era que el `Row` los sacaba de pantalla. |
 | 3 | "Registrar incidente" tardaba en abrir | `rememberCurrentLocation()` pedía un fix GPS fresco con timeout de 8 s al entrar. Ahora el formulario usa la última posición conocida (inmediata) y el botón "Usar mi ubicación actual" sí pide el fix preciso. Las pantallas de geocerca conservan el fix fresco de entrada. 3 tests JVM (`LocationFixPolicyTest`). |
 
-> **Nota para el APK final:** estos 20 cambios y los 3 detalles finales aún no están en
-> `Documents\AulaSegura.apk`.
+> **Nota para el APK final:** estos 20 cambios y los 3 detalles finales ya están en
+> `Documents\AulaSegura.apk`, junto con todo lo anterior.
 
 > **Resuelto 2026-11-24 — "No se pudo cargar" en Inicio/Asistencia de un tutor nuevo.**
 > No era la base de datos. Lectura de solo lectura de Firestore: los 3 tutores tienen

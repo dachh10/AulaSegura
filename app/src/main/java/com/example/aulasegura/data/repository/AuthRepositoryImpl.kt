@@ -608,15 +608,25 @@ class AuthRepositoryImpl(
 
         // The subject a teacher has in one group cannot leak into another: read
         // the slots from the groups themselves, not from the denormalised list.
-        val groupSlots = firestore.collection("groups")
-            .whereArrayContains("teacherIds", firebaseUser.uid)
-            .get().await().documents.associate { doc ->
-                doc.id to (doc.get("subjectTeachers") as? Map<*, *>)
-                    ?.mapNotNull { (key, value) ->
-                        (key as? String)?.let { k -> (value as? String)?.let { k to it } }
-                    }?.toMap().orEmpty()
-            }
-        val assignments = teacherSubjectProjection(groupSlots, firebaseUser.uid)
+        // A query on teacherIds is NOT provable by the rules (a listener on it is
+        // denied and crashed the app at startup). Read each group from the ids in
+        // the profile instead: a document read only needs the school to match.
+        val profileGroupIds = (snapshot.get(FIELD_GROUP_IDS) as? List<*>)
+            ?.filterIsInstance<String>().orEmpty()
+        val assignments = if (profileGroupIds.isEmpty()) {
+            emptyList()
+        } else {
+            runCatching {
+                val slots = profileGroupIds.associateWith { groupId ->
+                    val doc = firestore.collection("groups").document(groupId).get().await()
+                    (doc.get("subjectTeachers") as? Map<*, *>)
+                        ?.mapNotNull { (key, value) ->
+                            (key as? String)?.let { k -> (value as? String)?.let { k to it } }
+                        }?.toMap().orEmpty()
+                }
+                teacherSubjectProjection(slots, firebaseUser.uid)
+            }.getOrDefault(emptyList())
+        }
 
         val user = AppUser(
             uid = firebaseUser.uid,
@@ -682,6 +692,7 @@ private const val READ_TIMEOUT_MILLIS = 8_000L
         const val FIELD_ACTIVE = "active"
         const val FIELD_PHOTO_URL = "photoUrl"
         const val FIELD_SUBJECTS = "subjects"
+        const val FIELD_GROUP_IDS = "groupIds"
 const val FIELD_REQUESTED_GROUP_ID = "requestedGroupId"
 const val FIELD_REQUESTED_SUBJECT = "requestedSubject"
         const val FIELD_ROL = "rol"

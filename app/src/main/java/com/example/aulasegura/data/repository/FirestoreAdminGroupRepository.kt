@@ -282,14 +282,15 @@ class FirestoreAdminGroupRepository(
 
             // The profile list is a projection of ALL the teacher's groups:
             // overwriting it here is what made Español I replace Español V.
-            val allGroups = firestore.collection(AdminGroupFields.COLLECTION)
-                .whereArrayContains(AdminGroupFields.TEACHER_IDS, teacherUid)
-                .get().await().documents.associate { doc ->
-                    doc.id to (doc.get("subjectTeachers") as? Map<*, *>)
-                        ?.mapNotNull { (key, value) ->
-                            (key as? String)?.let { k -> (value as? String)?.let { k to it } }
-                        }?.toMap().orEmpty()
-                }
+            val teacherGroupIds = (userRef.get().await().get(AdminUserFields.GROUP_IDS) as? List<*>)
+                ?.filterIsInstance<String>().orEmpty()
+            val allGroups = teacherGroupIds.associateWith { id ->
+                val doc = firestore.collection(AdminGroupFields.COLLECTION).document(id).get().await()
+                (doc.get("subjectTeachers") as? Map<*, *>)
+                    ?.mapNotNull { (key, value) ->
+                        (key as? String)?.let { k -> (value as? String)?.let { k to it } }
+                    }?.toMap().orEmpty()
+            }
             val projected = if (assign) allGroups + (groupId to nextSubjects) else allGroups
 
             val userPayload = mutableMapOf<String, Any>(

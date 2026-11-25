@@ -39,6 +39,9 @@ class JustificationPayloadTest {
         assertEquals("Fiebre de 38 grados", document["description"])
         assertEquals("the tutor only creates; the school decides", "pendiente", document["status"])
         assertEquals("sesion-1", document["sessionId"])
+        assertEquals("doc-mates", document["teacherId"])
+        assertEquals("g3-matematicas-iii", document["subjectId"])
+        assertEquals("Matemáticas", document["subject"])
         assertEquals("Mariana Gómez Ruiz", document["studentName"])
         assertEquals("3° B", document["groupLabel"])
     }
@@ -127,6 +130,9 @@ class JustificationPayloadTest {
         createdAtMillis = 1_763_100_000_000L,
         attachment = attachment,
         sessionId = "sesion-1",
+        teacherId = "doc-mates",
+        subjectId = "g3-matematicas-iii",
+        subject = "Matemáticas",
         studentName = "Mariana Gómez Ruiz",
         groupLabel = "3° B",
     )

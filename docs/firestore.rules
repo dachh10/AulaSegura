@@ -552,14 +552,25 @@ service cloud.firestore {
       allow read: if isActive() && (
         (isDirectivo() && resource.data.schoolId == mySchool()) ||
         resource.data.tutorId == request.auth.uid ||
-        (isDocente() && resource.data.groupId in myGroups())
+        (isDocente() && (
+          resource.data.get('teacherId', '') == request.auth.uid ||
+          (resource.data.get('teacherId', '') == '' && resource.data.groupId in myGroups())
+        ))
       );
 
       allow create: if isTutor()
         && request.resource.data.tutorId == request.auth.uid
         && request.resource.data.schoolId == mySchool()
         && request.resource.data.studentId in myStudents()
-        && request.resource.data.status == 'pendiente';
+        && request.resource.data.status == 'pendiente'
+        // The recipient must be the teacher who actually closed that session.
+        // Reports queued by older builds have no sessionId and keep the legacy path.
+        // A session still waiting in the outbox has no document yet: letting that
+        // report through avoids a PERMISSION_DENIED that would drop it permanently.
+        && (request.resource.data.get('sessionId', '') == '' ||
+            !exists(/databases/$(database)/documents/attendanceSessions/$(request.resource.data.sessionId)) ||
+            get(/databases/$(database)/documents/attendanceSessions/$(request.resource.data.sessionId))
+              .data.teacherId == request.resource.data.get('teacherId', ''));
 
       // The teacher who marked the absence decides: they own the session whose
       // record will be flipped in the same batch. A tutor cannot approve their

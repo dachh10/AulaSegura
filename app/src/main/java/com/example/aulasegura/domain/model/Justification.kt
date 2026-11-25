@@ -23,6 +23,14 @@ data class JustificationDraft(
      * group and date instead.
      */
     val sessionId: String = "",
+    /**
+     * Teacher who closed [sessionId]. The document is addressed to this uid, so
+     * only that teacher's inbox shows it; the rules verify it against the session.
+     */
+    val teacherId: String = "",
+    /** Subject of the same session, so the teacher knows which absence was excused. */
+    val subjectId: String = "",
+    val subject: String = "",
     /** Denormalised for the inbox; the reader has no roster open. */
     val studentName: String = "",
     val groupLabel: String = "",

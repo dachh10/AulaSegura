@@ -169,6 +169,7 @@ class FirestoreParentRepository(
                 subject = label,
                 subjectId = resolvedSubjectId,
                 startedAt = parentEpochMillis(data[FIELD_STARTED_AT]),
+                teacherId = data[FIELD_TEACHER_ID] as? String ?: "",
             )
         }
 
@@ -197,6 +198,7 @@ class FirestoreParentRepository(
                     note = record.note,
                     subjectId = session.subjectId,
                     sessionId = session.sessionId,
+                    teacherId = session.teacherId,
                 )
             }
             .sortedWith(compareByDescending<ParentDayAttendance> { it.date }.thenByDescending { it.startedAt })
@@ -597,6 +599,7 @@ class FirestoreParentRepository(
         val subject: String,
         val subjectId: String,
         val startedAt: Long,
+        val teacherId: String,
     )
 
     private data class RecordRow(
@@ -851,6 +854,7 @@ private const val FIELD_NAME = "name"
 private const val FIELD_DATE = "date"
 private const val FIELD_SUBJECT = "subject"
 private const val FIELD_SUBJECT_ID = "subjectId"
+private const val FIELD_TEACHER_ID = "teacherId"
 private const val FIELD_STARTED_AT = "startedAt"
 private const val FIELD_STATUS = "status"
 private const val FIELD_TIME = "time"

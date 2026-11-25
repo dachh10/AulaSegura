@@ -23,6 +23,8 @@ data class JustificationCardUi(
     val status: JustificationStatus,
     val statusLabel: String,
     val reviewNote: String?,
+    /** Subject whose absence this report excuses; blank on legacy documents. */
+    val subject: String = "",
 )
 
 /**
@@ -59,6 +61,7 @@ fun JustificationRecord.toCardUi(
         status = status,
         statusLabel = justificationStatusLabel(status),
         reviewNote = reviewNote?.takeIf { it.isNotBlank() },
+        subject = subject,
     )
 }
 

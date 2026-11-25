@@ -533,6 +533,7 @@ fun AulaSeguraNavHost(
                         Routes.parentJustify(
                             studentId = loaded?.studentId,
                             date = record.isoDate,
+                            sessionId = record.sessionId,
                         ),
                     )
                 },
@@ -666,17 +667,23 @@ fun AulaSeguraNavHost(
                     nullable = true
                     defaultValue = null
                 },
+                navArgument("sessionId") {
+                    type = NavType.StringType
+                    nullable = true
+                    defaultValue = null
+                },
             ),
         ) { entry ->
             val studentId = entry.arguments?.getString("studentId")
             val absenceDate = entry.arguments?.getString("date")
+            val absenceSessionId = entry.arguments?.getString("sessionId")
             val container = rememberAppContainer()
-            val factory = remember(studentId, absenceDate) {
+            val factory = remember(studentId, absenceDate, absenceSessionId) {
                 object : ViewModelProvider.Factory {
                     @Suppress("UNCHECKED_CAST")
                     override fun <T : ViewModel> create(modelClass: Class<T>): T =
                         container.viewModelFactory
-                            .parentJustifyViewModel(studentId, absenceDate) as T
+                            .parentJustifyViewModel(studentId, absenceDate, absenceSessionId) as T
                 }
             }
             val justifyViewModel: ParentJustifyViewModel = viewModel(factory = factory)
@@ -693,6 +700,8 @@ fun AulaSeguraNavHost(
                 onDetailsChange = justifyViewModel::updateDetails,
                 onAttach = justifyViewModel::attach,
                 onRemoveReceipt = justifyViewModel::removeReceipt,
+                onToggleAbsence = justifyViewModel::toggleAbsence,
+                onApplyToAllChange = justifyViewModel::setApplyToAll,
                 onSend = justifyViewModel::send,
             )
         }

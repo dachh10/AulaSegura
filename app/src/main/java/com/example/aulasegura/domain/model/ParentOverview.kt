@@ -54,6 +54,8 @@ data class ParentDayAttendance(
     val subjectId: String = "",
     /** Session document id; the justification points at this exact record. */
     val sessionId: String = "",
+    /** Teacher who closed that session and therefore owns the absence. */
+    val teacherId: String = "",
 )
 
 /** A month of the child, ready for the calendar and the summary card. */

@@ -39,7 +39,8 @@ fun linkChildRoute(mode: String): String = "link_child?mode=$mode"
      * Query arguments and not path segments so the notification deep link keeps
      * working with [PARENT_JUSTIFY] alone.
      */
-    const val PARENT_JUSTIFY_ARGS = "$PARENT_JUSTIFY?studentId={studentId}&date={date}"
+    const val PARENT_JUSTIFY_ARGS =
+        "$PARENT_JUSTIFY?studentId={studentId}&date={date}&sessionId={sessionId}"
     const val PARENT_CHAT = "parent/chat"
     const val PARENT_CONVERSATION = "parent/chat/{conversationId}"
     const val PARENT_AI = "parent/assistant"
@@ -123,10 +124,15 @@ fun reviewStudentRoute(uid: String, alumno: String): String =
      * the ISO day of the record they touched. Both are optional: the quick access
      * from home sends nothing and the form resolves the newest absence itself.
      */
-    fun parentJustify(studentId: String? = null, date: String? = null): String {
+    fun parentJustify(
+        studentId: String? = null,
+        date: String? = null,
+        sessionId: String? = null,
+    ): String {
         val query = listOfNotNull(
             studentId?.takeIf { it.isNotBlank() }?.let { "studentId=$it" },
             date?.takeIf { it.isNotBlank() }?.let { "date=$it" },
+            sessionId?.takeIf { it.isNotBlank() }?.let { "sessionId=$it" },
         )
         return if (query.isEmpty()) PARENT_JUSTIFY else "$PARENT_JUSTIFY?${query.joinToString("&")}"
     }

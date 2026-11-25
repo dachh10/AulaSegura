@@ -24,6 +24,8 @@ class JustificationInboxMappingTest {
         assertEquals("3B", record.groupId)
         assertEquals("3° B", record.groupLabel)
         assertEquals("sesion-1", record.sessionId)
+        assertEquals("doc-mates", record.teacherId)
+        assertEquals("Matemáticas", record.subject)
         assertEquals("enfermedad", record.reason)
         assertEquals("Fiebre de 38 grados", record.description)
         assertEquals(JustificationStatus.APPROVED, record.status)
@@ -35,13 +37,16 @@ class JustificationInboxMappingTest {
 
     @Test
     fun `a document written before the inbox fields existed stays readable`() {
-        val legacy = document() - "studentName" - "groupLabel" - "sessionId" - "status"
+        val legacy = document() - "studentName" - "groupLabel" - "sessionId" -
+            "teacherId" - "subjectId" - "subject" - "status"
 
         val record = justificationFrom("just-legacy", legacy)!!
 
         assertEquals("", record.studentName)
         assertEquals("", record.groupLabel)
         assertEquals("", record.sessionId)
+        assertEquals("", record.teacherId)
+        assertEquals("", record.subject)
         assertEquals(
             "a missing status must stay actionable, never disappear",
             JustificationStatus.PENDING,
@@ -85,6 +90,9 @@ class JustificationInboxMappingTest {
         "groupId" to "3B",
         "groupLabel" to "3° B",
         "sessionId" to "sesion-1",
+        "teacherId" to "doc-mates",
+        "subjectId" to "g3-matematicas-iii",
+        "subject" to "Matemáticas",
         "reason" to "enfermedad",
         "description" to "Fiebre de 38 grados",
         "status" to "aprobada",

@@ -55,6 +55,8 @@ data class ParentAttendanceRecordUi(
     val weekday: String,
     /** ISO day of the session: the justification form points at this absence. */
     val isoDate: String,
+    /** The exact session the tutor tapped, so the form preselects that subject. */
+    val sessionId: String = "",
     val day: String,
     val title: String,
     val subtitle: String,
@@ -163,6 +165,7 @@ internal fun ParentDayAttendance.toRecentUi(
 ): ParentAttendanceRecordUi = ParentAttendanceRecordUi(
     weekday = AttendanceTimes.weekdayLabel(date, zone),
     isoDate = date,
+    sessionId = sessionId,
     day = date.takeLast(2),
     title = subject.ifBlank { "Día completo" },
     subtitle = when (mark) {

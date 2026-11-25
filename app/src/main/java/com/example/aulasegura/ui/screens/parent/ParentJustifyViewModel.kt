@@ -6,6 +6,7 @@ import com.example.aulasegura.domain.model.AttendanceMark
 import com.example.aulasegura.domain.model.JustificationAttachmentDraft
 import com.example.aulasegura.domain.model.JustificationDraft
 import com.example.aulasegura.domain.model.ParentChild
+import com.example.aulasegura.domain.model.ParentDayAttendance
 import com.example.aulasegura.domain.model.ParentMonthAttendance
 import com.example.aulasegura.domain.repository.JustificationRepository
 import com.example.aulasegura.domain.repository.JustificationResult
@@ -26,8 +27,9 @@ import kotlinx.coroutines.launch
  *
  * It points at a real absence, never at "today": [absenceIso] arrives from the
  * attendance detail when the tutor taps one record, and without it the form takes
- * the newest absence the school registered. Both paths read `attendanceSessions`,
- * so the date the principal receives is a date the school itself made.
+ * the newest absence the school registered. [absenceSessionId] picks the exact
+ * subject when several were marked absent on the same day. All paths read
+ * `attendanceSessions`, so the date the principal receives is the school's own.
  */
 class ParentJustifyViewModel(
     private val parents: ParentRepository,
@@ -36,6 +38,8 @@ class ParentJustifyViewModel(
     private val studentId: String? = null,
     /** ISO day of the absence touched in the attendance detail. */
     private val absenceIso: String? = null,
+    /** Exact session touched, so the right subject is preselected when several coincide. */
+    private val absenceSessionId: String? = null,
     private val now: () -> Long = System::currentTimeMillis,
     private val zone: TimeZone = TimeZone.getDefault(),
 ) : ViewModel() {
@@ -45,6 +49,9 @@ class ParentJustifyViewModel(
 
     private var child: ParentChild? = null
     private var absence: JustifyAbsenceUi? = null
+    private var absences: List<JustifyAbsenceUi> = emptyList()
+    private var selectedKeys: Set<String> = emptySet()
+    private var applyToAll = false
     private var emptyMessage: String? = null
     private var reason = JustificationReason.ILLNESS
     private var details = ""
@@ -85,10 +92,34 @@ class ParentJustifyViewModel(
         publish()
     }
 
-    fun send() {
-        val target = absence ?: return
-        val current = child ?: return
+    /** Selects or deselects one subject's absence; "all subjects" turns itself off. */
+    fun toggleAbsence(key: String) {
         if (sending || sent) return
+        // Turning off "all subjects" by unchecking one must keep the others
+        // selected, otherwise the checkboxes and the drafts disagree.
+        val base = if (applyToAll) absences.map { it.key }.toSet() else selectedKeys
+        selectedKeys = if (key in base) base - key else base + key
+        applyToAll = false
+        publish()
+    }
+
+    fun setApplyToAll(value: Boolean) {
+        if (sending || sent) return
+        applyToAll = value
+        publish()
+    }
+
+    private val selectedAbsences: List<JustifyAbsenceUi>
+        get() = when {
+            applyToAll -> absences
+            absences.isNotEmpty() -> absences.filter { it.key in selectedKeys }
+            else -> absence?.let { listOf(it) } ?: emptyList()
+        }
+
+    fun send() {
+        val targets = selectedAbsences
+        val current = child ?: return
+        if (targets.isEmpty() || sending || sent) return
 
         // Every reason except "Asunto familiar" needs the photo of the receipt.
         // A report without evidence must not reach Firestore: the reviewer would
@@ -99,11 +130,14 @@ class ParentJustifyViewModel(
             return
         }
 
-        val dateMillis = AttendanceTimes.isoDateToMillis(target.isoDate, zone)
-        if (dateMillis == null) {
-            error = "No se pudo leer la fecha de la falta."
-            publish()
-            return
+        val dated = targets.map { target ->
+            val millis = AttendanceTimes.isoDateToMillis(target.isoDate, zone)
+            if (millis == null) {
+                error = "No se pudo leer la fecha de la falta."
+                publish()
+                return
+            }
+            target to millis
         }
 
         sending = true
@@ -111,32 +145,42 @@ class ParentJustifyViewModel(
         publish()
 
         viewModelScope.launch {
-            val draft = JustificationDraft(
-                studentId = current.studentId,
-                groupId = current.groupId,
-                absenceDateMillis = dateMillis,
-                reasonCode = reason.code,
-                description = details.trim(),
-                sessionId = target.sessionId,
-                studentName = current.fullName,
-                groupLabel = current.groupLabel,
-                attachment = receipt?.let {
-                    JustificationAttachmentDraft(
-                        fileName = it.fileName,
-                        bytes = it.bytes,
-                        mimeType = it.mimeType,
-                    )
-                },
-            )
+            var queued = 0
+            var failure: String? = null
+            dated.forEach { (target, dateMillis) ->
+                // One document per absence, each addressed to the teacher who
+                // closed that session. The same reason and receipt are reused.
+                val draft = JustificationDraft(
+                    studentId = current.studentId,
+                    groupId = current.groupId,
+                    absenceDateMillis = dateMillis,
+                    reasonCode = reason.code,
+                    description = details.trim(),
+                    sessionId = target.sessionId,
+                    teacherId = target.teacherId,
+                    subjectId = target.subjectId,
+                    subject = target.subject,
+                    studentName = current.fullName,
+                    groupLabel = current.groupLabel,
+                    attachment = receipt?.let {
+                        JustificationAttachmentDraft(
+                            fileName = it.fileName,
+                            bytes = it.bytes,
+                            mimeType = it.mimeType,
+                        )
+                    },
+                )
 
-            when (justifications.submit(draft)) {
-                JustificationResult.Queued -> sent = true
-                JustificationResult.SignedOut -> error = "Vuelve a iniciar sesión."
-                JustificationResult.StorageFailed ->
-                    error = "No se pudo guardar el comprobante en el teléfono. Intenta de nuevo."
+                when (justifications.submit(draft)) {
+                    JustificationResult.Queued -> queued++
+                    JustificationResult.SignedOut -> failure = "Vuelve a iniciar sesión."
+                    JustificationResult.StorageFailed -> failure =
+                        "No se pudo guardar el comprobante en el teléfono. Intenta de nuevo."
+                }
             }
-
             sending = false
+            sent = queued == targets.size && failure == null
+            error = failure
             publish()
         }
     }
@@ -160,7 +204,11 @@ class ParentJustifyViewModel(
 
                     when (val lookup = resolveAbsence(target)) {
                         is AbsenceLookup.Found -> {
-                            absence = lookup.absence
+                            absences = lookup.absences
+                            absence = absences.firstOrNull { it.sessionId == absenceSessionId }
+                                ?: absences.firstOrNull()
+                            selectedKeys = setOf(absence?.key.orEmpty())
+                            applyToAll = false
                             emptyMessage = null
                             publish()
                         }
@@ -203,10 +251,9 @@ class ParentJustifyViewModel(
                 is MonthLookup.Failed -> return AbsenceLookup.Unavailable(loaded.reason)
             }
 
-            val record = month.days.firstOrNull {
-                it.date == touched && it.mark == AttendanceMark.ABSENT
-            } ?: return AbsenceLookup.Missing(ROUTE_ABSENCE_GONE)
-            return AbsenceLookup.Found(record.toAbsenceUi(zone))
+            val found = month.days.absencesOn(touched)
+                .ifEmpty { return AbsenceLookup.Missing(ROUTE_ABSENCE_GONE) }
+            return AbsenceLookup.Found(found)
         }
 
         val current = Calendar.getInstance(zone).apply { timeInMillis = now() }
@@ -214,17 +261,24 @@ class ParentJustifyViewModel(
             is MonthLookup.Loaded -> loaded.month
             is MonthLookup.Failed -> return AbsenceLookup.Unavailable(loaded.reason)
         }
-        newestAbsence(thisMonth.days)?.let { return AbsenceLookup.Found(it.toAbsenceUi(zone)) }
+        newestAbsence(thisMonth.days)?.let { newest ->
+            return AbsenceLookup.Found(thisMonth.days.absencesOn(newest.date))
+        }
 
         val previous = (current.clone() as Calendar).apply { add(Calendar.MONTH, -1) }
         val lastMonth = when (val loaded = monthOf(target, previous)) {
             is MonthLookup.Loaded -> loaded.month
             is MonthLookup.Failed -> return AbsenceLookup.Missing(NO_ABSENCE)
         }
-        val record = newestAbsence(lastMonth.days)
+        val newest = newestAbsence(lastMonth.days)
             ?: return AbsenceLookup.Missing(NO_ABSENCE)
-        return AbsenceLookup.Found(record.toAbsenceUi(zone))
+        return AbsenceLookup.Found(lastMonth.days.absencesOn(newest.date))
     }
+
+    /** Every subject that marked the same day absent, newest session first. */
+    private fun List<ParentDayAttendance>.absencesOn(iso: String): List<JustifyAbsenceUi> =
+        filter { it.date == iso && it.mark == AttendanceMark.ABSENT }
+            .map { it.toAbsenceUi(zone) }
 
     private suspend fun monthOf(target: ParentChild, day: Calendar): MonthLookup =
         when (
@@ -257,12 +311,15 @@ class ParentJustifyViewModel(
             sent = sent,
             error = error,
             emptyMessage = emptyMessage,
+            absences = absences,
+            selectedSessionIds = selectedKeys,
+            applyToAll = applyToAll,
         )
     }
 
     private sealed interface AbsenceLookup {
 
-        data class Found(val absence: JustifyAbsenceUi) : AbsenceLookup
+        data class Found(val absences: List<JustifyAbsenceUi>) : AbsenceLookup
 
         data class Missing(val message: String) : AbsenceLookup
 

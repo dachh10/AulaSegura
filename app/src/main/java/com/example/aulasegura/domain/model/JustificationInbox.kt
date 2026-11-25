@@ -77,4 +77,8 @@ data class JustificationRecord(
     val reviewNote: String?,
     /** Empty on documents written before the field existed. */
     val sessionId: String,
+    /** Empty on legacy documents; new ones are addressed to exactly one teacher. */
+    val teacherId: String = "",
+    val subjectId: String = "",
+    val subject: String = "",
 )

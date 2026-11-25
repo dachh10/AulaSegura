@@ -65,6 +65,9 @@ class QueuedJustificationRepository(
             description = draft.description,
             createdAtMillis = now,
             sessionId = draft.sessionId,
+            teacherId = draft.teacherId,
+            subjectId = draft.subjectId,
+            subject = draft.subject,
             studentName = draft.studentName,
             groupLabel = draft.groupLabel,
             attachment = kept?.let {

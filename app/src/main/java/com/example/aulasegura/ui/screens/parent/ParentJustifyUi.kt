@@ -29,13 +29,29 @@ sealed interface ParentJustifyUiState {
         val error: String?,
         /** Why there is nothing to send, when [absence] is `null`. */
         val emptyMessage: String?,
+        /** Every absence offered by the form; more than one when subjects coincide. */
+        val absences: List<JustifyAbsenceUi> = emptyList(),
+        /** Sessions selected by the tutor, or the single default when untouched. */
+        val selectedSessionIds: Set<String> = emptySet(),
+        /** The "Usar este justificante para todas las materias" switch. */
+        val applyToAll: Boolean = false,
     ) : ParentJustifyUiState {
+
+        /** One report is written per selected absence, addressed to its teacher. */
+        val selectedAbsences: List<JustifyAbsenceUi>
+            get() = when {
+                applyToAll -> absences
+                absences.isNotEmpty() -> absences.filter { it.key in selectedSessionIds }
+                absence != null -> listOf(absence)
+                else -> emptyList()
+            }
 
         /** "Asunto familiar" is the only reason that needs no photo. */
         val needsPhoto: Boolean get() = reason != JustificationReason.FAMILY
 
         val canSend: Boolean
-            get() = absence != null && !sending && !sent && (!needsPhoto || receipt != null)
+            get() = selectedAbsences.isNotEmpty() && !sending && !sent &&
+                (!needsPhoto || receipt != null)
     }
 
     data object NoChildren : ParentJustifyUiState
@@ -50,7 +66,15 @@ data class JustifyAbsenceUi(
     val dateLabel: String,
     /** Session the record belongs to; empty when the school stored none. */
     val sessionId: String = "",
-)
+    /** Subject whose roll call produced the absence. */
+    val subject: String = "",
+    val subjectId: String = "",
+    /** Teacher who marked the absence and receives this report. */
+    val teacherId: String = "",
+) {
+    /** Legacy sessions may have no id; date plus subject still identifies the row. */
+    val key: String get() = sessionId.ifBlank { "$isoDate|$subject" }
+}
 
 /**
  * The reason chips of the design, mapped to the four values the schema accepts
@@ -101,4 +125,7 @@ internal fun ParentDayAttendance.toAbsenceUi(
     isoDate = date,
     dateLabel = AttendanceTimes.longDateLabel(date, zone),
     sessionId = sessionId,
+    subject = subject,
+    subjectId = subjectId,
+    teacherId = teacherId,
 )

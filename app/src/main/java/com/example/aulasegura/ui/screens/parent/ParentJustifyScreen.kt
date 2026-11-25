@@ -46,6 +46,7 @@ import androidx.compose.material.icons.outlined.Description
 import androidx.compose.material.icons.outlined.EventBusy
 import androidx.compose.material.icons.outlined.Image
 import androidx.compose.material.icons.outlined.PhotoCamera
+import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -114,6 +115,8 @@ fun ParentJustifyScreen(
     onDetailsChange: (String) -> Unit,
     onAttach: (fileName: String, mimeType: String, bytes: ByteArray) -> Unit,
     onRemoveReceipt: () -> Unit,
+    onToggleAbsence: (String) -> Unit,
+    onApplyToAllChange: (Boolean) -> Unit,
     onSend: () -> Unit,
 ) {
     val context = LocalContext.current
@@ -212,6 +215,8 @@ fun ParentJustifyScreen(
                     onTakePhoto = { requireCameraPermission { cameraLauncher.launch(null) } },
                     onPickGallery = { galleryLauncher.launch("image/*") },
                     onRemoveReceipt = onRemoveReceipt,
+                    onToggleAbsence = onToggleAbsence,
+                    onApplyToAllChange = onApplyToAllChange,
                 )
             }
         }
@@ -232,6 +237,8 @@ private fun LoadedContent(
     onTakePhoto: () -> Unit,
     onPickGallery: () -> Unit,
     onRemoveReceipt: () -> Unit,
+    onToggleAbsence: (String) -> Unit,
+    onApplyToAllChange: (Boolean) -> Unit,
 ) {
     val photo = remember(ui.receipt) { ui.receipt?.decodePreview() }
 
@@ -245,10 +252,14 @@ private fun LoadedContent(
     ) {
         Reveal(0) {
             AbsenceCard(
-                absence = ui.absence,
+                absences = ui.absences,
+                selectedKeys = ui.selectedSessionIds,
+                applyToAll = ui.applyToAll,
                 childName = ui.childName,
                 groupLabel = ui.groupLabel,
                 emptyMessage = ui.emptyMessage,
+                onToggleAbsence = onToggleAbsence,
+                onApplyToAllChange = onApplyToAllChange,
             )
         }
 
@@ -329,10 +340,14 @@ private fun JustifyTopBar(onBack: () -> Unit) {
 
 @Composable
 private fun AbsenceCard(
-    absence: JustifyAbsenceUi?,
+    absences: List<JustifyAbsenceUi>,
+    selectedKeys: Set<String>,
+    applyToAll: Boolean,
     childName: String,
     groupLabel: String,
     emptyMessage: String?,
+    onToggleAbsence: (String) -> Unit,
+    onApplyToAllChange: (Boolean) -> Unit,
 ) {
     Box(
         modifier = Modifier
@@ -361,18 +376,7 @@ private fun AbsenceCard(
                 .padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
-            if (absence != null) {
-                AbsencePill()
-                Text(
-                    text = absence.dateLabel,
-                    color = PrimaryContainer,
-                    fontFamily = BricolageGrotesque,
-                    fontWeight = FontWeight.SemiBold,
-                    fontSize = 20.sp,
-                    lineHeight = 26.sp,
-                    letterSpacing = (-0.2).sp,
-                )
-            } else {
+            if (absences.isEmpty()) {
                 Text(
                     text = "Sin falta por justificar",
                     color = PrimaryContainer,
@@ -382,6 +386,62 @@ private fun AbsenceCard(
                     lineHeight = 26.sp,
                     letterSpacing = (-0.2).sp,
                 )
+            } else {
+                AbsencePill()
+                Text(
+                    text = "Faltas del ${absences.first().dateLabel}",
+                    color = PrimaryContainer,
+                    fontFamily = BricolageGrotesque,
+                    fontWeight = FontWeight.SemiBold,
+                    fontSize = 18.sp,
+                    lineHeight = 24.sp,
+                )
+                absences.forEach { item ->
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable { onToggleAbsence(item.key) },
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Checkbox(
+                            checked = applyToAll || item.key in selectedKeys,
+                            onCheckedChange = { onToggleAbsence(item.key) },
+                        )
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = item.subject.ifBlank { "Sin materia" },
+                                color = OnSurface,
+                                fontFamily = DmSans,
+                                fontWeight = FontWeight.Medium,
+                                fontSize = 14.sp,
+                            )
+                            Text(
+                                text = item.dateLabel,
+                                color = Outline,
+                                fontFamily = DmSans,
+                                fontSize = 12.sp,
+                            )
+                        }
+                    }
+                }
+                if (absences.size > 1) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable { onApplyToAllChange(!applyToAll) },
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Checkbox(checked = applyToAll, onCheckedChange = onApplyToAllChange)
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text(
+                            text = "Usar este justificante para todas las materias",
+                            color = OnSurface,
+                            fontFamily = DmSans,
+                            fontSize = 13.sp,
+                        )
+                    }
+                }
             }
 
             Text(
@@ -392,7 +452,7 @@ private fun AbsenceCard(
                 lineHeight = 20.sp,
             )
 
-            if (absence == null && emptyMessage != null) {
+            if (absences.isEmpty() && emptyMessage != null) {
                 Text(
                     text = emptyMessage,
                     color = Outline,

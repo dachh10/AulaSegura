@@ -39,6 +39,10 @@ data class JustificationPayload(
      * date.
      */
     val sessionId: String = "",
+    /** Recipient teacher; blank only on documents written by older builds. */
+    val teacherId: String = "",
+    val subjectId: String = "",
+    val subject: String = "",
     /**
      * Display data for the inbox. The principal and the teacher have no roster
      * open when they read the justification, and a document id is not a name.
@@ -122,6 +126,9 @@ fun JustificationPayload.toDocument(): Map<String, Any?> = buildMap {
     put("schoolId", schoolId)
     put("groupId", groupId)
     if (sessionId.isNotBlank()) put("sessionId", sessionId)
+    if (teacherId.isNotBlank()) put("teacherId", teacherId)
+    if (subjectId.isNotBlank()) put("subjectId", subjectId)
+    if (subject.isNotBlank()) put("subject", subject)
     if (studentName.isNotBlank()) put("studentName", studentName)
     if (groupLabel.isNotBlank()) put("groupLabel", groupLabel)
     put("dateFrom", Timestamp(Date(dateFromMillis)))

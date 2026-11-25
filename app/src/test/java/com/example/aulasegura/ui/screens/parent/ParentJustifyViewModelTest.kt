@@ -300,15 +300,211 @@ class ParentJustifyViewModelTest {
         assertEquals("Asunto familiar", JustificationReason.FAMILY.label)
     }
 
+    @Test
+    fun `two subjects absent on the same day are both offered with their teacher`() =
+        runTest(dispatcher) {
+            val parents = FakeParentRepository(
+                months = mapOf(
+                    "2026-11" to month(
+                        2026,
+                        11,
+                        day(
+                            "2026-11-19",
+                            AttendanceMark.ABSENT,
+                            sessionId = "mat",
+                            subject = "Matemáticas",
+                            teacherId = "doc-mates",
+                        ),
+                        day(
+                            "2026-11-19",
+                            AttendanceMark.ABSENT,
+                            sessionId = "esp",
+                            subject = "Español",
+                            teacherId = "doc-espanol",
+                        ),
+                    ),
+                ),
+            )
+
+            val viewModel = viewModel(parents)
+            advanceUntilIdle()
+            val state = viewModel.state.value as ParentJustifyUiState.Loaded
+
+            assertEquals(listOf("Matemáticas", "Español"), state.absences.map { it.subject })
+            assertEquals(listOf("doc-mates", "doc-espanol"), state.absences.map { it.teacherId })
+            assertEquals(1, state.selectedAbsences.size)
+        }
+
+    @Test
+    fun `a single report is addressed to the teacher of the selected absence`() =
+        runTest(dispatcher) {
+            val parents = FakeParentRepository(
+                months = mapOf(
+                    "2026-11" to month(
+                        2026,
+                        11,
+                        day(
+                            "2026-11-19",
+                            AttendanceMark.ABSENT,
+                            sessionId = "mat",
+                            subject = "Matemáticas",
+                            teacherId = "doc-mates",
+                        ),
+                        day(
+                            "2026-11-19",
+                            AttendanceMark.ABSENT,
+                            sessionId = "esp",
+                            subject = "Español",
+                            teacherId = "doc-espanol",
+                        ),
+                    ),
+                ),
+            )
+            val justifications = FakeJustificationRepository()
+            val viewModel = viewModel(parents, justifications)
+            advanceUntilIdle()
+
+            viewModel.selectReason(JustificationReason.FAMILY)
+            viewModel.toggleAbsence("mat")
+            viewModel.toggleAbsence("esp")
+            viewModel.send()
+            advanceUntilIdle()
+
+            assertEquals(1, justifications.drafts.size)
+            assertEquals("doc-espanol", justifications.drafts.single().teacherId)
+            assertEquals("Español", justifications.drafts.single().subject)
+            assertEquals("esp", justifications.drafts.single().sessionId)
+        }
+
+    @Test
+    fun `apply to all subjects files one document per teacher`() = runTest(dispatcher) {
+        val parents = FakeParentRepository(
+            months = mapOf(
+                "2026-11" to month(
+                    2026,
+                    11,
+                    day(
+                        "2026-11-19",
+                        AttendanceMark.ABSENT,
+                        sessionId = "mat",
+                        subject = "Matemáticas",
+                        teacherId = "doc-mates",
+                    ),
+                    day(
+                        "2026-11-19",
+                        AttendanceMark.ABSENT,
+                        sessionId = "esp",
+                        subject = "Español",
+                        teacherId = "doc-espanol",
+                    ),
+                    day(
+                        "2026-11-19",
+                        AttendanceMark.ABSENT,
+                        sessionId = "cie",
+                        subject = "Ciencias",
+                        teacherId = "doc-ciencias",
+                    ),
+                ),
+            ),
+        )
+        val justifications = FakeJustificationRepository()
+        val viewModel = viewModel(parents, justifications)
+        advanceUntilIdle()
+
+        viewModel.selectReason(JustificationReason.FAMILY)
+        viewModel.setApplyToAll(true)
+        viewModel.send()
+        advanceUntilIdle()
+
+        assertEquals(3, justifications.drafts.size)
+        assertEquals(
+            listOf("doc-mates", "doc-espanol", "doc-ciencias"),
+            justifications.drafts.map { it.teacherId },
+        )
+        assertEquals(
+            setOf("mat", "esp", "cie"),
+            justifications.drafts.map { it.sessionId }.toSet(),
+        )
+        assertEquals(
+            "the same reason and date travel with every document",
+            "otro",
+            justifications.drafts.first().reasonCode,
+        )
+    }
+
+    @Test
+    fun `the tapped session is preselected when several subjects share the day`() =
+        runTest(dispatcher) {
+            val parents = FakeParentRepository(
+                months = mapOf(
+                    "2026-11" to month(
+                        2026,
+                        11,
+                        day(
+                            "2026-11-19",
+                            AttendanceMark.ABSENT,
+                            sessionId = "mat",
+                            subject = "Matemáticas",
+                            teacherId = "doc-mates",
+                        ),
+                        day(
+                            "2026-11-19",
+                            AttendanceMark.ABSENT,
+                            sessionId = "esp",
+                            subject = "Español",
+                            teacherId = "doc-espanol",
+                        ),
+                    ),
+                ),
+            )
+
+            val viewModel = viewModel(parents, absenceIso = "2026-11-19", sessionId = "esp")
+            advanceUntilIdle()
+            val state = viewModel.state.value as ParentJustifyUiState.Loaded
+
+            assertEquals("Español", state.absence?.subject)
+            assertEquals(listOf("esp"), state.selectedAbsences.map { it.sessionId })
+        }
+
+    @Test
+    fun `unchecking one subject under all keeps the others selected`() =
+        runTest(dispatcher) {
+            val parents = FakeParentRepository(
+                months = mapOf(
+                    "2026-11" to month(
+                        2026,
+                        11,
+                        day("2026-11-19", AttendanceMark.ABSENT, sessionId = "mat", subject = "Matemáticas"),
+                        day("2026-11-19", AttendanceMark.ABSENT, sessionId = "esp", subject = "Español"),
+                        day("2026-11-19", AttendanceMark.ABSENT, sessionId = "cie", subject = "Ciencias"),
+                    ),
+                ),
+            )
+            val viewModel = viewModel(parents)
+            advanceUntilIdle()
+
+            viewModel.setApplyToAll(true)
+            viewModel.toggleAbsence("mat")
+            val state = viewModel.state.value as ParentJustifyUiState.Loaded
+
+            assertFalse(state.applyToAll)
+            assertEquals(
+                setOf("esp", "cie"),
+                state.selectedAbsences.map { it.sessionId }.toSet(),
+            )
+        }
+
     private fun viewModel(
         parents: ParentRepository,
         justifications: JustificationRepository = FakeJustificationRepository(),
         absenceIso: String? = null,
+        sessionId: String? = null,
     ) = ParentJustifyViewModel(
         parents = parents,
         justifications = justifications,
         studentId = "std-1",
         absenceIso = absenceIso,
+        absenceSessionId = sessionId,
         now = { at(2026, 11, 20) },
         zone = zone,
     )
@@ -324,10 +520,11 @@ private class FakeJustificationRepository(
     private val result: JustificationResult = JustificationResult.Queued,
 ) : JustificationRepository {
 
-    var lastDraft: JustificationDraft? = null
+    val drafts = mutableListOf<JustificationDraft>()
+    val lastDraft: JustificationDraft? get() = drafts.lastOrNull()
 
     override suspend fun submit(draft: JustificationDraft): JustificationResult {
-        lastDraft = draft
+        drafts += draft
         return result
     }
 }
@@ -386,14 +583,19 @@ private fun day(
     date: String,
     mark: AttendanceMark?,
     sessionId: String = "",
+    subject: String = "Matemáticas",
+    subjectId: String = "",
+    teacherId: String = "",
 ) = ParentDayAttendance(
     date = date,
-    subject = "Matemáticas",
+    subject = subject,
     startedAt = 0L,
     mark = mark,
     time = null,
     note = null,
     sessionId = sessionId,
+    subjectId = subjectId,
+    teacherId = teacherId,
 )
 
 private fun month(year: Int, month: Int, vararg days: ParentDayAttendance) =

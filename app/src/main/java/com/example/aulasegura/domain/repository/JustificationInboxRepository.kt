@@ -13,11 +13,11 @@ import com.example.aulasegura.domain.model.JustificationReview
 interface JustificationInboxRepository {
 
     /**
-     * The justifications filed for [groupIds], newest absence first.
+     * The justifications addressed to the signed-in teacher, plus the legacy
+     * ones of [groupIds] that predate the recipient field. Newest first.
      *
-     * Each group is queried on its own: a single `whereIn` would fail as a whole
-     * when one stale group id is no longer in the teacher's profile, while a
-     * per-group query keeps the readable groups working.
+     * Legacy documents are queried per group so a stale id cannot fail the whole
+     * inbox; new ones use a single equality on the recipient teacher.
      */
     suspend fun loadForGroups(groupIds: List<String>): JustificationInboxResult
 

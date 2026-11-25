@@ -713,13 +713,17 @@ class AppViewModelFactory(
      * optional: without them the form points at the newest absence the school
      * registered, never at an invented date.
      */
-    fun parentJustifyViewModel(studentId: String?, date: String?): ParentJustifyViewModel =
-        ParentJustifyViewModel(
-            parents = container.parentRepository,
-            justifications = container.justificationRepository,
-            studentId = studentId,
-            absenceIso = date,
-        )
+    fun parentJustifyViewModel(
+        studentId: String?,
+        date: String?,
+        sessionId: String? = null,
+    ): ParentJustifyViewModel = ParentJustifyViewModel(
+        parents = container.parentRepository,
+        justifications = container.justificationRepository,
+        studentId = studentId,
+        absenceIso = date,
+        absenceSessionId = sessionId,
+    )
 
     /** The task detail is read by document id, which arrives in the route. */
     fun parentTaskDetailViewModel(taskId: String): ParentTaskDetailViewModel =

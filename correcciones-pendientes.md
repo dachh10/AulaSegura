@@ -5,15 +5,30 @@ Estado de los cinco ítems originales: **D1 ✅, D2 ✅, D3 ✅, D4 ✅, D5 ✅*
 **Todos los ítems del documento están cerrados y verificados en dispositivo.**
 Además se cerraron los subdetalles derivados de grupos: grupos duplicados, materia por grupo,
 crash de arranque por una query denegada y selector de materias en tareas.
-Suite final: 129 suites / 793 tests / 0 fallos.
+Suite final: 129 suites / 798 tests / 0 fallos.
 
 > **APK de entrega actual:** `C:\Users\diego\Documents\AulaSegura.apk` (SHA-256
-> `30375938A5D8224C4508F3ECE6C6279C2EEEC95A4AC79094D529BD138F91FF8E`, 25.57 MB)
+> `BB9ED6C9DFE25D7AF0AE2720EA07E867048246501C3F49ED98CA06CDED77B57F`, 25.59 MB)
 > es el **release firmado** construido desde el árbol de trabajo actual: incluye todos
-> los cambios documentados abajo y el pase de lista único descrito más adelante,
+> los cambios documentados abajo, el pase de lista único y las justificaciones por
+> materia descritas más adelante,
 > con la firma de release verificada (`minSdk 24`, `targetSdk 37`,
 > sin flag `debuggable`). Quien tenga el build de debug debe desinstalarlo antes de
 > instalar este, porque la firma es distinta.
+
+## Justificaciones dirigidas por materia (2026-11-25)
+
+> Cada justificación se guarda como un documento distinto por materia, con
+> `teacherId`, `subjectId`, `subject` y `sessionId`. El tutor ve todas las faltas
+> del día con su materia, elige una o activa "Usar este justificante para todas
+> las materias", y cada profesor recibe solo el suyo. La bandeja consulta por
+> `teacherId`; la regla de lectura niega a los demás docentes del grupo, con
+> fallback para documentos heredados sin `teacherId`. La aprobación sigue
+> modificando una sola sesión. Se agregó el índice compuesto
+> `justifications(groupId, teacherId)` y el formulario respeta la sesión tocada.
+> **Pendiente de desplegar:** reglas e índices en Firebase; el APK funciona con
+> las reglas antiguas, pero el direccionamiento real empieza al desplegarlas.
+> 5 tests JVM nuevos: 129 suites / 798 tests / 0 fallos.
 
 ## Un pase de lista por grupo, día y materia (2026-11-25)
 

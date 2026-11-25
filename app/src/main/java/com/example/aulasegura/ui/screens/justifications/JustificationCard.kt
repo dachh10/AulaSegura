@@ -100,7 +100,9 @@ fun JustificationCard(
                     lineHeight = 21.sp,
                 )
                 Text(
-                    text = card.groupLabel,
+                    text = listOf(card.groupLabel, card.subject)
+                        .filter { it.isNotBlank() }
+                        .joinToString(" · "),
                     color = Outline,
                     fontFamily = DmSans,
                     fontSize = 12.sp,

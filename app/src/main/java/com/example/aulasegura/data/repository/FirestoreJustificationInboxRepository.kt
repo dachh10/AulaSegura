@@ -52,10 +52,10 @@ internal fun canDecideJustification(role: UserRole, isSessionTeacher: Boolean): 
  * justifications", the one answer that would hide a family's report.
  *
  * The rules authorize a teacher by `groupId in myGroups()` and the principal by
- * `schoolId == mySchool()`. Every inbox query uses exactly one of those clauses,
- * which keeps it provable without a composite index. The legacy session lookup
- * is the exception: the principal's read needs `schoolId`, so it carries all
- * three equality filters and its composite index lives in firestore.indexes.json.
+ * `schoolId == mySchool()`. Teacher queries carry exactly the fields the rules
+ * check: the recipient equality for new reports, and group plus blank recipient
+ * for legacy ones. Both are provable; the legacy pair has a composite index in
+ * firestore.indexes.json. The principal's school-wide read keeps its single clause.
  */
 class FirestoreJustificationInboxRepository(
     private val firestore: FirebaseFirestore,
@@ -63,22 +63,43 @@ class FirestoreJustificationInboxRepository(
 ) : JustificationInboxRepository {
 
     override suspend fun loadForGroups(groupIds: List<String>): JustificationInboxResult {
-        auth.currentUser ?: return JustificationInboxResult.SignedOut
+        val user = auth.currentUser ?: return JustificationInboxResult.SignedOut
         val distinct = groupIds.filter { it.isNotBlank() }.distinct()
-        if (distinct.isEmpty()) return JustificationInboxResult.Loaded(emptyList())
 
-        val outcomes = coroutineScope {
+        // New reports carry the teacher they are addressed to, so the query is
+        // one equality on teacherId. The group scan is kept only for documents
+        // written before that field existed: hiding those would erase a report
+        // the school already has in its history.
+        val targeted = runCatching {
+            withTimeout(READ_TIMEOUT_MILLIS) {
+                firestore.collection(COLLECTION)
+                    .whereEqualTo(FIELD_TEACHER_ID, user.uid)
+                    .limit(QUERY_LIMIT)
+                    .get(Source.SERVER)
+                    .await()
+                    .documents
+            }
+        }
+        val legacy = coroutineScope {
             distinct.map { groupId ->
                 async(Dispatchers.IO) { runCatching { loadGroup(groupId) } }
             }.awaitAll()
         }
 
-        // A denied group is a stale id in the profile, not a broken inbox: the
-        // groups the rules do accept still answer. Only "every group failed"
-        // becomes a screen error, and it keeps the reason of the first failure.
-        val documents = outcomes.flatMap { it.getOrDefault(emptyList()) }
-        if (documents.isEmpty() && outcomes.all { it.isFailure }) {
-            val error = outcomes.firstNotNullOfOrNull { it.exceptionOrNull() }
+        val documents = buildList {
+            targeted.getOrDefault(emptyList()).let { addAll(it) }
+            legacy.forEach { outcome ->
+                outcome.getOrDefault(emptyList())
+                    .filter { it.getString(FIELD_TEACHER_ID).isNullOrBlank() }
+                    .let { addAll(it) }
+            }
+        }
+        val legacyFailed = distinct.isNotEmpty() && legacy.all { it.isFailure }
+        val error = targeted.exceptionOrNull()
+            ?: if (legacyFailed) legacy.firstNotNullOfOrNull { it.exceptionOrNull() } else null
+        if (error != null) {
+            // A denied targeted query is not an empty inbox: new reports would
+            // silently vanish behind a successful legacy scan.
             return JustificationInboxResult.Failed(
                 (error as? Exception)?.toRosterFailure()
                     ?: com.example.aulasegura.domain.repository.RosterFailure.UNKNOWN,
@@ -327,6 +348,7 @@ class FirestoreJustificationInboxRepository(
         withTimeout(READ_TIMEOUT_MILLIS) {
             firestore.collection(COLLECTION)
                 .whereEqualTo(FIELD_GROUP_ID, groupId)
+                .whereEqualTo(FIELD_TEACHER_ID, "")
                 .limit(QUERY_LIMIT)
                 .get(Source.SERVER)
                 .await()
@@ -432,6 +454,9 @@ internal fun justificationFrom(
         reviewedAtMillis = epochMillis(data["reviewedAt"]),
         reviewNote = data["reviewNote"] as? String,
         sessionId = data["sessionId"] as? String ?: "",
+        teacherId = data["teacherId"] as? String ?: "",
+        subjectId = data["subjectId"] as? String ?: "",
+        subject = data["subject"] as? String ?: "",
     )
 }
 

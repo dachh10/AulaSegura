@@ -1,9 +1,14 @@
 # Correcciones pendientes — presentación del proyecto
 
-Fecha: 2026-11-24. Estado del repo: `main` con los arreglos de la colaboradora mergeados
-(justificaciones, ubicación, pantalla rechazada) y el fix de asistencia de tutor.
-APK de entrega: `C:\Users\diego\Documents\AulaSegura.apk`, firmado con el keystore de
-release.
+Fecha: 2026-11-24 (cierre). Estado: `main == origin/main`,Work unit todos commiteados.
+Estado de los cinco ítems originales: **D1 ✅, D2 ✅, D3 ✅, D4 ✅, D5 ⬜ pendiente**.
+Además se cerraron los subdetalles derivados de grupos: grupos duplicados, materia por grupo,
+crash de arranque por una query denegada y selector de materias en tareas.
+Suite final: 125 suites / 777 tests / 0 fallos.
+
+> **APK de entrega actual:** `C:\Users\diego\Documents\AulaSegura.apk` (SHA-256
+> `C7438D4…`) es el build **anterior**: NO incluye nada de lo documentado abajo. Falta
+> reconstruirlo con todo antes de repartirlo.
 
 > **Resuelto 2026-11-24 — "No se pudo cargar" en Inicio/Asistencia de un tutor nuevo.**
 > No era la base de datos. Lectura de solo lectura de Firestore: los 3 tutores tienen
@@ -29,9 +34,9 @@ release.
 | Orden | ID | Por qué |
 | --- | --- | --- |
 | 1 | D1 | ✅ **Completado 2026-11-24.** Preselección validada contra el roster; aviso a un grupo específico funciona. |
-| 2 | D3 | Deja la pantalla de "Solicitud rechazada" inusable. La causa está confirmada y el arreglo es chico. |
-| 3 | D5 | Visible en el perfil, arreglo local y de bajo riesgo. |
-| 4 | D2 | El botón de ubicación no da feedback; arreglo mediano. |
+| 2 | D3 | ✅ **Completado.** Loop de navegación corregido por Monserrat; además "Volver a enviar solicitud" reabre la solicitud sin borrar la cuenta. |
+| 3 | D5 | ⬜ **Pendiente.** El perfil del docente sigue mostrando `sch-benito-juarez` en vez de `SchoolSite.name`. |
+| 4 | D2 | ✅ **Completado por Monserrat.** Botón async-aware con "Ubicando…", reintento y mensaje visible; 6 tests JVM. |
 | 5 | D4 | ✅ **Completado 2026-11-24.** Bandeja en el docente dueño de la sesión; directora solo lectura; foto obligatoria salvo "Asunto familiar"; falta → `justified`. |
 
 ---
@@ -55,6 +60,17 @@ release.
 > `users.subjects` queda como proyección de todos los grupos con etiqueta
 > `"Materia (Grupo)"` en el perfil. Pase de lista, tareas y tarjetas leen la materia del
 > grupo. Datos reproyectados en Firestore. 4 tests nuevos, suite 777/777.
+
+> **Crash de arranque (2026-11-24):** la proyección de materias consultaba
+> `groups where teacherIds array_contains uid`; las reglas no pueden probar esa query y el
+> listener devolvía `PERMISSION_DENIED`, tumbando la app al iniciar sesión. Se cambió por
+> lecturas puntuales de los grupos en `users.groupIds`, envueltas en `runCatching`. Verificado
+> en dispositivo: app abierta sin `FATAL EXCEPTION`. Commit `959f88c`.
+
+> **Selector de materias en tareas (2026-11-24):** el formulario calculaba las materias una
+> vez desde la lista global, así que con dos grupos aparecían las dos. Ahora se derivan de
+> `subjectAssignments` del grupo seleccionado y la materia se ajusta al cambiar de grupo.
+> Commit `bff1499`, verificado en dispositivo por Diego.
 
 ## D1 — Aviso a un grupo específico falla; "Todos mis grupos" funciona — ✅ COMPLETADO (2026-11-24)
 
@@ -108,7 +124,7 @@ selección y publicación.
 
 ---
 
-## D2 — "Usar mi ubicación actual" no hace nada
+## D2 — "Usar mi ubicación actual" no hace nada — ✅ COMPLETADO (Monserrat, 2026-11-23)
 
 **Ruta confirmada:**
 - `ui/screens/teacher/TeacherIncidentNewScreen.kt:191-200`: si `location.fix == null`, el
@@ -140,7 +156,7 @@ función pura y cubrirla con tests; verificar en dispositivo con GPS activado y 
 
 ---
 
-## D3 — Pantalla "Solicitud rechazada" se reinicia en bucle — ✅ COMPLETADO + reenvío (2026-11-24)
+## D3 — Pantalla "Solicitud rechazada" se reinicia en bucle — ✅ COMPLETADO (Monserrat 2026-11-23 + reenvío 2026-11-24)
 
 > **Extensión 2026-11-24:** un rechazo por error dejaba al docente atrapado: la cuenta de
 > Auth y su `users/{uid}` seguían existiendo con `estado: rechazado`, así que no podía
@@ -327,8 +343,9 @@ en `TeacherProfileUi`, recolectar `observeSchool()` y mostrar `site.name` con fa
 
 ```text
 Trabajás en C:\Users\diego\AndroidStudioProjects\AulaSegura. Antes de tocar nada, leé
-correcciones-pendientes.md (en la raíz del repo, al lado de FASE0.md…) completo: ahí están los cinco detalles, la evidencia con
-archivo:línea y el orden de prioridad (D1 → D3 → D5 → D2 → D4).
+correcciones-pendientes.md (en la raíz del repo, al lado de FASE0.md…) completo: ahí está el
+estado final de cada detalle con su evidencia. D1, D2, D3 y D4 ya están COMPLETADOS y
+verificados; NO los reabras. El único pendiente es D5 (nombre del plantel en el perfil).
 
 Reglas obligatorias:
 - No modifiques app/build.gradle.kts, keystore*, google-services.json ni local.properties.
@@ -348,16 +365,12 @@ Orden de trabajo:
 1) D1 — YA NO HACER: quedó completado y verificado en dispositivo el 2026-11-24.
    No reabrir salvo petición explícita de Diego.
 
-2) D3 — ciclo infinito en "Solicitud rechazada". La causa está confirmada en el .md.
-   Arreglá refreshState() para que un docente rechazado nunca setee proceed=true, y evitá
-   el auto-refresh al entrar cuando rejected. Agregá el test del ViewModel.
+2) D3 — YA NO HACER: completado y verificado en dispositivo.
 
-3) D5 — perfil del docente. Mostrá SchoolSite.name desde SchoolRepository.observeSchool()
-   en vez de ui.schoolId. Actualizá el test de TeacherProfileUi.
+3) D5 — ÚNICO PENDIENTE. Perfil del docente: mostrar SchoolSite.name desde
+   SchoolRepository.observeSchool() en vez de ui.schoolId. Actualizá TeacherProfileUiTest.
 
-4) D2 — botón "Usar mi ubicación actual". Hacelo async-aware: pedir permiso, mostrar
-   "Ubicando…", esperar un fix con timeout y mostrar error visible si no llega. Extraé la
-   decisión a una función pura y testeala.
+4) D2 — YA NO HACER: completado por Monserrat con 6 tests JVM.
 
 5) D4 — YA NO HACER: quedó completado y verificado en dispositivo el 2026-11-24.
    No reabrir este ítem salvo petición explícita de Diego.

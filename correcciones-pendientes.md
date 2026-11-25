@@ -36,6 +36,15 @@ release.
 
 ---
 
+> **Grupos duplicados (2026-11-24):** `createGroup()` usaba `.document()` con ID random
+> mientras el resto de la app usa `groupIdFor()` → `grp-5c`, así que "5° C" existía dos veces.
+> Además la aprobación por QR escribía `subjectTeachers.g5-espanol-v` como clave literal
+> dentro de un `set(merge)`, por lo que `subjectTeachers` parecía vacío y se podía asignar
+> la misma materia a dos docentes. Corregido: ID canónico + merge idempotente y mapa anidado
+> conservando las materias ya asignadas. Datos reparados: eliminado el grupo manual
+> `4nFTff7…`, quitado de `users.groupIds` de Diego, y `grp-5c` con
+> `subjectTeachers: { g5-espanol-v: <Dach> }`. 3 tests nuevos, suite 773/773.
+
 ## D1 — Aviso a un grupo específico falla; "Todos mis grupos" funciona — ✅ COMPLETADO (2026-11-24)
 
 > **Resuelto:** al abrir "Publicar aviso" desde el detalle de un grupo, el ID de la ruta se

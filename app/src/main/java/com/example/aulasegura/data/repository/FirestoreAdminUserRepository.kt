@@ -288,8 +288,17 @@ class FirestoreAdminUserRepository(
                     val (grade, section) = gradeSectionFromGroupId(plan.groupId)
                         ?: throw SubjectTakenException()
 
+                    // A dotted key inside a `set()` map is stored literally by
+                    // Firestore, so later reads of `subjectTeachers` would see
+                    // nothing and a second teacher could take the same subject.
+                    // `update()` of the whole map must keep the other teachers'
+                    // slots: this group may already have several subjects.
+                    val existingSubjects = (group.get("subjectTeachers") as? Map<*, *>)
+                        ?.mapNotNull { (key, value) ->
+                            (key as? String)?.let { k -> (value as? String)?.let { k to it } }
+                        }?.toMap() ?: emptyMap()
                     val groupPayload = mutableMapOf<String, Any>(
-                        "subjectTeachers.${plan.subjectId}" to uid,
+                        "subjectTeachers" to existingSubjects + (plan.subjectId to uid),
                         AdminGroupFields.TEACHER_IDS to FieldValue.arrayUnion(uid),
                         AdminGroupFields.UPDATED_AT to FieldValue.serverTimestamp(),
                     )

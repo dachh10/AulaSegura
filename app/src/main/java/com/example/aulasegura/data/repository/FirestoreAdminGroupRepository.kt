@@ -10,6 +10,8 @@ import com.example.aulasegura.domain.repository.AdminGroupResult
 import com.example.aulasegura.domain.repository.AdminStudentFields
 import com.example.aulasegura.domain.repository.AdminUserFields
 import com.example.aulasegura.domain.repository.AuthRepository
+import com.example.aulasegura.domain.repository.canonicalGroupId
+import com.example.aulasegura.domain.repository.manualGroupDocument
 import com.google.firebase.firestore.DocumentSnapshot
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.FirebaseFirestoreException
@@ -74,13 +76,19 @@ class FirestoreAdminGroupRepository(
         val schoolId = auth.currentUser?.schoolId
             ?: return AdminGroupResult.Failure(AdminGroupError.NO_SESSION)
 
-        val document = AdminGroupFields.newGroupDocument(name, grade, section, schoolId).toMutableMap()
-        document[AdminGroupFields.CREATED_AT] = FieldValue.serverTimestamp()
+        // The same grade+section is always the same classroom, whether it was
+        // created here, by a QR approval or by assigning students. A random id
+        // made "5° C" exist twice and split teachers from students. The merge
+        // payload leaves calculated fields (teacherIds, studentCount) alone.
+        val document = manualGroupDocument(grade, section, name, schoolId).toMutableMap()
         document[AdminGroupFields.UPDATED_AT] = FieldValue.serverTimestamp()
 
         return try {
             withTimeout(WRITE_TIMEOUT_MILLIS) {
-                firestore.collection(AdminGroupFields.COLLECTION).document().set(document).await()
+                firestore.collection(AdminGroupFields.COLLECTION)
+                    .document(canonicalGroupId(grade, section))
+                    .set(document, com.google.firebase.firestore.SetOptions.merge())
+                    .await()
             }
             AdminGroupResult.Success
         } catch (error: Exception) {

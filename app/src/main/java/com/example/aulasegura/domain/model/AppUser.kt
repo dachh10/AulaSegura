@@ -23,6 +23,8 @@ data class AppUser(
     val photoPublicId: String? = null,
     /** Subjects a teacher teaches. Empty for every other role. */
     val subjects: List<String> = emptyList(),
+    /** One subject per group, so the same teacher can teach different ones. */
+    val subjectAssignments: List<TeacherSubjectAssignment> = emptyList(),
     /** Account state: `activo` for tutors, `pendiente`/`aprobado`/`rechazado` for teachers. */
     val estado: String = "",
     /** Tutor linking state: `pendiente`, `vinculado` or `rechazada`. */

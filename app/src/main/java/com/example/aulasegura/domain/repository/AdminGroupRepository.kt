@@ -54,6 +54,8 @@ interface AdminGroupRepository {
         groupId: String,
         teacherUid: String,
         assign: Boolean,
+        /** Subject id chosen for THIS group; required when assigning. */
+        subjectId: String = "",
     ): AdminGroupResult
 
     /** Idempotent upsert of a group's schedule, keyed by a deterministic slot id. */

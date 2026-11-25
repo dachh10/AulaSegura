@@ -47,6 +47,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import com.example.aulasegura.domain.repository.unassignedSubjectsForGrade
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -322,6 +323,20 @@ fun AdminGroupDetailScreen(
                     }
                 }
             }
+        }
+
+        ui.pendingSubject?.let { pending ->
+            val freeSubjects: List<com.example.aulasegura.domain.model.Subject> =
+                ui.group?.let { group ->
+                    unassignedSubjectsForGrade(group.grade, group.subjectTeachers)
+                } ?: emptyList()
+            SubjectAssignmentDialog(
+                teacherName = pending.teacherName,
+                groupName = ui.group?.name.orEmpty(),
+                subjects = freeSubjects,
+                onChoose = { viewModel.assignTeacher(pending.teacherUid, it) },
+                onDismiss = viewModel::cancelPendingSubject,
+            )
         }
 
         when (menuDialog) {

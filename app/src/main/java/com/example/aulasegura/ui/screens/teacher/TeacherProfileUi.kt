@@ -45,7 +45,7 @@ internal fun AppUser.toProfileUi(): TeacherProfileUi = TeacherProfileUi(
     fullName = fullName,
     email = email,
     schoolId = schoolId,
-    subjects = subjects,
+    subjects = subjectAssignments.map { it.displayLabel }.ifEmpty { subjects },
     photoUrl = photoUrl,
 )
 

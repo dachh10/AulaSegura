@@ -45,6 +45,8 @@ data class AdminGroupDetailUiState(
     val deleted: Boolean = false,
     val error: String? = null,
     val message: String? = null,
+    /** Set while the director picks a subject for a manual assignment. */
+    val pendingSubject: AdminGroupDetailViewModel.PendingSubject? = null,
 ) {
     val missing: Boolean get() = !loading && error == null && group == null
 }

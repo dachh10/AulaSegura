@@ -38,7 +38,7 @@ import kotlinx.coroutines.launch
  */
 class TeacherTaskNewViewModel(
     groups: GroupRepository,
-    auth: AuthRepository,
+    private val auth: AuthRepository,
     private val tasks: TaskRepository,
     private val attachmentStore: TaskAttachmentStore,
     private val now: () -> Long = System::currentTimeMillis,
@@ -142,12 +142,17 @@ class TeacherTaskNewViewModel(
     /** Preselects the classroom the teacher was viewing before opening the form. */
     fun preselectGroup(groupId: String) {
         if (published.value) return
+        if (groupId.isBlank() || groupId !in myGroups.value.map { it.id }) return
         selectedGroupId.value = groupId
+        auth.currentUser?.subjectAssignments?.firstOrNull { it.groupId == groupId }?.label
+            ?.let { subject.value = it }
     }
 
     fun selectGroup(groupId: String) {
         if (published.value) return
         selectedGroupId.value = groupId
+        auth.currentUser?.subjectAssignments?.firstOrNull { it.groupId == groupId }?.label
+            ?.let { subject.value = it }
         message.value = null
     }
 

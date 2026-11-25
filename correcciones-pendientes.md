@@ -48,6 +48,14 @@ release.
 > registrar un docente con el mismo grado/grupo no duplica el grupo; la materia ya asignada
 > aparece bloqueada en el registro y otra materia sí se acepta.
 
+> **Materia por grupo (2026-11-24):** `users.subjects` era una lista global que se
+> sobrescribía al asignar un docente a otro grupo, así que su materia cambiaba en TODOS sus
+> grupos. La fuente de verdad pasa a ser `groups/{id}.subjectTeachers`: el diálogo de
+> "Asignar" pide la materia (solo las libres del grado), desasignar libera esa materia, y
+> `users.subjects` queda como proyección de todos los grupos con etiqueta
+> `"Materia (Grupo)"` en el perfil. Pase de lista, tareas y tarjetas leen la materia del
+> grupo. Datos reproyectados en Firestore. 4 tests nuevos, suite 777/777.
+
 ## D1 — Aviso a un grupo específico falla; "Todos mis grupos" funciona — ✅ COMPLETADO (2026-11-24)
 
 > **Resuelto:** al abrir "Publicar aviso" desde el detalle de un grupo, el ID de la ruta se

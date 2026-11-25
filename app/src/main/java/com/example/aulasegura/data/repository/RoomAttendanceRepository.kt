@@ -55,11 +55,8 @@ class RoomAttendanceRepository(
         // The caller passes the canonical id from the timetable. An empty id is
         // the legacy path (a screen opened without a subject); resolve it from
         // the profile the way the old code did instead of blocking that screen.
-        val canonicalId = subjectId.ifBlank {
-            subjectForGroup(teacher.subjects, group.grade)
-                ?.let { subjectIdFromLabel(it, group.grade) }
-                .orEmpty()
-        }
+        val assignedHere = teacher.subjectAssignments.firstOrNull { it.groupId == groupId }
+        val canonicalId = subjectId.ifBlank { assignedHere?.subjectId.orEmpty() }
         val resolvedSubject = if (canonicalId.isBlank()) {
             subjectForGroup(teacher.subjects, group.grade).orEmpty()
         } else {

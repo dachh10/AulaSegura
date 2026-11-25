@@ -60,8 +60,8 @@ class TeacherGroupDetailViewModel(
     private val notice = MutableStateFlow<String?>(null)
     private val scheduleState = MutableStateFlow<ScheduleLoadResult?>(null)
 
-    /** Same source as the group cards: the subject is a property of the teacher. */
-    private val subjects: List<String> = auth.currentUser?.subjects.orEmpty()
+    /** The subject is a property of the teacher IN THIS group. */
+    private val assignments = auth.currentUser?.subjectAssignments.orEmpty()
 
     @OptIn(ExperimentalCoroutinesApi::class)
     private val roster = groupId.flatMapLatest { id ->
@@ -131,7 +131,9 @@ class TeacherGroupDetailViewModel(
         TeacherGroupDetailUi(
             groupId = id,
             label = basis.group?.label ?: id,
-            subject = subjectForGroup(subjects, basis.group?.grade ?: 0) ?: NO_SUBJECT,
+            subject = assignments.firstOrNull { it.groupId == basis.group?.id }?.label
+                ?: subjectForGroup(auth.currentUser?.subjects.orEmpty(), basis.group?.grade ?: 0)
+                ?: NO_SUBJECT,
             rollCallSubjects = rollCallSubjectsOf(
                 slots = (basis.schedule as? ScheduleLoadResult.Loaded)?.slots.orEmpty(),
                 groupId = id,

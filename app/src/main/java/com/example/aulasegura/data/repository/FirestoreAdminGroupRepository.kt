@@ -12,6 +12,8 @@ import com.example.aulasegura.domain.repository.AdminUserFields
 import com.example.aulasegura.domain.repository.AuthRepository
 import com.example.aulasegura.domain.repository.canonicalGroupId
 import com.example.aulasegura.domain.repository.manualGroupDocument
+import com.example.aulasegura.domain.repository.teacherSubjectProjection
+import com.example.aulasegura.domain.repository.withoutTeacher
 import com.google.firebase.firestore.DocumentSnapshot
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.FirebaseFirestoreException
@@ -227,6 +229,7 @@ class FirestoreAdminGroupRepository(
         groupId: String,
         teacherUid: String,
         assign: Boolean,
+        subjectId: String,
     ): AdminGroupResult {
         if (auth.currentUser == null) {
             return AdminGroupResult.Failure(AdminGroupError.NO_SESSION)
@@ -248,30 +251,53 @@ class FirestoreAdminGroupRepository(
             val subjectTeachers = (groupSnapshot.get("subjectTeachers") as? Map<String, Any?>)
                 ?.mapNotNull { (key, value) -> (value as? String)?.let { key to it } }
                 ?.toMap() ?: emptyMap()
-            val freeSubject = if (assign && grade != null) {
-                subjectsForGrade(grade).firstOrNull { it.id !in subjectTeachers }
+            val chosenSubject = if (assign && grade != null) {
+                subjectsForGrade(grade).firstOrNull { it.id == subjectId }
             } else null
+            if (assign && chosenSubject == null) {
+                return AdminGroupResult.Failure(AdminGroupError.UNKNOWN)
+            }
+            if (assign && chosenSubject!!.id in subjectTeachers) {
+                // Another teacher already owns that slot in this group.
+                return AdminGroupResult.Failure(AdminGroupError.UNKNOWN)
+            }
             val ownedSubject = if (!assign) {
                 subjectTeachers.entries.firstOrNull { it.value == teacherUid }?.key
             } else null
 
+            val nextSubjects = if (assign) {
+                subjectTeachers + (chosenSubject!!.id to teacherUid)
+            } else {
+                withoutTeacher(subjectTeachers, teacherUid)
+            }
+
             val groupPayload = mutableMapOf<String, Any>(
                 AdminGroupFields.TEACHER_IDS to link,
+                "subjectTeachers" to nextSubjects,
                 AdminGroupFields.UPDATED_AT to FieldValue.serverTimestamp(),
             )
-            if (freeSubject != null) {
-                groupPayload["subjectTeachers.${freeSubject.id}"] = teacherUid
-            }
             if (ownedSubject != null) {
                 groupPayload["subjectTeachers.$ownedSubject"] = FieldValue.delete()
             }
+
+            // The profile list is a projection of ALL the teacher's groups:
+            // overwriting it here is what made Español I replace Español V.
+            val allGroups = firestore.collection(AdminGroupFields.COLLECTION)
+                .whereArrayContains(AdminGroupFields.TEACHER_IDS, teacherUid)
+                .get().await().documents.associate { doc ->
+                    doc.id to (doc.get("subjectTeachers") as? Map<*, *>)
+                        ?.mapNotNull { (key, value) ->
+                            (key as? String)?.let { k -> (value as? String)?.let { k to it } }
+                        }?.toMap().orEmpty()
+                }
+            val projected = if (assign) allGroups + (groupId to nextSubjects) else allGroups
+
             val userPayload = mutableMapOf<String, Any>(
                 AdminUserFields.GROUP_IDS to reverse,
+                AdminUserFields.SUBJECTS to teacherSubjectProjection(projected, teacherUid)
+                    .map { it.label }.distinct(),
                 AdminUserFields.UPDATED_AT to FieldValue.serverTimestamp(),
             )
-            if (freeSubject != null) {
-                userPayload[AdminUserFields.SUBJECTS] = listOf(freeSubject.label)
-            }
 
             val batch = firestore.batch()
             // Both sides commit atomically: there is no observable state in which

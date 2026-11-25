@@ -7,6 +7,7 @@ import com.example.aulasegura.domain.repository.AdminGroupRepository
 import com.example.aulasegura.domain.repository.AdminGroupResult
 import com.example.aulasegura.domain.repository.AdminStudentRepository
 import com.example.aulasegura.domain.repository.AdminUserRepository
+import com.example.aulasegura.domain.repository.unassignedSubjectsForGrade
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.update
@@ -78,24 +79,55 @@ class AdminGroupDetailViewModel(
         _state.update { it.copy(query = query) }
     }
 
+    /** Teacher waiting for the director to pick a subject in this group. */
+    data class PendingSubject(val teacherUid: String, val teacherName: String)
+
+    /** Called by the assignment button: deassign immediately, ask when assigning. */
     fun toggleTeacher(teacherUid: String) {
         val current = _state.value.group ?: return
-        val assign = teacherUid !in current.teacherIds
+        if (teacherUid in current.teacherIds) {
+            deassignTeacher(teacherUid)
+            return
+        }
+        val name = _state.value.users.firstOrNull { it.uid == teacherUid }?.fullName.orEmpty()
+        _state.update { it.copy(pendingSubject = PendingSubject(teacherUid, name)) }
+    }
+
+    fun cancelPendingSubject() = _state.update { it.copy(pendingSubject = null) }
+
+    /** The chosen subject must belong to this grade and still be free. */
+    fun assignTeacher(teacherUid: String, subjectId: String) {
+        val current = _state.value.group ?: return
+        val chosen = subjectId.takeIf { id ->
+            unassignedSubjectsForGrade(current.grade, current.subjectTeachers).any { it.id == id }
+        }
+        if (subjectId.isNotBlank() && chosen == null) {
+            _state.update { it.copy(error = "Esa materia ya tiene docente en este grupo.") }
+            return
+        }
+        _state.update { it.copy(pendingSubject = null, saving = true, error = null) }
         viewModelScope.launch {
-            when (val result = groups.assignTeacher(current.id, teacherUid, assign)) {
+            when (val result = groups.assignTeacher(current.id, teacherUid, true, subjectId)) {
                 AdminGroupResult.Success -> {
                     reloadGroup()
-                    _state.update {
-                        it.copy(
-                            message = if (assign) "Docente asignado al grupo."
-                            else "Docente desasignado del grupo.",
-                        )
-                    }
+                    _state.update { it.copy(message = "Docente asignado al grupo.") }
                 }
 
-                is AdminGroupResult.Failure -> _state.update {
-                    it.copy(error = result.toMessage())
+                is AdminGroupResult.Failure -> _state.update { it.copy(error = result.toMessage()) }
+            }
+        }
+    }
+
+    private fun deassignTeacher(teacherUid: String) {
+        val current = _state.value.group ?: return
+        viewModelScope.launch {
+            when (val result = groups.assignTeacher(current.id, teacherUid, false, "")) {
+                AdminGroupResult.Success -> {
+                    reloadGroup()
+                    _state.update { it.copy(message = "Docente desasignado del grupo.") }
                 }
+
+                is AdminGroupResult.Failure -> _state.update { it.copy(error = result.toMessage()) }
             }
         }
     }

@@ -35,9 +35,9 @@ class TeacherGroupsViewModel(
         val notice: String? = null,
     )
 
-    // Resolved once: the subject comes from the profile, and the profile does not
-    // change while this screen is alive.
-    private val subjects: List<String> = auth.currentUser?.subjects.orEmpty()
+    // One subject per group: the same teacher may teach different subjects in
+    // different classrooms, so the global profile list cannot decide here.
+    private val assignments = auth.currentUser?.subjectAssignments.orEmpty()
 
     private val refreshing = MutableStateFlow(true)
     private val notice = MutableStateFlow<String?>(null)
@@ -49,8 +49,9 @@ class TeacherGroupsViewModel(
     ) { cached, isRefreshing, message ->
         UiState(
             groups = cached.map { group ->
-                val label = subjectForGroup(subjects, group.grade)
-                group.toUi(label, label?.let { subjectIdFromLabel(it, group.grade) })
+                val assigned = assignments.firstOrNull { it.groupId == group.id }
+                val label = assigned?.label ?: subjectForGroup(auth.currentUser?.subjects.orEmpty(), group.grade)
+                group.toUi(label, assigned?.subjectId ?: label?.let { subjectIdFromLabel(it, group.grade) })
             },
             refreshing = isRefreshing,
             notice = message,

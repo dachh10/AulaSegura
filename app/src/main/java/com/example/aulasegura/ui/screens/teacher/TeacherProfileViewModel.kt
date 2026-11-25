@@ -117,7 +117,9 @@ class TeacherProfileViewModel(
                 fullName = name,
                 // Subjects are assigned by the director; never write back the
                 // text a teacher typed in the profile form.
-                subjects = auth.currentUser?.subjects.orEmpty(),
+                // The profile owns identity only: subjects belong to the groups.
+                subjects = auth.currentUser?.subjectAssignments?.map { it.label }?.distinct()
+                    ?: auth.currentUser?.subjects.orEmpty(),
             )
             when (result) {
                 ProfileUpdateResult.Saved -> {

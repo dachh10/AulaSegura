@@ -22,6 +22,7 @@ import com.example.aulasegura.domain.repository.ProfilePhotoResult
 import com.example.aulasegura.domain.repository.ProfileUpdateResult
 import com.example.aulasegura.domain.repository.TutorRegistrationInput
 import com.example.aulasegura.domain.repository.TutorRegistrationResult
+import com.example.aulasegura.domain.repository.teacherSubjectProjection
 import com.example.aulasegura.domain.repository.teacherResubmitPatch
 import com.example.aulasegura.domain.repository.validateResubmit
 import com.example.aulasegura.domain.repository.isValidStudentCode
@@ -605,6 +606,18 @@ class AuthRepositoryImpl(
             return AuthResult.Failure(AuthFailure.ROLE_UNKNOWN)
         }
 
+        // The subject a teacher has in one group cannot leak into another: read
+        // the slots from the groups themselves, not from the denormalised list.
+        val groupSlots = firestore.collection("groups")
+            .whereArrayContains("teacherIds", firebaseUser.uid)
+            .get().await().documents.associate { doc ->
+                doc.id to (doc.get("subjectTeachers") as? Map<*, *>)
+                    ?.mapNotNull { (key, value) ->
+                        (key as? String)?.let { k -> (value as? String)?.let { k to it } }
+                    }?.toMap().orEmpty()
+            }
+        val assignments = teacherSubjectProjection(groupSlots, firebaseUser.uid)
+
         val user = AppUser(
             uid = firebaseUser.uid,
             email = snapshot.getString(FIELD_EMAIL) ?: firebaseUser.email.orEmpty(),
@@ -613,8 +626,8 @@ class AuthRepositoryImpl(
             schoolId = snapshot.getString(FIELD_SCHOOL_ID).orEmpty(),
             active = active,
             photoUrl = snapshot.getString(FIELD_PHOTO_URL),
-            subjects = (snapshot.get(FIELD_SUBJECTS) as? List<*>)?.filterIsInstance<String>()
-                ?: emptyList(),
+            subjects = assignments.map { it.label }.distinct(),
+            subjectAssignments = assignments,
             estado = snapshot.getString(FIELD_ESTADO).orEmpty(),
             vinculacion = snapshot.getString(FIELD_VINCULACION).orEmpty(),
             hijoSolicitado = snapshot.getString(FIELD_HIJO_SOLICITADO).orEmpty(),

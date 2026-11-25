@@ -133,7 +133,7 @@ private open class UngroupedBaseGroups : AdminGroupRepository by object : AdminG
         com.example.aulasegura.domain.repository.AdminGroupResult.Success
     override suspend fun deleteGroup(groupId: String, destinationGroupId: String?) =
         com.example.aulasegura.domain.repository.AdminGroupResult.Success
-    override suspend fun assignTeacher(groupId: String, teacherUid: String, assign: Boolean) =
+    override suspend fun assignTeacher(groupId: String, teacherUid: String, assign: Boolean, subjectId: String) =
         com.example.aulasegura.domain.repository.AdminGroupResult.Success
     override suspend fun saveSchedule(groupId: String, slots: List<com.example.aulasegura.domain.model.AdminScheduleSlot>) =
         com.example.aulasegura.domain.repository.AdminGroupResult.Success

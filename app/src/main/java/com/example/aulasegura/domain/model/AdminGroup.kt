@@ -22,6 +22,8 @@ data class AdminGroup(
     val studentCount: Int,
     val cycle: String,
     val schedule: List<AdminScheduleSlot> = emptyList(),
+    /** Canonical subject id -> uid of the teacher who owns that slot here. */
+    val subjectTeachers: Map<String, String> = emptyMap(),
 ) {
     /** The group label the mockup prints in the badge ("3° B"). */
     val label: String get() = name
@@ -43,6 +45,10 @@ data class AdminGroup(
             studentCount = (data["studentCount"] as? Number)?.toInt() ?: 0,
             cycle = data["cycle"] as? String ?: "",
             schedule = schedule,
+            subjectTeachers = (data["subjectTeachers"] as? Map<*, *>)
+                ?.mapNotNull { (key, value) ->
+                    (key as? String)?.let { k -> (value as? String)?.let { k to it } }
+                }?.toMap().orEmpty(),
         )
 
         private fun stringList(value: Any?): List<String> =

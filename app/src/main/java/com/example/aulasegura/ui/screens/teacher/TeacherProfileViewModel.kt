@@ -12,6 +12,7 @@ import com.example.aulasegura.domain.repository.GroupRepository
 import com.example.aulasegura.domain.repository.PasswordChangeResult
 import com.example.aulasegura.domain.repository.ProfilePhotoResult
 import com.example.aulasegura.domain.repository.ProfileUpdateResult
+import com.example.aulasegura.domain.repository.SchoolRepository
 import com.example.aulasegura.ui.profile.AvatarUploadResult
 import com.example.aulasegura.ui.profile.passwordChangeError
 import com.example.aulasegura.ui.profile.passwordChangeMessage
@@ -35,6 +36,7 @@ import kotlinx.coroutines.launch
 class TeacherProfileViewModel(
     private val auth: AuthRepository,
     private val groups: GroupRepository,
+    private val schools: SchoolRepository,
     private val compressor: PhotoCompressor,
     private val uploader: CloudinaryUploader,
 ) : ViewModel() {
@@ -50,6 +52,16 @@ class TeacherProfileViewModel(
         viewModelScope.launch {
             groups.observeMyGroups().collect { list ->
                 _ui.value = _ui.value.copy(groups = list.map { it.label })
+            }
+        }
+        // The name is configured by the director in "Configuración del plantel".
+        // Showing users.schoolId here would print sch-benito-juarez forever.
+        viewModelScope.launch {
+            // observeSchool() reads Room: refresh first so a name the director
+            // just saved is visible without visiting another screen.
+            runCatching { schools.refreshSchool() }
+            schools.observeSchool().collect { site ->
+                _ui.value = _ui.value.copy(schoolName = site?.name.orEmpty())
             }
         }
     }

@@ -215,7 +215,7 @@ fun TeacherProfileScreen(
             Spacer(Modifier.height(14.dp))
             Reveal(100) {
                 SettingsCard(
-                    schoolId = ui.schoolId,
+                    schoolName = schoolLabel(ui.schoolId, ui.schoolName),
                     onEditProfile = onEditProfile,
                     onChangePassword = onChangePassword,
                     onOpenPermissions = onOpenPermissions,
@@ -426,10 +426,10 @@ private fun ProfileHeader(
             )
         }
 
-        if (ui.schoolId.isNotBlank()) {
+        if (schoolLabel(ui.schoolId, ui.schoolName).isNotBlank()) {
             Spacer(Modifier.height(6.dp))
             Text(
-                text = "Escuela · ${ui.schoolId}",
+                text = "Escuela · ${schoolLabel(ui.schoolId, ui.schoolName)}",
                 color = Color.White.copy(alpha = 0.65f),
                 fontFamily = JetBrainsMono,
                 fontSize = 11.sp,
@@ -499,7 +499,7 @@ private fun SubjectSlotCard(
 
 @Composable
 private fun SettingsCard(
-    schoolId: String,
+    schoolName: String,
     onEditProfile: () -> Unit,
     onChangePassword: () -> Unit,
     onOpenPermissions: () -> Unit,
@@ -526,7 +526,7 @@ private fun SettingsCard(
             onClick = onChangePassword,
         )
         SettingsDivider()
-        SettingsValueRow(label = "Escuela", value = schoolId.ifBlank { "Sin asignar" })
+        SettingsValueRow(label = "Escuela", value = schoolName)
         SettingsDivider()
         NotificationToggleRow(
             granted = notificationsGranted,

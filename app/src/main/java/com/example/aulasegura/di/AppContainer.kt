@@ -973,6 +973,7 @@ class AppViewModelFactory(
             TeacherProfileViewModel(
                 auth = container.authRepository,
                 groups = container.groupRepository,
+                schools = container.schoolRepository,
                 compressor = container.imageCompressor,
                 uploader = container.cloudinaryUploader,
             )

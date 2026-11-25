@@ -15,6 +15,8 @@ data class TeacherProfileUi(
     val fullName: String = "",
     val email: String = "",
     val schoolId: String = "",
+    /** Configured school name; the id is only a fallback for legacy documents. */
+    val schoolName: String = "",
     val subjects: List<String> = emptyList(),
     val groups: List<String> = emptyList(),
     val photoUrl: String? = null,
@@ -48,6 +50,12 @@ internal fun AppUser.toProfileUi(): TeacherProfileUi = TeacherProfileUi(
     subjects = subjectAssignments.map { it.displayLabel }.ifEmpty { subjects },
     photoUrl = photoUrl,
 )
+
+/** The configured name wins; the raw id is a last resort, never the normal copy. */
+fun schoolLabel(schoolId: String, configuredName: String?): String =
+    configuredName?.takeIf { it.isNotBlank() }
+        ?: schoolId.takeIf { it.isNotBlank() }
+        ?: "Sin asignar"
 
 /** `Docente · Matemáticas`, or just `Docente` when the profile has no subjects. */
 fun profileSubtitle(subjects: List<String>): String =

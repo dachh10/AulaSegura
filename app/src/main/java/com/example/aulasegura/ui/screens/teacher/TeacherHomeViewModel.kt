@@ -57,7 +57,15 @@ class TeacherHomeViewModel(
 
     init {
         viewModelScope.launch { scheduleState.value = schedule.loadSchedule() }
-        refreshJustifications()
+        viewModelScope.launch {
+            // The dashboard reads groups from Room. On a fresh install that cache
+            // is empty, so pull it first: otherwise "Mis grupos" stays at zero
+            // until another screen refreshes the roster, and the report query
+            // below runs with no group ids at all. Failures are silent here —
+            // the cache still answers, and the groups screen shows its own error.
+            groups.refreshMyGroups()
+            refreshJustifications()
+        }
     }
 
     /**

@@ -8,7 +8,7 @@ crash de arranque por una query denegada y selector de materias en tareas.
 Suite final: 129 suites / 799 tests / 0 fallos.
 
 > **APK de entrega actual:** `C:\Users\diego\Documents\AulaSegura.apk` (SHA-256
-> `E6833DA09577B181D3857EC1CD64BCCD61D23CDCF2685B1AB92DD48BD6816596`, 25.59 MB)
+> `BF1C102132367F767FD5C7A1EBCC31246BD39E34F5B5C0BF49C1118E9D2F8A63`, 25.59 MB)
 > es el **release firmado** construido desde el árbol de trabajo actual: incluye todos
 > los cambios documentados abajo, el pase de lista único, las justificaciones por
 > materia y el conteo real de grupos descritos más adelante,
@@ -21,6 +21,11 @@ Suite final: 129 suites / 799 tests / 0 fallos.
 > La tarjeta "Mis grupos" mostraba el texto fijo "3 grupos". Ahora toma
 > `summary.groupsTotal` del ViewModel, que es `groups.size`, con singular y
 > mensaje "Sin grupos" cuando no hay ninguno. 1 test JVM nuevo.
+> Ajuste posterior: el inicio refresca los grupos de Firestore al abrirse, antes de
+> contarlos y de consultar justificaciones, para que el primer ingreso ya muestre
+> el número real sin tener que ir a "Grupos" y volver. Sin test JVM nuevo (el
+> cambio es una llamada de ciclo de vida; no hay lógica pura que pinnar); la suite
+> sigue en 129 suites / 799 tests / 0 fallos.
 
 ## Justificaciones dirigidas por materia (2026-11-25)
 

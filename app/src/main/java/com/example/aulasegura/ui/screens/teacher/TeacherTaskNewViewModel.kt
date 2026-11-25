@@ -56,8 +56,14 @@ class TeacherTaskNewViewModel(
     private val published = MutableStateFlow(false)
     private val message = MutableStateFlow<String?>(null)
 
-    private val subjects: List<String> =
-        auth.currentUser?.subjects?.takeIf { it.isNotEmpty() } ?: listOf(DEFAULT_SUBJECT)
+    /** Subjects of the selected group only; the global list cannot decide here. */
+    private fun subjectsFor(groupId: String?): List<String> =
+        auth.currentUser?.subjectAssignments
+            ?.filter { it.groupId == groupId }
+            ?.map { it.label }
+            ?.takeIf { it.isNotEmpty() }
+            ?: auth.currentUser?.subjects?.takeIf { it.isNotEmpty() }
+            ?: listOf(DEFAULT_SUBJECT)
 
     private val myGroups = groups.observeMyGroups()
         .map { list -> list.map { PublishGroupUi(id = it.id, label = it.label) } }
@@ -107,7 +113,7 @@ class TeacherTaskNewViewModel(
                 groups = groupList,
                 selectedGroupId = groupId,
                 selectedGroupLabel = groupList.firstOrNull { it.id == groupId }?.label,
-                subjects = subjects,
+                subjects = subjectsFor(groupId),
                 subject = fields.subject,
                 title = fields.title,
                 description = fields.description,
@@ -131,7 +137,7 @@ class TeacherTaskNewViewModel(
             scope = viewModelScope,
             started = SharingStarted.WhileSubscribed(STOP_TIMEOUT_MILLIS),
             initialValue = TeacherTaskNewUi(
-                subjects = subjects,
+                subjects = subjectsFor(null),
                 subject = subject.value,
                 dueDate = dueDate.value,
                 dueDateLabel = taskDueDateLabel(dueDate.value, zone),
@@ -144,15 +150,17 @@ class TeacherTaskNewViewModel(
         if (published.value) return
         if (groupId.isBlank() || groupId !in myGroups.value.map { it.id }) return
         selectedGroupId.value = groupId
-        auth.currentUser?.subjectAssignments?.firstOrNull { it.groupId == groupId }?.label
-            ?.let { subject.value = it }
+        subject.value = auth.currentUser?.subjectAssignments
+            ?.firstOrNull { it.groupId == groupId }?.label
+            ?: DEFAULT_SUBJECT
     }
 
     fun selectGroup(groupId: String) {
         if (published.value) return
         selectedGroupId.value = groupId
-        auth.currentUser?.subjectAssignments?.firstOrNull { it.groupId == groupId }?.label
-            ?.let { subject.value = it }
+        subject.value = auth.currentUser?.subjectAssignments
+            ?.firstOrNull { it.groupId == groupId }?.label
+            ?: DEFAULT_SUBJECT
         message.value = null
     }
 

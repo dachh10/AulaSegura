@@ -67,6 +67,13 @@ data class TodaySummaryUi(
     val pendingSync: Int = 0,
 )
 
+/** Subtitle of the "Mis grupos" quick card: the teacher's real group count. */
+internal fun groupCountLabel(count: Int): String = when {
+    count <= 0 -> "Sin grupos"
+    count == 1 -> "1 grupo"
+    else -> "$count grupos"
+}
+
 enum class ActivityKind {
     ROLL_CALL,
     INCIDENT,

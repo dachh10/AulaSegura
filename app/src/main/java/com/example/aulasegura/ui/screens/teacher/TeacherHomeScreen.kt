@@ -164,6 +164,7 @@ fun TeacherHomeScreen(
             }
             Reveal(180) {
                 TeacherQuickActions(
+                    groupsTotal = ui.summary.groupsTotal,
                     onRegistrarIncidente = onIrARegistrarIncidente,
                     onPublicarTarea = onIrAPublicarTarea,
                     onPublicarAviso = onIrAPublicarAviso,
@@ -651,6 +652,7 @@ private fun PendingJustificationsCard(count: Int, onClick: () -> Unit) {
 // ZONE 4 — Quick actions
 @Composable
 private fun TeacherQuickActions(
+    groupsTotal: Int,
     onRegistrarIncidente: () -> Unit,
     onPublicarTarea: () -> Unit,
     onPublicarAviso: () -> Unit,
@@ -708,7 +710,7 @@ private fun TeacherQuickActions(
                 TeacherQuickCard(
                     icon = Icons.Filled.Groups,
                     title = "Mis grupos",
-                    subtitle = "3 grupos",
+                    subtitle = groupCountLabel(groupsTotal),
                     onClick = onMisGrupos,
                     modifier = Modifier
                         .weight(1f)

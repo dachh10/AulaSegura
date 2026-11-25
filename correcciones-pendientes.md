@@ -5,16 +5,22 @@ Estado de los cinco ítems originales: **D1 ✅, D2 ✅, D3 ✅, D4 ✅, D5 ✅*
 **Todos los ítems del documento están cerrados y verificados en dispositivo.**
 Además se cerraron los subdetalles derivados de grupos: grupos duplicados, materia por grupo,
 crash de arranque por una query denegada y selector de materias en tareas.
-Suite final: 129 suites / 798 tests / 0 fallos.
+Suite final: 129 suites / 799 tests / 0 fallos.
 
 > **APK de entrega actual:** `C:\Users\diego\Documents\AulaSegura.apk` (SHA-256
-> `BB9ED6C9DFE25D7AF0AE2720EA07E867048246501C3F49ED98CA06CDED77B57F`, 25.59 MB)
+> `E6833DA09577B181D3857EC1CD64BCCD61D23CDCF2685B1AB92DD48BD6816596`, 25.59 MB)
 > es el **release firmado** construido desde el árbol de trabajo actual: incluye todos
-> los cambios documentados abajo, el pase de lista único y las justificaciones por
-> materia descritas más adelante,
+> los cambios documentados abajo, el pase de lista único, las justificaciones por
+> materia y el conteo real de grupos descritos más adelante,
 > con la firma de release verificada (`minSdk 24`, `targetSdk 37`,
 > sin flag `debuggable`). Quien tenga el build de debug debe desinstalarlo antes de
 > instalar este, porque la firma es distinta.
+
+## Conteo real de grupos en el inicio (2026-11-25)
+
+> La tarjeta "Mis grupos" mostraba el texto fijo "3 grupos". Ahora toma
+> `summary.groupsTotal` del ViewModel, que es `groups.size`, con singular y
+> mensaje "Sin grupos" cuando no hay ninguno. 1 test JVM nuevo.
 
 ## Justificaciones dirigidas por materia (2026-11-25)
 

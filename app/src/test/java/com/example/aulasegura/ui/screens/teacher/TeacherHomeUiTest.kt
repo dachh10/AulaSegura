@@ -196,6 +196,13 @@ class TeacherHomeUiTest {
         ),
     )
 
+    @Test
+    fun `the groups card counts the real groups with correct singular`() {
+        assertEquals("Sin grupos", groupCountLabel(0))
+        assertEquals("1 grupo", groupCountLabel(1))
+        assertEquals("3 grupos", groupCountLabel(3))
+    }
+
     private fun slot(
         id: String,
         weekday: Int,

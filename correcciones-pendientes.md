@@ -44,6 +44,9 @@ release.
 > conservando las materias ya asignadas. Datos reparados: eliminado el grupo manual
 > `4nFTff7…`, quitado de `users.groupIds` de Diego, y `grp-5c` con
 > `subjectTeachers: { g5-espanol-v: <Dach> }`. 3 tests nuevos, suite 773/773.
+> **Verificado en dispositivo por Diego el 2026-11-24:** crear manualmente un grupo y
+> registrar un docente con el mismo grado/grupo no duplica el grupo; la materia ya asignada
+> aparece bloqueada en el registro y otra materia sí se acepta.
 
 ## D1 — Aviso a un grupo específico falla; "Todos mis grupos" funciona — ✅ COMPLETADO (2026-11-24)
 

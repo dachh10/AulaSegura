@@ -1,7 +1,8 @@
 # Correcciones pendientes — presentación del proyecto
 
 Fecha: 2026-11-24 (cierre). Estado: `main == origin/main`,Work unit todos commiteados.
-Estado de los cinco ítems originales: **D1 ✅, D2 ✅, D3 ✅, D4 ✅, D5 ⬜ pendiente**.
+Estado de los cinco ítems originales: **D1 ✅, D2 ✅, D3 ✅, D4 ✅, D5 ✅**.
+**Todos los ítems del documento están cerrados y verificados en dispositivo.**
 Además se cerraron los subdetalles derivados de grupos: grupos duplicados, materia por grupo,
 crash de arranque por una query denegada y selector de materias en tareas.
 Suite final: 125 suites / 777 tests / 0 fallos.
@@ -35,7 +36,7 @@ Suite final: 125 suites / 777 tests / 0 fallos.
 | --- | --- | --- |
 | 1 | D1 | ✅ **Completado 2026-11-24.** Preselección validada contra el roster; aviso a un grupo específico funciona. |
 | 2 | D3 | ✅ **Completado.** Loop de navegación corregido por Monserrat; además "Volver a enviar solicitud" reabre la solicitud sin borrar la cuenta. |
-| 3 | D5 | ⬜ **Pendiente.** El perfil del docente sigue mostrando `sch-benito-juarez` en vez de `SchoolSite.name`. |
+| 3 | D5 | ✅ **Completado 2026-11-24.** Perfil muestra `SchoolSite.name`, con ID solo como fallback; 3 tests. |
 | 4 | D2 | ✅ **Completado por Monserrat.** Botón async-aware con "Ubicando…", reintento y mensaje visible; 6 tests JVM. |
 | 5 | D4 | ✅ **Completado 2026-11-24.** Bandeja en el docente dueño de la sesión; directora solo lectura; foto obligatoria salvo "Asunto familiar"; falta → `justified`. |
 
@@ -319,9 +320,18 @@ regla nueva — y queda pendiente la prueba en dispositivo aprobando como direct
 
 ---
 
-## D5 — El perfil del docente muestra "sch-benito-juarez" en vez del nombre del plantel
+## D5 — El perfil del docente muestra "sch-benito-juarez" en vez del nombre del plantel — ✅ COMPLETADO (2026-11-24)
 
-**Causa CONFIRMADA:** se está mostrando el **ID** de la escuela como si fuera el nombre.
+> **Resuelto:** `TeacherProfileViewModel` observa `SchoolRepository.observeSchool()` y el
+> perfil renderiza `SchoolSite.name`; el ID queda solo como fallback de documentos viejos.
+> Se agregó `refreshSchool()` al entrar al perfil para que un nombre recién guardado por la
+> directora aparezca sin visitar otra pantalla. 3 tests JVM (`schoolLabel`) y verificado en
+> dispositivo por Diego. Commit `291cd80`.
+> **Nota de datos:** en la inspección de Firestore no había ningún documento en `schools`,
+> así que el panel mostraba "Plantel sin nombre". Hasta que la directora guarde
+> "Configuración del plantel", el perfil muestra correctamente "Sin asignar".
+
+**Causa CONFIRMADA:** se estaba mostrando el **ID** de la escuela como si fuera el nombre.
 - `ui/screens/teacher/TeacherProfileScreen.kt:429-432` → `"Escuela · ${ui.schoolId}"`.
 - `TeacherProfileScreen.kt:502,529` → `SettingsValueRow(label = "Escuela", value = schoolId…)`.
 - `ui/screens/teacher/TeacherProfileViewModel.kt:35-55` solo observa los grupos; no consulta
@@ -344,8 +354,8 @@ en `TeacherProfileUi`, recolectar `observeSchool()` y mostrar `site.name` con fa
 ```text
 Trabajás en C:\Users\diego\AndroidStudioProjects\AulaSegura. Antes de tocar nada, leé
 correcciones-pendientes.md (en la raíz del repo, al lado de FASE0.md…) completo: ahí está el
-estado final de cada detalle con su evidencia. D1, D2, D3 y D4 ya están COMPLETADOS y
-verificados; NO los reabras. El único pendiente es D5 (nombre del plantel en el perfil).
+estado final de cada detalle con su evidencia. D1, D2, D3, D4 y D5 están COMPLETADOS y
+verificados en dispositivo; NO los reabras salvo petición explícita de Diego.
 
 Reglas obligatorias:
 - No modifiques app/build.gradle.kts, keystore*, google-services.json ni local.properties.
@@ -367,8 +377,7 @@ Orden de trabajo:
 
 2) D3 — YA NO HACER: completado y verificado en dispositivo.
 
-3) D5 — ÚNICO PENDIENTE. Perfil del docente: mostrar SchoolSite.name desde
-   SchoolRepository.observeSchool() en vez de ui.schoolId. Actualizá TeacherProfileUiTest.
+3) D5 — YA NO HACER: completado y verificado en dispositivo el 2026-11-24.
 
 4) D2 — YA NO HACER: completado por Monserrat con 6 tests JVM.
 

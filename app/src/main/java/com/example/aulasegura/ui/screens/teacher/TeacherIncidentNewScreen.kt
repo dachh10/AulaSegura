@@ -155,9 +155,10 @@ fun TeacherIncidentNewScreen(
 ) {
     val context = LocalContext.current
 
-    // Lectura real del GPS. Si el permiso ya está concedido, llega la primera
-    // lectura sola y el formulario abre con el pin puesto.
-    val location = rememberCurrentLocation()
+    // Al abrir se usa la última posición conocida: esperar un fix fresco puede
+    // tardar hasta 8 s y el formulario parecía colgado. El botón "Usar mi
+    // ubicación actual" sí pide una lectura precisa, con su estado "Ubicando…".
+    val location = rememberCurrentLocation(useFreshFixOnEntry = false)
     val locationButton = locationButtonUi(
         permissionGranted = location.permissionGranted,
         hasFix = location.fix != null,

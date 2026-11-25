@@ -40,8 +40,15 @@ data class LocationUiState(
  * Compose. La geocerca no se decide en este archivo, sino en
  * `evaluateGeofence`, que es puro y se puede testear sin dispositivo.
  */
+/** Forms that only centre a map skip the fresh fix; any explicit retry asks for it. */
+internal fun shouldPreferFreshFix(useFreshFixOnEntry: Boolean, attempt: Int): Boolean =
+    useFreshFixOnEntry || attempt > 0
+
 @Composable
-fun rememberCurrentLocation(): LocationUiState {
+fun rememberCurrentLocation(
+    /** Set false on forms that only centre a map: the fresh GPS wait is up to 8 s. */
+    useFreshFixOnEntry: Boolean = true,
+): LocationUiState {
     val context = LocalContext.current
     val provider = remember(context) { AndroidLocationProvider(context) }
     var granted by remember { mutableStateOf(provider.hasPermission()) }
@@ -81,7 +88,9 @@ fun rememberCurrentLocation(): LocationUiState {
         if (!granted) return@LaunchedEffect
         locating = true
         failed = false
-        val updated = provider.currentFix()
+        val updated = provider.currentFix(
+            preferFresh = shouldPreferFreshFix(useFreshFixOnEntry, attempt),
+        )
         locating = false
         if (updated != null) fix = updated else failed = true
     }

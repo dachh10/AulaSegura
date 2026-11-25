@@ -28,8 +28,13 @@ interface LocationProvider {
      *
      * `null` means the device genuinely has nothing: no permission, GPS off and
      * no previous reading.
+     *
+     * Passing [preferFresh] = false skips the high-accuracy wait entirely and
+     * returns the last known position. Screens that only centre a map use it on
+     * entry so opening a form never blocks on GPS; the explicit "use my location"
+     * action still asks for a fresh fix.
      */
-    suspend fun currentFix(): LocationFix?
+    suspend fun currentFix(preferFresh: Boolean = true): LocationFix?
 }
 
 /**
@@ -54,8 +59,10 @@ class AndroidLocationProvider(
             PackageManager.PERMISSION_GRANTED
 
     @SuppressLint("MissingPermission")
-    override suspend fun currentFix(): LocationFix? {
+    override suspend fun currentFix(preferFresh: Boolean): LocationFix? {
         if (!hasPermission()) return null
+
+        if (!preferFresh) return lastKnownFix()
 
         val fresh = runCatching {
             withTimeoutOrNull(FRESH_FIX_TIMEOUT_MILLIS) {
@@ -65,15 +72,16 @@ class AndroidLocationProvider(
             }
         }.getOrNull()
 
-        val location = fresh ?: lastKnownLocation()
-        return location?.let {
-            LocationFix(
-                latitude = it.latitude,
-                longitude = it.longitude,
-                accuracyMeters = if (it.hasAccuracy()) it.accuracy else null,
-            )
-        }
+        return (fresh ?: lastKnownLocation())?.toFix()
     }
+
+    private fun lastKnownFix(): LocationFix? = lastKnownLocation()?.toFix()
+
+    private fun Location.toFix(): LocationFix = LocationFix(
+        latitude = latitude,
+        longitude = longitude,
+        accuracyMeters = if (hasAccuracy()) accuracy else null,
+    )
 
     /**
      * Last position the platform remembers, GPS first.

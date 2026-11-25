@@ -26,8 +26,8 @@ Suite final: 129 suites / 798 tests / 0 fallos.
 > fallback para documentos heredados sin `teacherId`. La aprobación sigue
 > modificando una sola sesión. Se agregó el índice compuesto
 > `justifications(groupId, teacherId)` y el formulario respeta la sesión tocada.
-> **Pendiente de desplegar:** reglas e índices en Firebase; el APK funciona con
-> las reglas antiguas, pero el direccionamiento real empieza al desplegarlas.
+> **Desplegado 2026-11-25:** reglas e índices en Firebase (`aulasegu`), con
+> compilación y deploy confirmados por Firebase CLI.
 > 5 tests JVM nuevos: 129 suites / 798 tests / 0 fallos.
 
 ## Un pase de lista por grupo, día y materia (2026-11-25)

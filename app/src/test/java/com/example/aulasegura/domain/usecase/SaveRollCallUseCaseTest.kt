@@ -27,9 +27,21 @@ class SaveRollCallUseCaseTest {
 
         var savedEntries: List<RollCallEntry>? = null
         var outcome: SaveRollCallOutcome = SaveRollCallOutcome.Queued
+        var alreadyTakenId: String? = null
+        var seenSlot: List<String>? = null
 
         override suspend fun startDraft(groupId: String, subjectId: String): AttendanceStart =
             AttendanceStart.NoGroup(groupId)
+
+        override suspend fun existingSessionId(
+            groupId: String,
+            date: String,
+            teacherId: String,
+            subjectKey: String,
+        ): String? {
+            seenSlot = listOf(groupId, date, teacherId, subjectKey)
+            return alreadyTakenId
+        }
 
         override suspend fun save(
             draft: RollCallDraft,
@@ -125,5 +137,45 @@ class SaveRollCallUseCaseTest {
 
         assertTrue(outcome is SaveRollCallOutcome.Failed)
         assertEquals("grp-3b", (outcome as SaveRollCallOutcome.Failed).groupId)
+    }
+
+    @Test
+    fun `an existing session for this slot stops the save before the cache is touched`() =
+        runBlocking {
+            val repository = FakeAttendanceRepository().apply { alreadyTakenId = "session-closed" }
+            val useCase = SaveRollCallUseCase(repository)
+
+            val outcome = useCase(draft, listOf(student("s1", 1, AttendanceMark.PRESENT)))
+
+            assertEquals(SaveRollCallOutcome.AlreadyTaken("session-closed"), outcome)
+            assertNull(repository.savedEntries)
+        }
+
+    @Test
+    fun `the save slot check uses group date teacher and subject`() = runBlocking {
+        val repository = FakeAttendanceRepository()
+        val useCase = SaveRollCallUseCase(repository)
+
+        useCase(
+            draft.copy(subjectId = "g3-matematicas-iii", subject = "Matemáticas"),
+            listOf(student("s1", 1, AttendanceMark.PRESENT)),
+        )
+
+        assertEquals(
+            listOf("grp-3b", "2026-11-14", "uid-docente", "Matemáticas"),
+            repository.seenSlot,
+        )
+    }
+
+    @Test
+    fun `an incomplete roster is reported before the slot check`() = runBlocking {
+        val repository = FakeAttendanceRepository().apply { alreadyTakenId = "session-closed" }
+        val useCase = SaveRollCallUseCase(repository)
+
+        val outcome = useCase(draft, listOf(student("s1", 1, null)))
+
+        assertEquals(SaveRollCallOutcome.Incomplete(unmarked = 1), outcome)
+        assertNull(repository.seenSlot)
+        assertNull(repository.savedEntries)
     }
 }

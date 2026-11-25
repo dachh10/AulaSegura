@@ -86,6 +86,13 @@ class RoomAttendanceRepository(
         )
     }
 
+    override suspend fun existingSessionId(
+        groupId: String,
+        date: String,
+        teacherId: String,
+        subjectKey: String,
+    ): String? = attendanceDao.existingSessionId(groupId, date, teacherId, subjectKey)
+
     override suspend fun save(
         draft: RollCallDraft,
         entries: List<RollCallEntry>,

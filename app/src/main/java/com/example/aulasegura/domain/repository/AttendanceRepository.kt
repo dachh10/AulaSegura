@@ -29,6 +29,22 @@ interface AttendanceRepository {
     suspend fun startDraft(groupId: String, subjectId: String): AttendanceStart
 
     /**
+     * Id of the session this teacher already closed on [date] for [groupId] and
+     * [subjectKey]; `null` when the slot is still free.
+     *
+     * [subjectKey] is the canonical subject id, or the legacy label when the
+     * session has no id. The answer comes from Room, so the "one roll call per
+     * group, day and subject" guard also works with no network. The default keeps
+     * write-only test doubles simple.
+     */
+    suspend fun existingSessionId(
+        groupId: String,
+        date: String,
+        teacherId: String,
+        subjectKey: String,
+    ): String? = null
+
+    /**
      * Persists [entries] as the closed session [draft], locally and queued.
      *
      * The session and its records are handed to the outbox in one transaction,
@@ -52,6 +68,16 @@ interface AttendanceRepository {
 sealed interface AttendanceStart {
 
     data class Ready(val draft: RollCallDraft) : AttendanceStart
+
+    /**
+     * This teacher already took attendance for this group on this date and
+     * subject. The screen must not offer the marking list a second time.
+     */
+    data class AlreadyTaken(
+        val sessionId: String,
+        val groupLabel: String,
+        val subject: String,
+    ) : AttendanceStart
 
     /** Nobody is signed in; the screen is already on its way to the login. */
     data object SignedOut : AttendanceStart
@@ -81,6 +107,9 @@ sealed interface SaveRollCallOutcome {
 
     /** Written to Room and queued for sync; it may reach Firestore much later. */
     data object Queued : SaveRollCallOutcome
+
+    /** Another session for the same group, day, subject and teacher already exists. */
+    data class AlreadyTaken(val sessionId: String) : SaveRollCallOutcome
 
     data object SignedOut : SaveRollCallOutcome
 

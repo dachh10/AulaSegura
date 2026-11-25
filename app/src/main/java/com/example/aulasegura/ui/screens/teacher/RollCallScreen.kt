@@ -107,8 +107,10 @@ fun RollCallScreen(
                 GpsBanner(geofence = geofence, onOpenMap = onOpenMap)
             }
             Reveal(120) { CountersRow(counts = ui.counts, unmarked = ui.unmarked) }
-            Reveal(180) {
-                QuickActionRow(onMarkAllPresent = onMarkAllPresent)
+            if (!ui.blocked) {
+                Reveal(180) {
+                    QuickActionRow(onMarkAllPresent = onMarkAllPresent)
+                }
             }
             ui.message?.let { message ->
                 // Green means "saved"; a failed sync is a saved session that has
@@ -133,7 +135,8 @@ fun RollCallScreen(
         BottomBar(
             saving = ui.saving,
             saved = ui.saved,
-            enabled = !ui.loading && ui.students.isNotEmpty() && !ui.saving && !ui.saved,
+            enabled = !ui.loading && ui.students.isNotEmpty() && !ui.saving && !ui.saved &&
+                !ui.blocked,
             onSave = onSave,
         )
     }

@@ -24,6 +24,8 @@ data class RollCallUi(
     val loading: Boolean = true,
     val saving: Boolean = false,
     val saved: Boolean = false,
+    /** The slot was already taken today: marking and saving must stay disabled. */
+    val blocked: Boolean = false,
     /**
      * Phase of the saved session in the outbox, or `null` before anything was
      * saved. The screen paints this instead of promising "se sincroniza en

@@ -3,6 +3,7 @@ package com.example.aulasegura.domain.usecase
 import com.example.aulasegura.domain.model.RollCallDraft
 import com.example.aulasegura.domain.model.RollCallEntry
 import com.example.aulasegura.domain.model.RollCallStudent
+import com.example.aulasegura.domain.model.subjectKey
 import com.example.aulasegura.domain.repository.AttendanceRepository
 import com.example.aulasegura.domain.repository.SaveRollCallOutcome
 
@@ -33,6 +34,17 @@ class SaveRollCallUseCase(
         if (unmarked.isNotEmpty()) {
             return SaveRollCallOutcome.Incomplete(unmarked = unmarked.size)
         }
+
+        // Second line of defence: two screens opened before the first save would
+        // both hold their own draft. The slot is checked again here so only the
+        // first one reaches Room and the outbox.
+        val existing = attendance.existingSessionId(
+            groupId = draft.groupId,
+            date = draft.date,
+            teacherId = draft.teacherId,
+            subjectKey = draft.subjectKey,
+        )
+        if (existing != null) return SaveRollCallOutcome.AlreadyTaken(existing)
 
         val entries = marked
             .sortedBy { it.listNumber }

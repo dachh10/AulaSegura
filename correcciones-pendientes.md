@@ -5,16 +5,30 @@ Estado de los cinco ítems originales: **D1 ✅, D2 ✅, D3 ✅, D4 ✅, D5 ✅*
 **Todos los ítems del documento están cerrados y verificados en dispositivo.**
 Además se cerraron los subdetalles derivados de grupos: grupos duplicados, materia por grupo,
 crash de arranque por una query denegada y selector de materias en tareas.
-Suite final: 129 suites / 787 tests / 0 fallos.
+Suite final: 129 suites / 793 tests / 0 fallos.
 
 > **APK de entrega actual:** `C:\Users\diego\Documents\AulaSegura.apk` (SHA-256
-> `6945A120D5B0A0C68FEEF7BE79A3F270DC6AD6F9C18B8C4AA567909DADBAE711`, 25.57 MB)
-> es el **release firmado** construido desde `4c1c07a`: incluye todos los cambios
-> documentados abajo, con la firma de release verificada (`minSdk 24`, `targetSdk 37`,
+> `30375938A5D8224C4508F3ECE6C6279C2EEEC95A4AC79094D529BD138F91FF8E`, 25.57 MB)
+> es el **release firmado** construido desde el árbol de trabajo actual: incluye todos
+> los cambios documentados abajo y el pase de lista único descrito más adelante,
+> con la firma de release verificada (`minSdk 24`, `targetSdk 37`,
 > sin flag `debuggable`). Quien tenga el build de debug debe desinstalarlo antes de
 > instalar este, porque la firma es distinta.
 
-## Pulido visual final (2026-11-24) — 20 detalles reportados
+## Un pase de lista por grupo, día y materia (2026-11-25)
+
+> Un docente solo puede cerrar **una** asistencia por grupo, fecha y materia.
+> `StartRollCallUseCase` consulta `existingSessionId` antes de abrir la pantalla y
+> devuelve `AlreadyTaken` sin crear borrador ni registrar el evento de inicio;
+> `SaveRollCallUseCase` repite la verificación antes de escribir en Room, para que
+> dos pantallas abiertas no puedan guardar dos sesiones. La búsqueda incluye
+> `teacherId` y acepta la etiqueta de materia de las sesiones heredadas, así que
+> otro docente o otra materia del mismo grupo no quedan bloqueados. La pantalla
+> muestra el aviso y deshabilita marcar/guardar. 6 tests JVM nuevos: 129 suites /
+> 793 tests / 0 fallos. El APK de entrega ya incluye este cambio; el código queda
+> pendiente de commit.
+
+## Pulido visual final (2026-11-24) - 20 detalles reportados
 
 Diego aprobó tres excepciones después de ver la evidencia: la campana de "Mis grupos"
 **se conserva** (navega a Notificaciones), los filtros de Tareas del tutor **se conservan**

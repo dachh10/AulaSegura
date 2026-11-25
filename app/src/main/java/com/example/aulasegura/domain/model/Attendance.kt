@@ -143,3 +143,10 @@ data class RollCallDraft(
     val startedAt: Long,
     val location: SessionLocation? = null,
 )
+
+/**
+ * The subject part of a slot key. The label is the durable value: every saved
+ * session stores it, including legacy ones with no canonical id. The repository
+ * also checks `subjectId`, so a draft with a canonical id matches both shapes.
+ */
+val RollCallDraft.subjectKey: String get() = subject

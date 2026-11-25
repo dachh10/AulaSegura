@@ -66,6 +66,7 @@ class RollCallViewModel(
     private var message: String? = null
     private var saving: Boolean = false
     private var saved: Boolean = false
+    private var blocked: Boolean = false
     private var sync: RollCallSync? = null
     private var rosterLoaded: Boolean = false
 
@@ -78,8 +79,9 @@ class RollCallViewModel(
         }
     }
 
-    fun mark(studentId: String, mark: AttendanceMark) = updateMarks { current ->
-        current.map { if (it.id == studentId) it.copy(mark = mark) else it }
+    fun mark(studentId: String, mark: AttendanceMark) {
+        if (blocked) return
+        updateMarks { current -> current.map { if (it.id == studentId) it.copy(mark = mark) else it } }
     }
 
     /**
@@ -93,12 +95,13 @@ class RollCallViewModel(
         sessionLocation = location
     }
 
-    fun markAllPresent() = updateMarks { current ->
-        current.map { it.copy(mark = AttendanceMark.PRESENT) }
+    fun markAllPresent() {
+        if (blocked) return
+        updateMarks { current -> current.map { it.copy(mark = AttendanceMark.PRESENT) } }
     }
 
     fun save() {
-        if (saving || saved) return
+        if (blocked || saving || saved) return
         val session = draft
         if (session == null) {
             message = NO_SESSION_MESSAGE
@@ -132,6 +135,11 @@ class RollCallViewModel(
                     // one Room holds, so the strip follows the outbox instead of
                     // repeating a promise.
                     watchSync(session.sessionId)
+                }
+
+                is SaveRollCallOutcome.AlreadyTaken -> {
+                    blocked = true
+                    message = alreadyTakenMessage()
                 }
 
                 is SaveRollCallOutcome.Incomplete ->
@@ -181,8 +189,21 @@ class RollCallViewModel(
             is AttendanceStart.InvalidSubject -> message =
                 "La materia seleccionada no corresponde a este grupo. " +
                     "Vuelve a elegir la materia desde el horario."
+
+            is AttendanceStart.AlreadyTaken -> {
+                groupLabel = start.groupLabel
+                subject = start.subject
+                blocked = true
+                message = alreadyTakenMessage()
+            }
         }
         render()
+    }
+
+    private fun alreadyTakenMessage(): String {
+        val slot = listOf(groupLabel, subject).filter { it.isNotBlank() }.joinToString(" · ")
+        return "Ya se pasó lista en $slot hoy. Cada grupo y materia permite un solo " +
+            "pase de lista por día. Consultá el historial para ver la asistencia guardada."
     }
 
     private fun onRoster(cached: List<Student>) {
@@ -203,7 +224,7 @@ class RollCallViewModel(
     }
 
     private fun updateMarks(transform: (List<RollCallStudent>) -> List<RollCallStudent>) {
-        if (saved) return
+        if (blocked || saved) return
         roster = transform(roster)
         message = null
         render()
@@ -218,6 +239,7 @@ class RollCallViewModel(
             loading = !rosterLoaded,
             saving = saving,
             saved = saved,
+            blocked = blocked,
             sync = sync,
             message = rollCallSyncMessage(sync) ?: message,
         )

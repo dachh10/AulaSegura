@@ -39,6 +39,24 @@ interface AttendanceDao {
     )
     suspend fun findSession(groupId: String, date: String): AttendanceSessionEntity?
 
+    /**
+     * The one-per-slot guard: a session already closed by this teacher for this
+     * group on this date and subject. [subjectKey] is the durable subject label,
+     * which legacy sessions also carry; the canonical id is matched as well.
+     */
+    @Query(
+        "SELECT sessionId FROM attendance_sessions " +
+            "WHERE groupId = :groupId AND date = :date AND teacherId = :teacherId " +
+            "AND (subjectId = :subjectKey OR subject = :subjectKey) " +
+            "ORDER BY startedAt DESC LIMIT 1",
+    )
+    suspend fun existingSessionId(
+        groupId: String,
+        date: String,
+        teacherId: String,
+        subjectKey: String,
+    ): String?
+
     @Query("SELECT * FROM attendance_sessions WHERE sessionId = :sessionId LIMIT 1")
     suspend fun findSessionById(sessionId: String): AttendanceSessionEntity?
 

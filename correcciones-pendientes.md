@@ -25,8 +25,8 @@ Suite final: 129 suites / 793 tests / 0 fallos.
 > `teacherId` y acepta la etiqueta de materia de las sesiones heredadas, así que
 > otro docente o otra materia del mismo grupo no quedan bloqueados. La pantalla
 > muestra el aviso y deshabilita marcar/guardar. 6 tests JVM nuevos: 129 suites /
-> 793 tests / 0 fallos. El APK de entrega ya incluye este cambio; el código queda
-> pendiente de commit.
+> 793 tests / 0 fallos. El APK de entrega ya incluye este cambio; código, tests y
+> documentación quedaron registrados en el commit `7abfd38`.
 
 ## Pulido visual final (2026-11-24) - 20 detalles reportados
 

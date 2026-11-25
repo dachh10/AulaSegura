@@ -47,7 +47,7 @@ la prueba en dispositivo**, que hace Diego porque no hay equipo conectado.
 
 | # | Detalle | Resultado |
 |---|---|---|
-| 1 | Filtros de "Mis grupos" se sobreencimaban al elegir materia | Ambos grupos de chips pasaron a `FlowRow`; el texto del chip tiene `maxLines = 1`, ellipsis y ancho máximo. |
+| 1 | Filtros de "Mis grupos" se sobreencimaban al elegir materia | Causa real: las dos filas eran hermanas dentro del `Box` de `Reveal`, que las apila en el mismo origen. Se envolvieron en un `Column`; además ambos grupos usan `FlowRow` y el texto del chip tiene `maxLines = 1`, ellipsis y ancho máximo. Corregido en `ce1de5b` y refinado después. |
 | 2 | Filtros de grado en Grupos (directora) amontonados y sin 6° | Los siete chips (Todos + 1°…6°) van en `FlowRow`, con salto de línea y separación vertical. Los seis grados ya estaban en el enum; el problema era que el `Row` los sacaba de pantalla. |
 | 3 | "Registrar incidente" tardaba en abrir | `rememberCurrentLocation()` pedía un fix GPS fresco con timeout de 8 s al entrar. Ahora el formulario usa la última posición conocida (inmediata) y el botón "Usar mi ubicación actual" sí pide el fix preciso. Las pantallas de geocerca conservan el fix fresco de entrada. 3 tests JVM (`LocationFixPolicyTest`). |
 

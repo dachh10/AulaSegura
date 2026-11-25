@@ -140,41 +140,46 @@ fun TeacherGroupsScreen(
             Reveal(0) { GroupsHeader(onNotifications = onIrANotificaciones) }
 
             Reveal(60) {
-                FlowRow(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 16.dp)
-                        .padding(top = 12.dp, bottom = 12.dp),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    verticalArrangement = Arrangement.spacedBy(8.dp),
-                ) {
-                    GroupFilter.entries.forEach { option ->
-                        FilterChip(
-                            label = option.labelFor(subjectForFilter),
-                            selected = option == filter,
-                            onClick = {
-                                filter = option
-                                if (option == GroupFilter.Materia && selectedSubject == null) {
-                                    selectedSubject = subjects.firstOrNull()
-                                }
-                            },
-                        )
-                    }
-                }
-                if (filter == GroupFilter.Materia && subjects.size > 1) {
+                // Reveal is a Box: its children are placed at the same origin.
+                // Without this Column the subject row paints over the filter row.
+                Column {
                     FlowRow(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(horizontal = 16.dp),
+                            .padding(horizontal = 16.dp)
+                            .padding(top = 12.dp, bottom = 12.dp),
                         horizontalArrangement = Arrangement.spacedBy(8.dp),
                         verticalArrangement = Arrangement.spacedBy(8.dp),
                     ) {
-                        subjects.forEach { subject ->
+                        GroupFilter.entries.forEach { option ->
                             FilterChip(
-                                label = subject,
-                                selected = subject == subjectForFilter,
-                                onClick = { selectedSubject = subject },
+                                label = option.labelFor(subjectForFilter),
+                                selected = option == filter,
+                                onClick = {
+                                    filter = option
+                                    if (option == GroupFilter.Materia && selectedSubject == null) {
+                                        selectedSubject = subjects.firstOrNull()
+                                    }
+                                },
                             )
+                        }
+                    }
+                    if (filter == GroupFilter.Materia && subjects.size > 1) {
+                        FlowRow(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 16.dp)
+                                .padding(bottom = 8.dp),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            verticalArrangement = Arrangement.spacedBy(8.dp),
+                        ) {
+                            subjects.forEach { subject ->
+                                FilterChip(
+                                    label = subject,
+                                    selected = subject == subjectForFilter,
+                                    onClick = { selectedSubject = subject },
+                                )
+                            }
                         }
                     }
                 }

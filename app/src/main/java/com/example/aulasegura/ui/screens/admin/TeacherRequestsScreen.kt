@@ -3,6 +3,7 @@ package com.example.aulasegura.ui.screens.admin
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -10,6 +11,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
@@ -54,6 +56,7 @@ fun TeacherRequestsScreen(onBack: () -> Unit) {
             .fillMaxSize()
             .background(BrandCream)
             .verticalScroll(rememberScrollState())
+            .statusBarsPadding()
             .padding(20.dp),
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
@@ -74,36 +77,40 @@ fun TeacherRequestsScreen(onBack: () -> Unit) {
         }
         Spacer(Modifier.height(16.dp))
 
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                TeacherRequestFilter.entries.forEach { filter ->
-                    val label = filter.label + when (filter) {
-                        TeacherRequestFilter.PENDIENTES -> " (${ui.pendingCount})"
-                        else -> ""
-                    }
-                    Text(
-                        text = label,
-                        color = if (filter == ui.filter) SurfaceContainerLowest else Primary,
-                        fontFamily = DmSans,
-                        fontSize = 12.sp,
-                        modifier = Modifier
-                            .clip(RoundedCornerShape(12.dp))
-                            .background(if (filter == ui.filter) Primary else Outline.copy(alpha = 0.25f))
-                            .clickable { vm.onFilterChange(filter) }
-                            .padding(horizontal = 12.dp, vertical = 8.dp),
-                    )
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            TeacherRequestFilter.entries.forEach { filter ->
+                val label = filter.label + when (filter) {
+                    TeacherRequestFilter.PENDIENTES -> " (${ui.pendingCount})"
+                    else -> ""
                 }
+                Text(
+                    text = label,
+                    color = if (filter == ui.filter) SurfaceContainerLowest else Primary,
+                    fontFamily = DmSans,
+                    fontSize = 12.sp,
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(12.dp))
+                        .background(if (filter == ui.filter) Primary else Outline.copy(alpha = 0.25f))
+                        .clickable { vm.onFilterChange(filter) }
+                        .padding(horizontal = 12.dp, vertical = 8.dp),
+                )
             }
+        }
+        Spacer(Modifier.height(12.dp))
+        Box(
+            modifier = Modifier
+                .align(Alignment.End)
+                .clip(RoundedCornerShape(12.dp))
+                .background(BrandCoral.copy(alpha = 0.12f))
+                .clickable { vm.acceptAll() }
+                .padding(horizontal = 14.dp, vertical = 8.dp),
+        ) {
             Text(
                 text = "Aceptar todas",
                 color = BrandCoral,
                 fontFamily = DmSans,
+                fontWeight = FontWeight.Medium,
                 fontSize = 12.sp,
-                modifier = Modifier.clickable { vm.acceptAll() },
             )
         }
         Spacer(Modifier.height(16.dp))

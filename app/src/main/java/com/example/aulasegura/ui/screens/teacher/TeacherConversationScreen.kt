@@ -30,7 +30,6 @@ import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.automirrored.outlined.ArrowBack
 import androidx.compose.material.icons.filled.DoneAll
 import androidx.compose.material.icons.outlined.MoreVert
-import androidx.compose.material.icons.outlined.PhotoCamera
 import androidx.compose.material.icons.outlined.Schedule
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -53,7 +52,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.aulasegura.ui.chat.chatInitials
-import com.example.aulasegura.ui.components.ShieldPattern
 import com.example.aulasegura.ui.components.rememberPressScale
 import com.example.aulasegura.ui.theme.BricolageGrotesque
 import com.example.aulasegura.ui.theme.DmSans
@@ -128,12 +126,6 @@ fun TeacherConversationScreen(
                 .weight(1f)
                 .fillMaxWidth(),
         ) {
-            ShieldPattern(
-                modifier = Modifier.fillMaxSize(),
-                alpha = 0.04f,
-                color = PrimaryContainer,
-            )
-
             Column(
                 modifier = Modifier
                     .fillMaxSize()
@@ -476,13 +468,6 @@ private fun MessageComposer(
                     .padding(horizontal = 16.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                Icon(
-                    imageVector = Icons.Outlined.PhotoCamera,
-                    contentDescription = "Adjuntar foto",
-                    tint = Outline,
-                    modifier = Modifier.size(22.dp),
-                )
-                Spacer(Modifier.width(8.dp))
                 BasicTextField(
                     value = draft,
                     onValueChange = onDraftChange,

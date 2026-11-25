@@ -245,18 +245,6 @@ private fun ForgotTopBar(onBack: () -> Unit) {
             )
         }
 
-        // "Omitir" text button
-        Text(
-            text = "Omitir",
-            fontFamily = DmSans,
-            fontWeight = FontWeight.Medium,
-            fontSize = 12.sp,
-            color = Primary,
-            modifier = Modifier
-                .clip(CircleShape)
-                .clickable(onClick = {})
-                .padding(horizontal = 8.dp, vertical = 4.dp),
-        )
     }
 }
 

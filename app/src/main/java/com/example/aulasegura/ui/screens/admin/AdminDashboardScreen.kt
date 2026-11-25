@@ -103,6 +103,10 @@ private val AttentionCardBg = Color(0xFFFFFBEB)
 private val AttentionCardBorder = Color(0xFFFDE68A)
 private val AttentionText = Color(0xFF92400E)
 
+/** The account has no gender field, so the greeting must never guess one. */
+fun adminGreeting(fullName: String): String =
+    fullName.trim().takeIf { it.isNotBlank() }?.let { "Hola, $it" } ?: "Hola"
+
 @Composable
 fun AdminDashboardScreen(
     onNotificaciones: () -> Unit = {},
@@ -341,8 +345,7 @@ private fun AdminTopBar(
             Spacer(modifier = Modifier.width(12.dp))
             Column {
                 Text(
-                    text = fullName.takeIf { it.isNotBlank() }?.let { "Hola, directora $it" }
-                        ?: "Hola, directora",
+                    text = adminGreeting(fullName),
                     color = Primary,
                     fontFamily = BricolageGrotesque,
                     fontWeight = FontWeight.SemiBold,

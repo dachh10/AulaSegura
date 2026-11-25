@@ -45,7 +45,6 @@ import androidx.compose.material.icons.outlined.CalendarToday
 import androidx.compose.material.icons.outlined.CheckCircle
 import androidx.compose.material.icons.outlined.CloudOff
 import androidx.compose.material.icons.outlined.Flag
-import androidx.compose.material.icons.automirrored.outlined.HelpOutline
 import androidx.compose.material.icons.outlined.MyLocation
 import androidx.compose.material.icons.outlined.NearMe
 import androidx.compose.material.icons.outlined.PhotoCamera
@@ -468,26 +467,6 @@ private fun IncidentTopBar(onBack: () -> Unit) {
             overflow = TextOverflow.Ellipsis,
         )
 
-        val (helpInteraction, helpPress) = rememberPressScale(0.94f)
-        Box(
-            modifier = Modifier
-                .size(36.dp)
-                .then(helpPress)
-                .clip(CircleShape)
-                .clickable(
-                    interactionSource = helpInteraction,
-                    indication = null,
-                    onClick = {},
-                ),
-            contentAlignment = Alignment.Center,
-        ) {
-            Icon(
-                imageVector = Icons.AutoMirrored.Outlined.HelpOutline,
-                contentDescription = "Ayuda",
-                tint = OnSurfaceVariant,
-                modifier = Modifier.size(20.dp),
-            )
-        }
     }
 }
 

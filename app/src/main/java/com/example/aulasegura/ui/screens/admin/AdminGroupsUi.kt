@@ -51,7 +51,7 @@ data class AdminGroupDetailUiState(
     val missing: Boolean get() = !loading && error == null && group == null
 }
 
-/** The grade chips of the list. Mirrors the sample screen's Todos/1°/2°/3°. */
+/** One chip per grade of the catalog, plus the "all grades" chip. */
 enum class AdminGroupGradeFilter(
     val label: String,
     val grade: Int?,
@@ -60,6 +60,9 @@ enum class AdminGroupGradeFilter(
     Primero("1°", 1),
     Segundo("2°", 2),
     Tercero("3°", 3),
+    Cuarto("4°", 4),
+    Quinto("5°", 5),
+    Sexto("6°", 6),
 }
 
 /** One rendered row of the group list. */

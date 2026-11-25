@@ -19,6 +19,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
@@ -734,7 +735,10 @@ internal fun TeacherAssignmentFields(
             fontWeight = FontWeight.Medium,
             fontSize = 12.sp,
         )
-        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+        FlowRow(
+            horizontalArrangement = Arrangement.spacedBy(6.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
             SchoolCatalog.GRADES.forEach { value ->
                 SelectionChip(
                     label = "$value°",
@@ -746,7 +750,10 @@ internal fun TeacherAssignmentFields(
                 )
             }
         }
-        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+        FlowRow(
+            horizontalArrangement = Arrangement.spacedBy(6.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
             SchoolCatalog.SECTIONS.forEach { value ->
                 SelectionChip(
                     label = value,
@@ -781,17 +788,18 @@ internal fun TeacherAssignmentFields(
             )
         } else {
             val gradeSubjects = subjectsForGrade(grade)
-            listOf(gradeSubjects.take(3), gradeSubjects.drop(3)).forEach { row ->
-                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                    row.forEach { subject ->
-                        val taken = subject.id in takenSubjects && subject.id != subjectId
-                        SelectionChip(
-                            label = subject.label,
-                            selected = subject.id == subjectId,
-                            enabled = !taken,
-                            onClick = { onSubjectIdChange(subject.id) },
-                        )
-                    }
+            FlowRow(
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                gradeSubjects.forEach { subject ->
+                    val taken = subject.id in takenSubjects && subject.id != subjectId
+                    SelectionChip(
+                        label = subject.label,
+                        selected = subject.id == subjectId,
+                        enabled = !taken,
+                        onClick = { onSubjectIdChange(subject.id) },
+                    )
                 }
             }
         }

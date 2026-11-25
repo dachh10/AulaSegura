@@ -11,6 +11,40 @@ Suite final: 125 suites / 777 tests / 0 fallos.
 > `C7438D4…`) es el build **anterior**: NO incluye nada de lo documentado abajo. Falta
 > reconstruirlo con todo antes de repartirlo.
 
+## Pulido visual final (2026-11-24) — 20 detalles reportados
+
+Diego aprobó tres excepciones después de ver la evidencia: la campana de "Mis grupos"
+**se conserva** (navega a Notificaciones), los filtros de Tareas del tutor **se conservan**
+(filtran por fecha; "Entregadas" queda vacía porque no hay estado de entrega), y el saludo
+del panel ahora es neutral (`adminGreeting`, sin asumir género). El monograma "RS" era un
+artefacto del mockup de otro docente y se quitó. `testDebugUnitTest` en verde; **pendiente
+la prueba en dispositivo**, que hace Diego porque no hay equipo conectado.
+
+| # | Detalle | Resultado |
+|---|---|---|
+| 1 | Fondo de escudos duplicado en el chat | Quitado el `ShieldPattern` local en docente y tutor; queda solo el global de `MainActivity`. |
+| 2 | Icono de ayuda en Publicar aviso | Quitado. |
+| 3 | "Enviar notificación" en Publicar aviso | Quitada la tarjeta deshabilitada. |
+| 4 | Tres puntos en Publicar tarea | Quitados. |
+| 5 | "Notificar a las familias" | Quitada la tarjeta deshabilitada. |
+| 6 | Icono de ayuda en Registrar incidente | Quitado. |
+| 7 | "RS" y campana en Mis grupos | "RS" quitado (monograma fijo del mockup); campana conservada. |
+| 8 | Cámara en el composer del chat | Quitada en docente y tutor. |
+| 9 | Tres puntos y micrófono en el asistente IA | Quitados. |
+| 10 | Filtros Pendientes/Entregadas/Vencidas/Todas | Conservados por decisión de Diego. |
+| 11 | "Aceptar todas" partido en caracteres | Bajado a su propia fila, con forma de píldora y ancho propio. |
+| 12 | Títulos tapados por la cámara | `statusBarsPadding()` en Solicitudes de docentes y Alumnos sin grupo. |
+| 13 | "Hola, directora Diego…" | Saludo neutral: `adminGreeting(fullName)`. |
+| 14 | Filtros de grupos hasta 3° | Agregados 4°, 5° y 6° (`AdminGroupGradeFilter`). |
+| 15 | "Continuar con Google" en el login | Quitado junto con el divisor "o" (no era Google: hacía login con correo). |
+| 16 | Materias desacomodadas en el registro | `FlowRow` en grados, grupos y materias; verificado para los 6 grados del catálogo. |
+| 17 | "Omitir" en olvidé contraseña | Quitado (ya existe "Volver a iniciar sesión"). |
+| 18 | "MIS MATERIAS" ocupaba demasiado | Resumen colapsable "Mis materias · N" que se despliega al tocar. |
+| 19 | Línea de escuela en el perfil | Una sola línea con ellipsis y tipografía legible. |
+| 20 | Correo apachurrado en el encabezado | El correo bajó a su propia línea con ellipsis. |
+
+> **Nota para el APK final:** estos 20 cambios aún no están en `Documents\AulaSegura.apk`.
+
 > **Resuelto 2026-11-24 — "No se pudo cargar" en Inicio/Asistencia de un tutor nuevo.**
 > No era la base de datos. Lectura de solo lectura de Firestore: los 3 tutores tienen
 > `studentIds`, `groupIds` y `tutorIds` coherentes; el tutor afectado tiene un alumno con

@@ -26,7 +26,6 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.Send
-import androidx.compose.material.icons.automirrored.outlined.HelpOutline
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.GroupWork
 import androidx.compose.material.icons.filled.Groups
@@ -267,12 +266,6 @@ fun TeacherNoticeNewScreen(
                 )
             }
 
-            // ZONE 6 — Notification toggle (FCM arrives with block 10)
-            NotifyToggleCard(
-                checked = false,
-                onToggle = {},
-                modifier = Modifier.padding(horizontal = 16.dp),
-            )
         }
 
         // ZONE 7 — Sticky bottom bar
@@ -342,17 +335,6 @@ private fun NoticeTopBar(onBack: () -> Unit) {
             overflow = TextOverflow.Ellipsis,
         )
 
-        Box(
-            modifier = Modifier.size(36.dp),
-            contentAlignment = Alignment.Center,
-        ) {
-            Icon(
-                imageVector = Icons.AutoMirrored.Outlined.HelpOutline,
-                contentDescription = "Ayuda",
-                tint = OnSurfaceVariant,
-                modifier = Modifier.size(22.dp),
-            )
-        }
     }
 }
 
@@ -724,101 +706,6 @@ private fun PreviewCard(
                     overflow = TextOverflow.Ellipsis,
                 )
             }
-        }
-    }
-}
-
-// ZONE 6 — Notification toggle
-/**
- * El interruptor de push se muestra deshabilitado a propósito: el envío real
- * llega con el bloque 10 (FCM), y en Spark el push se manda desde la consola.
- * Un interruptor que se puede tocar y no manda nada es peor que uno apagado que
- * dice por qué.
- */
-@Composable
-private fun NotifyToggleCard(
-    checked: Boolean,
-    onToggle: () -> Unit,
-    modifier: Modifier = Modifier,
-    enabled: Boolean = false,
-) {
-    Row(
-        modifier = modifier
-            .fillMaxWidth()
-            .alpha(if (enabled) 1f else 0.60f)
-            .clip(NoticeCardShape)
-            .background(SurfaceContainerLowest)
-            .border(1.dp, FieldBorder, NoticeCardShape)
-            .padding(14.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Box(
-            modifier = Modifier
-                .size(36.dp)
-                .clip(CircleShape)
-                .background(ChipIconSurface),
-            contentAlignment = Alignment.Center,
-        ) {
-            Icon(
-                imageVector = Icons.Filled.NotificationsActive,
-                contentDescription = null,
-                tint = PrimaryContainer,
-                modifier = Modifier.size(20.dp),
-            )
-        }
-
-        Spacer(modifier = Modifier.width(12.dp))
-
-        Column(
-            modifier = Modifier
-                .weight(1f)
-                .padding(end = 8.dp),
-        ) {
-            Text(
-                text = "Enviar notificación",
-                color = OnSurface,
-                fontFamily = DmSans,
-                fontWeight = FontWeight.Bold,
-                fontSize = 14.sp,
-                lineHeight = 18.sp,
-            )
-            Spacer(modifier = Modifier.height(2.dp))
-            Text(
-                text = if (enabled) {
-                    "Avisar inmediatamente en sus teléfonos"
-                } else {
-                    "Todavía no se envían notificaciones push."
-                },
-                color = OnSurfaceVariant,
-                fontFamily = DmSans,
-                fontSize = 12.sp,
-                lineHeight = 15.sp,
-            )
-        }
-
-        val (interaction, pressModifier) = rememberPressScale(0.96f)
-        Box(
-            modifier = Modifier
-                .size(width = 44.dp, height = 24.dp)
-                .then(pressModifier)
-                .clip(RoundedCornerShape(percent = 50))
-                .background(if (checked) PrimaryContainer else SurfaceContainerHigh)
-                .clickable(
-                    interactionSource = interaction,
-                    indication = null,
-                    enabled = enabled,
-                    onClick = onToggle,
-                )
-                .padding(2.dp),
-            contentAlignment = if (checked) Alignment.CenterEnd else Alignment.CenterStart,
-        ) {
-            Box(
-                modifier = Modifier
-                    .size(20.dp)
-                    .shadow(elevation = 2.dp, shape = CircleShape)
-                    .clip(CircleShape)
-                    .background(Color.White),
-            )
         }
     }
 }

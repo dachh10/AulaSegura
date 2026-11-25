@@ -317,26 +317,6 @@ private fun GroupsHeader(onNotifications: () -> Unit) {
             )
         }
         ProductNotificationIcon(onClick = onNotifications)
-        Spacer(modifier = Modifier.width(8.dp))
-        // The mockup labels the portrait "MG"; the teacher of this flow is
-        // Ricardo Salinas, so the same "RS" monogram of the dashboard is kept.
-        Box(
-            modifier = Modifier
-                .size(36.dp)
-                .clip(CircleShape)
-                .background(PrimaryContainer.copy(alpha = 0.10f))
-                .border(1.dp, PrimaryContainer.copy(alpha = 0.20f), CircleShape),
-            contentAlignment = Alignment.Center,
-        ) {
-            Text(
-                text = "RS",
-                color = PrimaryContainer,
-                fontFamily = DmSans,
-                fontWeight = FontWeight.Bold,
-                fontSize = 12.sp,
-                lineHeight = 12.sp,
-            )
-        }
     }
 }
 

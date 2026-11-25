@@ -227,32 +227,6 @@ fun LoginScreen(
                             .padding(top = 20.dp),
                         verticalArrangement = Arrangement.spacedBy(16.dp),
                     ) {
-                        Box(
-                            modifier = Modifier.fillMaxWidth(),
-                            contentAlignment = Alignment.Center,
-                        ) {
-                            Box(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .height(1.dp)
-                                    .background(FieldBorder),
-                            )
-                            Text(
-                                text = "o",
-                                color = Outline,
-                                fontFamily = DmSans,
-                                fontSize = 13.sp,
-                                modifier = Modifier
-                                    .background(BrandCream)
-                                    .padding(horizontal = 12.dp),
-                            )
-                        }
-
-                        GooglePillButton(
-                            text = "Continuar con Google",
-                            onClick = { if (!isLoading) onLogin(email, password) },
-                        )
-
                         Row(
                             modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.Center,

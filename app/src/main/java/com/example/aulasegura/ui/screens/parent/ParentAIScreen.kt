@@ -32,8 +32,6 @@ import androidx.compose.material.icons.automirrored.outlined.ArrowBack
 import androidx.compose.material.icons.automirrored.outlined.Assignment
 import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.outlined.ChevronRight
-import androidx.compose.material.icons.outlined.Mic
-import androidx.compose.material.icons.outlined.MoreVert
 import androidx.compose.material.icons.outlined.ThumbDown
 import androidx.compose.material.icons.outlined.ThumbUp
 import androidx.compose.material3.HorizontalDivider
@@ -357,25 +355,6 @@ private fun AITopBar(onBack: () -> Unit) {
             Spacer(Modifier.height(2.dp))
         }
 
-        val (moreInteraction, morePress) = rememberPressScale(0.9f)
-        Box(
-            modifier = morePress
-                .size(36.dp)
-                .clip(CircleShape)
-                .clickable(
-                    interactionSource = moreInteraction,
-                    indication = null,
-                    onClick = {},
-                ),
-            contentAlignment = Alignment.Center,
-        ) {
-            Icon(
-                imageVector = Icons.Outlined.MoreVert,
-                contentDescription = "Opciones",
-                tint = OnSurfaceVariant,
-                modifier = Modifier.size(24.dp),
-            )
-        }
     }
 }
 
@@ -664,13 +643,6 @@ private fun AIComposer(
                     .padding(horizontal = 14.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                Icon(
-                    imageVector = Icons.Outlined.Mic,
-                    contentDescription = "Grabar audio",
-                    tint = Outline,
-                    modifier = Modifier.size(20.dp),
-                )
-                Spacer(Modifier.width(8.dp))
                 BasicTextField(
                     value = draft,
                     onValueChange = onDraftChange,

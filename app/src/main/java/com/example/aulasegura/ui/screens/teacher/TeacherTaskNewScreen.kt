@@ -41,7 +41,6 @@ import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material.icons.filled.AttachFile
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.outlined.CalendarToday
 import androidx.compose.material.icons.outlined.Description
@@ -294,12 +293,6 @@ fun TeacherTaskNewScreen(
                 )
             }
 
-            // ZONE 4 — Notification toggle (FCM arrives with block 10)
-            NotificationCard(
-                checked = false,
-                onToggle = {},
-                modifier = Modifier.padding(top = 4.dp),
-            )
         }
 
         // ZONE 5 — Sticky bottom bar
@@ -395,17 +388,6 @@ private fun TaskTopBar(onBack: () -> Unit) {
                 overflow = TextOverflow.Ellipsis,
             )
 
-            Box(
-                modifier = Modifier.size(40.dp),
-                contentAlignment = Alignment.Center,
-            ) {
-                Icon(
-                    imageVector = Icons.Filled.MoreVert,
-                    contentDescription = "Más opciones",
-                    tint = Outline,
-                    modifier = Modifier.size(20.dp),
-                )
-            }
         }
 
         Box(
@@ -995,100 +977,6 @@ private fun declaredSize(resolver: ContentResolver, uri: Uri): Long? =
         ?.use { cursor ->
             if (cursor.moveToFirst() && !cursor.isNull(0)) cursor.getLong(0) else null
         }
-
-// ZONE 4 — Notification toggle
-/**
- * The "notify the families" switch is disabled on purpose: it promises an FCM
- * push, and push arrives with block 10. An enabled switch that silently sends
- * nothing is worse than an honest disabled one.
- */
-@Composable
-private fun NotificationCard(
-    checked: Boolean,
-    onToggle: () -> Unit,
-    modifier: Modifier = Modifier,
-    enabled: Boolean = false,
-) {
-    Row(
-        modifier = modifier
-            .fillMaxWidth()
-            .alpha(if (enabled) 1f else 0.60f)
-            .clip(FormCardShape)
-            .background(SurfaceContainerLowest)
-            .border(1.dp, SurfaceVariant, FormCardShape)
-            .padding(16.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Box(
-            modifier = Modifier
-                .size(40.dp)
-                .clip(CircleShape)
-                .background(UploadTint),
-            contentAlignment = Alignment.Center,
-        ) {
-            Icon(
-                imageVector = Icons.Filled.Notifications,
-                contentDescription = null,
-                tint = PrimaryContainer,
-                modifier = Modifier.size(20.dp),
-            )
-        }
-
-        Spacer(modifier = Modifier.width(12.dp))
-
-        Column(
-            modifier = Modifier
-                .weight(1f)
-                .padding(end = 8.dp),
-        ) {
-            Text(
-                text = "Notificar a las familias",
-                color = OnSurface,
-                fontFamily = DmSans,
-                fontWeight = FontWeight.Bold,
-                fontSize = 14.sp,
-                lineHeight = 18.sp,
-            )
-            Spacer(modifier = Modifier.height(2.dp))
-            Text(
-                text = if (enabled) {
-                    "Se enviará una notificación al publicar"
-                } else {
-                    "Todavía no se envían notificaciones push."
-                },
-                color = Outline,
-                fontFamily = DmSans,
-                fontSize = 12.sp,
-                lineHeight = 15.sp,
-            )
-        }
-
-        val (interaction, pressModifier) = rememberPressScale(0.96f)
-        Box(
-            modifier = Modifier
-                .size(width = 44.dp, height = 24.dp)
-                .then(pressModifier)
-                .clip(RoundedCornerShape(percent = 50))
-                .background(if (checked) ToggleOn else SurfaceContainerHigh)
-                .clickable(
-                    enabled = enabled,
-                    interactionSource = interaction,
-                    indication = null,
-                    onClick = onToggle,
-                )
-                .padding(2.dp),
-            contentAlignment = if (checked) Alignment.CenterEnd else Alignment.CenterStart,
-        ) {
-            Box(
-                modifier = Modifier
-                    .size(20.dp)
-                    .shadow(elevation = 2.dp, shape = CircleShape)
-                    .clip(CircleShape)
-                    .background(Color.White),
-            )
-        }
-    }
-}
 
 // ZONE 5 — Sticky bottom bar
 /**

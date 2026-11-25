@@ -41,6 +41,8 @@ import androidx.compose.material.icons.automirrored.filled.Logout
 import androidx.compose.material.icons.filled.CameraAlt
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.ChevronRight
+import androidx.compose.material.icons.filled.KeyboardArrowDown
+import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.Person
@@ -48,6 +50,7 @@ import androidx.compose.material.icons.filled.PhotoLibrary
 import androidx.compose.material.icons.filled.School
 import androidx.compose.material.icons.filled.Shield
 import androidx.compose.material.icons.filled.Sync
+import androidx.compose.material.icons.outlined.MenuBook
 import androidx.compose.material3.Button
 import androidx.compose.material3.Icon
 import androidx.compose.material3.OutlinedTextField
@@ -59,6 +62,7 @@ import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -73,6 +77,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
@@ -93,6 +98,7 @@ import com.example.aulasegura.ui.theme.BrandCoral
 import com.example.aulasegura.ui.theme.BricolageGrotesque
 import com.example.aulasegura.ui.theme.DmSans
 import com.example.aulasegura.ui.theme.JetBrainsMono
+import com.example.aulasegura.ui.theme.OnSurfaceVariant
 import com.example.aulasegura.ui.theme.Outline
 import com.example.aulasegura.ui.theme.OutlineVariant
 import com.example.aulasegura.ui.theme.PrimaryContainer
@@ -398,42 +404,46 @@ private fun ProfileHeader(
 
         Spacer(Modifier.height(6.dp))
 
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Box(
-                modifier = Modifier
-                    .clip(PillShape)
-                    .background(Color.White.copy(alpha = 0.2f))
-                    .padding(horizontal = 10.dp, vertical = 2.dp),
-            ) {
-                Text(
-                    text = profileSubtitle(ui.subjects),
-                    color = Color.White,
-                    fontFamily = DmSans,
-                    fontWeight = FontWeight.Medium,
-                    fontSize = 12.sp,
-                    lineHeight = 16.sp,
-                    letterSpacing = 0.24.sp,
-                )
-            }
-            Spacer(Modifier.width(8.dp))
+        Box(
+            modifier = Modifier
+                .clip(PillShape)
+                .background(Color.White.copy(alpha = 0.2f))
+                .padding(horizontal = 10.dp, vertical = 3.dp),
+        ) {
             Text(
-                text = ui.email.ifBlank { "Sin correo registrado" },
-                color = Color.White.copy(alpha = 0.75f),
+                text = profileSubtitle(ui.subjects),
+                color = Color.White,
                 fontFamily = DmSans,
+                fontWeight = FontWeight.Medium,
                 fontSize = 12.sp,
                 lineHeight = 16.sp,
                 letterSpacing = 0.24.sp,
             )
         }
 
-        if (schoolLabel(ui.schoolId, ui.schoolName).isNotBlank()) {
+        Spacer(Modifier.height(8.dp))
+        Text(
+            text = ui.email.ifBlank { "Sin correo registrado" },
+            color = Color.White.copy(alpha = 0.75f),
+            fontFamily = DmSans,
+            fontSize = 12.sp,
+            lineHeight = 16.sp,
+            letterSpacing = 0.24.sp,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+        )
+
+        val schoolLabelText = schoolLabel(ui.schoolId, ui.schoolName)
+        if (schoolLabelText.isNotBlank()) {
             Spacer(Modifier.height(6.dp))
             Text(
-                text = "Escuela · ${schoolLabel(ui.schoolId, ui.schoolName)}",
+                text = "Escuela · $schoolLabelText",
                 color = Color.White.copy(alpha = 0.65f),
-                fontFamily = JetBrainsMono,
-                fontSize = 11.sp,
-                lineHeight = 14.sp,
+                fontFamily = DmSans,
+                fontSize = 12.sp,
+                lineHeight = 16.sp,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
             )
         }
     }
@@ -446,54 +456,102 @@ private fun ProfileHeader(
  */
 @Composable
 private fun MySubjectsSection(subjects: List<String>) {
-    val labels = subjects.filter { it.isNotBlank() }.ifEmpty { listOf("Sin materia asignada") }
+    val labels = subjects.filter { it.isNotBlank() }
+    var expanded by rememberSaveable { mutableStateOf(false) }
+    val summary = when {
+        labels.isEmpty() -> "Sin materia asignada"
+        labels.size == 1 -> labels.first()
+        else -> "${labels.first()} · +${labels.size - 1}"
+    }
     Column(
         modifier = Modifier
             .fillMaxWidth()
             .padding(horizontal = 16.dp),
     ) {
-        Text(
-            text = "MIS MATERIAS",
-            color = Outline,
-            fontFamily = JetBrainsMono,
-            fontSize = 11.sp,
-            lineHeight = 14.sp,
-            letterSpacing = 0.55.sp,
-        )
-        Spacer(Modifier.height(10.dp))
         Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(10.dp),
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(GroupCardShape)
+                .background(SurfaceContainerLowest)
+                .border(1.dp, WarmBorder, GroupCardShape)
+                .clickable { expanded = !expanded }
+                .padding(horizontal = 14.dp, vertical = 12.dp),
+            verticalAlignment = Alignment.CenterVertically,
         ) {
-            labels.forEach { label ->
-                SubjectSlotCard(label = label, modifier = Modifier.weight(1f))
+            Icon(
+                imageVector = Icons.Outlined.MenuBook,
+                contentDescription = null,
+                tint = PrimaryContainer,
+                modifier = Modifier.size(20.dp),
+            )
+            Spacer(Modifier.width(12.dp))
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = "Mis materias",
+                    color = Outline,
+                    fontFamily = JetBrainsMono,
+                    fontSize = 11.sp,
+                    lineHeight = 14.sp,
+                    letterSpacing = 0.55.sp,
+                )
+                Spacer(Modifier.height(4.dp))
+                Text(
+                    text = summary,
+                    color = PrimaryContainer,
+                    fontFamily = DmSans,
+                    fontWeight = FontWeight.Medium,
+                    fontSize = 13.sp,
+                    lineHeight = 18.sp,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
+            Spacer(Modifier.width(8.dp))
+            Icon(
+                imageVector = if (expanded) Icons.Filled.KeyboardArrowUp else Icons.Filled.KeyboardArrowDown,
+                contentDescription = if (expanded) "Contraer materias" else "Ver materias",
+                tint = Outline,
+                modifier = Modifier.size(20.dp),
+            )
+        }
+        if (expanded) {
+            Spacer(Modifier.height(8.dp))
+            if (labels.isEmpty()) {
+                Text(
+                    text = "Sin materia asignada",
+                    color = OnSurfaceVariant,
+                    fontFamily = DmSans,
+                    fontSize = 13.sp,
+                    lineHeight = 18.sp,
+                )
+            } else {
+                labels.forEach { label ->
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 4.dp, vertical = 6.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(6.dp)
+                                .clip(CircleShape)
+                                .background(PrimaryContainer),
+                        )
+                        Spacer(Modifier.width(10.dp))
+                        Text(
+                            text = label,
+                            color = PrimaryContainer,
+                            fontFamily = DmSans,
+                            fontSize = 13.sp,
+                            lineHeight = 18.sp,
+                            maxLines = 2,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                    }
+                }
             }
         }
-    }
-}
-
-@Composable
-private fun SubjectSlotCard(
-    label: String,
-    modifier: Modifier = Modifier,
-) {
-    Column(
-        modifier = modifier
-            .clip(GroupCardShape)
-            .background(SurfaceContainerLowest)
-            .border(1.dp, WarmBorder, GroupCardShape)
-            .padding(horizontal = 12.dp, vertical = 12.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-    ) {
-        Text(
-            text = label,
-            color = PrimaryContainer,
-            fontFamily = BricolageGrotesque,
-            fontWeight = FontWeight.Bold,
-            fontSize = 16.sp,
-            lineHeight = 22.sp,
-            maxLines = 2,
-        )
     }
 }
 

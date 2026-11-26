@@ -188,6 +188,7 @@ internal fun ParentDayAttendance.toRecentUi(
 internal fun attendanceFailureMessage(reason: RosterFailure): String = when (reason) {
     RosterFailure.OFFLINE -> "Sin conexión. Revisa tu red e intenta de nuevo."
     RosterFailure.DENIED -> "No tienes permiso para ver la asistencia."
+    RosterFailure.NO_GROUP -> "Tu hijo aún no tiene grupo asignado."
     RosterFailure.UNKNOWN -> "No se pudo cargar la asistencia."
 }
 

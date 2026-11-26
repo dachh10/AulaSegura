@@ -99,5 +99,6 @@ internal fun publishedLabel(millis: Long, zone: TimeZone = TimeZone.getDefault()
 internal fun taskDetailFailureMessage(reason: RosterFailure): String = when (reason) {
     RosterFailure.OFFLINE -> "Sin conexión. Revisa tu red e intenta de nuevo."
     RosterFailure.DENIED -> "No tienes permiso para ver esta tarea."
+    RosterFailure.NO_GROUP -> "Tu hijo aún no tiene grupo asignado."
     RosterFailure.UNKNOWN -> "No se pudo cargar la tarea."
 }

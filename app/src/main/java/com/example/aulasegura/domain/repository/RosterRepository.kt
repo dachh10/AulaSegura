@@ -63,5 +63,15 @@ enum class RosterFailure {
     /** The rules refused the query — almost always a missing `where` filter. */
     DENIED,
 
+    /**
+     * The account has no group scope yet, so there is nothing to query.
+     *
+     * A tutor whose child was accepted "sin grupo por ahora" has no
+     * `users.groupIds`, and every family read is scoped by it. That is not a
+     * permission problem and must not be shown as one: the data simply does not
+     * exist until the director assigns the classroom.
+     */
+    NO_GROUP,
+
     UNKNOWN,
 }

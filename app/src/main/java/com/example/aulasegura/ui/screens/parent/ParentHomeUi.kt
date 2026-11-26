@@ -127,6 +127,7 @@ internal fun ParentTaskBrief.toUi(
 internal fun homeFailureMessage(reason: RosterFailure): String = when (reason) {
     RosterFailure.OFFLINE -> "Sin conexión. Revisa tu red e intenta de nuevo."
     RosterFailure.DENIED -> "No tienes permiso para ver estos datos."
+    RosterFailure.NO_GROUP -> "Tu hijo aún no tiene grupo asignado."
     RosterFailure.UNKNOWN -> "No se pudieron cargar los datos."
 }
 

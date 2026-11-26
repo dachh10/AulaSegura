@@ -154,11 +154,13 @@ internal fun graveIncidents(incidents: List<ParentIncident>): Int =
 internal fun incidentsFailureMessage(reason: RosterFailure): String = when (reason) {
     RosterFailure.OFFLINE -> "Sin conexión. Revisa tu red e intenta de nuevo."
     RosterFailure.DENIED -> "No tienes permiso para ver los incidentes."
+    RosterFailure.NO_GROUP -> "Tu hijo aún no tiene grupo asignado."
     RosterFailure.UNKNOWN -> "No se pudieron cargar los incidentes."
 }
 
 internal fun incidentDetailFailureMessage(reason: RosterFailure): String = when (reason) {
     RosterFailure.OFFLINE -> "Sin conexión. Revisa tu red e intenta de nuevo."
     RosterFailure.DENIED -> "No tienes permiso para ver este incidente."
+    RosterFailure.NO_GROUP -> "Tu hijo aún no tiene grupo asignado."
     RosterFailure.UNKNOWN -> "No se pudo cargar el incidente."
 }

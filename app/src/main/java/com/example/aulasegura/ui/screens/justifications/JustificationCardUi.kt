@@ -82,6 +82,7 @@ fun justificationStatusLabel(status: JustificationStatus): String = when (status
 fun justificationFailureMessage(reason: RosterFailure): String = when (reason) {
     RosterFailure.OFFLINE -> "Sin conexión. Revisa tu red e intenta de nuevo."
     RosterFailure.DENIED -> "No tienes permiso para ver estas justificaciones."
+    RosterFailure.NO_GROUP -> "Esta cuenta todavía no tiene un grupo asignado."
     RosterFailure.UNKNOWN -> "No se pudieron cargar las justificaciones."
 }
 

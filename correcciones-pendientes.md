@@ -5,17 +5,43 @@ Estado de los cinco ítems originales: **D1 ✅, D2 ✅, D3 ✅, D4 ✅, D5 ✅*
 **Todos los ítems del documento están cerrados y verificados en dispositivo.**
 Además se cerraron los subdetalles derivados de grupos: grupos duplicados, materia por grupo,
 crash de arranque por una query denegada y selector de materias en tareas.
-Suite final: 129 suites / 801 tests / 0 fallos.
+Suite final: 129 suites / 802 tests / 0 fallos.
 
 > **APK de entrega actual:** `C:\Users\diego\Documents\AulaSegura.apk` (SHA-256
-> `3F67F633233236CEBAE6F127D8F8B836EFB72E9AB2A6ED78C536EF9D29DF634A`, 25.59 MB)
+> `8840B653AAED7B6800F4D2C97C325C3806FF2F97178BFB8B2D71D3A4D154A545`, 25.59 MB)
 > es el **release firmado** construido desde el árbol de trabajo actual: incluye todos
 > los cambios documentados abajo, el pase de lista único, las justificaciones por
-> materia, el conteo real de grupos y la sincronización del alcance del tutor
-> descritos más adelante,
+> materia, el conteo real de grupos, la sincronización del alcance del tutor y el
+> estado explícito de alumno sin grupo descritos más adelante,
 > con la firma de release verificada (`minSdk 24`, `targetSdk 37`,
 > sin flag `debuggable`). Quien tenga el build de debug debe desinstalarlo antes de
 > instalar este, porque la firma es distinta.
+
+## Alumno sin grupo: estado propio, no "no tienes permiso" (2026-11-25)
+
+> Reproducido en dispositivo con el APK anterior: la directora escanea el QR del
+> alumno y elige **"Dejar sin grupo por ahora"**. El tutor queda `vinculado` con
+> `studentIds`, pero su `users.groupIds` sigue vacío y el `students.groupId` queda
+> en `""`. Al abrir Inicio, Asistencia o Tareas veía
+> "No se pudo cargar. No tienes permiso para ver estos datos.".
+>
+> Eso NO es un problema de permisos: es que no hay alcance que consultar. La app
+> consultaba con `child.groupId` vacío, Firestore respondía `PERMISSION_DENIED`
+> (porque la regla compara contra `myGroups()`, que también está vacío) y la UI
+> traducía todo `DENIED` como falta de permisos. El mensaje mandaba a investigar
+> donde no estaba la causa.
+>
+> Corrección: `RosterFailure.NO_GROUP`, un estado propio. Los cuatro caminos de
+> lectura del tutor (`loadHome`, `loadMonth`, `loadTasks`, `loadNotices`) cortan
+> antes de consultar cuando el hijo no tiene salón, así que ya no se dispara una
+> query condenada a fallar. Las diez pantallas que mapean `RosterFailure` muestran
+> "Tu hijo aún no tiene grupo asignado." para ese caso y conservan
+> "No tienes permiso…" solo para un `DENIED` real.
+>
+> Flujo esperado con este APK: aprobar sin grupo → el tutor ve que falta el salón,
+> sin error de permisos. Cuando la directora asigne el grupo desde "Alumnos sin
+> grupo", `assignGroup()` escribe el `groupIds` del tutor y las pantallas cargan
+> con normalidad, sin reinstalar la app del tutor.
 
 ## Alcance del tutor al asignar grupo a un alumno (2026-11-25)
 
@@ -36,10 +62,10 @@ Suite final: 129 suites / 801 tests / 0 fallos.
 > de cada tutor dentro del MISMO batch, conservando los grupos de sus otros
 > hijos. 2 tests JVM nuevos.
 >
-> Dato reparado en producción: la cuenta afectada quedó con
-> `groupIds: ["grp-1a"]`, derivado de su alumno. No se borró ni reescribió nada
-> más. Para futuros alumnos alcanza con reasignar el grupo desde "Alumnos sin
-> grupo" o instalar este APK.
+> La base se vació después (2026-11-25) para re-probar el flujo completo, así que
+> ese dato reparado ya no existe; lo durable es el arreglo de código. Para futuros
+> alumnos alcanza con reasignar el grupo desde "Alumnos sin grupo" o instalar este
+> APK.
 
 ## Conteo real de grupos en el inicio (2026-11-25)
 

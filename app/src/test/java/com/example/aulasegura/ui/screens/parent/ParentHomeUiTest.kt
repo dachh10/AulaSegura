@@ -25,6 +25,14 @@ class ParentHomeUiTest {
     private val utc: TimeZone = TimeZone.getTimeZone("UTC")
 
     @Test
+    fun `a child without a classroom is not reported as a permission problem`() {
+        assertEquals(
+            "Tu hijo aún no tiene grupo asignado.",
+            homeFailureMessage(RosterFailure.NO_GROUP),
+        )
+    }
+
+    @Test
     fun `initialsOf takes the first letter of the first two words`() {
         assertEquals("CG", initialsOf("Carlos Gómez"))
         assertEquals("M", initialsOf("Mariana"))

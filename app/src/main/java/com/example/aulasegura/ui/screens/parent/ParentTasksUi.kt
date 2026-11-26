@@ -153,6 +153,7 @@ internal fun tasksEmptyMessage(filter: ParentTaskFilter): String = when (filter)
 internal fun tasksFailureMessage(reason: RosterFailure): String = when (reason) {
     RosterFailure.OFFLINE -> "Sin conexión. Revisa tu red e intenta de nuevo."
     RosterFailure.DENIED -> "No tienes permiso para ver las tareas."
+    RosterFailure.NO_GROUP -> "Tu hijo aún no tiene grupo asignado."
     RosterFailure.UNKNOWN -> "No se pudieron cargar las tareas."
 }
 

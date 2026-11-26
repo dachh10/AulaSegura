@@ -86,5 +86,6 @@ class TeacherGroupsViewModel(
 private fun RosterFailure.userMessage(): String = when (this) {
     RosterFailure.OFFLINE -> "Sin conexión. Estás viendo los grupos guardados."
     RosterFailure.DENIED -> "No tienes permiso para ver los grupos de este plantel."
+    RosterFailure.NO_GROUP -> "Esta cuenta todavía no tiene un grupo asignado."
     RosterFailure.UNKNOWN -> "No se pudieron actualizar los grupos."
 }

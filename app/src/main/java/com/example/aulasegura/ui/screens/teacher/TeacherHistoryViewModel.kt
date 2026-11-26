@@ -274,5 +274,6 @@ class TeacherHistoryViewModel(
 private fun RosterFailure.userMessage(): String = when (this) {
     RosterFailure.OFFLINE -> "Sin conexión. Estás viendo el historial guardado."
     RosterFailure.DENIED -> "No tienes permiso para ver este historial."
+    RosterFailure.NO_GROUP -> "Esta cuenta todavía no tiene un grupo asignado."
     RosterFailure.UNKNOWN -> "No se pudo actualizar el historial."
 }

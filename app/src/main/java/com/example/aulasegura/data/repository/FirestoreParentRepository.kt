@@ -132,6 +132,9 @@ class FirestoreParentRepository(
         subjectId: String?,
     ): ParentMonthResult {
         auth.currentUser ?: return ParentMonthResult.SignedOut
+        // A child accepted without a classroom has no attendance to read, and
+        // querying by an empty groupId is what the rules answer with DENIED.
+        if (child.groupId.isBlank()) return ParentMonthResult.Failed(RosterFailure.NO_GROUP)
 
         val prefix = monthPrefix(year, month)
 
@@ -222,6 +225,10 @@ class FirestoreParentRepository(
             is ParentChildrenResult.Failed -> return ParentHomeResult.Failed(result.reason)
         }
         if (children.isEmpty()) return ParentHomeResult.Loaded(emptyList())
+        // Accepted "sin grupo por ahora": the child exists but has no classroom,
+        // so there is no attendance and no task to aggregate yet.
+        val grouped = children.filter { it.groupId.isNotBlank() }
+        if (grouped.isEmpty()) return ParentHomeResult.Failed(RosterFailure.NO_GROUP)
 
         val today = AttendanceTimes.isoDate(now(), zone)
         val calendar = Calendar.getInstance(zone).apply { timeInMillis = now() }
@@ -231,7 +238,7 @@ class FirestoreParentRepository(
         val todayStart = AttendanceTimes.isoDateToMillis(today, zone) ?: 0L
 
         val results = coroutineScope {
-            children.map { child ->
+            grouped.map { child ->
                 async {
                     when (val monthResult = loadMonth(child, year, month, subjectId)) {
                         is ParentMonthResult.Loaded -> {
@@ -269,6 +276,7 @@ class FirestoreParentRepository(
 
     override suspend fun loadTasks(child: ParentChild): ParentTasksResult {
         auth.currentUser ?: return ParentTasksResult.SignedOut
+        if (child.groupId.isBlank()) return ParentTasksResult.Failed(RosterFailure.NO_GROUP)
 
         val snapshot = try {
             withTimeout(READ_TIMEOUT_MILLIS) {
@@ -328,6 +336,10 @@ class FirestoreParentRepository(
             is ParentChildrenResult.Failed -> return ParentNoticesResult.Failed(result.reason)
         }
         if (children.isEmpty()) return ParentNoticesResult.Loaded(emptyList(), children)
+        // Notices are scoped by group; a child without a classroom has none to
+        // read, and an empty groupId would be answered with PERMISSION_DENIED.
+        val grouped = children.filter { it.groupId.isNotBlank() }
+        if (grouped.isEmpty()) return ParentNoticesResult.Failed(RosterFailure.NO_GROUP)
 
         // The read mark is fetched once and joined in memory: one query for the
         // whole inbox instead of one document read per notice.
@@ -335,7 +347,7 @@ class FirestoreParentRepository(
         val moment = now()
 
         val byGroup = coroutineScope {
-            children.map { it.groupId }.distinct().map { groupId ->
+            grouped.map { it.groupId }.distinct().map { groupId ->
                 async(Dispatchers.IO) { noticesOf(groupId, readIds, moment) }
             }.awaitAll()
         }

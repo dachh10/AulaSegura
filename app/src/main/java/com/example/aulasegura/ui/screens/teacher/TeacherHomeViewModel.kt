@@ -159,6 +159,7 @@ class TeacherHomeViewModel(
         is ScheduleLoadResult.Failed -> when (schedule.reason) {
             RosterFailure.OFFLINE -> "Sin conexión para revisar el horario."
             RosterFailure.DENIED -> "No tienes acceso al horario del plantel."
+            RosterFailure.NO_GROUP -> "Esta cuenta todavía no tiene un grupo asignado."
             RosterFailure.UNKNOWN -> "No se pudo leer el horario."
         }
         is ScheduleLoadResult.Loaded ->

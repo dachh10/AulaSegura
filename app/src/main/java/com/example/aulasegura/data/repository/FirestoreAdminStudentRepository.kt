@@ -24,8 +24,10 @@ import com.example.aulasegura.domain.repository.ApproveStudentResult
 import com.example.aulasegura.domain.repository.ApprovedStudentInput
 import com.example.aulasegura.domain.repository.AuthRepository
 import com.example.aulasegura.domain.repository.approvedStudentDocument
+import com.example.aulasegura.domain.repository.AdminUserFields
 import com.example.aulasegura.domain.repository.nextListNumberFrom
 import com.example.aulasegura.domain.repository.resolveApprovedGroup
+import com.example.aulasegura.domain.repository.tutorGroupSyncTargets
 import com.example.aulasegura.domain.repository.tutorProfileOnApproval
 import com.example.aulasegura.domain.repository.CreateStudentResult
 import com.example.aulasegura.domain.repository.LinkingCodeResult
@@ -338,6 +340,30 @@ class FirestoreAdminStudentRepository(
             }
             var next = nextListNumber(roster) ?: 1
 
+            // A student approved before having a classroom carries no group in
+            // its tutor's `users.groupIds`; the rules scope every family read by
+            // that field, so leaving it behind denies attendance, tasks and
+            // notices for that family. Read the moved students (the school query
+            // may not include every one of them) and then their tutors.
+            val movedStudents = studentIds.mapNotNull { id ->
+                val snapshot = withTimeout(READ_TIMEOUT_MILLIS) {
+                    firestore.collection(AdminStudentFields.COLLECTION)
+                        .document(id)
+                        .get(Source.SERVER)
+                        .await()
+                }
+                if (snapshot.exists()) AdminStudent.fromDocument(snapshot.id, snapshot.safeData()) else null
+            }
+            val tutorRefs = tutorGroupSyncTargets(movedStudents).mapNotNull { uid ->
+                val snapshot = withTimeout(READ_TIMEOUT_MILLIS) {
+                    firestore.collection(USERS_COLLECTION)
+                        .document(uid)
+                        .get(Source.SERVER)
+                        .await()
+                }
+                snapshot.takeIf { it.exists() }?.reference
+            }
+
             val batch = firestore.batch()
             // get-or-create of the classroom, idempotent on repeat.
             batch.set(groupRef, groupDocument, com.google.firebase.firestore.SetOptions.merge())
@@ -353,6 +379,17 @@ class FirestoreAdminStudentRepository(
                     ),
                 )
                 next++
+            }
+            // arrayUnion keeps the groups of the tutor's other children; a plain
+            // list would drop them and deny those children's screens.
+            tutorRefs.forEach { ref ->
+                batch.update(
+                    ref,
+                    mapOf(
+                        AdminUserFields.GROUP_IDS to FieldValue.arrayUnion(resolvedId),
+                        AdminStudentFields.UPDATED_AT to FieldValue.serverTimestamp(),
+                    ),
+                )
             }
             withTimeout(WRITE_TIMEOUT_MILLIS) { batch.commit().await() }
             AdminStudentResult.Success
@@ -520,6 +557,9 @@ private fun DocumentSnapshot.safeData(): Map<String, Any?> = data ?: emptyMap()
 
 /** Upper bound for the whole diagnostic string, code included. */
 private const val FIRESTORE_DETAIL_MAX_LENGTH = 160
+
+/** Users collection: the tutor's denormalised scope lives here. */
+private const val USERS_COLLECTION = "users"
 
 /**
  * Builds a short, single-line diagnostic from a Firestore code and message.

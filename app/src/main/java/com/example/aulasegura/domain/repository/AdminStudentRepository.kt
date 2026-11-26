@@ -109,6 +109,23 @@ fun tutorProfileOnApproval(
 }
 
 /**
+ * Tutor accounts that must gain a group in `users/{uid}.groupIds` when the
+ * given students are assigned to it.
+ *
+ * Approving a QR student who still has no classroom writes `studentIds` but no
+ * `groupIds` (see [tutorProfileOnApproval]). If the classroom is assigned later
+ * and only `students/{id}.groupId` changes, the tutor keeps an empty group
+ * scope and every family screen scoped by `myGroups()` — attendance, tasks and
+ * notices — answers PERMISSION_DENIED. Every writer that moves a student into a
+ * classroom therefore has to sync the tutors of the moved students too.
+ */
+fun tutorGroupSyncTargets(students: List<AdminStudent>): Set<String> =
+    students
+        .flatMap { it.tutorIds }
+        .filter { it.isNotBlank() }
+        .toSet()
+
+/**
  * The student document of a QR approval, shared by the online repository and
  * the offline sync handler so both write byte-for-byte the same fields. Server
  * timestamps are added at the Firestore boundary.

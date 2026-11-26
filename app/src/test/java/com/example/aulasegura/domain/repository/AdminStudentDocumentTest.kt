@@ -14,6 +14,41 @@ import org.junit.Test
 class AdminStudentDocumentTest {
 
     @Test
+    fun `assigning a classroom syncs the tutors of every moved student`() {
+        val students = listOf(
+            AdminStudent.fromDocument(
+                id = "stu-1",
+                data = mapOf("nombre" to "Ana", "tutorIds" to listOf("tutor-1", "tutor-2")),
+            ),
+            AdminStudent.fromDocument(
+                id = "stu-2",
+                data = mapOf("nombre" to "Luis", "tutores" to listOf("tutor-2")),
+            ),
+            AdminStudent.fromDocument(
+                id = "stu-3",
+                data = mapOf("nombre" to "Sin tutor", "tutorIds" to emptyList<String>()),
+            ),
+        )
+
+        assertEquals(
+            setOf("tutor-1", "tutor-2"),
+            tutorGroupSyncTargets(students),
+        )
+    }
+
+    @Test
+    fun `a blank tutor id never becomes a user document to sync`() {
+        val students = listOf(
+            AdminStudent.fromDocument(
+                id = "stu-1",
+                data = mapOf("nombre" to "Ana", "tutorIds" to listOf("", "  ", "tutor-1")),
+            ),
+        )
+
+        assertEquals(setOf("tutor-1"), tutorGroupSyncTargets(students))
+    }
+
+    @Test
     fun `the new field names map into the domain model`() {
         val student = AdminStudent.fromDocument(
             id = "stu-new-1",

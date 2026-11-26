@@ -5,16 +5,41 @@ Estado de los cinco ítems originales: **D1 ✅, D2 ✅, D3 ✅, D4 ✅, D5 ✅*
 **Todos los ítems del documento están cerrados y verificados en dispositivo.**
 Además se cerraron los subdetalles derivados de grupos: grupos duplicados, materia por grupo,
 crash de arranque por una query denegada y selector de materias en tareas.
-Suite final: 129 suites / 799 tests / 0 fallos.
+Suite final: 129 suites / 801 tests / 0 fallos.
 
 > **APK de entrega actual:** `C:\Users\diego\Documents\AulaSegura.apk` (SHA-256
-> `BF1C102132367F767FD5C7A1EBCC31246BD39E34F5B5C0BF49C1118E9D2F8A63`, 25.59 MB)
+> `3F67F633233236CEBAE6F127D8F8B836EFB72E9AB2A6ED78C536EF9D29DF634A`, 25.59 MB)
 > es el **release firmado** construido desde el árbol de trabajo actual: incluye todos
 > los cambios documentados abajo, el pase de lista único, las justificaciones por
-> materia y el conteo real de grupos descritos más adelante,
+> materia, el conteo real de grupos y la sincronización del alcance del tutor
+> descritos más adelante,
 > con la firma de release verificada (`minSdk 24`, `targetSdk 37`,
 > sin flag `debuggable`). Quien tenga el build de debug debe desinstalarlo antes de
 > instalar este, porque la firma es distinta.
+
+## Alcance del tutor al asignar grupo a un alumno (2026-11-25)
+
+> Un tutor veía "No tienes permiso" en Inicio, Asistencia y Tareas. La causa no
+> era la app: su `users/{uid}` tenía `studentIds` pero **no `groupIds`**, y las
+> reglas de familia filtran por `myGroups()` (`attendanceSessions.groupId in
+> myGroups()`, `tasks.groupIds.hasAny(myGroups())`,
+> `notices.audience.groupIds.hasAny(myGroups())`). El expediente del alumno sí
+> se leía porque esa regla usa `tutorIds`.
+>
+> Quien lo producía: `assignGroup()` (pantalla "Alumnos sin grupo") movía
+> `students/{id}.groupId` sin tocar el `groupIds` del tutor. Un alumno registrado
+> por QR sin grupo se aprueba sin `groupIds` y, si el grupo se asigna después, la
+> familia queda sin alcance para siempre.
+>
+> Corrección: `assignGroup()` lee los alumnos movidos, resuelve sus tutores
+> (`tutorGroupSyncTargets`) y hace `arrayUnion` del grupo en el `users.groupIds`
+> de cada tutor dentro del MISMO batch, conservando los grupos de sus otros
+> hijos. 2 tests JVM nuevos.
+>
+> Dato reparado en producción: la cuenta afectada quedó con
+> `groupIds: ["grp-1a"]`, derivado de su alumno. No se borró ni reescribió nada
+> más. Para futuros alumnos alcanza con reasignar el grupo desde "Alumnos sin
+> grupo" o instalar este APK.
 
 ## Conteo real de grupos en el inicio (2026-11-25)
 
